@@ -305,9 +305,18 @@ export function registerApplicationRoutes(
         taskTemplates: [],
       });
 
+      // Parse optional installed addon IDs (for reconfigure: always include these)
+      const installedParam = req.query.installed as string | undefined;
+      const installedAddonIds = installedParam
+        ? installedParam.split(",").filter(Boolean)
+        : undefined;
+
       // Get compatible addons with extracted parameters from addon templates
       const compatibleAddons =
-        addonService.getCompatibleAddonsWithParameters(application);
+        addonService.getCompatibleAddonsWithParameters(
+          application,
+          installedAddonIds,
+        );
 
       returnResponse<ICompatibleAddonsResponse>(res, {
         addons: compatibleAddons,

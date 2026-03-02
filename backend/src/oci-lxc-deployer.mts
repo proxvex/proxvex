@@ -2,14 +2,13 @@
 import path from "node:path";
 import http from "node:http";
 import express from "express";
-import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
 import { PersistenceManager } from "./persistence/persistence-manager.mjs";
 import { exec as execCommand } from "./lxc-exec.mjs";
 import { validateAllJson, ValidationError } from "./validateAllJson.mjs";
 import { DocumentationGenerator } from "./documentation-generator.mjs";
 import { VEWebApp } from "./webapp/webapp.mjs";
-import { CertificateAuthorityService } from "./services/certificate-authority-service.mjs";
 import type { TaskType } from "./types.mjs";
 import { createLogger } from "./logger/index.mjs";
 
@@ -164,29 +163,16 @@ async function startWebApp(
   const webApp = new VEWebApp(contextManager);
   const httpPort = process.env.DEPLOYER_PORT || process.env.PORT || 3080;
   const httpsPort = process.env.DEPLOYER_HTTPS_PORT || 3443;
-  const sslGenerate = process.env.DEPLOYER_SSL_GENERATE === "true";
 
-  // Check if SSL certificate exists in StorageContext, optionally generate
+  // Check if SSL certificates exist in the addon certs volume
   let httpsEnabled = false;
-  const caService = new CertificateAuthorityService(contextManager);
-  const currentHostname = hostname();
+  const certPath = "/etc/ssl/addon/server.crt";
+  const keyPath = "/etc/ssl/addon/server.key";
 
-  if (!caService.hasServerCert(currentHostname) && sslGenerate) {
-    const veContext = contextManager.getCurrentVEContext();
-    if (veContext) {
-      logger.info("Generating server certificate...", { hostname: currentHostname });
-      caService.generateSelfSignedCert(veContext.getKey(), currentHostname);
-      logger.info("Server certificate generated and stored in context");
-    } else {
-      logger.warn("Cannot generate server certificate: no VE context configured");
-    }
-  }
-
-  const serverCert = caService.getServerCert(currentHostname);
-  if (serverCert) {
+  if (existsSync(certPath) && existsSync(keyPath)) {
     try {
-      const key = Buffer.from(serverCert.key, "base64").toString("utf-8");
-      const cert = Buffer.from(serverCert.cert, "base64").toString("utf-8");
+      const cert = readFileSync(certPath, "utf-8");
+      const key = readFileSync(keyPath, "utf-8");
       const httpsServer = webApp.createHttpsServer({ key, cert });
       httpsServer.listen(httpsPort, () => {
         logger.info("HTTPS server started", { port: httpsPort });

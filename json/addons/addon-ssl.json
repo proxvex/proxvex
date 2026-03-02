@@ -4,9 +4,24 @@
   "tags": ["security", "network"],
 
   "compatible_with": "*",
-  "required_parameters": ["http_port", "https_port"],
 
   "parameters": [
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "required": true,
+      "default": "80",
+      "description": "The HTTP port of the application to be proxied."
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "required": true,
+      "default": "443",
+      "description": "The HTTPS port to listen on."
+    },
     {
       "id": "addon_ssl_mode",
       "name": "SSL Mode",
