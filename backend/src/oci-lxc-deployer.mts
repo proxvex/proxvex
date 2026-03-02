@@ -3,7 +3,7 @@ import path from "node:path";
 import http from "node:http";
 import express from "express";
 import { fileURLToPath } from "node:url";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { PersistenceManager } from "./persistence/persistence-manager.mjs";
 import { exec as execCommand } from "./lxc-exec.mjs";
 import { validateAllJson, ValidationError } from "./validateAllJson.mjs";
@@ -163,16 +163,32 @@ async function startWebApp(
   const webApp = new VEWebApp(contextManager);
   const httpPort = process.env.DEPLOYER_PORT || process.env.PORT || 3080;
   const httpsPort = process.env.DEPLOYER_HTTPS_PORT || 3443;
+  logger.info("Server configuration", { httpPort, httpsPort });
 
   // Check if SSL certificates exist in the addon certs volume
   let httpsEnabled = false;
   const certPath = "/etc/ssl/addon/server.crt";
   const keyPath = "/etc/ssl/addon/server.key";
+  const certDirExists = existsSync("/etc/ssl/addon");
+  const certExists = existsSync(certPath);
+  const keyExists = existsSync(keyPath);
+  if (certDirExists) {
+    try {
+      const dirContents = readdirSync("/etc/ssl/addon");
+      logger.info("SSL addon volume contents", { path: "/etc/ssl/addon", files: dirContents });
+    } catch (e: any) {
+      logger.warn("SSL addon volume not readable", { error: e?.message });
+    }
+  } else {
+    logger.info("SSL addon volume not mounted", { path: "/etc/ssl/addon" });
+  }
+  logger.info("SSL certificate check", { certPath, certExists, keyPath, keyExists });
 
-  if (existsSync(certPath) && existsSync(keyPath)) {
+  if (certExists && keyExists) {
     try {
       const cert = readFileSync(certPath, "utf-8");
       const key = readFileSync(keyPath, "utf-8");
+      logger.info("SSL certificates loaded", { certBytes: cert.length, keyBytes: key.length });
       const httpsServer = webApp.createHttpsServer({ key, cert });
       httpsServer.listen(httpsPort, () => {
         logger.info("HTTPS server started", { port: httpsPort });
@@ -181,6 +197,8 @@ async function startWebApp(
     } catch (err: any) {
       logger.error("Failed to start HTTPS server", { error: err?.message });
     }
+  } else {
+    logger.info("HTTPS disabled: certificate files not found");
   }
 
   let httpFallbackServer: http.Server | undefined;

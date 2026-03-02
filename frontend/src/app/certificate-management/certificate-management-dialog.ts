@@ -8,6 +8,9 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { FormsModule } from '@angular/forms';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
 import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
@@ -25,6 +28,9 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
     MatProgressSpinnerModule,
     MatTableModule,
     MatTooltipModule,
+    MatFormFieldModule,
+    MatInputModule,
+    FormsModule,
   ],
   template: `
     <h2 mat-dialog-title>Certificate Management</h2>
@@ -43,6 +49,13 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
         } @else {
           <p class="no-ca-hint">No CA configured</p>
         }
+        <mat-form-field class="domain-suffix-field" appearance="outline">
+          <mat-label>Domain Suffix</mat-label>
+          <input matInput [ngModel]="domainSuffix()" (ngModelChange)="domainSuffix.set($event)"
+            (blur)="saveDomainSuffix()" placeholder=".local">
+          <mat-hint>FQDN = hostname + suffix (e.g. myhost{{ domainSuffix() }})</mat-hint>
+        </mat-form-field>
+
         <div class="ca-actions">
           <button mat-stroked-button (click)="importCa()" [disabled]="loadingCa()">
             <mat-icon>upload_file</mat-icon>
@@ -189,6 +202,11 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
       }
     }
 
+    .domain-suffix-field {
+      width: 280px;
+      margin-bottom: 0.5rem;
+    }
+
     .ca-actions, .pve-actions, .renewal-actions {
       display: flex;
       gap: 0.5rem;
@@ -239,6 +257,7 @@ export class CertificateManagementDialog implements OnInit {
   private errorHandler = inject(ErrorHandlerService);
 
   caInfo = signal<ICaInfoResponse | null>(null);
+  domainSuffix = signal('.local');
   pveStatus = signal<ICertificateStatus | null>(null);
   certificates = signal<ICertificateStatus[]>([]);
   selectedCerts = signal<ICertificateStatus[]>([]);
@@ -260,6 +279,9 @@ export class CertificateManagementDialog implements OnInit {
     this.configService.getCaInfo().subscribe({
       next: (info) => {
         this.caInfo.set(info);
+        if (info.domain_suffix) {
+          this.domainSuffix.set(info.domain_suffix);
+        }
         this.loadingCa.set(false);
       },
       error: () => { this.loadingCa.set(false); }
@@ -325,6 +347,14 @@ export class CertificateManagementDialog implements OnInit {
     });
 
     keyInput.click();
+  }
+
+  saveDomainSuffix(): void {
+    const suffix = this.domainSuffix();
+    if (!suffix) return;
+    this.configService.postDomainSuffix(suffix).subscribe({
+      error: (err) => this.errorHandler.handleError('Failed to save domain suffix', err)
+    });
   }
 
   generateCa(): void {

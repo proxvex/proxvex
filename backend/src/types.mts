@@ -202,6 +202,7 @@ export enum ApiUri {
   CertificateCaGenerate = "/api/ve/certificates/ca/generate/:veContext",
   CertificatePveStatus = "/api/ve/certificates/pve/:veContext",
   CertificatePveProvision = "/api/ve/certificates/pve/provision/:veContext",
+  CertificateDomainSuffix = "/api/ve/certificates/domain-suffix/:veContext",
   // Logger endpoints
   LoggerConfig = "/api/logger/config",
   LoggerLevel = "/api/logger/level/:level",
@@ -663,4 +664,5 @@ export interface ICaInfoResponse {
   subject?: string;
   expiry_date?: string;
   days_remaining?: number;
+  domain_suffix?: string;
 }

@@ -53,6 +53,9 @@ export class WebAppVeMessageManager {
         restartKey,
       };
       this.messages.push(existing);
+    } else {
+      // Always update restartKey so the frontend can restart the latest execution
+      existing.restartKey = restartKey;
     }
     return existing;
   }

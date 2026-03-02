@@ -2,7 +2,7 @@
   "execute_on": "lxc",
   "name": "Inject SSL Proxy Compose",
   "description": "Adds an nginx-ssl-proxy service to the Docker-Compose file and removes external HTTP port mapping. Only runs for Docker-Compose apps with SSL addon enabled.",
-  "skip_if_all_missing": ["compose_project", "addon_ssl_mode"],
+  "skip_if_all_missing": ["compose_project"],
   "parameters": [
     {
       "id": "compose_project",

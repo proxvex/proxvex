@@ -121,6 +121,22 @@ export class CertificateAuthorityService {
     return this.generateCA(veContextKey);
   }
 
+  // --- Domain suffix management (stored per VE context) ---
+
+  private domainSuffixKey(veContextKey: string): string {
+    return `domain_suffix_${veContextKey}`;
+  }
+
+  getDomainSuffix(veContextKey: string): string {
+    const stored = this.contextManager.get<string>(this.domainSuffixKey(veContextKey));
+    return stored || ".local";
+  }
+
+  setDomainSuffix(veContextKey: string, suffix: string): void {
+    this.contextManager.set(this.domainSuffixKey(veContextKey), suffix);
+    logger.info("Domain suffix stored", { veContextKey, suffix });
+  }
+
   // --- Server SSL certificate management (stored by hostname) ---
 
   private serverCertKey(hostName: string): string {

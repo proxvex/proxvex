@@ -1071,6 +1071,7 @@ export class WebAppVeRouteHandlers {
       processedParams.push({ id: "cert_requests", value: certLines.join("\n") });
       processedParams.push({ id: "ca_key_b64", value: ca.key });
       processedParams.push({ id: "ca_cert_b64", value: ca.cert });
+      processedParams.push({ id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) });
     }
   }
 

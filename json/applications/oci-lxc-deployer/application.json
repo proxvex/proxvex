@@ -41,11 +41,7 @@
     { "id": "volume_backup", "value": "true" },
     { "id": "volumes", "default": "config=/config\nsecure=/secure,0700" }
   ],
-  "installation": {
-    "post_start": [
-      "345-post-configure-native-ssl.json"
-    ]
-  },
+  "installation": {},
   "url": "https://github.com/modbus2mqtt/oci-lxc-deployer",
   "documentation": "https://github.com/modbus2mqtt/oci-lxc-deployer/blob/main/README.md",
   "source": "https://github.com/modbus2mqtt/oci-lxc-deployer",

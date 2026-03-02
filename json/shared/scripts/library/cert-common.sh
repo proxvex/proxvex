@@ -37,7 +37,7 @@ cert_check_validity() {
   fi
 
   _seconds=$((_min_days * 86400))
-  if openssl x509 -in "$_cert_path" -checkend "$_seconds" -noout 2>/dev/null; then
+  if openssl x509 -in "$_cert_path" -checkend "$_seconds" -noout >/dev/null 2>/dev/null; then
     return 0
   else
     return 1

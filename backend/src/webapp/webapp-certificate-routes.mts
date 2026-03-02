@@ -32,6 +32,7 @@ export function registerCertificateRoutes(
 
       const caService = new CertificateAuthorityService(storageContext);
       const info: ICaInfoResponse = caService.getCaInfo(veContextKey);
+      info.domain_suffix = caService.getDomainSuffix(veContextKey);
       res.status(200).json(info);
     } catch (err: any) {
       sendErrorResponse(res, err);
@@ -219,7 +220,7 @@ export function registerCertificateRoutes(
         { id: "cert_renew_requests", value: renewLines.join("\n") },
         { id: "ca_key_b64", value: ca.key },
         { id: "ca_cert_b64", value: ca.cert },
-        { id: "domain_suffix", value: ".local" },
+        { id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) },
       ];
 
       const ve = new VeExecution(
@@ -314,6 +315,29 @@ export function registerCertificateRoutes(
     }
   });
 
+  // POST /api/ve/certificates/domain-suffix/:veContext - Save domain suffix
+  app.post(ApiUri.CertificateDomainSuffix, express.json(), (req, res) => {
+    try {
+      const veContextKey = String(req.params.veContext || "").trim();
+      if (!veContextKey) {
+        res.status(400).json({ error: "Missing veContext" });
+        return;
+      }
+
+      const suffix = (req.body as any)?.domain_suffix;
+      if (typeof suffix !== "string" || suffix.length === 0) {
+        res.status(400).json({ error: "Missing or invalid domain_suffix" });
+        return;
+      }
+
+      const caService = new CertificateAuthorityService(storageContext);
+      caService.setDomainSuffix(veContextKey, suffix);
+      res.status(200).json({ success: true, domain_suffix: suffix });
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
   // POST /api/ve/certificates/pve/:veContext - Provision PVE host cert
   app.post(ApiUri.CertificatePveProvision, express.json(), async (req, res) => {
     try {
@@ -336,7 +360,7 @@ export function registerCertificateRoutes(
       }
 
       const ca = caService.getCA(veContextKey)!;
-      const domainSuffix = (req.body as any)?.domain_suffix || ".local";
+      const domainSuffix = caService.getDomainSuffix(veContextKey);
       const fqdn = `${veContext.host}${domainSuffix}`;
 
       const repositories = pm.getRepositories();
