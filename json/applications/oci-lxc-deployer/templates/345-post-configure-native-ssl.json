@@ -1,0 +1,20 @@
+{
+  "execute_on": "lxc",
+  "name": "Configure Native SSL",
+  "description": "Links SSL addon certificates to the deployer's secure volume so the webapp can use them for HTTPS.",
+  "skip_if_all_missing": ["addon_ssl_mode"],
+  "parameters": [
+    {
+      "id": "addon_ssl_mode",
+      "name": "SSL Mode",
+      "type": "string",
+      "required": true,
+      "description": "SSL mode: proxy or native"
+    }
+  ],
+  "commands": [{
+    "name": "Configure Native SSL",
+    "script": "post-configure-native-ssl.sh",
+    "description": "Create on-start script that links addon certs to deployer secure volume"
+  }]
+}

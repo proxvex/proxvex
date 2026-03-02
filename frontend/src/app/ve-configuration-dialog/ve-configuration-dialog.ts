@@ -133,6 +133,9 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         this.loading.set(false);
         this.loadEnumValues();
 
+        // Re-apply addon filtering now that parameters are loaded
+        this.applyRequiredParametersFilter();
+
         // Detect certtype parameters for SSL toggle
         this.hasCertTypeParams = this.unresolvedParameters.some(p => p.certtype);
         if (this.hasCertTypeParams) {
@@ -227,7 +230,8 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.addonsLoading.set(true);
     this.configService.getCompatibleAddons(this.data.app.id).subscribe({
       next: (res) => {
-        this.availableAddons = res.addons;
+        this._allCompatibleAddons = res.addons;
+        this.applyRequiredParametersFilter();
         this.addonsLoading.set(false);
       },
       error: () => {
@@ -235,6 +239,19 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         // Just set loading to false and continue without addons
         this.addonsLoading.set(false);
       }
+    });
+  }
+
+  /** All addons from backend before required_parameters filtering */
+  private _allCompatibleAddons: IAddonWithParameters[] = [];
+
+  /** Filter addons by required_parameters against loaded unresolved parameters */
+  applyRequiredParametersFilter(): void {
+    this.availableAddons = this._allCompatibleAddons.filter(addon => {
+      if (!addon.required_parameters?.length) return true;
+      return addon.required_parameters.every(paramId =>
+        this.unresolvedParameters.some(p => p.id === paramId),
+      );
     });
   }
 

@@ -387,7 +387,12 @@ export class SummaryStepComponent {
         this.installParameters = res.unresolvedParameters;
         this.installParametersGrouped = this.groupByTemplate(res.unresolvedParameters);
         this.cachedGroupNames = Object.keys(this.installParametersGrouped);
-        this.availableAddons = res.addons ?? [];
+        this.availableAddons = (res.addons ?? []).filter(addon => {
+          if (!addon.required_parameters?.length) return true;
+          return addon.required_parameters.every(paramId =>
+            res.unresolvedParameters.some(p => p.id === paramId),
+          );
+        });
         this.setupEditableForm(res.unresolvedParameters);
         this.loadStacks();
         this.loading = false;

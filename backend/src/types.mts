@@ -486,6 +486,8 @@ export interface IAddon {
   tags?: string[];
   /** Application IDs, 'tag:<tag-id>' or '*' for all */
   compatible_with: string[] | "*";
+  /** Parameter IDs that must exist in the application for this addon to be compatible */
+  required_parameters?: string[];
   /** User-configurable parameters defined directly in addon JSON */
   parameters?: IParameter[];
   /** Fixed property values set by this addon (same format as template command properties) */

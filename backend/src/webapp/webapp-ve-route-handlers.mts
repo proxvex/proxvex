@@ -256,8 +256,24 @@ export class WebAppVeRouteHandlers {
         contextManager,
       );
 
+      // Merge addon certtype parameters into the parameter list for cert injection
+      let allCertParameters: IParameter[] = [...loaded.parameters];
+      if (selectedAddons.length > 0) {
+        const addonService = PersistenceManager.getInstance().getAddonService();
+        for (const addonId of selectedAddons) {
+          try {
+            const addon = addonService.getAddon(addonId);
+            if (addon.parameters) {
+              allCertParameters.push(
+                ...addon.parameters.filter(p => p.certtype && p.upload),
+              );
+            }
+          } catch { /* addon not found, skip */ }
+        }
+      }
+
       // Auto-generate certificate parameters for certtype params without user upload
-      this.injectCertificateRequests(processedParams, loaded.parameters, contextManager, veContextKey, body.sslDisabled);
+      this.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey, body.sslDisabled);
 
       // Start ProxmoxExecution
       const inputs = processedParams.map((p) => ({

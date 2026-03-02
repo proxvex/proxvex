@@ -12,6 +12,11 @@
       ],
       "default": "*"
     },
+    "required_parameters": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Parameter IDs that must exist in the application for this addon to be compatible."
+    },
     "volumes": {
       "type": "array",
       "items": {

@@ -35,6 +35,14 @@
           "value": "lxc"
         },
         {
+          "id": "http_port",
+          "value": "3000"
+        },
+        {
+          "id": "https_port",
+          "value": "3443"
+        },
+        {
           "id": "volume_backup",
           "value": "true"
         },

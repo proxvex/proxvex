@@ -1,0 +1,22 @@
+{
+  "execute_on": "ve",
+  "name": "Write Uploaded Certificates",
+  "description": "Writes manually uploaded SSL certificates to the addon volume, overriding auto-generated certificates.",
+  "skip_if_all_missing": ["addon_ssl_cert"],
+  "parameters": [
+    { "id": "addon_ssl_cert", "name": "Server Certificate", "type": "string" },
+    { "id": "addon_ssl_key", "name": "Server Private Key", "type": "string", "secure": true },
+    { "id": "shared_volpath", "name": "Shared Volume Path", "type": "string", "required": true },
+    { "id": "hostname", "name": "Hostname", "type": "string", "required": true },
+    { "id": "uid", "name": "UID", "type": "string", "default": "0", "advanced": true },
+    { "id": "gid", "name": "GID", "type": "string", "default": "0", "advanced": true },
+    { "id": "mapped_uid", "name": "Mapped UID", "type": "string", "advanced": true },
+    { "id": "mapped_gid", "name": "Mapped GID", "type": "string", "advanced": true }
+  ],
+  "commands": [{
+    "name": "Write Uploaded Certificates",
+    "script": "conf-write-uploaded-certs.sh",
+    "description": "Write uploaded cert and key to the certs volume",
+    "outputs": ["uploaded_certs_written"]
+  }]
+}

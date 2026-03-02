@@ -1,0 +1,80 @@
+{
+  "name": "SSL/HTTPS",
+  "description": "Enable HTTPS via nginx reverse proxy or native app configuration.",
+  "tags": ["security", "network"],
+
+  "compatible_with": "*",
+  "required_parameters": ["http_port", "https_port"],
+
+  "parameters": [
+    {
+      "id": "addon_ssl_mode",
+      "name": "SSL Mode",
+      "type": "enum",
+      "required": true,
+      "default": "proxy",
+      "enumValues": [
+        { "name": "Proxy (nginx)", "value": "proxy" },
+        { "name": "Native", "value": "native" }
+      ],
+      "description": "Proxy: nginx reverse proxy handles HTTPS. Native: app configures HTTPS itself."
+    },
+    {
+      "id": "addon_ssl_cert",
+      "name": "Server Certificate",
+      "type": "string",
+      "upload": true,
+      "certtype": "server",
+      "description": "PEM certificate (auto-generated if SSL enabled and not uploaded)"
+    },
+    {
+      "id": "addon_ssl_key",
+      "name": "Server Private Key",
+      "type": "string",
+      "upload": true,
+      "secure": true,
+      "description": "PEM private key (auto-generated if SSL enabled and not uploaded)"
+    }
+  ],
+
+  "properties": [
+    { "id": "addon_volumes", "value": "certs=/etc/ssl/addon,0700,0:0" }
+  ],
+
+  "installation": {
+    "pre_start": [
+      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
+      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
+      { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
+      { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
+    ],
+    "post_start": [
+      "332-post-install-on-start-dispatcher.json",
+      { "name": "325-post-inject-ssl-proxy-compose.json", "after": "320-post-upload-docker-compose-files.json" },
+      "340-post-install-ssl-proxy-on-start.json"
+    ]
+  },
+
+  "reconfigure": {
+    "pre_start": [
+      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
+      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
+      { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
+      { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
+    ],
+    "post_start": [
+      "332-post-install-on-start-dispatcher.json",
+      { "name": "325-post-inject-ssl-proxy-compose.json", "after": "320-post-upload-docker-compose-files.json" },
+      "340-post-install-ssl-proxy-on-start.json"
+    ]
+  },
+
+  "upgrade": [
+    "332-post-install-on-start-dispatcher.json",
+    "340-post-install-ssl-proxy-on-start.json"
+  ],
+
+  "notes_key": "ssl"
+}

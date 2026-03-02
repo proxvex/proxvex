@@ -1,0 +1,15 @@
+{
+  "name": "PostgREST",
+  "description": "PostgreSQL REST API server - automatically creates a RESTful API from a PostgreSQL database",
+  "extends": "docker-compose",
+  "icon": "icon.svg",
+  "tags": ["api", "database"],
+  "installation": {
+    "image": [
+      {
+        "name": "postgrest-parameters.json",
+        "before": "101-host-check-docker-image.json"
+      }
+    ]
+  }
+}

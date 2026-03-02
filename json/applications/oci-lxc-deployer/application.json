@@ -10,6 +10,9 @@
         "name": "oci-lxc-deployer-parameters.json",
         "before": "011-host-get-oci-image.json"
       }
+    ],
+    "post_start": [
+      "345-post-configure-native-ssl.json"
     ]
   },
   "url": "https://github.com/modbus2mqtt/oci-lxc-deployer",

@@ -553,4 +553,28 @@ describe("AddonService", () => {
       expect(param?.description).toBe("Original description");
     });
   });
+
+  describe("required_parameters", () => {
+    it("should include required_parameters in loaded addon", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "ssl-test.json",
+        createAddonJson({
+          required_parameters: ["http_port", "https_port"],
+        }),
+      );
+      const addon = service.getAddon("ssl-test");
+      expect(addon.required_parameters).toEqual(["http_port", "https_port"]);
+    });
+
+    it("should return required_parameters as undefined when not set", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "no-req-params.json",
+        createAddonJson(),
+      );
+      const addon = service.getAddon("no-req-params");
+      expect(addon.required_parameters).toBeUndefined();
+    });
+  });
 });

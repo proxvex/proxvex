@@ -22,10 +22,11 @@ interface TemplateJson {
 }
 
 export class TemplateTestHelper {
+  private sshBaseArgs: string[];
   private sshArgs: string[];
 
   constructor(private config: TemplateTestConfig) {
-    this.sshArgs = [
+    this.sshBaseArgs = [
       "-o",
       "StrictHostKeyChecking=no",
       "-o",
@@ -35,8 +36,8 @@ export class TemplateTestHelper {
       "-p",
       String(config.sshPort),
       `root@${config.host}`,
-      "sh",
     ];
+    this.sshArgs = [...this.sshBaseArgs, "sh"];
   }
 
   prepareScript(opts: {
@@ -141,7 +142,7 @@ export class TemplateTestHelper {
   ): Promise<TemplateTestResult> {
     const result = await spawnAsync(
       "ssh",
-      [...this.sshArgs, `pct exec ${vmId} sh`],
+      [...this.sshBaseArgs, `pct exec ${vmId} -- sh`],
       { input: script, timeout },
     );
 

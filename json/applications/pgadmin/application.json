@@ -1,0 +1,15 @@
+{
+  "name": "pgAdmin",
+  "description": "Web-based administration and development platform for PostgreSQL",
+  "extends": "oci-image",
+  "icon": "icon.svg",
+  "tags": ["database"],
+  "installation": {
+    "image": [
+      {
+        "name": "pgadmin-parameters.json",
+        "before": "011-host-get-oci-image.json"
+      }
+    ]
+  }
+}
