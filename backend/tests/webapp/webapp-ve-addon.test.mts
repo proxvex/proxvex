@@ -829,13 +829,6 @@ describe("WebAppVE Addon Integration", () => {
         ],
       });
 
-      // Enable SSL for the VE context
-      const { CertificateAuthorityService } = await import(
-        "@src/services/certificate-authority-service.mjs"
-      );
-      const caService = new CertificateAuthorityService(storageContext);
-      caService.setSslEnabled(veContextKey, true);
-
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
         .replace(":task", "installation")
         .replace(":veContext", veContextKey);
@@ -854,38 +847,5 @@ describe("WebAppVE Addon Integration", () => {
       expect(response.body.success).toBe(true);
     });
 
-    it("should not inject cert_requests when ssl is disabled", async () => {
-      writeAddon(helper.jsonDir, "ssl-addon", {
-        name: "SSL Addon",
-        description: "Addon with certtype parameter",
-        compatible_with: "*",
-        notes_key: "ssl",
-        parameters: [
-          {
-            id: "addon_ssl_cert",
-            name: "Server Certificate",
-            type: "string",
-            upload: true,
-            certtype: "server",
-          },
-        ],
-      });
-
-      const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
-        .replace(":veContext", veContextKey);
-
-      const response = await request(app)
-        .post(url)
-        .send({
-          params: [{ name: "hostname", value: "testhost" }],
-          changedParams: [{ name: "hostname", value: "testhost" }],
-          selectedAddons: ["ssl-addon"],
-          sslDisabled: true,
-        } as IPostVeConfigurationBody);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-    });
   });
 });

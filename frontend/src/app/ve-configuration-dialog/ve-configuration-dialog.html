@@ -35,13 +35,6 @@
 				<div class="missing-required-task">Task key: {{ taskKey }}</div>
 			</div>
 		}
-		@if (hasCertTypeParams) {
-			<div class="ssl-toggle-section">
-				<mat-checkbox [checked]="!sslDisabledForApp" (change)="sslDisabledForApp = !$event.checked">
-					Enable SSL certificate auto-generation
-				</mat-checkbox>
-			</div>
-		}
 		<div class="group-container">
 			<app-addon-section
 				[availableAddons]="availableAddons"

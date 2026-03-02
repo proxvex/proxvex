@@ -554,6 +554,102 @@ describe("AddonService", () => {
     });
   });
 
+  describe("getCompatibleAddonsWithParameters() - app property filtering", () => {
+    it("should remove addon parameters that the app sets via properties", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "ssl-filter.json",
+        createAddonJson({
+          name: "SSL Addon",
+          notes_key: "ssl-filter",
+          compatible_with: "*",
+          required_parameters: ["http_port", "https_port"],
+          parameters: [
+            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true, default: "proxy" },
+            { id: "addon_ssl_cert", name: "Certificate", type: "string" },
+            { id: "addon_ssl_key", name: "Key", type: "string" },
+          ],
+        }),
+      );
+
+      const app = createApplication({
+        id: "native-app",
+        parameters: [
+          { id: "http_port", name: "HTTP Port", type: "string" },
+          { id: "https_port", name: "HTTPS Port", type: "string" },
+        ],
+        properties: [
+          { id: "addon_ssl_mode", value: "native" },
+        ],
+      });
+
+      const result = service.getCompatibleAddonsWithParameters(app);
+      expect(result).toHaveLength(1);
+      const paramIds = result[0].parameters?.map((p) => p.id) ?? [];
+      expect(paramIds).not.toContain("addon_ssl_mode");
+      expect(paramIds).toContain("addon_ssl_cert");
+      expect(paramIds).toContain("addon_ssl_key");
+    });
+
+    it("should keep all addon parameters when app has no matching properties", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "ssl-nofilter.json",
+        createAddonJson({
+          name: "SSL Addon",
+          notes_key: "ssl-nofilter",
+          compatible_with: "*",
+          required_parameters: ["http_port", "https_port"],
+          parameters: [
+            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true },
+            { id: "addon_ssl_cert", name: "Certificate", type: "string" },
+          ],
+        }),
+      );
+
+      const app = createApplication({
+        id: "generic-app",
+        parameters: [
+          { id: "http_port", name: "HTTP Port", type: "string" },
+          { id: "https_port", name: "HTTPS Port", type: "string" },
+        ],
+      });
+
+      const result = service.getCompatibleAddonsWithParameters(app);
+      expect(result).toHaveLength(1);
+      const paramIds = result[0].parameters?.map((p) => p.id) ?? [];
+      expect(paramIds).toContain("addon_ssl_mode");
+      expect(paramIds).toContain("addon_ssl_cert");
+    });
+
+    it("should not filter parameters set via properties with default (only value)", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "ssl-default.json",
+        createAddonJson({
+          name: "SSL Addon",
+          notes_key: "ssl-default",
+          compatible_with: "*",
+          parameters: [
+            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true },
+          ],
+        }),
+      );
+
+      const app = createApplication({
+        id: "default-app",
+        properties: [
+          { id: "addon_ssl_mode", default: "proxy" },
+        ],
+      });
+
+      const result = service.getCompatibleAddonsWithParameters(app);
+      expect(result).toHaveLength(1);
+      const paramIds = result[0].parameters?.map((p) => p.id) ?? [];
+      expect(paramIds).toContain("addon_ssl_mode");
+    });
+  });
+
   describe("required_parameters", () => {
     it("should include required_parameters in loaded addon", () => {
       persistenceHelper.writeJsonSync(
@@ -575,6 +671,116 @@ describe("AddonService", () => {
       );
       const addon = service.getAddon("no-req-params");
       expect(addon.required_parameters).toBeUndefined();
+    });
+
+    it("should be compatible when app defines required_parameters as parameters", () => {
+      const addon = createAddonJson({
+        compatible_with: "*",
+        required_parameters: ["http_port", "https_port"],
+      });
+      const app = createApplication({
+        id: "oci-lxc-deployer",
+        parameters: [
+          { id: "http_port", name: "HTTP Port", type: "string", default: "3000" },
+          { id: "https_port", name: "HTTPS Port", type: "string", default: "3443" },
+        ],
+      });
+
+      expect(service.isAddonCompatible(addon, app)).toBe(true);
+    });
+
+    it("should be compatible when app defines required_parameters as properties", () => {
+      const addon = createAddonJson({
+        compatible_with: "*",
+        required_parameters: ["http_port", "https_port"],
+      });
+      const app = createApplication({
+        id: "oci-lxc-deployer",
+        properties: [
+          { id: "http_port", value: "{{http_port}}" },
+          { id: "https_port", value: "{{https_port}}" },
+        ],
+      });
+
+      expect(service.isAddonCompatible(addon, app)).toBe(true);
+    });
+
+    it("should be incompatible when app is missing a required parameter", () => {
+      const addon = createAddonJson({
+        compatible_with: "*",
+        required_parameters: ["http_port", "https_port"],
+      });
+      const app = createApplication({
+        id: "simple-app",
+        parameters: [
+          { id: "http_port", name: "HTTP Port", type: "string" },
+        ],
+      });
+
+      expect(service.isAddonCompatible(addon, app)).toBe(false);
+    });
+
+    it("should be incompatible when app has no parameters at all", () => {
+      const addon = createAddonJson({
+        compatible_with: "*",
+        required_parameters: ["http_port"],
+      });
+      const app = createApplication({ id: "minimal-app" });
+
+      expect(service.isAddonCompatible(addon, app)).toBe(false);
+    });
+
+    it("should filter out addons with unmet required_parameters in getCompatibleAddons", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "ssl-addon.json",
+        createAddonJson({
+          name: "SSL Addon",
+          notes_key: "ssl-addon",
+          compatible_with: "*",
+          required_parameters: ["http_port", "https_port"],
+        }),
+      );
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "basic-addon.json",
+        createAddonJson({
+          name: "Basic Addon",
+          notes_key: "basic-addon",
+          compatible_with: "*",
+        }),
+      );
+
+      // App without http_port/https_port - SSL addon should be filtered out
+      const simpleApp = createApplication({ id: "simple-app" });
+      const result = service.getCompatibleAddons(simpleApp);
+
+      expect(result.map((a) => a.name)).toContain("Basic Addon");
+      expect(result.map((a) => a.name)).not.toContain("SSL Addon");
+    });
+
+    it("should include addons with met required_parameters in getCompatibleAddons", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "ssl-addon.json",
+        createAddonJson({
+          name: "SSL Addon",
+          notes_key: "ssl-addon",
+          compatible_with: "*",
+          required_parameters: ["http_port", "https_port"],
+        }),
+      );
+
+      const app = createApplication({
+        id: "web-app",
+        parameters: [
+          { id: "http_port", name: "HTTP Port", type: "string" },
+          { id: "https_port", name: "HTTPS Port", type: "string" },
+        ],
+      });
+      const result = service.getCompatibleAddons(app);
+
+      expect(result.map((a) => a.name)).toContain("SSL Addon");
     });
   });
 });

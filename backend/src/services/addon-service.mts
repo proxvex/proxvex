@@ -58,13 +58,31 @@ export class AddonService {
   }
 
   /**
-   * Returns addons compatible with the given application, including extracted parameters
+   * Returns addons compatible with the given application, including extracted parameters.
+   * Parameters already set by the application's properties (with value) are removed
+   * from the addon's parameter list so they don't appear in the UI.
    */
   getCompatibleAddonsWithParameters(
     application: IApplication,
   ): IAddonWithParameters[] {
+    // Collect parameter IDs that the application resolves via properties with value
+    const appResolvedIds = new Set<string>();
+    for (const prop of application.properties ?? []) {
+      if (prop.value !== undefined) {
+        appResolvedIds.add(prop.id);
+      }
+    }
+
     const compatibleAddons = this.getCompatibleAddons(application);
-    return compatibleAddons.map((addon) => this.extractAddonParameters(addon));
+    return compatibleAddons.map((addon) => {
+      const withParams = this.extractAddonParameters(addon);
+      if (withParams.parameters && appResolvedIds.size > 0) {
+        withParams.parameters = withParams.parameters.filter(
+          (p) => !appResolvedIds.has(p.id),
+        );
+      }
+      return withParams;
+    });
   }
 
   /**
@@ -180,6 +198,16 @@ export class AddonService {
    * - "tag:<tag-id>" matches application tags
    */
   isAddonCompatible(addon: IAddon, application: IApplication): boolean {
+    // Check required_parameters: application must define all of them
+    if (addon.required_parameters?.length) {
+      const appParamIds = new Set<string>();
+      for (const p of application.parameters ?? []) appParamIds.add(p.id);
+      for (const p of application.properties ?? []) appParamIds.add(p.id);
+      if (!addon.required_parameters.every((id) => appParamIds.has(id))) {
+        return false;
+      }
+    }
+
     // Wildcard matches all
     if (addon.compatible_with === "*") {
       return true;

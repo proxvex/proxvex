@@ -277,7 +277,7 @@ export class WebAppVeRouteHandlers {
       }
 
       // Auto-generate certificate parameters for certtype params without user upload
-      this.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey, body.sslDisabled);
+      this.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey);
 
       // Start ProxmoxExecution
       const inputs = processedParams.map((p) => ({
@@ -890,13 +890,8 @@ export class WebAppVeRouteHandlers {
     loadedParameters: IParameter[],
     contextManager: import("@src/context-manager.mjs").ContextManager,
     veContextKey: string,
-    sslDisabled?: boolean,
   ): void {
-    const caService = new CertificateAuthorityService(contextManager);
-    const globalSslEnabled = caService.getSslEnabled(veContextKey);
-    const effectiveSslEnabled = sslDisabled === true ? false : globalSslEnabled;
-    if (!effectiveSslEnabled) return;
-
+    // SSL is enabled whenever certtype parameters are present (from SSL addon)
     const certParams = loadedParameters.filter((p) => p.certtype && p.upload);
     if (certParams.length === 0) return;
 

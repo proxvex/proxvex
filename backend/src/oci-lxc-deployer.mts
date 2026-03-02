@@ -197,6 +197,8 @@ async function startWebApp(
     }
   }
 
+  let httpFallbackServer: http.Server | undefined;
+
   if (httpsEnabled) {
     // HTTPS active: HTTP server becomes a redirect-only server
     const redirectApp = express();
@@ -215,24 +217,34 @@ async function startWebApp(
     webApp.httpServer.listen(httpPort, () => {
       logger.info("HTTP server started", { port: httpPort });
     });
+
+    // Also listen on the HTTPS port via HTTP so it doesn't refuse connections
+    if (String(httpsPort) !== String(httpPort)) {
+      httpFallbackServer = http.createServer(webApp.app);
+      httpFallbackServer.listen(httpsPort, () => {
+        logger.info("HTTP fallback server started on HTTPS port (no certificates available)", { port: httpsPort });
+      });
+    }
   }
 
   // Graceful shutdown handlers
+  const servers: http.Server[] = [webApp.httpServer];
+  if (webApp.httpsServer) servers.push(webApp.httpsServer);
+  if (httpFallbackServer) servers.push(httpFallbackServer);
+
   const shutdown = (signal: string) => {
     logger.info("Shutdown initiated", { signal });
     let closedCount = 0;
-    const totalServers = webApp.httpsServer ? 2 : 1;
     const onClosed = () => {
       closedCount++;
-      if (closedCount >= totalServers) {
+      if (closedCount >= servers.length) {
         logger.info("All servers closed");
         process.exit(0);
       }
     };
 
-    webApp.httpServer.close(onClosed);
-    if (webApp.httpsServer) {
-      webApp.httpsServer.close(onClosed);
+    for (const server of servers) {
+      server.close(onClosed);
     }
 
     // Force shutdown after 10 seconds

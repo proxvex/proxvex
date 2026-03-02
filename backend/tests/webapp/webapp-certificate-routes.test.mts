@@ -118,45 +118,4 @@ describe("Certificate API routes", () => {
     });
   });
 
-  describe("GET /api/ve/certificates/ca/:veContext - ssl_enabled", () => {
-    it("should return ssl_enabled=false by default", async () => {
-      const url = ApiUri.CertificateCa.replace(":veContext", veContextKey);
-      const res = await request(app).get(url);
-      expect(res.status).toBe(200);
-      expect(res.body.ssl_enabled).toBe(false);
-    });
-
-    it("should return ssl_enabled=true after toggle", async () => {
-      // Toggle SSL on
-      const toggleUrl = ApiUri.CertificateSslToggle.replace(":veContext", veContextKey);
-      await request(app).post(toggleUrl).send({ ssl_enabled: true });
-
-      const url = ApiUri.CertificateCa.replace(":veContext", veContextKey);
-      const res = await request(app).get(url);
-      expect(res.status).toBe(200);
-      expect(res.body.ssl_enabled).toBe(true);
-    });
-  });
-
-  describe("POST /api/ve/certificates/ssl/:veContext", () => {
-    it("should toggle SSL enabled", async () => {
-      const url = ApiUri.CertificateSslToggle.replace(":veContext", veContextKey);
-      const res = await request(app).post(url).send({ ssl_enabled: true });
-      expect(res.status).toBe(200);
-      expect(res.body.ssl_enabled).toBe(true);
-    });
-
-    it("should reject missing ssl_enabled", async () => {
-      const url = ApiUri.CertificateSslToggle.replace(":veContext", veContextKey);
-      const res = await request(app).post(url).send({});
-      expect(res.status).toBe(400);
-    });
-
-    it("should reject missing veContext", async () => {
-      const url = ApiUri.CertificateSslToggle.replace(":veContext", "");
-      const res = await request(app).post(url).send({ ssl_enabled: true });
-      // Empty veContext should either 400 or 404
-      expect(res.status).toBeGreaterThanOrEqual(400);
-    });
-  });
 });

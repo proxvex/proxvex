@@ -7,7 +7,6 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
@@ -25,7 +24,6 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
     MatCheckboxModule,
     MatProgressSpinnerModule,
     MatTableModule,
-    MatSlideToggleModule,
     MatTooltipModule,
   ],
   template: `
@@ -45,14 +43,6 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
         } @else {
           <p class="no-ca-hint">No CA configured</p>
         }
-        @if (caInfo()?.exists) {
-          <div class="ssl-toggle">
-            <mat-slide-toggle [checked]="sslEnabled()" (change)="onSslToggle($event.checked)">
-              Enable SSL for new installations
-            </mat-slide-toggle>
-            <p class="ssl-hint">When enabled, certificates are auto-generated for apps that support SSL.</p>
-          </div>
-        }
         <div class="ca-actions">
           <button mat-stroked-button (click)="importCa()" [disabled]="loadingCa()">
             <mat-icon>upload_file</mat-icon>
@@ -71,21 +61,7 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
         </div>
       </section>
 
-      <!-- Section 2: Deployer HTTPS Status -->
-      <section class="https-section">
-        <h3>Deployer HTTPS</h3>
-        <div class="https-status">
-          @if (httpsActive) {
-            <span class="status-chip status-ok">ACTIVE</span>
-            <span class="https-label">This page is served over HTTPS</span>
-          } @else {
-            <span class="status-chip status-warning">INACTIVE</span>
-            <span class="https-label">HTTPS not active. Set <code>DEPLOYER_SSL_GENERATE=true</code> and restart.</span>
-          }
-        </div>
-      </section>
-
-      <!-- Section 3: PVE Host Certificate -->
+      <!-- Section 2: PVE Host Certificate -->
       <section class="pve-section">
         <h3>PVE Host Certificate</h3>
         @if (loadingPve()) {
@@ -213,34 +189,6 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
       }
     }
 
-    .https-status {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-
-      .https-label {
-        font-size: 0.9rem;
-        color: #555;
-
-        code {
-          background: #f0f0f0;
-          padding: 1px 4px;
-          border-radius: 3px;
-          font-size: 0.85rem;
-        }
-      }
-    }
-
-    .ssl-toggle {
-      margin: 0.75rem 0;
-
-      .ssl-hint {
-        margin: 0.25rem 0 0 0;
-        font-size: 0.8rem;
-        color: #666;
-      }
-    }
-
     .ca-actions, .pve-actions, .renewal-actions {
       display: flex;
       gap: 0.5rem;
@@ -290,10 +238,7 @@ export class CertificateManagementDialog implements OnInit {
   private configService = inject(VeConfigurationService);
   private errorHandler = inject(ErrorHandlerService);
 
-  httpsActive = location.protocol === 'https:';
-
   caInfo = signal<ICaInfoResponse | null>(null);
-  sslEnabled = signal(false);
   pveStatus = signal<ICertificateStatus | null>(null);
   certificates = signal<ICertificateStatus[]>([]);
   selectedCerts = signal<ICertificateStatus[]>([]);
@@ -315,22 +260,9 @@ export class CertificateManagementDialog implements OnInit {
     this.configService.getCaInfo().subscribe({
       next: (info) => {
         this.caInfo.set(info);
-        this.sslEnabled.set(info.ssl_enabled ?? false);
         this.loadingCa.set(false);
       },
       error: () => { this.loadingCa.set(false); }
-    });
-  }
-
-  onSslToggle(checked: boolean): void {
-    this.configService.postSslToggle({ ssl_enabled: checked }).subscribe({
-      next: (info) => {
-        this.sslEnabled.set(info.ssl_enabled ?? checked);
-      },
-      error: (err) => {
-        this.errorHandler.handleError('Failed to toggle SSL', err);
-        this.sslEnabled.set(!checked);
-      }
     });
   }
 

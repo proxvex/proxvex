@@ -227,28 +227,4 @@ describe("CertificateAuthorityService", () => {
     });
   });
 
-  describe("getSslEnabled() / setSslEnabled()", () => {
-    it("should return false by default", () => {
-      expect(service.getSslEnabled(veContextKey)).toBe(false);
-    });
-
-    it("should persist true after setSslEnabled(true)", () => {
-      service.setSslEnabled(veContextKey, true);
-      expect(service.getSslEnabled(veContextKey)).toBe(true);
-    });
-
-    it("should revert to false after setSslEnabled(false)", () => {
-      service.setSslEnabled(veContextKey, true);
-      expect(service.getSslEnabled(veContextKey)).toBe(true);
-      service.setSslEnabled(veContextKey, false);
-      expect(service.getSslEnabled(veContextKey)).toBe(false);
-    });
-
-    it("should be independent per veContextKey", () => {
-      service.setSslEnabled("ve_host1", true);
-      service.setSslEnabled("ve_host2", false);
-      expect(service.getSslEnabled("ve_host1")).toBe(true);
-      expect(service.getSslEnabled("ve_host2")).toBe(false);
-    });
-  });
 });

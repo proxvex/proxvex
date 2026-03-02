@@ -58,6 +58,12 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     this.pollInterval = setInterval(() => this.fetchMessages(), 5000);
   }
 
+  private resumePolling() {
+    if (!this.pollInterval) {
+      this.startPolling();
+    }
+  }
+
   private fetchMessages() {
     this.veConfigurationService.getExecuteMessages().subscribe({
       next: (msgs) => {
@@ -75,7 +81,12 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   }
 
   private checkAllFinished() {
-    // No longer auto-navigate - user can view logs and navigate manually
+    if (!this.messages || this.messages.length === 0) return;
+    const anyInProgress = this.messages.some(g => this.isInProgress(g));
+    if (!anyInProgress && this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = undefined;
+    }
   }
 
   private mergeMessages(newMsgs: IVeExecuteMessagesResponse) {
@@ -158,6 +169,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
             g => !(g.application === group.application && g.task === group.task)
           );
         }
+        this.resumePolling();
       },
       error: (err) => {
         console.error('Restart failed:', err);
@@ -190,6 +202,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
             g => !(g.application === group.application && g.task === group.task)
           );
         }
+        this.resumePolling();
       },
       error: (err) => {
         console.error('Restart from beginning failed:', err);

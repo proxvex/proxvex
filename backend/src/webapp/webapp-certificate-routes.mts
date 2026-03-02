@@ -6,7 +6,6 @@ import {
   IPostCertRenewBody,
   IPostCertRenewResponse,
   IPostCaImportBody,
-  IPostSslToggleBody,
   ICommand,
 } from "@src/types.mjs";
 import { ContextManager } from "../context-manager.mjs";
@@ -33,32 +32,6 @@ export function registerCertificateRoutes(
 
       const caService = new CertificateAuthorityService(storageContext);
       const info: ICaInfoResponse = caService.getCaInfo(veContextKey);
-      info.ssl_enabled = caService.getSslEnabled(veContextKey);
-      res.status(200).json(info);
-    } catch (err: any) {
-      sendErrorResponse(res, err);
-    }
-  });
-
-  // POST /api/ve/certificates/ssl/:veContext - Toggle SSL enabled/disabled
-  app.post(ApiUri.CertificateSslToggle, express.json(), (req, res) => {
-    try {
-      const veContextKey = String(req.params.veContext || "").trim();
-      if (!veContextKey) {
-        res.status(400).json({ error: "Missing veContext" });
-        return;
-      }
-
-      const body = req.body as IPostSslToggleBody;
-      if (typeof body.ssl_enabled !== "boolean") {
-        res.status(400).json({ error: "Missing or invalid ssl_enabled (boolean required)" });
-        return;
-      }
-
-      const caService = new CertificateAuthorityService(storageContext);
-      caService.setSslEnabled(veContextKey, body.ssl_enabled);
-      const info: ICaInfoResponse = caService.getCaInfo(veContextKey);
-      info.ssl_enabled = body.ssl_enabled;
       res.status(200).json(info);
     } catch (err: any) {
       sendErrorResponse(res, err);
