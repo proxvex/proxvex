@@ -47,6 +47,14 @@
       "additionalProperties": false
     },
     "upgrade": { "$ref": "templatelist" },
+    "disable": {
+      "type": "object",
+      "properties": {
+        "pre_start": { "$ref": "templatelist" },
+        "post_start": { "$ref": "templatelist" }
+      },
+      "additionalProperties": false
+    },
     "notes_key": { "type": "string" }
   },
   "required": ["notes_key"],

@@ -71,6 +71,12 @@
     ]
   },
 
+  "disable": {
+    "post_start": [
+      "345-post-disable-ssl-proxy.json"
+    ]
+  },
+
   "upgrade": [
     "332-post-install-on-start-dispatcher.json",
     "340-post-install-ssl-proxy-on-start.json"

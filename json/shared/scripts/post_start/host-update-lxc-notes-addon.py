@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Update LXC container notes with addon marker.
 
-Adds an addon marker to an existing LXC container's notes/description.
+Adds or removes an addon marker in an existing LXC container's notes/description.
 Runs on the Proxmox VE host.
 
 Parameters (via template substitution):
-  vm_id       - Container ID
-  addon_id    - Addon identifier to add (e.g., "samba-shares")
+  vm_id        - Container ID
+  addon_id     - Addon identifier (e.g., "samba-shares")
+  addon_action - "add" (default) or "remove"
 
 Output:
   JSON with { "id": "success", "value": "true" } on success
@@ -103,6 +104,18 @@ def insert_addon_marker(description: str, addon_id: str) -> str:
     return "\n".join(result_lines)
 
 
+def remove_addon_marker(description: str, addon_id: str) -> str:
+    """Remove addon marker from description if present."""
+    marker_text = f"oci-lxc-deployer:addon {addon_id}"
+
+    if marker_text not in description:
+        return description  # Not present, nothing to do
+
+    lines = description.split("\n")
+    result_lines = [line for line in lines if marker_text not in line]
+    return "\n".join(result_lines)
+
+
 def update_container_description(vm_id: str, new_description: str) -> None:
     """Update the container description using pct set."""
     result = subprocess.run(
@@ -118,6 +131,7 @@ def update_container_description(vm_id: str, new_description: str) -> None:
 def main() -> None:
     vm_id = get_param("vm_id")
     addon_id = get_param("addon_id")
+    addon_action = get_param("addon_action") or "add"
 
     if not vm_id:
         print("Error: vm_id is required", file=sys.stderr)
@@ -134,19 +148,28 @@ def main() -> None:
         # Extract and decode description
         current_desc = extract_description_from_config(conf_text)
 
-        # Check if marker already exists
-        if f"oci-lxc-deployer:addon {addon_id}" in current_desc:
-            print(f"Addon marker already exists for {addon_id}, skipping", file=sys.stderr)
-            print(json.dumps([{"id": "success", "value": "true"}]))
-            return
+        if addon_action == "remove":
+            # Remove addon marker
+            if f"oci-lxc-deployer:addon {addon_id}" not in current_desc:
+                print(f"Addon marker not found for {addon_id}, skipping", file=sys.stderr)
+                print(json.dumps([{"id": "success", "value": "true"}]))
+                return
 
-        # Insert addon marker
-        new_desc = insert_addon_marker(current_desc, addon_id)
+            new_desc = remove_addon_marker(current_desc, addon_id)
+            update_container_description(vm_id, new_desc)
+            print(f"Removed addon marker for {addon_id} from container {vm_id}", file=sys.stderr)
 
-        # Update container
-        update_container_description(vm_id, new_desc)
+        else:
+            # Add addon marker (default)
+            if f"oci-lxc-deployer:addon {addon_id}" in current_desc:
+                print(f"Addon marker already exists for {addon_id}, skipping", file=sys.stderr)
+                print(json.dumps([{"id": "success", "value": "true"}]))
+                return
 
-        print(f"Added addon marker for {addon_id} to container {vm_id}", file=sys.stderr)
+            new_desc = insert_addon_marker(current_desc, addon_id)
+            update_container_description(vm_id, new_desc)
+            print(f"Added addon marker for {addon_id} to container {vm_id}", file=sys.stderr)
+
         print(json.dumps([{"id": "success", "value": "true"}]))
 
     except Exception as e:

@@ -1,0 +1,12 @@
+{
+  "execute_on": "lxc",
+  "name": "Disable Samba",
+  "description": "Removes Samba on-start script and stops smbd/nmbd daemons.",
+  "parameters": [],
+  "commands": [
+    {
+      "script": "post-disable-samba.sh",
+      "description": "Disable Samba addon"
+    }
+  ]
+}

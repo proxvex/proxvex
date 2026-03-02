@@ -23,6 +23,7 @@ export class ParameterFormManager {
   readonly form: FormGroup;
   private readonly initialValues = new Map<string, IParameterValue>();
   private selectedAddons: string[] = [];
+  private disabledAddons: string[] = [];
   private selectedStack: IStack | null = null;
   private hostnameManuallyChanged = false;
 
@@ -73,6 +74,11 @@ export class ParameterFormManager {
   /** Gibt ausgewählte Addons zurück */
   getSelectedAddons(): string[] {
     return this.selectedAddons;
+  }
+
+  /** Sets disabled addons (previously installed, now deselected) */
+  setDisabledAddons(addons: string[]): void {
+    this.disabledAddons = addons;
   }
 
   /**
@@ -189,6 +195,7 @@ export class ParameterFormManager {
       params,
       changedParams.length > 0 ? changedParams : undefined,
       this.selectedAddons.length > 0 ? this.selectedAddons : undefined,
+      this.disabledAddons.length > 0 ? this.disabledAddons : undefined,
       stackId,
     ).pipe(
       tap((res) => {

@@ -848,4 +848,204 @@ describe("WebAppVE Addon Integration", () => {
     });
 
   });
+
+  describe("disabledAddons validation", () => {
+    it("should accept valid disabledAddons array", async () => {
+      helper.writeApplication("testapp", {
+        name: "Test App",
+        description: "Test application",
+        installation: { post_start: ["set-parameters.json"] },
+      });
+
+      helper.writeTemplate("testapp", "set-parameters.json", {
+        execute_on: "ve",
+        name: "Set Parameters",
+        description: "Set parameters",
+        parameters: [
+          {
+            id: "hostname",
+            name: "hostname",
+            type: "string",
+            required: true,
+            description: "Hostname",
+          },
+        ],
+        commands: [
+          {
+            name: "Test Command",
+            command: 'echo \'[{"id": "test", "value": "ok"}]\'',
+          },
+        ],
+      });
+
+      const url = ApiUri.VeConfiguration.replace(":application", "testapp")
+        .replace(":task", "installation")
+        .replace(":veContext", veContextKey);
+
+      const response = await request(app)
+        .post(url)
+        .send({
+          params: [{ name: "hostname", value: "testhost" }],
+          changedParams: [{ name: "hostname", value: "testhost" }],
+          disabledAddons: ["some-addon"],
+        } as IPostVeConfigurationBody);
+
+      // Should not fail on validation
+      expect(response.status).not.toBe(400);
+    });
+
+    it("should reject invalid disabledAddons (not an array)", async () => {
+      const url = ApiUri.VeConfiguration.replace(":application", "testapp")
+        .replace(":task", "installation")
+        .replace(":veContext", veContextKey);
+
+      const response = await request(app)
+        .post(url)
+        .send({
+          params: [{ name: "hostname", value: "testhost" }],
+          disabledAddons: "not-an-array",
+        })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("Invalid disabledAddons");
+    });
+  });
+
+  describe("Addon disable commands", () => {
+    it("should insert disable commands for disabledAddons", async () => {
+      helper.writeApplication("testapp", {
+        name: "Test App",
+        description: "Test application",
+        "addon-reconfigure": { post_start: ["set-parameters.json"] },
+      });
+
+      helper.writeTemplate("testapp", "set-parameters.json", {
+        execute_on: "ve",
+        name: "Set Parameters",
+        description: "Set parameters",
+        parameters: [
+          {
+            id: "hostname",
+            name: "hostname",
+            type: "string",
+            required: true,
+            description: "Hostname",
+          },
+        ],
+        commands: [
+          {
+            name: "Test Command",
+            command: 'echo \'[{"id": "test", "value": "ok"}]\'',
+          },
+        ],
+      });
+
+      // Create addon with disable config
+      writeAddon(setup.env.jsonDir, "test-disable-addon", {
+        name: "Test Disable Addon",
+        compatible_with: "*",
+        notes_key: "test-disable",
+        disable: {
+          post_start: ["post-disable-test.json"],
+        },
+      });
+
+      // Create the disable template
+      const sharedPostStartDir = path.join(
+        setup.env.jsonDir,
+        "shared",
+        "templates",
+        "post_start",
+      );
+      fs.ensureDirSync(sharedPostStartDir);
+      fs.writeFileSync(
+        path.join(sharedPostStartDir, "post-disable-test.json"),
+        JSON.stringify({
+          execute_on: "lxc",
+          name: "Disable Test",
+          commands: [
+            {
+              script: "post-disable-test.sh",
+              description: "Disable test addon",
+            },
+          ],
+        }),
+        "utf-8",
+      );
+
+      // Create the disable script
+      const sharedPostStartScriptDir = path.join(
+        setup.env.jsonDir,
+        "shared",
+        "scripts",
+        "post_start",
+      );
+      fs.ensureDirSync(sharedPostStartScriptDir);
+      fs.writeFileSync(
+        path.join(sharedPostStartScriptDir, "post-disable-test.sh"),
+        '#!/bin/sh\necho "disabled" >&2',
+        "utf-8",
+      );
+
+      const url = ApiUri.VeConfiguration.replace(":application", "testapp")
+        .replace(":task", "addon-reconfigure")
+        .replace(":veContext", veContextKey);
+
+      const response = await request(app)
+        .post(url)
+        .send({
+          params: [{ name: "hostname", value: "testhost" }],
+          changedParams: [{ name: "hostname", value: "testhost" }],
+          disabledAddons: ["test-disable-addon"],
+        } as IPostVeConfigurationBody);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+
+    it("should skip non-existent disabled addons gracefully", async () => {
+      helper.writeApplication("testapp", {
+        name: "Test App",
+        description: "Test application",
+        "addon-reconfigure": { post_start: ["set-parameters.json"] },
+      });
+
+      helper.writeTemplate("testapp", "set-parameters.json", {
+        execute_on: "ve",
+        name: "Set Parameters",
+        description: "Set parameters",
+        parameters: [
+          {
+            id: "hostname",
+            name: "hostname",
+            type: "string",
+            required: true,
+            description: "Hostname",
+          },
+        ],
+        commands: [
+          {
+            name: "Test Command",
+            command: 'echo \'[{"id": "test", "value": "ok"}]\'',
+          },
+        ],
+      });
+
+      const url = ApiUri.VeConfiguration.replace(":application", "testapp")
+        .replace(":task", "addon-reconfigure")
+        .replace(":veContext", veContextKey);
+
+      const response = await request(app)
+        .post(url)
+        .send({
+          params: [{ name: "hostname", value: "testhost" }],
+          changedParams: [{ name: "hostname", value: "testhost" }],
+          disabledAddons: ["non-existent-addon"],
+        } as IPostVeConfigurationBody);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+  });
 });

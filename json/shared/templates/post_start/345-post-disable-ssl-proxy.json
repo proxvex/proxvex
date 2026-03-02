@@ -1,0 +1,20 @@
+{
+  "execute_on": "lxc",
+  "name": "Disable SSL Proxy",
+  "description": "Removes SSL proxy on-start script, stops nginx, and cleans iptables rules.",
+  "parameters": [
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "required": true,
+      "description": "Application HTTP port (for iptables cleanup)"
+    }
+  ],
+  "commands": [
+    {
+      "script": "post-disable-ssl-proxy.sh",
+      "description": "Disable SSL proxy addon"
+    }
+  ]
+}

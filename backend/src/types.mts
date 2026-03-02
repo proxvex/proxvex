@@ -267,6 +267,7 @@ export interface IPostVeConfigurationBody {
   outputs?: { id: string; value: IParameterValue }[];
   changedParams?: { name: string; value: IParameterValue }[];
   selectedAddons?: string[];
+  disabledAddons?: string[];
   stackId?: string;
 }
 export interface IPostEnumValuesBody {
@@ -503,6 +504,11 @@ export interface IAddon {
   };
   /** Templates for copy-upgrade */
   upgrade?: AddonTemplateReference[];
+  /** Templates for disabling a previously installed addon */
+  disable?: {
+    pre_start?: AddonTemplateReference[];
+    post_start?: AddonTemplateReference[];
+  };
   /** Key for notes persistence */
   notes_key: string;
   /** Override name/description of parameters defined in templates */

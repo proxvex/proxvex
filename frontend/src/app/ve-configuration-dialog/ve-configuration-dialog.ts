@@ -31,6 +31,7 @@ export interface VeConfigurationDialogData {
   task?: string;
   presetValues?: Record<string, string | number>;
   existingMountPoints?: { source: string; target: string }[];
+  installedAddons?: string[];
 }
 @Component({
   selector: 'app-ve-configuration-dialog',
@@ -87,6 +88,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   private task = this.data.task ?? 'installation';
   private presetValues = this.data.presetValues ?? {};
   existingMountPoints: { source: string; target: string }[] = this.data.existingMountPoints ?? [];
+  private installedAddons: string[] = this.data.installedAddons ?? [];
   constructor(  ) {
     this.form = this.fb.group({});
   }
@@ -237,6 +239,16 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         this._allCompatibleAddons = res.addons;
         this.applyRequiredParametersFilter();
         this.addonsLoading.set(false);
+
+        // Pre-select installed addons (for addon-reconfigure mode)
+        if (this.installedAddons.length > 0) {
+          for (const addonId of this.installedAddons) {
+            const addon = this.availableAddons.find(a => a.id === addonId);
+            if (addon) {
+              this.applyAddonToggle(addonId, true, addon);
+            }
+          }
+        }
       },
       error: () => {
         // Don't show error for addons - they're optional
@@ -421,6 +433,11 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   save() {
     if (this.form.invalid) return;
     this.loading.set(true);
+
+    // Compute disabled addons: installed but no longer selected
+    const currentlySelected = this.selectedAddons();
+    const disabled = this.installedAddons.filter(id => !currentlySelected.includes(id));
+    this.formManager.setDisabledAddons(disabled);
 
     // Addons are already set in formManager via toggleAddon() -> setSelectedAddons()
     this.formManager.install(this.data.app.id, this.task).subscribe({

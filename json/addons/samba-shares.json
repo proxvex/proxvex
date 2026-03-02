@@ -78,6 +78,12 @@
     ]
   },
 
+  "disable": {
+    "post_start": [
+      "338-post-disable-samba.json"
+    ]
+  },
+
   "upgrade": [
     "332-post-install-on-start-dispatcher.json",
     "337-post-install-samba-on-start.json"

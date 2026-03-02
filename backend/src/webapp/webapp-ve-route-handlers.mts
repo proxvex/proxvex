@@ -95,6 +95,12 @@ export class WebAppVeRouteHandlers {
     ) {
       return { valid: false, error: "Invalid selectedAddons" };
     }
+    if (
+      body.disabledAddons !== undefined &&
+      !Array.isArray(body.disabledAddons)
+    ) {
+      return { valid: false, error: "Invalid disabledAddons" };
+    }
     return { valid: true };
   }
 
@@ -182,8 +188,9 @@ export class WebAppVeRouteHandlers {
 
       // Insert addon templates at correct positions for each phase
       const selectedAddons = body.selectedAddons ?? [];
+      const disabledAddons = body.disabledAddons ?? [];
       console.log(
-        `[AddonDebug] handleVeConfiguration: task=${task}, selectedAddons=${JSON.stringify(selectedAddons)}`,
+        `[AddonDebug] handleVeConfiguration: task=${task}, selectedAddons=${JSON.stringify(selectedAddons)}, disabledAddons=${JSON.stringify(disabledAddons)}`,
       );
       if (selectedAddons.length > 0) {
         console.log(
@@ -196,6 +203,18 @@ export class WebAppVeRouteHandlers {
         );
         console.log(
           `[AddonDebug] After insertAddonCommands: ${commands.length} commands`,
+        );
+      }
+      if (disabledAddons.length > 0) {
+        console.log(
+          `[AddonDebug] Before insertAddonDisableCommands: ${commands.length} commands`,
+        );
+        commands = await this.insertAddonDisableCommands(
+          commands,
+          disabledAddons,
+        );
+        console.log(
+          `[AddonDebug] After insertAddonDisableCommands: ${commands.length} commands`,
         );
       }
 
@@ -879,6 +898,145 @@ export class WebAppVeRouteHandlers {
     }
 
     return result;
+  }
+
+  /**
+   * Inserts addon disable commands and notes removal commands for disabled addons.
+   * Disable commands only use post_start phase (container is already running).
+   */
+  async insertAddonDisableCommands(
+    commands: ICommand[],
+    disabledAddonIds: string[],
+  ): Promise<ICommand[]> {
+    if (disabledAddonIds.length === 0) {
+      return commands;
+    }
+
+    const result = [...commands];
+    const pm = this.pm;
+    const addonService = pm.getAddonService();
+    const repositories = pm.getRepositories();
+    const disableCommands: ICommand[] = [];
+
+    for (const addonId of disabledAddonIds) {
+      let addon;
+      try {
+        addon = addonService.getAddon(addonId);
+      } catch {
+        console.warn(`Addon not found for disable: ${addonId}, skipping`);
+        continue;
+      }
+
+      const templateRefs = addon.disable?.post_start;
+      if (!templateRefs || templateRefs.length === 0) {
+        console.log(`[AddonDebug] No disable templates for ${addonId}, skipping`);
+        continue;
+      }
+
+      for (const templateRef of templateRefs) {
+        const templateName =
+          typeof templateRef === "string" ? templateRef : templateRef.name;
+
+        try {
+          const template = repositories.getTemplate({
+            name: templateName,
+            scope: "shared",
+            category: "post_start",
+          }) as ITemplate | null;
+
+          if (template && template.commands) {
+            for (const cmd of template.commands) {
+              const command: ICommand = { ...cmd };
+
+              if (!command.name || command.name.trim() === "") {
+                command.name = template.name || templateName;
+              }
+              if (!command.execute_on && template.execute_on) {
+                command.execute_on = template.execute_on;
+              }
+              if (cmd.script && !cmd.scriptContent) {
+                const scriptContent = repositories.getScript({
+                  name: cmd.script,
+                  scope: "shared",
+                  category: "post_start",
+                });
+                if (scriptContent) {
+                  command.scriptContent = scriptContent;
+                }
+              }
+              if (cmd.library && !cmd.libraryContent) {
+                const libraryContent = repositories.getScript({
+                  name: cmd.library,
+                  scope: "shared",
+                  category: "library",
+                });
+                if (libraryContent) {
+                  command.libraryContent = libraryContent;
+                }
+              }
+
+              disableCommands.push(command);
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to load addon disable template ${templateName}:`, e);
+        }
+      }
+    }
+
+    // Append disable commands at end (post_start position)
+    if (disableCommands.length > 0) {
+      result.push(...disableCommands);
+    }
+
+    // Add notes removal commands for disabled addons
+    this.addAddonNotesRemovalCommands(result, disabledAddonIds);
+
+    return result;
+  }
+
+  /**
+   * Adds notes removal commands for disabled addons.
+   */
+  private addAddonNotesRemovalCommands(
+    commands: ICommand[],
+    addonIds: string[],
+  ): void {
+    const pm = this.pm;
+    const addonService = pm.getAddonService();
+    const repositories = pm.getRepositories();
+
+    const notesUpdateScript = repositories.getScript({
+      name: "host-update-lxc-notes-addon.py",
+      scope: "shared",
+    });
+    const notesUpdateLibrary = repositories.getScript({
+      name: "lxc_config_parser_lib.py",
+      scope: "shared",
+    });
+
+    if (notesUpdateScript && notesUpdateLibrary) {
+      for (const addonId of addonIds) {
+        let addon;
+        try {
+          addon = addonService.getAddon(addonId);
+        } catch {
+          continue;
+        }
+        commands.push({
+          name: `Remove Addon from Notes: ${addon.name}`,
+          execute_on: "ve",
+          script: "host-update-lxc-notes-addon.py",
+          scriptContent: notesUpdateScript,
+          libraryContent: notesUpdateLibrary,
+          properties: [
+            { id: "addon_id", value: addonId },
+            { id: "addon_action", value: "remove" },
+          ],
+          outputs: ["success"],
+        });
+      }
+    }
   }
 
   /**

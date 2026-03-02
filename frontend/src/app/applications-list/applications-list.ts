@@ -116,12 +116,16 @@ export class ApplicationsList implements OnInit {
       }
     }
 
+    // Parse installed addons from comma-separated string
+    const installedAddons = params['installed_addons']?.split(',').filter(Boolean) || [];
+
     // Open dialog in addon-reconfigure mode with preset values
     const dialogData: VeConfigurationDialogData = {
       app,
       task: 'addon-reconfigure',
       presetValues,
       existingMountPoints,
+      installedAddons,
     };
     const dialogRef = this.dialog.open(VeConfigurationDialog, { data: dialogData });
 

@@ -144,6 +144,25 @@ describe("AddonService", () => {
     it("should throw error for non-existent addon", () => {
       expect(() => service.getAddon("non-existent")).toThrow("Addon not found");
     });
+
+    it("should load addon with disable configuration", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "disable-addon.json",
+        createAddonJson({
+          name: "Disable Test Addon",
+          notes_key: "disable-test",
+          disable: {
+            post_start: ["disable-cleanup.json"],
+          },
+        }),
+      );
+
+      const result = service.getAddon("disable-addon");
+      expect(result.name).toBe("Disable Test Addon");
+      expect(result.disable).toBeDefined();
+      expect(result.disable?.post_start).toEqual(["disable-cleanup.json"]);
+    });
   });
 
   describe("getAllAddons()", () => {
@@ -451,6 +470,38 @@ describe("AddonService", () => {
 
       expect(resultPre).toEqual(["template-a.json", "reconfig-pre.json"]);
       expect(resultPost).toEqual(["template-a.json", "reconfig-post.json"]);
+    });
+
+    it("should handle disable templates", () => {
+      const baseTemplates: AddonTemplateReference[] = ["template-a.json"];
+      const addon = createAddonJson({
+        disable: {
+          post_start: ["disable-cleanup.json"],
+        },
+      });
+
+      const result = service.mergeAddonTemplates(
+        baseTemplates,
+        addon,
+        "disable",
+        "post_start",
+      );
+
+      expect(result).toEqual(["template-a.json", "disable-cleanup.json"]);
+    });
+
+    it("should return base templates when addon has no disable config", () => {
+      const baseTemplates: AddonTemplateReference[] = ["template-a.json"];
+      const addon = createAddonJson({});
+
+      const result = service.mergeAddonTemplates(
+        baseTemplates,
+        addon,
+        "disable",
+        "post_start",
+      );
+
+      expect(result).toEqual(["template-a.json"]);
     });
   });
 
