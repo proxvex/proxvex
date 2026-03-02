@@ -237,9 +237,12 @@ export class VeConfigurationService {
     );
   }
 
-  getCompatibleAddons(application: string): Observable<ICompatibleAddonsResponse> {
-    const url = ApiUri.CompatibleAddons
+  getCompatibleAddons(application: string, installedAddonIds?: string[]): Observable<ICompatibleAddonsResponse> {
+    let url = ApiUri.CompatibleAddons
       .replace(':application', encodeURIComponent(application));
+    if (installedAddonIds?.length) {
+      url += `?installed=${encodeURIComponent(installedAddonIds.join(','))}`;
+    }
     return this.http.get<ICompatibleAddonsResponse>(url);
   }
 

@@ -234,7 +234,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
 
   private loadCompatibleAddons(): void {
     this.addonsLoading.set(true);
-    this.configService.getCompatibleAddons(this.data.app.id).subscribe({
+    this.configService.getCompatibleAddons(this.data.app.id, this.installedAddons).subscribe({
       next: (res) => {
         this._allCompatibleAddons = res.addons;
         this.applyRequiredParametersFilter();

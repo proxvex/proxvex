@@ -61,12 +61,21 @@ export class AddonService {
    * Returns addons compatible with the given application, including extracted parameters.
    * Parameters already set by the application's properties (with value) are removed
    * from the addon's parameter list so they don't appear in the UI.
+   *
+   * When installedAddonIds is provided, those addons are always included
+   * regardless of compatibility (needed for reconfigure to allow disabling).
    */
   getCompatibleAddonsWithParameters(
     application: IApplication,
+    installedAddonIds?: string[],
   ): IAddonWithParameters[] {
-    // Collect parameter IDs that the application resolves via properties with value
+    // Collect parameter IDs that the application already provides.
+    // These are removed from addon parameter lists so the UI doesn't show duplicates.
+    // Includes: parameters from application.json + properties with explicit value.
     const appResolvedIds = new Set<string>();
+    for (const p of application.parameters ?? []) {
+      appResolvedIds.add(p.id);
+    }
     for (const prop of application.properties ?? []) {
       if (prop.value !== undefined) {
         appResolvedIds.add(prop.id);
@@ -74,7 +83,24 @@ export class AddonService {
     }
 
     const compatibleAddons = this.getCompatibleAddons(application);
-    return compatibleAddons.map((addon) => {
+    const compatibleIds = new Set(compatibleAddons.map((a) => a.id));
+
+    // Add installed addons that are not already in the compatible list
+    const allAddons = [...compatibleAddons];
+    if (installedAddonIds?.length) {
+      for (const addonId of installedAddonIds) {
+        if (!compatibleIds.has(addonId)) {
+          try {
+            const addon = this.getAddon(addonId);
+            allAddons.push(addon);
+          } catch {
+            // Addon no longer exists, skip
+          }
+        }
+      }
+    }
+
+    return allAddons.map((addon) => {
       const withParams = this.extractAddonParameters(addon);
       if (withParams.parameters && appResolvedIds.size > 0) {
         withParams.parameters = withParams.parameters.filter(
