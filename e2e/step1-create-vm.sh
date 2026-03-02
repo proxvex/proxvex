@@ -505,10 +505,10 @@ pve_ssh "
     # Remove any existing forwarding rules for these ports
     iptables -t nat -D PREROUTING -p tcp --dport $PORT_PVE_WEB -j DNAT --to-destination $NESTED_IP:8006 2>/dev/null || true
     iptables -t nat -D PREROUTING -p tcp --dport $PORT_PVE_SSH -j DNAT --to-destination $NESTED_IP:22 2>/dev/null || true
-    iptables -t nat -D PREROUTING -p tcp --dport $PORT_DEPLOYER -j DNAT --to-destination $NESTED_IP:3000 2>/dev/null || true
+    iptables -t nat -D PREROUTING -p tcp --dport $PORT_DEPLOYER -j DNAT --to-destination $NESTED_IP:3080 2>/dev/null || true
     iptables -D FORWARD -p tcp -d $NESTED_IP --dport 8006 -j ACCEPT 2>/dev/null || true
     iptables -D FORWARD -p tcp -d $NESTED_IP --dport 22 -j ACCEPT 2>/dev/null || true
-    iptables -D FORWARD -p tcp -d $NESTED_IP --dport 3000 -j ACCEPT 2>/dev/null || true
+    iptables -D FORWARD -p tcp -d $NESTED_IP --dport 3080 -j ACCEPT 2>/dev/null || true
     iptables -t nat -D POSTROUTING -s ${SUBNET}.0/24 -o vmbr0 -j MASQUERADE 2>/dev/null || true
 
     # Add port forwarding rules
@@ -516,8 +516,8 @@ pve_ssh "
     iptables -A FORWARD -p tcp -d $NESTED_IP --dport 8006 -j ACCEPT
     iptables -t nat -A PREROUTING -p tcp --dport $PORT_PVE_SSH -j DNAT --to-destination $NESTED_IP:22
     iptables -A FORWARD -p tcp -d $NESTED_IP --dport 22 -j ACCEPT
-    iptables -t nat -A PREROUTING -p tcp --dport $PORT_DEPLOYER -j DNAT --to-destination $NESTED_IP:3000
-    iptables -A FORWARD -p tcp -d $NESTED_IP --dport 3000 -j ACCEPT
+    iptables -t nat -A PREROUTING -p tcp --dport $PORT_DEPLOYER -j DNAT --to-destination $NESTED_IP:3080
+    iptables -A FORWARD -p tcp -d $NESTED_IP --dport 3080 -j ACCEPT
 
     # NAT for nested VM network
     iptables -t nat -A POSTROUTING -s ${SUBNET}.0/24 -o vmbr0 -j MASQUERADE
@@ -525,7 +525,7 @@ pve_ssh "
 
 success "Port $PORT_PVE_WEB -> $NESTED_IP:8006 (Web UI)"
 success "Port $PORT_PVE_SSH -> $NESTED_IP:22 (SSH)"
-success "Port $PORT_DEPLOYER -> $NESTED_IP:3000 (Deployer)"
+success "Port $PORT_DEPLOYER -> $NESTED_IP:3080 (Deployer)"
 success "NAT configured for ${SUBNET}.0/24"
 
 # Step 11b: Install persistent port forwarding service
@@ -575,7 +575,7 @@ echo ""
 echo "Port Forwarding (offset: $PORT_OFFSET):"
 echo "  - $PVE_HOST:$PORT_PVE_SSH -> $NESTED_IP:22 (SSH)"
 echo "  - $PVE_HOST:$PORT_PVE_WEB -> $NESTED_IP:8006 (Web UI)"
-echo "  - $PVE_HOST:$PORT_DEPLOYER -> deployer:3000 (Deployer)"
+echo "  - $PVE_HOST:$PORT_DEPLOYER -> deployer:3080 (Deployer)"
 echo ""
 echo "Access:"
 echo "  SSH:     ssh -p $PORT_PVE_SSH root@$PVE_HOST"

@@ -1,5 +1,6 @@
 import express from "express";
 import http from "http";
+import https from "https";
 import path from "path";
 import { ContextManager } from "../context-manager.mjs";
 import { registerApplicationRoutes } from "./webapp-application-routes.mjs";
@@ -18,6 +19,13 @@ import { registerCertificateRoutes } from "./webapp-certificate-routes.mjs";
 export class VEWebApp {
   app: express.Application;
   public httpServer: http.Server;
+  public httpsServer?: https.Server;
+
+  createHttpsServer(options: { key: string; cert: string }): https.Server {
+    this.httpsServer = https.createServer(options, this.app);
+    return this.httpsServer;
+  }
+
   returnResponse<T>(
     res: express.Response,
     payload: T,

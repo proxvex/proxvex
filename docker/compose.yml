@@ -4,7 +4,8 @@ services:
     image: modbus2mqtt.latest:latest
     container_name: modbus2mqtt
     ports:
-      - 3000:3000 
+      - 3080:3080
+      - 3443:3443
     restart: always
     volumes:
       - data:/home/volkmar/data

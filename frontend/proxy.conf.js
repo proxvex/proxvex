@@ -1,4 +1,4 @@
-const port = process.env.DEPLOYER_PORT || process.env.PORT || 3000;
+const port = process.env.DEPLOYER_PORT || process.env.PORT || 3080;
 
 module.exports = {
   "/api": {

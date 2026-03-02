@@ -189,7 +189,7 @@ Options:
   --storage <name>      Proxmox storage for OCI image. Default: local
   --static-ip <IP/CIDR> Static IP address (e.g., 10.0.0.100/24). Default: DHCP
   --gateway <IP>        Gateway IP address (required if --static-ip is used)
-  --deployer-url <URL>  External URL for deployer (e.g., http://pve1:3000 for NAT setups)
+  --deployer-url <URL>  External URL for deployer (e.g., http://pve1:3080 for NAT setups)
 
 Notes:
   - OCI image: ${OCI_IMAGE}
@@ -552,7 +552,7 @@ if [ -n "$deployer_url" ]; then
   deployer_base_url="$deployer_url"
   echo "  Using external deployer URL: ${deployer_base_url}" >&2
 else
-  deployer_base_url="http://${hostname}:3000"
+  deployer_base_url="http://${hostname}:3080"
 fi
 
 # Download and Base64-encode the application icon for embedding in notes
@@ -690,6 +690,6 @@ echo "  Hostname: ${hostname}" >&2
 echo "  Config: ${config_volume_path}" >&2
 echo "  Secure: ${secure_volume_path}" >&2
 echo "" >&2
-echo "  Access the web interface at http://${hostname}:3000" >&2
+echo "  Access the web interface at http://${hostname}:3080" >&2
 
 exit 0

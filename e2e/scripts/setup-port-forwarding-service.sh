@@ -110,10 +110,10 @@ def main():
         # Remove existing rules (ignore errors)
         run(f'iptables -t nat -D PREROUTING -p tcp --dport {port_pve_web} -j DNAT --to-destination {nested_ip}:8006', check=False)
         run(f'iptables -t nat -D PREROUTING -p tcp --dport {port_pve_ssh} -j DNAT --to-destination {nested_ip}:22', check=False)
-        run(f'iptables -t nat -D PREROUTING -p tcp --dport {port_deployer} -j DNAT --to-destination {nested_ip}:3000', check=False)
+        run(f'iptables -t nat -D PREROUTING -p tcp --dport {port_deployer} -j DNAT --to-destination {nested_ip}:3080', check=False)
         run(f'iptables -D FORWARD -p tcp -d {nested_ip} --dport 8006 -j ACCEPT', check=False)
         run(f'iptables -D FORWARD -p tcp -d {nested_ip} --dport 22 -j ACCEPT', check=False)
-        run(f'iptables -D FORWARD -p tcp -d {nested_ip} --dport 3000 -j ACCEPT', check=False)
+        run(f'iptables -D FORWARD -p tcp -d {nested_ip} --dport 3080 -j ACCEPT', check=False)
         run(f'iptables -t nat -D POSTROUTING -s {subnet}.0/24 -o vmbr0 -j MASQUERADE', check=False)
 
         # Add port forwarding rules
@@ -121,8 +121,8 @@ def main():
         run(f'iptables -A FORWARD -p tcp -d {nested_ip} --dport 8006 -j ACCEPT')
         run(f'iptables -t nat -A PREROUTING -p tcp --dport {port_pve_ssh} -j DNAT --to-destination {nested_ip}:22')
         run(f'iptables -A FORWARD -p tcp -d {nested_ip} --dport 22 -j ACCEPT')
-        run(f'iptables -t nat -A PREROUTING -p tcp --dport {port_deployer} -j DNAT --to-destination {nested_ip}:3000')
-        run(f'iptables -A FORWARD -p tcp -d {nested_ip} --dport 3000 -j ACCEPT')
+        run(f'iptables -t nat -A PREROUTING -p tcp --dport {port_deployer} -j DNAT --to-destination {nested_ip}:3080')
+        run(f'iptables -A FORWARD -p tcp -d {nested_ip} --dport 3080 -j ACCEPT')
 
         # NAT for nested VM network
         run(f'iptables -t nat -A POSTROUTING -s {subnet}.0/24 -o vmbr0 -j MASQUERADE')
@@ -130,7 +130,7 @@ def main():
         print(f'[OK] Port forwarding configured:')
         print(f'     {port_pve_web} -> {nested_ip}:8006 (Web UI)')
         print(f'     {port_pve_ssh} -> {nested_ip}:22 (SSH)')
-        print(f'     {port_deployer} -> {nested_ip}:3000 (Deployer)')
+        print(f'     {port_deployer} -> {nested_ip}:3080 (Deployer)')
 
     print('[OK] All port forwarding rules applied')
 

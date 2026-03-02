@@ -80,7 +80,7 @@ RUN chmod +x /usr/local/bin/entrypoint-wrapper.sh
 
 USER lxc
 
-EXPOSE 3000
+EXPOSE 3080 3443
 ENTRYPOINT ["/usr/local/bin/entrypoint-wrapper.sh", "oci-lxc-deployer"]
 CMD ["--local", "/config", "--secretsFilePath", "/secure/secret.txt"]
 

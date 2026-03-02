@@ -314,11 +314,11 @@ cmd_install_test() {
     ok "Install script completed"
 
     # 5. Verify deployer API inside nested VM
-    info "Verifying deployer API at $deployer_ip_bare:3000..."
+    info "Verifying deployer API at $deployer_ip_bare:3080..."
     nested_ssh bash <<VSCRIPT
 set -e
 for i in \$(seq 1 30); do
-    if curl -sf --connect-timeout 1 "http://$deployer_ip_bare:3000/" 2>/dev/null | grep -q "doctype"; then
+    if curl -sf --connect-timeout 1 "http://$deployer_ip_bare:3080/" 2>/dev/null | grep -q "doctype"; then
         exit 0
     fi
     sleep 1
@@ -367,7 +367,7 @@ VSCRIPT
     nested_ssh bash <<VSCRIPT2
 set -e
 for i in \$(seq 1 20); do
-    if curl -sf --connect-timeout 1 "http://$deployer_ip_bare:3000/" 2>/dev/null | grep -q "doctype"; then
+    if curl -sf --connect-timeout 1 "http://$deployer_ip_bare:3080/" 2>/dev/null | grep -q "doctype"; then
         exit 0
     fi
     sleep 1

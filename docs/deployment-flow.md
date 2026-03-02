@@ -52,7 +52,7 @@ Let's walk through deploying Grafana as a complete example.
 
 ### Step 2: Application Selection
 
-1. Open the Web UI at `http://oci-lxc-deployer:3000`
+1. Open the Web UI at `http://oci-lxc-deployer:3080`
 2. Navigate to **"Applications"**
 3. Find **Grafana**
 

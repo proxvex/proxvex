@@ -224,7 +224,7 @@ export class WebAppVeRouteHandlers {
 
       // Log viewer URL parameters for Notes links
       // Priority: OCI_LXC_DEPLOYER_URL env var > auto-generated from hostname + port
-      const deployerPort = process.env.DEPLOYER_PORT || process.env.PORT || "3000";
+      const deployerPort = process.env.DEPLOYER_PORT || process.env.PORT || "3080";
       const deployerUrl =
         process.env.OCI_LXC_DEPLOYER_URL ||
         `http://${os.hostname()}:${deployerPort}`;

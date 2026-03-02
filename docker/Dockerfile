@@ -78,14 +78,14 @@ RUN set -e; \
 # 1. APK post-install: creates /root/.ssh, configures sshd_config, generates host keys
 # 2. cont-init script: reads /data/options.json and configures authorized_keys
 
-EXPOSE 3000 22
+EXPOSE 3080 3443 22
 
 # Start service using s6-overlay
 CMD ["/init"] 
 
 # Health check
 HEALTHCHECK --start-period=10m \
-    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1
+    CMD wget --no-check-certificate --no-verbose --tries=1 --spider https://127.0.0.1:3443 || wget --no-verbose --tries=1 --spider http://127.0.0.1:3080 || exit 1
 # Labels
 LABEL \
     io.hass.name="${BUILD_NAME}" \

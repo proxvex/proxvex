@@ -122,15 +122,15 @@ if nested_ssh "pct status $DEPLOYER_VMID" &>/dev/null; then
         # Check if API is responding
         DEPLOYER_IP=$(nested_ssh "pct exec $DEPLOYER_VMID -- hostname -I 2>/dev/null" | awk '{print $1}')
         if [ -n "$DEPLOYER_IP" ]; then
-            if nested_ssh "curl -s http://$DEPLOYER_IP:3000/ 2>/dev/null" | grep -q "doctype"; then
-                success "API is healthy at $DEPLOYER_IP:3000"
+            if nested_ssh "curl -s http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
+                success "API is healthy at $DEPLOYER_IP:3080"
 
                 if [ "$UPDATE_ONLY" = "true" ]; then
                     info "--update-only: Skipping to local package deployment..."
                 else
                     echo ""
                     echo "Deployer already installed and running!"
-                    echo "API URL: http://$DEPLOYER_IP:3000"
+                    echo "API URL: http://$DEPLOYER_IP:3080"
                     echo ""
                     echo "To deploy updated code: ./step2-install-deployer.sh --update-only"
                     exit 0
@@ -238,8 +238,8 @@ sleep 1  # Brief pause for container init
 
 API_READY=false
 for i in $(seq 1 30); do
-    if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3000/ 2>/dev/null" | grep -q "doctype"; then
-        success "API is healthy at $DEPLOYER_IP:3000"
+    if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
+        success "API is healthy at $DEPLOYER_IP:3080"
         API_READY=true
         break
     fi
@@ -248,7 +248,7 @@ for i in $(seq 1 30); do
 done
 echo ""
 if [ "$API_READY" != "true" ]; then
-    error "API failed to respond within 30 seconds at $DEPLOYER_IP:3000"
+    error "API failed to respond within 30 seconds at $DEPLOYER_IP:3080"
 fi
 
 fi # end of full install block (skipped with --update-only)
@@ -281,8 +281,8 @@ if [ "$UPDATE_ONLY" = "true" ]; then
 fi
 
 # Step 5b: Set up port forwarding on nested VM to deployer container
-# Note: nested VM receives traffic on port 3000 (from PVE host PORT_DEPLOYER)
-# and forwards it to the deployer container at $DEPLOYER_IP:3000
+# Note: nested VM receives traffic on port 3080 (from PVE host PORT_DEPLOYER)
+# and forwards it to the deployer container at $DEPLOYER_IP:3080
 header "Setting up Port Forwarding on Nested VM"
 info "Configuring port forwarding to deployer container at $DEPLOYER_IP..."
 
@@ -359,7 +359,7 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
     info "Waiting for API to restart..."
     API_RESTARTED=false
     for i in $(seq 1 20); do
-        if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3000/ 2>/dev/null" | grep -q "doctype"; then
+        if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
             success "API is healthy after package update"
             API_RESTARTED=true
             break

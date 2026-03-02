@@ -105,7 +105,7 @@ Developer Machine
 │ PVE Host (ubuntupve)                     │
 │   Port 18006 → nested:8006 (Web UI)      │
 │   Port 10022 → nested:22 (SSH)           │
-│   Port 13000 → nested:3000 (Deployer)    │
+│   Port 13000 → nested:3080 (Deployer)    │
 │                                          │
 │   ┌────────────────────────────────────┐ │
 │   │ Nested PVE VM (10.99.0.10)         │ │
@@ -113,7 +113,7 @@ Developer Machine
 │   │                                    │ │
 │   │   ┌──────────────────────────────┐ │ │
 │   │   │ Deployer LXC (10.99.0.100)   │ │ │
-│   │   │   Port 3000 (API)            │ │ │
+│   │   │   Port 3080 (API)            │ │ │
 │   │   └──────────────────────────────┘ │ │
 │   │                                    │ │
 │   │   ┌──────────────────────────────┐ │ │

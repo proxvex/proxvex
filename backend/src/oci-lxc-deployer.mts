@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import path from "node:path";
+import http from "node:http";
+import express from "express";
+import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { PersistenceManager } from "./persistence/persistence-manager.mjs";
 import { exec as execCommand } from "./lxc-exec.mjs";
 import { validateAllJson, ValidationError } from "./validateAllJson.mjs";
 import { DocumentationGenerator } from "./documentation-generator.mjs";
 import { VEWebApp } from "./webapp/webapp.mjs";
+import { CertificateAuthorityService } from "./services/certificate-authority-service.mjs";
 import type { TaskType } from "./types.mjs";
 import { createLogger } from "./logger/index.mjs";
 
@@ -156,19 +160,80 @@ async function startWebApp(
       );
     }
   } catch {}
-  const webApp = new VEWebApp(pm.getContextManager());
-  const port = process.env.DEPLOYER_PORT || process.env.PORT || 3000;
-  webApp.httpServer.listen(port, () => {
-    logger.info("Server started", { port });
-  });
+  const contextManager = pm.getContextManager();
+  const webApp = new VEWebApp(contextManager);
+  const httpPort = process.env.DEPLOYER_PORT || process.env.PORT || 3080;
+  const httpsPort = process.env.DEPLOYER_HTTPS_PORT || 3443;
+  const sslGenerate = process.env.DEPLOYER_SSL_GENERATE === "true";
+
+  // Check if SSL certificate exists in StorageContext, optionally generate
+  let httpsEnabled = false;
+  const caService = new CertificateAuthorityService(contextManager);
+  const currentHostname = hostname();
+
+  if (!caService.hasServerCert(currentHostname) && sslGenerate) {
+    const veContext = contextManager.getCurrentVEContext();
+    if (veContext) {
+      logger.info("Generating server certificate...", { hostname: currentHostname });
+      caService.generateSelfSignedCert(veContext.getKey(), currentHostname);
+      logger.info("Server certificate generated and stored in context");
+    } else {
+      logger.warn("Cannot generate server certificate: no VE context configured");
+    }
+  }
+
+  const serverCert = caService.getServerCert(currentHostname);
+  if (serverCert) {
+    try {
+      const key = Buffer.from(serverCert.key, "base64").toString("utf-8");
+      const cert = Buffer.from(serverCert.cert, "base64").toString("utf-8");
+      const httpsServer = webApp.createHttpsServer({ key, cert });
+      httpsServer.listen(httpsPort, () => {
+        logger.info("HTTPS server started", { port: httpsPort });
+      });
+      httpsEnabled = true;
+    } catch (err: any) {
+      logger.error("Failed to start HTTPS server", { error: err?.message });
+    }
+  }
+
+  if (httpsEnabled) {
+    // HTTPS active: HTTP server becomes a redirect-only server
+    const redirectApp = express();
+    redirectApp.use((req, res) => {
+      const httpsUrl = `https://${req.hostname}:${httpsPort}${req.originalUrl}`;
+      res.redirect(301, httpsUrl);
+    });
+    const redirectServer = http.createServer(redirectApp);
+    redirectServer.listen(httpPort, () => {
+      logger.info("HTTP redirect server started", { port: httpPort, redirectTo: httpsPort });
+    });
+    // Keep reference for shutdown
+    webApp.httpServer = redirectServer;
+  } else {
+    // No HTTPS: HTTP server serves the app directly
+    webApp.httpServer.listen(httpPort, () => {
+      logger.info("HTTP server started", { port: httpPort });
+    });
+  }
 
   // Graceful shutdown handlers
   const shutdown = (signal: string) => {
     logger.info("Shutdown initiated", { signal });
-    webApp.httpServer.close(() => {
-      logger.info("HTTP server closed");
-      process.exit(0);
-    });
+    let closedCount = 0;
+    const totalServers = webApp.httpsServer ? 2 : 1;
+    const onClosed = () => {
+      closedCount++;
+      if (closedCount >= totalServers) {
+        logger.info("All servers closed");
+        process.exit(0);
+      }
+    };
+
+    webApp.httpServer.close(onClosed);
+    if (webApp.httpsServer) {
+      webApp.httpsServer.close(onClosed);
+    }
 
     // Force shutdown after 10 seconds
     setTimeout(() => {

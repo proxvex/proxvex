@@ -240,7 +240,7 @@ chmod -R  755 "$TEST_DIR"
 sudo chown -R root:root "$TEST_DIR"
 cleanup_containers
 echo "Starting container with volume mount..."
-docker run -d -p 3010:3000 -p 3022:22 -v "$TEST_DIR/data:/data" -v "$TEST_DIR/ssl:/ssl" -v "$TEST_DIR/config:/config" --name modbus2mqtt-test-main "$IMAGE_TAG"
+docker run -d -p 3010:3080 -p 3022:22 -v "$TEST_DIR/data:/data" -v "$TEST_DIR/ssl:/ssl" -v "$TEST_DIR/config:/config" --name modbus2mqtt-test-main "$IMAGE_TAG"
 
 # Wait for web service
 if ! wait_for_service 3010 "Web service" "modbus2mqtt-test-main"; then
@@ -263,7 +263,7 @@ if [ "$QUICK_TEST" = "false" ]; then
   echo ""
   echo "=== Test 2: Standalone Container Test ==="
   echo "Starting standalone container..."
-  docker run -d -p 3011:3000 -p 3023:22 --name modbus2mqtt-test-standalone "$IMAGE_TAG"
+  docker run -d -p 3011:3080 -p 3023:22 --name modbus2mqtt-test-standalone "$IMAGE_TAG"
 
   if ! wait_for_service 3011 "Standalone web service" "modbus2mqtt-test-standalone"; then
     docker exec modbus2mqtt-test-standalone ls -la /var/logs

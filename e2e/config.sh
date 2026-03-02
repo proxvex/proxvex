@@ -115,7 +115,7 @@ show_config() {
     echo "Port Forwarding (offset: $PORT_OFFSET):"
     echo "  PVE Web:         $PVE_HOST:$PORT_PVE_WEB -> $NESTED_STATIC_IP:8006"
     echo "  PVE SSH:         $PVE_HOST:$PORT_PVE_SSH -> $NESTED_STATIC_IP:22"
-    echo "  Deployer:        $PVE_HOST:$PORT_DEPLOYER -> deployer:3000"
+    echo "  Deployer:        $PVE_HOST:$PORT_DEPLOYER -> deployer:3080"
     echo ""
     echo "URLs:"
     echo "  PVE Web UI:      $PVE_WEB_URL"

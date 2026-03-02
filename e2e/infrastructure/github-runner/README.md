@@ -13,7 +13,7 @@ pve1 (24/7, always on, 8GB RAM)
 
 ubuntupve (may be sleeping, woken via WOL)
 └── Nested Proxmox VM (QEMU, vmId: 9001, auto-starts on boot)
-    ├── Deployer LXC (VMID 300, API on port 3000)
+    ├── Deployer LXC (VMID 300, API on port 3080)
     └── Test containers (created by E2E tests)
 ```
 

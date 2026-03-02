@@ -57,8 +57,8 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
 ```
 
 ## Access the Web UI
-- Open `http://oci-lxc-deployer:3000` from your network (or replace `oci-lxc-deployer` with the container's IP/hostname you configured).
-- If Proxmox VE is behind a firewall, ensure port `3000/tcp` is reachable from the browser.
+- Open `http://oci-lxc-deployer:3080` from your network (or replace `oci-lxc-deployer` with the container's IP/hostname you configured).
+- If Proxmox VE is behind a firewall, ensure port `3080/tcp` is reachable from the browser.
 
 ## Key Concepts
 

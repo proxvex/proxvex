@@ -16,7 +16,7 @@ SKIP_BUILD=false
 SKIP_PACK=false
 SKIP_RUN=false
 DETACH=false
-PORT=3000
+PORT=3080
 CONFIG_DIR="examples"
 SECURE_DIR="local"
 
@@ -94,7 +94,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --no-pack            Skip npm pack (use existing docker/oci-lxc-deployer.tgz)"
       echo "  --no-run             Skip starting container after build"
       echo "  --detach, -d          Run container in detached mode"
-      echo "  --port <p>, -p <p>   Host port to map to container port 3000 (default: 3000)"
+      echo "  --port <p>, -p <p>   Host port to map to container port 3080 (default: 3000)"
       echo "  --config-dir <dir>   Local directory to mount as /config (default: examples)"
       echo "  --secure-dir <dir>   Local directory to mount as /secure (default: local)"
       echo "  --help, -h           Show this help message"
@@ -290,7 +290,7 @@ if [ "$SKIP_RUN" = "false" ]; then
   
   echo "Starting container..."
   echo "  Container name: $CONTAINER_NAME"
-  echo "  Port mapping: $PORT:3000"
+  echo "  Port mapping: $PORT:3080"
   echo "  Config volume: $CONFIG_PATH -> /config"
   echo "  Secure volume: $SECURE_PATH -> /secure"
   echo ""
@@ -298,7 +298,7 @@ if [ "$SKIP_RUN" = "false" ]; then
   if [ "$DETACH" = "true" ]; then
     docker run -d \
       --name "$CONTAINER_NAME" \
-      -p "$PORT:3000" \
+      -p "$PORT:3080" \
       -v "$CONFIG_PATH:/config" \
       -v "$SECURE_PATH:/secure" \
       "$IMAGE_TAG:latest"
@@ -333,7 +333,7 @@ if [ "$SKIP_RUN" = "false" ]; then
     
     docker run --rm \
       --name "$CONTAINER_NAME" \
-      -p "$PORT:3000" \
+      -p "$PORT:3080" \
       -v "$CONFIG_PATH:/config" \
       -v "$SECURE_PATH:/secure" \
       "$IMAGE_TAG:latest"
@@ -343,13 +343,13 @@ else
   echo ""
   echo "=== Next Steps ==="
   echo "Start the container manually:"
-  echo "  docker run --rm -p $PORT:3000 \\"
+  echo "  docker run --rm -p $PORT:3080 \\"
   echo "    -v \"\$PWD/$CONFIG_DIR:/config\" \\"
   echo "    -v \"\$PWD/$SECURE_DIR:/secure\" \\"
   echo "    $IMAGE_TAG:latest"
   echo ""
   echo "Or in detached mode:"
-  echo "  docker run -d --name $CONTAINER_NAME -p $PORT:3000 \\"
+  echo "  docker run -d --name $CONTAINER_NAME -p $PORT:3080 \\"
   echo "    -v \"\$PWD/$CONFIG_DIR:/config\" \\"
   echo "    -v \"\$PWD/$SECURE_DIR:/secure\" \\"
   echo "    $IMAGE_TAG:latest"

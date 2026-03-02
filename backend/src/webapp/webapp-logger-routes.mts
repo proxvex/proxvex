@@ -24,7 +24,7 @@ export function registerLoggerRoutes(app: express.Application): void {
   });
 
   // GET /api/logger/level/:level - Set log level
-  // Example: curl http://localhost:3000/api/logger/level/debug
+  // Example: curl http://localhost:3080/api/logger/level/debug
   app.get(ApiUri.LoggerLevel, (req, res) => {
     const { level } = req.params;
 
@@ -44,7 +44,7 @@ export function registerLoggerRoutes(app: express.Application): void {
   });
 
   // GET /api/logger/debug-components?components=ssh,execution
-  // Example: curl "http://localhost:3000/api/logger/debug-components?components=ssh,execution"
+  // Example: curl "http://localhost:3080/api/logger/debug-components?components=ssh,execution"
   // Without components parameter: disable all debug components
   app.get(ApiUri.LoggerDebugComponents, (req, res) => {
     const componentsParam = req.query.components as string | undefined;

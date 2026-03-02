@@ -101,7 +101,7 @@ ISO at `/var/lib/vz/template/iso/proxmox-ve-e2e-autoinstall.iso`
 Creates a nested Proxmox VM using the custom ISO with:
 - Memory: 2048 MB, Cores: 2, Disk: 32 GB
 - Network: vmbr1 (NAT bridge)
-- Port forwarding: 1008→8006, 1022→22, 3000→3000
+- Port forwarding: 1008→8006, 1022→22, 3000→3080
 
 ## Step 2: Install oci-lxc-deployer
 
@@ -111,7 +111,7 @@ Creates a nested Proxmox VM using the custom ISO with:
 
 Installs oci-lxc-deployer container (VMID 300) with:
 - Static IP: 10.0.0.100/24
-- API accessible at http://ubuntupve:3000
+- API accessible at http://ubuntupve:3080
 
 ---
 

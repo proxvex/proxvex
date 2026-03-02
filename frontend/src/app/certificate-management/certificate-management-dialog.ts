@@ -71,7 +71,21 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
         </div>
       </section>
 
-      <!-- Section 2: PVE Host Certificate -->
+      <!-- Section 2: Deployer HTTPS Status -->
+      <section class="https-section">
+        <h3>Deployer HTTPS</h3>
+        <div class="https-status">
+          @if (httpsActive) {
+            <span class="status-chip status-ok">ACTIVE</span>
+            <span class="https-label">This page is served over HTTPS</span>
+          } @else {
+            <span class="status-chip status-warning">INACTIVE</span>
+            <span class="https-label">HTTPS not active. Set <code>DEPLOYER_SSL_GENERATE=true</code> and restart.</span>
+          }
+        </div>
+      </section>
+
+      <!-- Section 3: PVE Host Certificate -->
       <section class="pve-section">
         <h3>PVE Host Certificate</h3>
         @if (loadingPve()) {
@@ -94,7 +108,7 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
         </div>
       </section>
 
-      <!-- Section 3: Certificate Status & Renewal -->
+      <!-- Section 4: Certificate Status & Renewal -->
       <section class="certs-section">
         <h3>Deployed Certificates</h3>
         @if (loadingCerts()) {
@@ -199,6 +213,24 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
       }
     }
 
+    .https-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      .https-label {
+        font-size: 0.9rem;
+        color: #555;
+
+        code {
+          background: #f0f0f0;
+          padding: 1px 4px;
+          border-radius: 3px;
+          font-size: 0.85rem;
+        }
+      }
+    }
+
     .ssl-toggle {
       margin: 0.75rem 0;
 
@@ -257,6 +289,8 @@ export class CertificateManagementDialog implements OnInit {
   dialogRef = inject(MatDialogRef<CertificateManagementDialog>);
   private configService = inject(VeConfigurationService);
   private errorHandler = inject(ErrorHandlerService);
+
+  httpsActive = location.protocol === 'https:';
 
   caInfo = signal<ICaInfoResponse | null>(null);
   sslEnabled = signal(false);
