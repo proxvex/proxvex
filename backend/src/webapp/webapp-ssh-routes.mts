@@ -26,6 +26,8 @@ export function registerSshRoutes(
   storageContext: ContextManager,
   returnResponse: ReturnResponse,
 ): void {
+  const pm = PersistenceManager.getInstance();
+
   const collectEnumValueTemplates = (pathes: IConfiguredPathes): string[] => {
     const results = new Set<string>();
 
@@ -51,7 +53,6 @@ export function registerSshRoutes(
     if (!veContextKey) return;
     const veContext = storageContext.getVEContextByKey(veContextKey);
     if (!veContext) return;
-    const pm = PersistenceManager.getInstance();
     const enumTemplates = collectEnumValueTemplates(pm.getPathes());
     if (enumTemplates.length === 0) return;
     const templateProcessor = storageContext.getTemplateProcessor();

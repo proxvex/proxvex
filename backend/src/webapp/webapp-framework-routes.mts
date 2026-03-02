@@ -30,10 +30,11 @@ export function registerFrameworkRoutes(
   storageContext: ContextManager,
   returnResponse: ReturnResponse,
 ): void {
+  const pm = PersistenceManager.getInstance();
+
   app.get(ApiUri.FrameworkNames, (_req, res) => {
     try {
       const frameworkNames: Array<{ id: string; name: string }> = [];
-      const pm = PersistenceManager.getInstance();
       const allFrameworks = pm.getFrameworkService().getAllFrameworkNames();
 
       for (const [frameworkId] of allFrameworks) {
@@ -75,7 +76,6 @@ export function registerFrameworkRoutes(
         });
       }
 
-      const pm = PersistenceManager.getInstance();
       const frameworkLoader = new FrameworkLoader(
         {
           schemaPath: storageContext
@@ -119,7 +119,6 @@ export function registerFrameworkRoutes(
         return res.status(400).json({ error: "Missing description" });
       }
 
-      const pm = PersistenceManager.getInstance();
       const frameworkLoader = new FrameworkLoader(
         {
           schemaPath: pm.getPathes().schemaPath,
@@ -215,7 +214,6 @@ export function registerFrameworkRoutes(
         return res.status(400).json({ error: "Missing name" });
       }
 
-      const pm = PersistenceManager.getInstance();
       const frameworkLoader = new FrameworkLoader(
         {
           schemaPath: pm.getPathes().schemaPath,

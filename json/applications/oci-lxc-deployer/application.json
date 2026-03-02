@@ -4,13 +4,44 @@
   "extends": "oci-image",
   "icon": "favicon.svg",
   "tags": ["infrastructure"],
+  "parameters": [
+    {
+      "id": "volumes",
+      "name": "Volumes",
+      "type": "string",
+      "multiline": true,
+      "required": false,
+      "description": "Volume mappings for the container (one per line, format: name=path or name=path,mode)"
+    },
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "default": "3000",
+      "required": false,
+      "advanced": true
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "default": "3443",
+      "required": false,
+      "advanced": true
+    }
+  ],
+  "properties": [
+    { "id": "hostname", "value": "oci-lxc-deployer" },
+    { "id": "oci_image", "value": "ghcr.io/modbus2mqtt/oci-lxc-deployer" },
+    { "id": "uid", "value": "1001" },
+    { "id": "gid", "value": "1001" },
+    { "id": "username", "value": "lxc" },
+    { "id": "http_port", "value": "{{http_port}}" },
+    { "id": "https_port", "value": "{{https_port}}" },
+    { "id": "volume_backup", "value": "true" },
+    { "id": "volumes", "default": "config=/config\nsecure=/secure,0700" }
+  ],
   "installation": {
-    "image": [
-      {
-        "name": "oci-lxc-deployer-parameters.json",
-        "before": "011-host-get-oci-image.json"
-      }
-    ],
     "post_start": [
       "345-post-configure-native-ssl.json"
     ]

@@ -30,12 +30,16 @@ import {
  * Separated from Express binding for better testability.
  */
 export class WebAppVeRouteHandlers {
+  private pm: PersistenceManager;
+
   constructor(
     private messageManager: WebAppVeMessageManager,
     private restartManager: WebAppVeRestartManager,
     private parameterProcessor: WebAppVeParameterProcessor,
     private executionSetup: WebAppVeExecutionSetup,
-  ) {}
+  ) {
+    this.pm = PersistenceManager.getInstance();
+  }
 
   /**
    * Builds a standardized error result object for handler methods.
@@ -123,7 +127,7 @@ export class WebAppVeRouteHandlers {
     try {
       // Load application (provides commands)
       const storageContext =
-        PersistenceManager.getInstance().getContextManager();
+        this.pm.getContextManager();
       const ctx: IVEContext | null =
         storageContext.getVEContextByKey(veContextKey);
       if (!ctx) {
@@ -234,7 +238,7 @@ export class WebAppVeRouteHandlers {
       // Icon data for embedding in notes (Data URL avoids mixed content issues)
       // Always use readApplicationIcon() which normalizes SVG size for notes display
       const iconData =
-        PersistenceManager.getInstance()
+        this.pm
           .getApplicationService()
           .readApplicationIcon(application);
       if (iconData) {
@@ -248,7 +252,7 @@ export class WebAppVeRouteHandlers {
       }
 
       const contextManager =
-        PersistenceManager.getInstance().getContextManager();
+        this.pm.getContextManager();
       // Process parameters: for upload parameters with "local:" prefix, read file and base64 encode
       const processedParams = await this.parameterProcessor.processParameters(
         paramsToUse,
@@ -259,7 +263,7 @@ export class WebAppVeRouteHandlers {
       // Merge addon certtype parameters into the parameter list for cert injection
       let allCertParameters: IParameter[] = [...loaded.parameters];
       if (selectedAddons.length > 0) {
-        const addonService = PersistenceManager.getInstance().getAddonService();
+        const addonService = this.pm.getAddonService();
         for (const addonId of selectedAddons) {
           try {
             const addon = addonService.getAddon(addonId);
@@ -325,7 +329,7 @@ export class WebAppVeRouteHandlers {
       }
       // Try to find vmInstallContext by looking up VE contexts
       const contextManager =
-        PersistenceManager.getInstance().getContextManager();
+        this.pm.getContextManager();
 
       const vmInstallContext =
         contextManager.getVMInstallContextByHostnameAndApplication(
@@ -366,7 +370,7 @@ export class WebAppVeRouteHandlers {
       };
     }
 
-    const contextManager = PersistenceManager.getInstance().getContextManager();
+    const contextManager = this.pm.getContextManager();
     const ctx = contextManager.getVEContextByKey(veContextKey);
     if (!ctx) {
       return { success: false, error: "VE context not found", statusCode: 404 };
@@ -427,7 +431,7 @@ export class WebAppVeRouteHandlers {
     const processedParams = await this.parameterProcessor.processParameters(
       paramsFromRestartInfo,
       loaded.parameters,
-      PersistenceManager.getInstance().getContextManager(),
+      this.pm.getContextManager(),
     );
 
     const inputs = processedParams.map((p) => ({
@@ -492,7 +496,7 @@ export class WebAppVeRouteHandlers {
     errorDetails?: IJsonError;
     statusCode?: number;
   }> {
-    const contextManager = PersistenceManager.getInstance().getContextManager();
+    const contextManager = this.pm.getContextManager();
     const ctx = contextManager.getVEContextByKey(veContextKey);
     if (!ctx) {
       return { success: false, error: "VE context not found", statusCode: 404 };
@@ -551,7 +555,7 @@ export class WebAppVeRouteHandlers {
     const processedParams = await this.parameterProcessor.processParameters(
       installCtx.changedParams,
       loaded.parameters,
-      PersistenceManager.getInstance().getContextManager(),
+      this.pm.getContextManager(),
     );
 
     const inputs = processedParams.map((p) => ({
@@ -630,7 +634,7 @@ export class WebAppVeRouteHandlers {
       return [];
     }
 
-    const pm = PersistenceManager.getInstance();
+    const pm = this.pm;
     const addonService = pm.getAddonService();
     const repositories = pm.getRepositories();
     const commands: ICommand[] = [];
@@ -762,7 +766,7 @@ export class WebAppVeRouteHandlers {
     commands: ICommand[],
     addonIds: string[],
   ): void {
-    const pm = PersistenceManager.getInstance();
+    const pm = this.pm;
     const addonService = pm.getAddonService();
     const repositories = pm.getRepositories();
 

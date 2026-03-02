@@ -23,8 +23,10 @@ export class WebAppVE {
   private parameterProcessor: WebAppVeParameterProcessor;
   private executionSetup: WebAppVeExecutionSetup;
   private routeHandlers: WebAppVeRouteHandlers;
+  private pm: PersistenceManager;
 
   constructor(private app: express.Application) {
+    this.pm = PersistenceManager.getInstance();
     this.messageManager = new WebAppVeMessageManager();
     this.restartManager = new WebAppVeRestartManager();
     this.parameterProcessor = new WebAppVeParameterProcessor();
@@ -95,7 +97,7 @@ export class WebAppVE {
 
       if (paramsToStore.length > 0) {
         const storageContext =
-          PersistenceManager.getInstance().getContextManager();
+          this.pm.getContextManager();
         const veContext = storageContext.getVEContextByKey(veContextKey);
         if (veContext) {
           const hostname =
@@ -184,7 +186,7 @@ export class WebAppVE {
     // GET /api/ve/execute/:veContext
     this.app.get<{ veContext: string }>(ApiUri.VeExecute, (req, res) => {
       const storageContext =
-        PersistenceManager.getInstance().getContextManager();
+        this.pm.getContextManager();
       const veContext = storageContext.getVEContextByKey(req.params.veContext);
       if (!veContext) {
         res.status(404).json({ error: "VE context not found" });
@@ -310,7 +312,7 @@ export class WebAppVE {
 
         // Try to get VE context from storage, or derive from key (ve_hostname -> hostname)
         const storageContext =
-          PersistenceManager.getInstance().getContextManager();
+          this.pm.getContextManager();
         const storedContext = storageContext.getVEContextByKey(veContextKey);
         let veContext: IVEContext;
         if (storedContext) {
@@ -358,7 +360,7 @@ export class WebAppVE {
 
       // Get VE context
       const storageContext =
-        PersistenceManager.getInstance().getContextManager();
+        this.pm.getContextManager();
       const veContext = storageContext.getVEContextByKey(veContextKey);
       if (!veContext) {
         res.status(404).json({
@@ -436,7 +438,7 @@ export class WebAppVE {
 
       // Get VE context
       const storageContext =
-        PersistenceManager.getInstance().getContextManager();
+        this.pm.getContextManager();
       const veContext = storageContext.getVEContextByKey(veContextKey);
       if (!veContext) {
         res.status(404).json({

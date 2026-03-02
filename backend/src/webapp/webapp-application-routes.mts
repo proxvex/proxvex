@@ -26,6 +26,8 @@ export function registerApplicationRoutes(
   storageContext: ContextManager,
   returnResponse: ReturnResponse,
 ): void {
+  const pm = PersistenceManager.getInstance();
+
   app.get(
     ApiUri.UnresolvedParameters,
     asyncHandler(async (req, res) => {
@@ -55,7 +57,6 @@ export function registerApplicationRoutes(
 
   app.get(ApiUri.Applications, (_req, res) => {
     try {
-      const pm = PersistenceManager.getInstance();
       const applications = pm
         .getApplicationService()
         .listApplicationsForFrontend();
@@ -68,7 +69,6 @@ export function registerApplicationRoutes(
 
   app.get(ApiUri.LocalApplicationIds, (_req, res) => {
     try {
-      const pm = PersistenceManager.getInstance();
       const localAppNames = pm.getApplicationService().getLocalAppNames();
       const ids = Array.from(localAppNames.keys());
       res.json(ids).status(200);
@@ -79,7 +79,6 @@ export function registerApplicationRoutes(
 
   app.get(ApiUri.ApplicationTags, (_req, res) => {
     try {
-      const pm = PersistenceManager.getInstance();
       const tagsConfig = pm.getTagsConfig();
       returnResponse<ITagsConfigResponse>(res, tagsConfig);
     } catch (err: any) {
@@ -170,7 +169,6 @@ export function registerApplicationRoutes(
         return res.status(400).json({ error: "Missing applicationId" });
       }
 
-      const pm = PersistenceManager.getInstance();
       const appService = pm.getApplicationService();
 
       // Check if application exists in local directory
@@ -297,7 +295,6 @@ export function registerApplicationRoutes(
       // Note: VE context is not required for addon compatibility check
       // Addon compatibility depends only on application metadata
 
-      const pm = PersistenceManager.getInstance();
       const appService = pm.getApplicationService();
       const addonService = pm.getAddonService();
 

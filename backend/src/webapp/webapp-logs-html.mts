@@ -10,6 +10,8 @@ import { IVEContext } from "../backend-types.mjs";
  * Hostname is loaded asynchronously via /api/ve/logs/:vmId/:veContext/hostname (in webapp-ve.mts)
  */
 export function registerLogsHtmlRoute(app: express.Application): void {
+  const pm = PersistenceManager.getInstance();
+
   app.get("/logs/:vmId/:veContext", async (req, res) => {
     const { vmId: vmIdStr, veContext: veContextKey } = req.params;
     const linesStr = req.query.lines as string | undefined;
@@ -24,7 +26,7 @@ export function registerLogsHtmlRoute(app: express.Application): void {
     }
 
     // Try to get VE context from storage, or derive from key (ve_hostname -> hostname)
-    const storageContext = PersistenceManager.getInstance().getContextManager();
+    const storageContext = pm.getContextManager();
     const storedContext = storageContext.getVEContextByKey(veContextKey);
     let veContext: IVEContext;
     if (storedContext) {

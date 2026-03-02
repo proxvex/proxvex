@@ -16,6 +16,8 @@ export function registerAddonRoutes(
   app: express.Application,
   storageContext: ContextManager,
 ): void {
+  const pm = PersistenceManager.getInstance();
+
   /**
    * POST /api/addons/install/:addonId/:veContext
    *
@@ -59,7 +61,6 @@ export function registerAddonRoutes(
           return;
         }
 
-        const pm = PersistenceManager.getInstance();
         const addonService = pm.getAddonService();
         const repositories = pm.getRepositories();
 
