@@ -38,6 +38,7 @@ jobs:
   build-and-release:
     name: "Build and push Docker image"
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
       packages: write
