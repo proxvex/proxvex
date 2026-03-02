@@ -25,7 +25,7 @@
       "type": "string",
       "upload": true,
       "certtype": "server",
-      "description": "PEM certificate (auto-generated if SSL enabled and not uploaded)"
+      "description": "Optional PEM server certificate for HTTPS.\n- If left empty, a certificate is **auto-generated** by the internal CA\n- Upload your own `.pem` or `.crt` file to use a custom certificate\n- The certificate is stored in `/etc/ssl/addon/server.crt` inside the container\n- The HTTPS configuration persists across container restarts"
     },
     {
       "id": "addon_ssl_key",
@@ -33,7 +33,7 @@
       "type": "string",
       "upload": true,
       "secure": true,
-      "description": "PEM private key (auto-generated if SSL enabled and not uploaded)"
+      "description": "Optional PEM private key matching the server certificate.\n- If left empty, a key is **auto-generated** together with the certificate\n- Upload your own `.pem` or `.key` file to use a custom private key\n- The key is stored in `/etc/ssl/addon/server.key` inside the container"
     }
   ],
 

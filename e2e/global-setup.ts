@@ -69,30 +69,7 @@ export default async function globalSetup() {
 
     console.log(`✓ Backend version verified: ${remoteBuild.gitHash} (${remoteBuild.buildTime.substring(0, 19)})`);
 
-    // Enable SSL for e2e tests (default is OFF, but tests expect cert generation)
-    try {
-      const sshRes = await fetch(`${baseURL}/api/sshconfigs`, { signal: AbortSignal.timeout(5000) });
-      if (sshRes.ok) {
-        const sshData = await sshRes.json();
-        const veContextKey = sshData.key;
-        if (veContextKey) {
-          const sslUrl = `${baseURL}/api/ve/certificates/ssl/${veContextKey}`;
-          const sslRes = await fetch(sslUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ssl_enabled: true }),
-            signal: AbortSignal.timeout(5000),
-          });
-          if (sslRes.ok) {
-            console.log(`✓ SSL enabled for e2e tests (veContext: ${veContextKey})`);
-          } else {
-            console.warn(`⚠ Could not enable SSL: ${sslRes.status}`);
-          }
-        }
-      }
-    } catch (sslErr: any) {
-      console.warn(`⚠ Could not enable SSL for e2e tests: ${sslErr.message}`);
-    }
+    // SSL is now always active when the SSL addon is selected (no separate toggle needed)
   } catch (err: any) {
     if (err.message?.includes('BACKEND OUT OF DATE')) {
       throw err; // Re-throw our own error

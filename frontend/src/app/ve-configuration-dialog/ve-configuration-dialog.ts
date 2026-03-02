@@ -3,7 +3,6 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef, MatDialog } from '@angu
 
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -18,6 +17,7 @@ import { CreateStackDialog, CreateStackDialogData, CreateStackDialogResult } fro
 import { ParameterFormManager } from '../shared/utils/parameter-form.utils';
 import { StackSelectorComponent } from '../shared/components/stack-selector/stack-selector.component';
 import { AddonSectionComponent } from '../shared/components/addon-section/addon-section.component';
+import { CertificateManagementDialog } from '../certificate-management/certificate-management-dialog';
 import { Router } from '@angular/router';
 
 /**
@@ -39,7 +39,6 @@ export interface VeConfigurationDialogData {
     MatDialogModule,
     ReactiveFormsModule,
     MatButtonModule,
-    MatCheckboxModule,
     MatIconModule,
     MatSelectModule,
     MatFormFieldModule,
@@ -73,8 +72,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   availableStacktypes = signal<IStacktypeEntry[]>([]);
   stacksLoading = signal(false);
   selectedStack: IStack | null = null;
-  hasCertTypeParams = false;
-  sslDisabledForApp = false;
+  caConfigured = signal(false);
   private formManager!: ParameterFormManager;
   private enumRefreshAttempted = false;
   private visibilityHandler = () => this.onVisibilityChange();
@@ -124,6 +122,15 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
           this.form.addControl(param.id, new FormControl(defaultValue, validators));
           // Initial values will be captured by ParameterFormManager.fromExistingForm()
         }
+
+        // Add hidden controls for presetValues not in unresolved parameters
+        // (e.g., vm_id is resolved by output but needed at runtime for addon-reconfigure)
+        for (const [key, value] of Object.entries(this.presetValues)) {
+          if (!this.form.contains(key)) {
+            this.form.addControl(key, new FormControl(value));
+          }
+        }
+
         // Sort parameters in each group: required first, then optional
         for (const group in this.groupedParameters) {
           this.groupedParameters[group] = this.groupedParameters[group].slice().sort((a, b) => Number(!!b.required) - Number(!!a.required));
@@ -136,15 +143,12 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         // Re-apply addon filtering now that parameters are loaded
         this.applyRequiredParametersFilter();
 
-        // Detect certtype parameters for SSL toggle
-        this.hasCertTypeParams = this.unresolvedParameters.some(p => p.certtype);
-        if (this.hasCertTypeParams) {
-          this.configService.getCaInfo().subscribe({
-            next: (info) => {
-              this.sslDisabledForApp = !(info.ssl_enabled ?? false);
-            }
-          });
-        }
+        // Check CA status (needed to gate SSL addon selection)
+        this.configService.getCaInfo().subscribe({
+          next: (info) => {
+            this.caConfigured.set(info.exists);
+          }
+        });
 
         // Create ParameterFormManager from existing form
         this.formManager = ParameterFormManager.fromExistingForm(
@@ -245,14 +249,9 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   /** All addons from backend before required_parameters filtering */
   private _allCompatibleAddons: IAddonWithParameters[] = [];
 
-  /** Filter addons by required_parameters against loaded unresolved parameters */
+  /** Apply addon filtering. required_parameters is checked by the backend. */
   applyRequiredParametersFilter(): void {
-    this.availableAddons = this._allCompatibleAddons.filter(addon => {
-      if (!addon.required_parameters?.length) return true;
-      return addon.required_parameters.every(paramId =>
-        this.unresolvedParameters.some(p => p.id === paramId),
-      );
-    });
+    this.availableAddons = this._allCompatibleAddons;
   }
 
   private loadStacks(): void {
@@ -325,6 +324,16 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   toggleAddon(addonId: string, checked: boolean): void {
     const addon = this.availableAddons.find(a => a.id === addonId);
 
+    // Gate: CA must be configured before enabling an addon with certtype parameters
+    if (checked && addon?.parameters?.some(p => p.certtype) && !this.caConfigured()) {
+      this.showCaRequiredDialog(addonId);
+      return;
+    }
+
+    this.applyAddonToggle(addonId, checked, addon);
+  }
+
+  private applyAddonToggle(addonId: string, checked: boolean, addon?: IAddonWithParameters): void {
     if (checked) {
       this.selectedAddons.update(addons => [...addons, addonId]);
       // Add form controls for addon parameters via manager
@@ -346,6 +355,25 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     }
     // Update manager's addon list for install()
     this.formManager.setSelectedAddons(this.selectedAddons());
+  }
+
+  private showCaRequiredDialog(addonId: string): void {
+    const ref = this.dialog.open(CertificateManagementDialog, {
+      width: '800px',
+      maxHeight: '90vh',
+    });
+    ref.afterClosed().subscribe(() => {
+      // Re-check CA status after dialog closes
+      this.configService.getCaInfo().subscribe({
+        next: (info) => {
+          this.caConfigured.set(info.exists);
+          if (info.exists) {
+            const addon = this.availableAddons.find(a => a.id === addonId);
+            this.applyAddonToggle(addonId, true, addon);
+          }
+        }
+      });
+    });
   }
 
   isAddonSelected(addonId: string): boolean {
@@ -395,9 +423,6 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.loading.set(true);
 
     // Addons are already set in formManager via toggleAddon() -> setSelectedAddons()
-    if (this.sslDisabledForApp) {
-      this.formManager.setSslDisabled(true);
-    }
     this.formManager.install(this.data.app.id, this.task).subscribe({
       next: () => {
         this.loading.set(false);
