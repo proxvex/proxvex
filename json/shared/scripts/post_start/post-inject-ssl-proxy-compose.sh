@@ -32,10 +32,10 @@ if [ "$SSL_MODE" = "native" ]; then
   exit 0
 fi
 
-# Verify compose project
+# No compose project: not a Docker-Compose app, skip
 if [ -z "$COMPOSE_PROJECT" ]; then
-  echo "Error: compose_project not set" >&2
-  exit 1
+  echo "Not a Docker-Compose app, skipping SSL proxy compose injection" >&2
+  exit 0
 fi
 
 COMPOSE_DIR="/opt/docker-compose/${COMPOSE_PROJECT}"
