@@ -10,6 +10,8 @@ export function registerInstallationsRoutes(
   app: express.Application,
   storageContext: ContextManager,
 ): void {
+  const pm = PersistenceManager.getInstance();
+
   app.get(ApiUri.Installations, async (req, res) => {
     try {
       const veContextKey = String(req.params.veContext || "").trim();
@@ -23,7 +25,7 @@ export function registerInstallationsRoutes(
         return;
       }
 
-      const repositories = PersistenceManager.getInstance().getRepositories();
+      const repositories = pm.getRepositories();
       const scriptContent = repositories.getScript({
         name: "list-managed-oci-containers.py",
         scope: "shared",

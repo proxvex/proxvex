@@ -20,6 +20,8 @@ export function registerCertificateRoutes(
   app: express.Application,
   storageContext: ContextManager,
 ): void {
+  const pm = PersistenceManager.getInstance();
+
   // GET /api/ve/certificates/ca/:veContext - CA info (no private key)
   app.get(ApiUri.CertificateCa, (req, res) => {
     try {
@@ -126,7 +128,7 @@ export function registerCertificateRoutes(
         return;
       }
 
-      const repositories = PersistenceManager.getInstance().getRepositories();
+      const repositories = pm.getRepositories();
       const scriptContent = repositories.getScript({
         name: "list-certificate-status.sh",
         scope: "shared",
@@ -211,7 +213,7 @@ export function registerCertificateRoutes(
 
       const ca = caService.getCA(veContextKey)!;
 
-      const repositories = PersistenceManager.getInstance().getRepositories();
+      const repositories = pm.getRepositories();
       const scriptContent = repositories.getScript({
         name: "conf-renew-certificates.sh",
         scope: "shared",
@@ -364,7 +366,7 @@ export function registerCertificateRoutes(
       const domainSuffix = (req.body as any)?.domain_suffix || ".local";
       const fqdn = `${veContext.host}${domainSuffix}`;
 
-      const repositories = PersistenceManager.getInstance().getRepositories();
+      const repositories = pm.getRepositories();
       const scriptContent = repositories.getScript({
         name: "host-provision-pve-certificate.sh",
         scope: "shared",

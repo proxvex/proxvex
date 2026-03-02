@@ -5,16 +5,19 @@ import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { generateSecret } from "../services/secrets-generator.service.mjs";
 
 export class WebAppStack {
+  private pm: PersistenceManager;
+
   constructor(
     private app: express.Application,
     private contextManager: ContextManager,
-  ) {}
+  ) {
+    this.pm = PersistenceManager.getInstance();
+  }
 
   init(): void {
     // GET /api/stacktypes - List all stacktypes
     this.app.get(ApiUri.Stacktypes, (_req, res) => {
-      const pm = PersistenceManager.getInstance();
-      const stacktypes = pm.getStacktypes();
+      const stacktypes = this.pm.getStacktypes();
       res.json({ stacktypes });
     });
 
@@ -50,7 +53,7 @@ export class WebAppStack {
       }
 
       // Auto-generate secrets for variables without 'external' flag
-      const pm = PersistenceManager.getInstance();
+      const pm = this.pm;
       const stacktypes = pm.getStacktypes();
       const stacktypeDef = stacktypes.find((st) => st.name === body.stacktype);
 
