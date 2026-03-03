@@ -233,6 +233,7 @@ export class VeExecution extends EventEmitter {
     const scriptContent = repositories.getScript({
       name: "find-containers-by-app-id.py",
       scope: "shared",
+      category: "root",
     });
     if (!scriptContent) {
       throw new Error("find-containers-by-app-id.py not found");
@@ -241,6 +242,7 @@ export class VeExecution extends EventEmitter {
     const libraryContent = repositories.getScript({
       name: "lxc_config_parser_lib.py",
       scope: "shared",
+      category: "library",
     });
     if (!libraryContent) {
       throw new Error("lxc_config_parser_lib.py not found");

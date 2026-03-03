@@ -69,6 +69,7 @@
     {
       "name": "Create & Merge Config",
       "script": "copy-upgrade-oci-lxc.sh",
+      "library": "upgrade-common.sh",
       "outputs": ["vm_id"]
     },
     {

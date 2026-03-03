@@ -123,7 +123,7 @@ print(json.dumps(output))
 `;
       persistenceHelper.writeTextSync(
         Volume.JsonSharedScripts,
-        "get-oci-image-annotations.py",
+        "image/get-oci-image-annotations.py",
         mockScript,
       );
 
@@ -158,7 +158,7 @@ print(json.dumps(output))
 `;
       persistenceHelper.writeTextSync(
         Volume.JsonSharedScripts,
-        "get-oci-image-annotations.py",
+        "image/get-oci-image-annotations.py",
         mockScript,
       );
 
@@ -189,7 +189,7 @@ print(json.dumps(output))
 `;
       persistenceHelper.writeTextSync(
         Volume.JsonSharedScripts,
-        "get-oci-image-annotations.py",
+        "image/get-oci-image-annotations.py",
         mockScript,
       );
 
@@ -214,7 +214,7 @@ sys.exit(1)
 `;
       persistenceHelper.writeTextSync(
         Volume.JsonSharedScripts,
-        "get-oci-image-annotations.py",
+        "image/get-oci-image-annotations.py",
         mockScript,
       );
 
@@ -235,7 +235,7 @@ print("Invalid JSON")
 `;
       persistenceHelper.writeTextSync(
         Volume.JsonSharedScripts,
-        "get-oci-image-annotations.py",
+        "image/get-oci-image-annotations.py",
         mockScript,
       );
 

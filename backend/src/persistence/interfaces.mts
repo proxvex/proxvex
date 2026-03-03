@@ -91,7 +91,7 @@ export interface ITemplatePersistence extends IPersistence {
   resolveTemplatePath(
     templateName: string,
     isShared: boolean,
-    category?: string,
+    category?: string, // defaults to "root" — use "root" for root-level shared templates
   ): string | null;
 
   /**

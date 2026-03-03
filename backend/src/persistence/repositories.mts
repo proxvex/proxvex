@@ -22,20 +22,23 @@ export interface TemplateRef {
   scope: TemplateScope;
   applicationId?: string;
   origin?: "local" | "json";
-  category?: string;
+  /** Explicit category. "root" = shared root dir; "" = application-scoped (no category). */
+  category: string;
 }
 
 export interface ScriptRef {
   name: string;
   scope: TemplateScope;
   applicationId?: string;
-  category?: string;
+  /** Explicit category. "root" = shared root dir; "" = application-scoped (no category). */
+  category: string;
 }
 
 export interface MarkdownRef {
   templateName: string;
   scope: TemplateScope;
   applicationId?: string;
+  category?: string;
 }
 
 export interface LocalResourceRef {
@@ -78,9 +81,9 @@ export interface IRepositories
 export interface InMemoryRepositoriesOptions {
   applications?: Map<string, IApplication>;
   templates?: Map<string, ITemplate>; // application templates keyed by `${appId}:${templateName}`
-  sharedTemplates?: Map<string, ITemplate>; // keyed by templateName
+  sharedTemplates?: Map<string, ITemplate>; // keyed by `${category}:${templateName}` (use "root:name" for root templates)
   scripts?: Map<string, string>; // application scripts keyed by `${appId}:${scriptName}`
-  sharedScripts?: Map<string, string>; // keyed by scriptName
+  sharedScripts?: Map<string, string>; // keyed by `${category}:${scriptName}` (use "root:name" for root scripts)
   markdown?: Map<string, string>; // application markdown keyed by `${appId}:${templateName}`
   sharedMarkdown?: Map<string, string>; // keyed by templateName
   localResources?: Map<string, Buffer>; // keyed by resource path
@@ -168,25 +171,16 @@ export class InMemoryRepositories
         scope: "application",
         applicationId,
         origin: this.origin,
+        category: "",
       };
     }
-    // Try with category first
-    if (category) {
-      const categoryKey = `${category}:${normalized}`;
-      if (this.sharedTemplates.has(categoryKey)) {
-        return {
-          name: normalized,
-          scope: "shared",
-          origin: this.origin,
-          category,
-        };
-      }
-    }
-    if (this.sharedTemplates.has(normalized)) {
+    const categoryKey = `${category}:${normalized}`;
+    if (this.sharedTemplates.has(categoryKey)) {
       return {
         name: normalized,
         scope: "shared",
         origin: this.origin,
+        category,
       };
     }
     return null;
@@ -194,14 +188,8 @@ export class InMemoryRepositories
 
   getTemplate(ref: TemplateRef): ITemplate | null {
     if (ref.scope === "shared") {
-      // Try with category first
-      if (ref.category) {
-        const categoryKey = `${ref.category}:${ref.name}`;
-        const result = this.sharedTemplates.get(categoryKey);
-        if (result !== undefined) return result;
-      }
-      // Fallback to name only
-      return this.sharedTemplates.get(ref.name) ?? null;
+      const categoryKey = `${ref.category}:${ref.name}`;
+      return this.sharedTemplates.get(categoryKey) ?? null;
     }
     const key = `${ref.applicationId}:${ref.name}`;
     return this.templates.get(key) ?? null;
@@ -209,14 +197,8 @@ export class InMemoryRepositories
 
   getScript(ref: ScriptRef): string | null {
     if (ref.scope === "shared") {
-      // Try with category first
-      if (ref.category) {
-        const categoryKey = `${ref.category}:${ref.name}`;
-        const result = this.sharedScripts.get(categoryKey);
-        if (result !== undefined) return result;
-      }
-      // Fallback to name only
-      return this.sharedScripts.get(ref.name) ?? null;
+      const categoryKey = `${ref.category}:${ref.name}`;
+      return this.sharedScripts.get(categoryKey) ?? null;
     }
     const key = `${ref.applicationId}:${ref.name}`;
     return this.scripts.get(key) ?? null;
@@ -398,6 +380,7 @@ export class FileSystemRepositories
           scope: "application",
           origin,
           applicationId: appId,
+          category: "",
         };
       }
     }
@@ -427,7 +410,7 @@ export class FileSystemRepositories
       name,
       scope: "shared",
       origin,
-      ...(resolved.category !== undefined && { category: resolved.category }),
+      category: resolved.category,
     };
   }
 
@@ -530,8 +513,16 @@ export class FileSystemRepositories
     if (ref.scope === "shared") {
       const searchPaths: string[] = [];
 
-      // Category path first (if specified)
-      if (ref.category) {
+      if (ref.category === "root") {
+        // Root-level shared scripts — no subdirectory
+        searchPaths.push(
+          path.join(this.pathes.localPath, "shared", "scripts", ref.name),
+        );
+        searchPaths.push(
+          path.join(this.pathes.jsonPath, "shared", "scripts", ref.name),
+        );
+      } else if (ref.category) {
+        // Category subdirectory — no root fallback
         searchPaths.push(
           path.join(
             this.pathes.localPath,
@@ -551,14 +542,6 @@ export class FileSystemRepositories
           ),
         );
       }
-
-      // Root paths (always accessible - these are non-categorized scripts)
-      searchPaths.push(
-        path.join(this.pathes.localPath, "shared", "scripts", ref.name),
-      );
-      searchPaths.push(
-        path.join(this.pathes.jsonPath, "shared", "scripts", ref.name),
-      );
 
       for (const p of searchPaths) {
         if (fs.existsSync(p)) {
@@ -628,7 +611,7 @@ export class FileSystemRepositories
 
   private resolveTemplatePathForMarkdown(ref: MarkdownRef): string | null {
     if (ref.scope === "shared") {
-      return this.persistence.resolveTemplatePath(ref.templateName, true);
+      return this.persistence.resolveTemplatePath(ref.templateName, true, ref.category ?? "root");
     }
 
     const appPath = this.getApplicationPath(ref.applicationId);
@@ -683,7 +666,7 @@ export class FileSystemRepositories
     dir: string,
     scope: TemplateScope,
     applicationId?: string,
-    category?: string,
+    category: string = "root",
   ): void {
     if (!fs.existsSync(dir)) return;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -710,7 +693,7 @@ export class FileSystemRepositories
           name,
           scope: "shared",
           origin: "json",
-          ...(category !== undefined && { category }),
+          category,
         };
         this.templateCache.set(this.getTemplateCacheKey(ref), template);
       } else if (applicationId) {
@@ -719,6 +702,7 @@ export class FileSystemRepositories
           scope: "application",
           applicationId,
           origin: "json",
+          category: "",
         };
         this.templateCache.set(this.getTemplateCacheKey(ref), template);
       }
@@ -727,7 +711,7 @@ export class FileSystemRepositories
       if (fs.existsSync(mdPath)) {
         const content = fs.readFileSync(mdPath, "utf-8");
         if (scope === "shared") {
-          const mdRef: MarkdownRef = { templateName: name, scope: "shared" };
+          const mdRef: MarkdownRef = { templateName: name, scope: "shared", category };
           this.markdownCache.set(this.getMarkdownCacheKey(mdRef), content);
         } else if (applicationId) {
           const mdRef: MarkdownRef = {
@@ -745,7 +729,7 @@ export class FileSystemRepositories
     dir: string,
     scope: TemplateScope,
     applicationId?: string,
-    category?: string,
+    category: string = "root",
   ): void {
     if (!fs.existsSync(dir)) return;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -769,7 +753,7 @@ export class FileSystemRepositories
         const ref: ScriptRef = {
           name: entry.name,
           scope: "shared",
-          ...(category !== undefined && { category }),
+          category,
         };
         this.scriptCache.set(this.getScriptCacheKey(ref), content);
       } else if (applicationId) {
@@ -777,6 +761,7 @@ export class FileSystemRepositories
           name: entry.name,
           scope: "application",
           applicationId,
+          category: "",
         };
         this.scriptCache.set(this.getScriptCacheKey(ref), content);
       }
@@ -784,22 +769,20 @@ export class FileSystemRepositories
   }
 
   private getTemplateCacheKey(ref: TemplateRef): string {
-    const categoryPart = ref.category ? `:${ref.category}` : "";
     return ref.scope === "shared"
-      ? `shared${categoryPart}:${ref.name}`
+      ? `shared:${ref.category}:${ref.name}`
       : `app:${ref.applicationId ?? "unknown"}:${ref.name}`;
   }
 
   private getScriptCacheKey(ref: ScriptRef): string {
-    const categoryPart = ref.category ? `:${ref.category}` : "";
     return ref.scope === "shared"
-      ? `shared${categoryPart}:${ref.name}`
+      ? `shared:${ref.category}:${ref.name}`
       : `app:${ref.applicationId ?? "unknown"}:${ref.name}`;
   }
 
   private getMarkdownCacheKey(ref: MarkdownRef): string {
     return ref.scope === "shared"
-      ? `shared:${ref.templateName}`
+      ? `shared:${ref.category ?? "root"}:${ref.templateName}`
       : `app:${ref.applicationId ?? "unknown"}:${ref.templateName}`;
   }
 
@@ -859,25 +842,14 @@ export class FileSystemRepositories
     const warnings: string[] = [];
 
     // Track shared templates by name -> categories
+    // All keys are "shared:category:name" (3-part) since category is always explicit
     const templatesByName = new Map<string, string[]>();
     for (const key of this.templateCache.keys()) {
-      if (!key.startsWith("shared")) continue;
-      // Key format: "shared:category:name" or "shared:name"
+      if (!key.startsWith("shared:")) continue;
       const parts = key.split(":");
-      if (parts.length < 2) continue;
-
-      let name: string;
-      let category: string;
-      if (parts.length === 2) {
-        // "shared:name" - root template without category
-        name = parts[1]!;
-        category = "(root)";
-      } else {
-        // "shared:category:name"
-        category = parts[1]!;
-        name = parts[2]!;
-      }
-
+      if (parts.length !== 3) continue;
+      const category = parts[1]!;
+      const name = parts[2]!;
       if (!templatesByName.has(name)) {
         templatesByName.set(name, []);
       }
@@ -896,20 +868,11 @@ export class FileSystemRepositories
     // Track shared scripts by name -> categories
     const scriptsByName = new Map<string, string[]>();
     for (const key of this.scriptCache.keys()) {
-      if (!key.startsWith("shared")) continue;
+      if (!key.startsWith("shared:")) continue;
       const parts = key.split(":");
-      if (parts.length < 2) continue;
-
-      let name: string;
-      let category: string;
-      if (parts.length === 2) {
-        name = parts[1]!;
-        category = "(root)";
-      } else {
-        category = parts[1]!;
-        name = parts[2]!;
-      }
-
+      if (parts.length !== 3) continue;
+      const category = parts[1]!;
+      const name = parts[2]!;
       if (!scriptsByName.has(name)) {
         scriptsByName.set(name, []);
       }

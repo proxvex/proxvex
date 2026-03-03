@@ -5,15 +5,16 @@
 
     { "path": "backend" }
   ],
-  "settings": {
-    "claudeCode.allowDangerouslySkipPermissions": true,
+ "settings": {
     "workbench.colorCustomizations": {
     // Hintergrund des Editors
-    "activityBar.background": "#d7ed58",
+    "activityBar.background": "#a4e158",
     "activityBar.foreground": "#130d03",},
+
+    "claudeCode.allowDangerouslySkipPermissions": true,
     "terminal.integrated.env.osx": {
-      "DEPLOYER_PORT": "3003",
-      "FRONTEND_PORT": "4203"
+      "DEPLOYER_PORT": "3301",
+      "FRONTEND_PORT": "4401"
     }
-  }
+  },
 }

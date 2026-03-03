@@ -18,6 +18,9 @@
       "305-post-set-pkg-mirror.json"
     ]
   },
+  "upgrade": [
+    "221-upgrade-oci-lxc.json"
+  ],
   "copy-upgrade": [
     "220-copy-upgrade-oci-lxc.json"
   ],

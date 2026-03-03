@@ -25,6 +25,7 @@ class MockVeConfigurationService {
     },
   ]));
   postVeCopyUpgrade = vi.fn(() => of({ success: true, restartKey: 'rk_test' }));
+  postVeUpgrade = vi.fn(() => of({ success: true, restartKey: 'rk_test' }));
 }
 
 // Sicherstellen, dass die Angular Test-Umgebung aktiv ist (ohne deprecated Importe im Spec)
@@ -56,12 +57,12 @@ describe('InstalledList component (vitest)', () => {
     expect(svc.getInstallations).toHaveBeenCalledTimes(1);
 
     const el: HTMLElement = fixture.nativeElement as HTMLElement;
-    // Suche Buttons - 2 Karten mit je 2 Buttons (Copy-Upgrade + Reconfigure) = 4
+    // Suche Buttons - 2 Karten mit je 3 Buttons (Upgrade + Copy-Upgrade + Reconfigure) = 6
     const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.card-actions button'));
-    expect(buttons.length).toBe(4);
+    expect(buttons.length).toBe(6);
 
-    // Klick auf ersten Copy-Upgrade Button (Index 0)
-    buttons[0].click();
+    // Klick auf ersten Copy-Upgrade Button (Index 1, nach Upgrade-Button)
+    buttons[1].click();
     fixture.detectChanges();
     expect(svc.postVeCopyUpgrade).toHaveBeenCalledTimes(1);
     expect(router.navigate).toHaveBeenCalledWith(['/monitor']);
