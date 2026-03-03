@@ -415,7 +415,7 @@ export class ApplicationPersistenceHandler {
     try {
       const appData = this.deserializeAndInitApp(appFile, appName, appPath, applicationName, opts);
 
-      // Recursive inheritance - load parent first to get icon data
+      // Recursive inheritance - load parent first to get icon data AND templates
       if (appData.extends) {
         try {
           const parent = this.readApplication(appData.extends, opts);
@@ -708,15 +708,37 @@ export class ApplicationPersistenceHandler {
       }
     }
 
+    // upgrade, copy-upgrade, copy-rollback: support both array (flat) and object (category-based) format
+    for (const key of ["upgrade", "copy-upgrade", "copy-rollback"] as const) {
+      const value = (appData as any)[key];
+      if (!value) continue;
+
+      let taskEntry = opts.taskTemplates.find((t) => t.task === key);
+      if (!taskEntry) {
+        taskEntry = { task: key, templates: [] };
+        opts.taskTemplates.push(taskEntry);
+      }
+
+      if (Array.isArray(value)) {
+        // Simple array format (backward compatible) - uses "root" category
+        this.processTemplateList(value, taskEntry, key, opts, "root");
+      } else if (typeof value === "object") {
+        // Category-based format (like installation)
+        for (const category of installationCategories) {
+          const list = value[category];
+          if (Array.isArray(list)) {
+            this.processTemplateList(list, taskEntry, key, opts, category);
+          }
+        }
+      }
+    }
+
     // Other tasks use simple array format
     const otherTaskKeys = [
       "backup",
       "restore",
       "uninstall",
       "update",
-      "upgrade",
-      "copy-upgrade",
-      "copy-rollback",
       "addon",
       "webui",
     ];

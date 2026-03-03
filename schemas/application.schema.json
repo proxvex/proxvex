@@ -32,47 +32,19 @@
       "type": "string"
     },
     "installation": {
-      "type": "object",
-      "properties": {
-        "image": {
-          "$ref": "templatelist"
-        },        
-        "pre_start": {
-          "$ref": "templatelist"
-        },
-        "start": {
-          "$ref": "templatelist"
-        },
-        "post_start": {
-          "$ref": "templatelist"
-        }
-      }
+      "$ref": "categorized-templatelist"
     },
     "upgrade": {
-      "$ref": "templatelist"
+      "$ref": "categorized-templatelist"
     },
     "copy-upgrade": {
-      "$ref": "templatelist"
+      "$ref": "categorized-templatelist"
     },
     "copy-rollback": {
-      "$ref": "templatelist"
+      "$ref": "categorized-templatelist"
     },
     "addon-reconfigure": {
-      "type": "object",
-      "properties": {
-        "image": {
-          "$ref": "templatelist"
-        },
-        "pre_start": {
-          "$ref": "templatelist"
-        },
-        "start": {
-          "$ref": "templatelist"
-        },
-        "post_start": {
-          "$ref": "templatelist"
-        }
-      }
+      "$ref": "categorized-templatelist"
     },
     "addon": {
       "$ref": "templatelist"

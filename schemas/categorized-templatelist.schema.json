@@ -1,0 +1,17 @@
+{
+  "$id": "categorized-templatelist",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A template list that supports both flat array format and category-based object format",
+  "oneOf": [
+    { "$ref": "templatelist" },
+    {
+      "type": "object",
+      "properties": {
+        "image": { "$ref": "templatelist" },
+        "pre_start": { "$ref": "templatelist" },
+        "start": { "$ref": "templatelist" },
+        "post_start": { "$ref": "templatelist" }
+      }
+    }
+  ]
+}
