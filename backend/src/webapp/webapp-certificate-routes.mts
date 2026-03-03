@@ -113,6 +113,9 @@ export function registerCertificateRoutes(
         return;
       }
 
+      const caService = new CertificateAuthorityService(storageContext);
+      const sharedVolpath = caService.getSharedVolpath(veContextKey);
+
       const cmd: ICommand = {
         name: "List Certificate Status",
         execute_on: "ve",
@@ -121,9 +124,13 @@ export function registerCertificateRoutes(
         outputs: ["certificates"],
       };
 
+      const inputs = sharedVolpath
+        ? [{ id: "shared_volpath", value: sharedVolpath }]
+        : [];
+
       const ve = new VeExecution(
         [cmd],
-        [],
+        inputs,
         veContext,
         new Map(),
         undefined,
@@ -137,7 +144,6 @@ export function registerCertificateRoutes(
           ? JSON.parse(certsRaw)
           : [];
 
-      const caService = new CertificateAuthorityService(storageContext);
       const caInfo = caService.getCaInfo(veContextKey);
       const caStatus = caInfo.exists
         ? {
@@ -186,6 +192,7 @@ export function registerCertificateRoutes(
       }
 
       const ca = caService.getCA(veContextKey)!;
+      const sharedVolpath = caService.getSharedVolpath(veContextKey);
 
       const repositories = pm.getRepositories();
       const scriptContent = repositories.getScript({
@@ -221,6 +228,7 @@ export function registerCertificateRoutes(
         { id: "ca_key_b64", value: ca.key },
         { id: "ca_cert_b64", value: ca.cert },
         { id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) },
+        ...(sharedVolpath ? [{ id: "shared_volpath", value: sharedVolpath }] : []),
       ];
 
       const ve = new VeExecution(

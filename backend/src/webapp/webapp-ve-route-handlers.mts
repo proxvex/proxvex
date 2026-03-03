@@ -17,6 +17,7 @@ import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
 import {
   IApplication,
   IVEContext,
+  IVMContext,
   IVMInstallContext,
 } from "@src/backend-types.mjs";
 import { PersistenceManager } from "@src/persistence/persistence-manager.mjs";
@@ -318,6 +319,15 @@ export class WebAppVeRouteHandlers {
         task,
         sshCommand,
       );
+
+      // Persist shared_volpath per VE context whenever it appears in outputs
+      exec.on("finished", (msg: IVMContext) => {
+        const sharedVolpath = msg.outputs?.shared_volpath;
+        if (sharedVolpath && typeof sharedVolpath === "string") {
+          const caService = new CertificateAuthorityService(storageContext);
+          caService.setSharedVolpath(veContextKey, sharedVolpath);
+        }
+      });
 
       // Respond immediately with restartKey, run execution in background
       const fallbackRestartInfo = this.restartManager.createFallbackRestartInfo(
