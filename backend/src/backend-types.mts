@@ -43,8 +43,10 @@ export interface IVMInstallContext {
 
 // Interface generated from application.schema.json
 // Extends IApplicationBase from types.mts (which includes url, documentation, source, vendor)
+// Tasks can be either a simple array (templatelist) or a category-based object ({ image, pre_start, start, post_start })
+type TaskTemplateValue = string[] | Record<string, string[]>;
 export type IApplicationSchema = IApplicationBase & {
-  [key in TaskType]?: string[];
+  [key in TaskType]?: TaskTemplateValue;
 };
 
 export interface IApplication extends IApplicationSchema {

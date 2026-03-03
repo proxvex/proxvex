@@ -42,6 +42,7 @@ describe("FileSystemPersistence (Integration)", () => {
     // JsonValidator initialisieren (benötigt Schemas)
     jsonValidator = new JsonValidator(schemaPath, [
       "templatelist.schema.json",
+      "categorized-templatelist.schema.json",
       "base-deployable.schema.json",
     ]);
 

@@ -51,6 +51,7 @@ describe("ApplicationPersistenceHandler", () => {
     // JsonValidator initialisieren (benötigt Schemas)
     jsonValidator = new JsonValidator(schemaPath, [
       "templatelist.schema.json",
+      "categorized-templatelist.schema.json",
       "base-deployable.schema.json",
     ]);
 
@@ -387,6 +388,176 @@ describe("ApplicationPersistenceHandler", () => {
       const childPreStartIndex = templateNames.indexOf("0-child-pre-start.json");
       const postStartIndex = templateNames.indexOf("300-parent-post-start.json");
       expect(childPreStartIndex).toBeLessThan(postStartIndex);
+    });
+
+    it("should inherit upgrade task from parent when child does not define it", () => {
+      // Setup: Parent Application with upgrade and copy-upgrade tasks
+      const parentDir = persistenceHelper.resolve(
+        Volume.JsonApplications,
+        "parent-with-upgrade",
+      );
+      mkdirSync(parentDir, { recursive: true });
+      persistenceHelper.writeJsonSync(
+        Volume.JsonApplications,
+        "parent-with-upgrade/application.json",
+        {
+          name: "Parent With Upgrade",
+          installation: {
+            pre_start: ["100-parent-pre-start.json"],
+          },
+          upgrade: ["221-upgrade.json"],
+          "copy-upgrade": ["220-copy-upgrade.json"],
+        },
+      );
+
+      // Setup: Child Application that extends parent but does NOT define upgrade
+      const childDir = persistenceHelper.resolve(
+        Volume.LocalRoot,
+        "applications/child-no-upgrade",
+      );
+      mkdirSync(childDir, { recursive: true });
+      persistenceHelper.writeJsonSync(
+        Volume.LocalRoot,
+        "applications/child-no-upgrade/application.json",
+        {
+          name: "Child No Upgrade",
+          extends: "parent-with-upgrade",
+          installation: {},
+        },
+      );
+
+      const opts: IReadApplicationOptions = {
+        applicationHierarchy: [],
+        error: new VEConfigurationError("", "child-no-upgrade"),
+        taskTemplates: [],
+      };
+
+      handler.readApplication("child-no-upgrade", opts);
+
+      // Upgrade task should be inherited from parent
+      const upgradeTask = opts.taskTemplates.find(
+        (t) => t.task === "upgrade",
+      );
+      expect(upgradeTask).toBeDefined();
+      expect(getTemplateNames(upgradeTask?.templates)).toContain(
+        "221-upgrade.json",
+      );
+
+      // Copy-upgrade task should also be inherited
+      const copyUpgradeTask = opts.taskTemplates.find(
+        (t) => t.task === "copy-upgrade",
+      );
+      expect(copyUpgradeTask).toBeDefined();
+      expect(getTemplateNames(copyUpgradeTask?.templates)).toContain(
+        "220-copy-upgrade.json",
+      );
+    });
+
+    it("should process category-based upgrade format", () => {
+      const appDir = persistenceHelper.resolve(
+        Volume.JsonApplications,
+        "cat-upgrade-app",
+      );
+      mkdirSync(appDir, { recursive: true });
+      persistenceHelper.writeJsonSync(
+        Volume.JsonApplications,
+        "cat-upgrade-app/application.json",
+        {
+          name: "Category Upgrade App",
+          installation: {},
+          upgrade: {
+            image: ["011-get-image.json"],
+            start: ["221-upgrade.json"],
+          },
+          "copy-upgrade": {
+            image: ["011-get-image.json"],
+            start: ["220-copy-upgrade.json"],
+          },
+        },
+      );
+
+      const opts: IReadApplicationOptions = {
+        applicationHierarchy: [],
+        error: new VEConfigurationError("", "cat-upgrade-app"),
+        taskTemplates: [],
+      };
+
+      handler.readApplication("cat-upgrade-app", opts);
+
+      // Upgrade task should have templates from both categories
+      const upgradeTask = opts.taskTemplates.find(
+        (t) => t.task === "upgrade",
+      );
+      expect(upgradeTask).toBeDefined();
+      const upgradeNames = getTemplateNames(upgradeTask?.templates);
+      expect(upgradeNames).toContain("011-get-image.json");
+      expect(upgradeNames).toContain("221-upgrade.json");
+      // image category should come before start category
+      expect(upgradeNames.indexOf("011-get-image.json")).toBeLessThan(
+        upgradeNames.indexOf("221-upgrade.json"),
+      );
+
+      // Copy-upgrade should also work
+      const copyUpgradeTask = opts.taskTemplates.find(
+        (t) => t.task === "copy-upgrade",
+      );
+      expect(copyUpgradeTask).toBeDefined();
+      const copyNames = getTemplateNames(copyUpgradeTask?.templates);
+      expect(copyNames).toContain("011-get-image.json");
+      expect(copyNames).toContain("220-copy-upgrade.json");
+    });
+
+    it("should inherit category-based upgrade from parent", () => {
+      // Parent with category-based upgrade
+      const parentDir = persistenceHelper.resolve(
+        Volume.JsonApplications,
+        "cat-upgrade-parent",
+      );
+      mkdirSync(parentDir, { recursive: true });
+      persistenceHelper.writeJsonSync(
+        Volume.JsonApplications,
+        "cat-upgrade-parent/application.json",
+        {
+          name: "Category Upgrade Parent",
+          installation: {},
+          upgrade: {
+            image: ["011-get-image.json"],
+            start: ["221-upgrade.json"],
+          },
+        },
+      );
+
+      // Child that extends parent
+      const childDir = persistenceHelper.resolve(
+        Volume.LocalRoot,
+        "applications/cat-upgrade-child",
+      );
+      mkdirSync(childDir, { recursive: true });
+      persistenceHelper.writeJsonSync(
+        Volume.LocalRoot,
+        "applications/cat-upgrade-child/application.json",
+        {
+          name: "Category Upgrade Child",
+          extends: "cat-upgrade-parent",
+          installation: {},
+        },
+      );
+
+      const opts: IReadApplicationOptions = {
+        applicationHierarchy: [],
+        error: new VEConfigurationError("", "cat-upgrade-child"),
+        taskTemplates: [],
+      };
+
+      handler.readApplication("cat-upgrade-child", opts);
+
+      const upgradeTask = opts.taskTemplates.find(
+        (t) => t.task === "upgrade",
+      );
+      expect(upgradeTask).toBeDefined();
+      const names = getTemplateNames(upgradeTask?.templates);
+      expect(names).toContain("011-get-image.json");
+      expect(names).toContain("221-upgrade.json");
     });
 
     it("should detect cyclic inheritance", () => {
