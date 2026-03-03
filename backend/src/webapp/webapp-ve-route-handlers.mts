@@ -813,6 +813,7 @@ export class WebAppVeRouteHandlers {
   private addAddonNotesCommands(
     commands: ICommand[],
     addonIds: string[],
+    notesIndex: number
   ): void {
     const pm = this.pm;
     const addonService = pm.getAddonService();
@@ -821,10 +822,12 @@ export class WebAppVeRouteHandlers {
     const notesUpdateScript = repositories.getScript({
       name: "host-update-lxc-notes-addon.py",
       scope: "shared",
+      category: "post_start",
     });
     const notesUpdateLibrary = repositories.getScript({
       name: "lxc_config_parser_lib.py",
       scope: "shared",
+      category: "library",
     });
 
     if (notesUpdateScript && notesUpdateLibrary) {
@@ -837,18 +840,21 @@ export class WebAppVeRouteHandlers {
         }
         // Properties command sets addon_id (must be separate from script command
         // because VeExecution skips script execution for commands with properties)
-        commands.push({
-          name: `Set Addon ID: ${addon.name}`,
-          properties: [{ id: "addon_id", value: addonId }],
-        });
-        commands.push({
-          name: `Update LXC Notes with Addon: ${addon.name}`,
-          execute_on: "ve",
-          script: "host-update-lxc-notes-addon.py",
-          scriptContent: notesUpdateScript,
-          libraryContent: notesUpdateLibrary,
-          outputs: ["success"],
-        });
+        commands.splice(notesIndex, 0,
+          {
+            name: `Set Addon ID: ${addon.name}`,
+            properties: [{ id: "addon_id", value: addonId }],
+          },
+          {
+            name: `Update LXC Notes with Addon: ${addon.name}`,
+            execute_on: "ve",
+            script: "host-update-lxc-notes-addon.py",
+            scriptContent: notesUpdateScript,
+            libraryContent: notesUpdateLibrary,
+            outputs: ["success"],
+          },
+        );
+        notesIndex += 2; // Advance past the two commands we just inserted
       }
     }
   }
@@ -929,9 +935,18 @@ export class WebAppVeRouteHandlers {
       result.splice(postStartIndex, 0, ...postStartCommands);
     }
 
-    // Add notes update commands at the very end
+    // Add notes update commands BEFORE "Start LXC Container" (pre_start position).
+    // Must run AFTER "Write LXC Notes" (from conf-create-configure-lxc) which is
+    // already in the result array before the addon commands are inserted.
     if (preStartCommands.length > 0 || postStartCommands.length > 0) {
-      this.addAddonNotesCommands(result, addonIds);
+      const notesIndex = this.findAddonInsertionIndex(result, "pre_start");
+      this.addAddonNotesCommands(result, addonIds, notesIndex);
+    }
+
+    // Debug: log final command order
+    console.log(`[AddonDebug] Final command order (${result.length} commands):`);
+    for (let i = 0; i < result.length; i++) {
+      console.log(`[AddonDebug]   [${i}] ${result[i]?.name || "(unnamed)"}`);
     }
 
     return result;
@@ -1026,8 +1041,9 @@ export class WebAppVeRouteHandlers {
       result.push(...disableCommands);
     }
 
-    // Add notes removal commands for disabled addons
-    this.addAddonNotesRemovalCommands(result, disabledAddonIds);
+    // Add notes removal commands BEFORE "Start LXC Container" (pre_start position)
+    const removalNotesIndex = this.findAddonInsertionIndex(result, "pre_start");
+    this.addAddonNotesRemovalCommands(result, disabledAddonIds, removalNotesIndex);
 
     return result;
   }
@@ -1038,6 +1054,7 @@ export class WebAppVeRouteHandlers {
   private addAddonNotesRemovalCommands(
     commands: ICommand[],
     addonIds: string[],
+    notesIndex: number,
   ): void {
     const pm = this.pm;
     const addonService = pm.getAddonService();
@@ -1046,10 +1063,12 @@ export class WebAppVeRouteHandlers {
     const notesUpdateScript = repositories.getScript({
       name: "host-update-lxc-notes-addon.py",
       scope: "shared",
+      category: "post_start",
     });
     const notesUpdateLibrary = repositories.getScript({
       name: "lxc_config_parser_lib.py",
       scope: "shared",
+      category: "library",
     });
 
     if (notesUpdateScript && notesUpdateLibrary) {
@@ -1062,21 +1081,24 @@ export class WebAppVeRouteHandlers {
         }
         // Properties command sets addon_id and addon_action (must be separate from
         // script command because VeExecution skips script execution for commands with properties)
-        commands.push({
-          name: `Set Addon ID for Removal: ${addon.name}`,
-          properties: [
-            { id: "addon_id", value: addonId },
-            { id: "addon_action", value: "remove" },
-          ],
-        });
-        commands.push({
-          name: `Remove Addon from Notes: ${addon.name}`,
-          execute_on: "ve",
-          script: "host-update-lxc-notes-addon.py",
-          scriptContent: notesUpdateScript,
-          libraryContent: notesUpdateLibrary,
-          outputs: ["success"],
-        });
+        commands.splice(notesIndex, 0,
+          {
+            name: `Set Addon ID for Removal: ${addon.name}`,
+            properties: [
+              { id: "addon_id", value: addonId },
+              { id: "addon_action", value: "remove" },
+            ],
+          },
+          {
+            name: `Remove Addon from Notes: ${addon.name}`,
+            execute_on: "ve",
+            script: "host-update-lxc-notes-addon.py",
+            scriptContent: notesUpdateScript,
+            libraryContent: notesUpdateLibrary,
+            outputs: ["success"],
+          },
+        );
+        notesIndex += 2;
       }
     }
   }

@@ -164,10 +164,12 @@ export function registerAddonRoutes(
         const notesUpdateScript = repositories.getScript({
           name: "host-update-lxc-notes-addon.py",
           scope: "shared",
+          category: "post_start",
         });
         const notesUpdateLibrary = repositories.getScript({
           name: "lxc_config_parser_lib.py",
           scope: "shared",
+          category: "library",
         });
 
         if (notesUpdateScript && notesUpdateLibrary) {
