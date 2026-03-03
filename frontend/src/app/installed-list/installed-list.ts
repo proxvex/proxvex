@@ -61,6 +61,24 @@ export class InstalledList implements OnInit {
     });
   }
 
+  startUpgrade(installation: IManagedOciContainer) {
+    const application = installation.application_id || 'oci-lxc-deployer';
+    this.svc.postVeUpgrade(application, {
+      source_vm_id: installation.vm_id,
+      oci_image: installation.oci_image,
+      application_id: installation.application_id,
+      application_name: installation.application_name,
+      version: installation.version,
+    }).subscribe({
+      next: () => {
+        this.router.navigate(['/monitor']);
+      },
+      error: () => {
+        this.error = 'Error starting in-place upgrade';
+      },
+    });
+  }
+
   editAddons(installation: IManagedOciContainer) {
     // Build query params from all available container data
     const queryParams: Record<string, string | number | undefined> = {

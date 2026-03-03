@@ -154,10 +154,10 @@ describe("TemplateProcessor unresolved + enum variants", () => {
       },
     );
 
-    // Shared enum templates
+    // Shared enum templates — must be in the "list" subdirectory (enumValuesTemplate uses category "list")
     persistenceHelper.writeJsonSync(
       Volume.JsonSharedTemplates,
-      "enum-values-zero.json",
+      "list/enum-values-zero.json",
       {
         execute_on: "ve",
         name: "Enum Values Zero",
@@ -173,7 +173,7 @@ describe("TemplateProcessor unresolved + enum variants", () => {
 
     persistenceHelper.writeJsonSync(
       Volume.JsonSharedTemplates,
-      "enum-values-one.json",
+      "list/enum-values-one.json",
       {
         execute_on: "ve",
         name: "Enum Values One",
@@ -189,7 +189,7 @@ describe("TemplateProcessor unresolved + enum variants", () => {
 
     persistenceHelper.writeJsonSync(
       Volume.JsonSharedTemplates,
-      "enum-values-many.json",
+      "list/enum-values-many.json",
       {
         execute_on: "ve",
         name: "Enum Values Many",

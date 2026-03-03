@@ -157,6 +157,19 @@ export class VeConfigurationService {
     return this.post<IVeConfigurationResponse, IPostVeCopyUpgradeBody>(url, body);
   }
 
+  postVeUpgrade(application: string, body: { source_vm_id: number; oci_image: string; application_id?: string; application_name?: string; version?: string }): Observable<IVeConfigurationResponse> {
+    const params: VeConfigurationParam[] = [];
+    const add = (name: string, value: string | number | boolean | undefined) => {
+      if (value !== undefined && value !== null) params.push({ name, value });
+    };
+    add('source_vm_id', body.source_vm_id);
+    add('oci_image', body.oci_image);
+    add('application_id', body.application_id);
+    add('application_name', body.application_name);
+    add('version', body.version);
+    return this.postVeConfiguration(application, 'upgrade', params);
+  }
+
   postAddonInstall(addonId: string, body: IPostAddonInstallBody): Observable<IVeConfigurationResponse> {
     const url = ApiUri.AddonInstall.replace(':addonId', encodeURIComponent(addonId));
     return this.post<IVeConfigurationResponse, IPostAddonInstallBody>(url, body);

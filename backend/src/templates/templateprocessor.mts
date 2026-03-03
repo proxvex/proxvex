@@ -234,7 +234,7 @@ export class TemplateProcessor extends EventEmitter {
         processedTemplates,
         templateReferences,
         outputSources,
-        ...(templateCategory && { templateCategory }),
+        templateCategory,
       };
       if (veContext !== undefined) {
         ptOpts.veContext = veContext;
@@ -379,9 +379,7 @@ export class TemplateProcessor extends EventEmitter {
     const tmplRef = resolvedTemplate.ref;
     opts.templateRef = tmplRef;
     // Set template category for script resolution (e.g., "list" templates use "list" scripts)
-    if (tmplRef.category !== undefined) {
-      opts.templateCategory = tmplRef.category;
-    }
+    opts.templateCategory = tmplRef.category;
     // Note: outputs on template level are no longer supported
     // All outputs should be defined on command level
     // Properties commands will be handled directly in the resolvedParams section below
@@ -432,7 +430,7 @@ export class TemplateProcessor extends EventEmitter {
         isShared: isSharedTemplate,
         skipped: shouldSkip,
         conditional: isConditional,
-        ...(tmplRef.category !== undefined && { category: tmplRef.category }),
+        category: tmplRef.category,
       });
     }
 

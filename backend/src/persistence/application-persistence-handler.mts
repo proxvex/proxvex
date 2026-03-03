@@ -729,30 +729,26 @@ export class ApplicationPersistenceHandler {
           taskEntry = { task: key, templates: [] };
           opts.taskTemplates.push(taskEntry);
         }
-        this.processTemplateList(list, taskEntry, key, opts);
+        this.processTemplateList(list, taskEntry, key, opts, "root");
       }
     }
   }
 
   /**
    * Processes a list of template entries and adds them to the task entry
-   * @param category Optional category for shared template resolution (e.g., "image", "pre_start")
+   * @param category Category for shared template resolution (e.g., "image", "pre_start", "root")
    */
   private processTemplateList(
     list: any[],
     taskEntry: { task: string; templates: (ITemplateReference | string)[] },
     taskName: string,
     opts: IReadApplicationOptions,
-    category?: string,
+    category: string,
   ): void {
     for (const entry of list) {
       if (typeof entry === "string") {
-        // Convert string to ITemplateReference with category
-        if (category) {
-          this.addTemplateToTask({ name: entry, category }, taskEntry, taskName, opts);
-        } else {
-          this.addTemplateToTask(entry, taskEntry, taskName, opts);
-        }
+        // Convert string to ITemplateReference with explicit category
+        this.addTemplateToTask({ name: entry, category }, taskEntry, taskName, opts);
       } else if (typeof entry === "object" && entry !== null) {
         const templateRef = entry as ITemplateReference;
         const name = templateRef.name;
@@ -845,7 +841,7 @@ export class ApplicationPersistenceHandler {
 
     // Get category of the new template
     const newCategory =
-      typeof template === "string" ? undefined : template.category;
+      typeof template === "string" ? "root" : (template.category ?? "root");
 
     // Insert at correct position based on category order
     const insertIndex = this.findCategoryInsertIndex(
@@ -873,17 +869,12 @@ export class ApplicationPersistenceHandler {
    */
   private findCategoryInsertIndex(
     templates: (ITemplateReference | string)[],
-    category: string | undefined,
+    category: string,
   ): number {
-    if (!category) {
-      // No category: append at end
-      return templates.length;
-    }
-
     const categoryIndex =
       ApplicationPersistenceHandler.CATEGORY_ORDER.indexOf(category);
     if (categoryIndex === -1) {
-      // Unknown category: append at end
+      // Unknown or root category: append at end
       return templates.length;
     }
 
@@ -891,15 +882,13 @@ export class ApplicationPersistenceHandler {
     for (let i = 0; i < templates.length; i++) {
       const t = templates[i];
       const existingCategory =
-        typeof t === "string" ? undefined : (t as ITemplateReference).category;
+        typeof t === "string" ? "root" : (t as ITemplateReference).category ?? "root";
 
-      if (existingCategory) {
-        const existingCategoryIndex =
-          ApplicationPersistenceHandler.CATEGORY_ORDER.indexOf(existingCategory);
-        if (existingCategoryIndex > categoryIndex) {
-          // Found a template from a later category - insert before it
-          return i;
-        }
+      const existingCategoryIndex =
+        ApplicationPersistenceHandler.CATEGORY_ORDER.indexOf(existingCategory);
+      if (existingCategoryIndex !== -1 && existingCategoryIndex > categoryIndex) {
+        // Found a template from a later category - insert before it
+        return i;
       }
     }
 

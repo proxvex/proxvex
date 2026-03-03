@@ -70,13 +70,16 @@ describe("Template Parameter Description Validation", () => {
     parameterDescription: string | null,
     markdownContent: string | null,
   ) {
+    // Templates in post_start phase must be in the post_start subdirectory
     const templatePath = path.join(
       jsonPath,
       "shared",
       "templates",
+      "post_start",
       `${templateName}.json`,
     );
-    const scriptPath = path.join(jsonPath, "shared", "scripts", "test.sh");
+    // Scripts are resolved using the template category (post_start), so must be in post_start subdir
+    const scriptPath = path.join(jsonPath, "shared", "scripts", "post_start", "test.sh");
     const appDir = path.join(jsonPath, "applications", templateName);
     const appPath = path.join(appDir, "application.json");
 
@@ -108,6 +111,8 @@ describe("Template Parameter Description Validation", () => {
     };
 
     fs.mkdirSync(appDir, { recursive: true });
+    fs.mkdirSync(path.dirname(templatePath), { recursive: true });
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
     fs.writeFileSync(templatePath, JSON.stringify(template, null, 2), "utf-8");
     fs.writeFileSync(scriptPath, '#!/bin/sh\necho "test"', "utf-8");
     fs.writeFileSync(appPath, JSON.stringify(application, null, 2), "utf-8");
@@ -117,6 +122,7 @@ describe("Template Parameter Description Validation", () => {
         jsonPath,
         "shared",
         "templates",
+        "post_start",
         `${templateName}.md`,
       );
       fs.writeFileSync(markdownPath, markdownContent, "utf-8");
@@ -129,13 +135,16 @@ describe("Template Parameter Description Validation", () => {
     parameter: any,
     markdownContent: string | null,
   ) {
+    // Templates in post_start phase must be in the post_start subdirectory
     const templatePath = path.join(
       jsonPath,
       "shared",
       "templates",
+      "post_start",
       `${templateName}.json`,
     );
-    const scriptPath = path.join(jsonPath, "shared", "scripts", "test.sh");
+    // Scripts are resolved using the template category (post_start), so must be in post_start subdir
+    const scriptPath = path.join(jsonPath, "shared", "scripts", "post_start", "test.sh");
     const appDir = path.join(jsonPath, "applications", templateName);
     const appPath = path.join(appDir, "application.json");
 
@@ -159,6 +168,8 @@ describe("Template Parameter Description Validation", () => {
     };
 
     fs.mkdirSync(appDir, { recursive: true });
+    fs.mkdirSync(path.dirname(templatePath), { recursive: true });
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
     fs.writeFileSync(templatePath, JSON.stringify(template, null, 2), "utf-8");
     fs.writeFileSync(scriptPath, '#!/bin/sh\necho "test"', "utf-8");
     fs.writeFileSync(appPath, JSON.stringify(application, null, 2), "utf-8");
@@ -168,6 +179,7 @@ describe("Template Parameter Description Validation", () => {
         jsonPath,
         "shared",
         "templates",
+        "post_start",
         `${templateName}.md`,
       );
       fs.writeFileSync(markdownPath, markdownContent, "utf-8");

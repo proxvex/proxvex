@@ -747,7 +747,7 @@ export class WebAppVeRouteHandlers {
         pre_start: "pre_start",
         post_start: "post_start",
       };
-      const category = categoryMap[phase];
+      const category = categoryMap[phase] ?? "root";
 
       for (const templateRef of templateRefs) {
         const templateName =
@@ -760,7 +760,7 @@ export class WebAppVeRouteHandlers {
           const template = repositories.getTemplate({
             name: templateName,
             scope: "shared",
-            ...(category && { category }),
+            category,
           }) as ITemplate | null;
 
           console.log(
@@ -786,7 +786,7 @@ export class WebAppVeRouteHandlers {
                 const scriptContent = repositories.getScript({
                   name: cmd.script,
                   scope: "shared",
-                  ...(category && { category }),
+                  category,
                 });
                 if (scriptContent) {
                   command.scriptContent = scriptContent;

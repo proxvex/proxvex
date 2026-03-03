@@ -22,7 +22,7 @@ export class TemplatePersistenceHandler {
   resolveTemplatePath(
     templateName: string,
     isShared: boolean,
-    category?: string,
+    category: string = "root",
   ): string | null {
     if (isShared) {
       const templateFileName = templateName.endsWith(".json")
@@ -31,8 +31,26 @@ export class TemplatePersistenceHandler {
 
       const searchPaths: string[] = [];
 
-      // Category paths first (if specified)
-      if (category) {
+      if (category === "root") {
+        // Root-level shared templates — no subdirectory
+        searchPaths.push(
+          path.join(
+            this.pathes.localPath,
+            "shared",
+            "templates",
+            templateFileName,
+          ),
+        );
+        searchPaths.push(
+          path.join(
+            this.pathes.jsonPath,
+            "shared",
+            "templates",
+            templateFileName,
+          ),
+        );
+      } else {
+        // Category subdirectory — no root fallback
         searchPaths.push(
           path.join(
             this.pathes.localPath,
@@ -52,24 +70,6 @@ export class TemplatePersistenceHandler {
           ),
         );
       }
-
-      // Root paths (always accessible - these are non-categorized templates)
-      searchPaths.push(
-        path.join(
-          this.pathes.localPath,
-          "shared",
-          "templates",
-          templateFileName,
-        ),
-      );
-      searchPaths.push(
-        path.join(
-          this.pathes.jsonPath,
-          "shared",
-          "templates",
-          templateFileName,
-        ),
-      );
 
       for (const p of searchPaths) {
         if (fs.existsSync(p)) {

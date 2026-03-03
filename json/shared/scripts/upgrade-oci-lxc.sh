@@ -1,25 +1,27 @@
 #!/bin/sh
-# Copy-upgrade an LXC container using a new OCI image.
+# Upgrade an LXC container in-place using a new OCI image.
+#
+# Unlike copy-upgrade, this upgrades the SAME container (source_vm_id == target vm_id).
+# No new VMID is allocated.
 #
 # Steps:
-# 1) Verify source container exists and was created by oci-lxc-deployer (marker in description/notes).
-# 2) Determine target VMID (existing or next free).
-# 3) Output target VMID and installed addons for subsequent steps.
+# 1) Verify container exists and was created by oci-lxc-deployer (marker in description/notes).
+# 2) Set TARGET_VMID = SOURCE_VMID (in-place).
+# 3) Extract installed addons from notes.
+# 4) Output vm_id and installed_addons for subsequent steps.
 #
 # Inputs (templated):
 #   - source_vm_id (required)
-#   - vm_id (optional target id)
 #   - template_path (required; from 011-get-oci-image.json)
 #   - ostype (optional; from 011-get-oci-image.json)
 #   - oci_image (required; from 011-get-oci-image.json)
 #
 # Output:
-#   - JSON to stdout: [{"id":"vm_id","value":"<target>"}, {"id":"installed_addons","value":"<addons>"}]
+#   - JSON to stdout: [{"id":"vm_id","value":"<vmid>"}, {"id":"installed_addons","value":"<addons>"}]
 
 set -eu
 
 SOURCE_VMID="{{ source_vm_id }}"
-TARGET_VMID_INPUT="{{ vm_id }}"
 TEMPLATE_PATH="{{ template_path }}"
 OCI_IMAGE_RAW="{{ oci_image }}"
 
@@ -29,12 +31,12 @@ SOURCE_CONF="${CONFIG_DIR}/${SOURCE_VMID}.conf"
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
 
-if [ -z "$SOURCE_VMID" ]; then
+if [ -z "$SOURCE_VMID" ] || [ "$SOURCE_VMID" = "NOT_DEFINED" ]; then
   fail "source_vm_id is required"
 fi
 
 if [ ! -f "$SOURCE_CONF" ]; then
-  fail "Source container config not found: $SOURCE_CONF"
+  fail "Container config not found: $SOURCE_CONF"
 fi
 
 if [ -z "$TEMPLATE_PATH" ] || [ "$TEMPLATE_PATH" = "NOT_DEFINED" ]; then
@@ -47,18 +49,14 @@ SOURCE_DESC_DECODED=$(decode_url "$SOURCE_DESC")
 SOURCE_CONF_TEXT_DECODED=$(decode_url "$SOURCE_CONF_TEXT")
 
 if ! check_managed_marker "$SOURCE_DESC" "$SOURCE_DESC_DECODED" "$SOURCE_CONF_TEXT" "$SOURCE_CONF_TEXT_DECODED"; then
-  fail "Source container does not look like it was created by oci-lxc-deployer (missing notes marker)."
+  fail "Container does not look like it was created by oci-lxc-deployer (missing notes marker)."
 fi
 
-# Determine target VMID
-if [ -z "$TARGET_VMID_INPUT" ] || [ "$TARGET_VMID_INPUT" = "" ]; then
-  TARGET_VMID=$(pvesh get /cluster/nextid)
-else
-  TARGET_VMID="$TARGET_VMID_INPUT"
-fi
-log "Copy-upgrade prepared: source=$SOURCE_VMID target=$TARGET_VMID"
+# In-place upgrade: target is the same container
+TARGET_VMID="$SOURCE_VMID"
+log "In-place upgrade prepared: vm_id=$TARGET_VMID"
 
 INSTALLED_ADDONS=$(extract_addons "$SOURCE_DESC$SOURCE_CONF_TEXT")
-log "Installed addons from source: $INSTALLED_ADDONS"
+log "Installed addons: $INSTALLED_ADDONS"
 
 printf '[{ "id": "vm_id", "value": "%s" }, { "id": "installed_addons", "value": "%s" }]' "$TARGET_VMID" "$INSTALLED_ADDONS"

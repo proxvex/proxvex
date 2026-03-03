@@ -14,15 +14,15 @@ export class TemplatePathResolver {
    * @param templateName Template name (with or without .json extension)
    * @param appPath Application path (directory containing application.json)
    * @param pathes Configured paths (jsonPath, localPath, schemaPath)
-   * @param category Optional category subdirectory for shared templates (e.g., "list")
+   * @param category Category subdirectory for shared templates. Use "root" for root-level templates.
    * @returns Object with fullPath, isShared flag, and category, or null if not found
    */
   static resolveTemplatePath(
     templateName: string,
     appPath: string,
     pathes: IConfiguredPathes,
-    category?: string,
-  ): { fullPath: string; isShared: boolean; category?: string } | null {
+    category: string = "root",
+  ): { fullPath: string; isShared: boolean; category: string } | null {
     // Ensure template name has .json extension
     const templateNameWithExt = templateName.endsWith(".json")
       ? templateName
@@ -31,11 +31,31 @@ export class TemplatePathResolver {
 
     // Check app-specific first
     if (fs.existsSync(templatePath)) {
-      return { fullPath: templatePath, isShared: false };
+      return { fullPath: templatePath, isShared: false, category };
     }
 
-    // For shared templates, check category subdirectory first if specified
-    if (category) {
+    if (category === "root") {
+      // Root-level shared templates (no subdirectory)
+      const localSharedPath = path.join(
+        pathes.localPath,
+        "shared",
+        "templates",
+        templateNameWithExt,
+      );
+      if (fs.existsSync(localSharedPath)) {
+        return { fullPath: localSharedPath, isShared: true, category: "root" };
+      }
+      const jsonSharedPath = path.join(
+        pathes.jsonPath,
+        "shared",
+        "templates",
+        templateNameWithExt,
+      );
+      if (fs.existsSync(jsonSharedPath)) {
+        return { fullPath: jsonSharedPath, isShared: true, category: "root" };
+      }
+    } else {
+      // Category subdirectory — no root fallback
       const categoryLocalPath = path.join(
         pathes.localPath,
         "shared",
@@ -58,26 +78,6 @@ export class TemplatePathResolver {
       }
     }
 
-    // Root shared templates (always accessible - these are non-categorized templates)
-    const localSharedPath = path.join(
-      pathes.localPath,
-      "shared",
-      "templates",
-      templateNameWithExt,
-    );
-    if (fs.existsSync(localSharedPath)) {
-      return { fullPath: localSharedPath, isShared: true };
-    }
-    const jsonSharedPath = path.join(
-      pathes.jsonPath,
-      "shared",
-      "templates",
-      templateNameWithExt,
-    );
-    if (fs.existsSync(jsonSharedPath)) {
-      return { fullPath: jsonSharedPath, isShared: true };
-    }
-
     return null;
   }
 
@@ -86,14 +86,14 @@ export class TemplatePathResolver {
    * @param scriptName Script name (e.g., "test-script.sh")
    * @param appPath Application path (directory containing application.json)
    * @param pathes Configured paths (jsonPath, localPath, schemaPath)
-   * @param category Optional category subdirectory for shared scripts (e.g., "list", "library")
+   * @param category Category subdirectory for shared scripts. Use "root" for root-level scripts.
    * @returns Full path to script or null if not found
    */
   static resolveScriptPath(
     scriptName: string,
     appPath: string,
     pathes: IConfiguredPathes,
-    category?: string,
+    category: string = "root",
   ): string | null {
     // Check app-specific first
     const appScriptPath = path.join(appPath, "scripts", scriptName);
@@ -101,8 +101,28 @@ export class TemplatePathResolver {
       return appScriptPath;
     }
 
-    // For shared scripts, check category subdirectory first if specified
-    if (category) {
+    if (category === "root") {
+      // Root-level shared scripts (no subdirectory)
+      const localSharedPath = path.join(
+        pathes.localPath,
+        "shared",
+        "scripts",
+        scriptName,
+      );
+      if (fs.existsSync(localSharedPath)) {
+        return localSharedPath;
+      }
+      const jsonSharedPath = path.join(
+        pathes.jsonPath,
+        "shared",
+        "scripts",
+        scriptName,
+      );
+      if (fs.existsSync(jsonSharedPath)) {
+        return jsonSharedPath;
+      }
+    } else {
+      // Category subdirectory — no root fallback
       const categoryLocalPath = path.join(
         pathes.localPath,
         "shared",
@@ -123,26 +143,6 @@ export class TemplatePathResolver {
       if (fs.existsSync(categoryJsonPath)) {
         return categoryJsonPath;
       }
-    }
-
-    // Root shared scripts (always accessible - these are non-categorized scripts)
-    const localSharedPath = path.join(
-      pathes.localPath,
-      "shared",
-      "scripts",
-      scriptName,
-    );
-    if (fs.existsSync(localSharedPath)) {
-      return localSharedPath;
-    }
-    const jsonSharedPath = path.join(
-      pathes.jsonPath,
-      "shared",
-      "scripts",
-      scriptName,
-    );
-    if (fs.existsSync(jsonSharedPath)) {
-      return jsonSharedPath;
     }
 
     return null;
@@ -234,20 +234,22 @@ export class TemplatePathResolver {
    * Builds template paths array from application hierarchy.
    * @param applicationHierarchy Array of application paths (from parent to child)
    * @param pathes Configured paths
-   * @param category Optional category subdirectory (e.g., "list")
+   * @param category Category subdirectory. Use "root" for root-level templates.
    * @returns Array of template directory paths to search
    */
   static buildTemplatePathes(
     applicationHierarchy: string[],
     pathes: IConfiguredPathes,
-    category?: string,
+    category: string = "root",
   ): string[] {
     const templatePathes = applicationHierarchy.map((appDir) =>
       path.join(appDir, "templates"),
     );
 
-    // Add category paths first if specified
-    if (category) {
+    if (category === "root") {
+      templatePathes.push(path.join(pathes.localPath, "shared", "templates"));
+      templatePathes.push(path.join(pathes.jsonPath, "shared", "templates"));
+    } else {
       templatePathes.push(
         path.join(pathes.localPath, "shared", "templates", category),
       );
@@ -256,9 +258,6 @@ export class TemplatePathResolver {
       );
     }
 
-    // Always include root paths for backward compatibility
-    templatePathes.push(path.join(pathes.localPath, "shared", "templates"));
-    templatePathes.push(path.join(pathes.jsonPath, "shared", "templates"));
     return templatePathes;
   }
 
@@ -266,20 +265,22 @@ export class TemplatePathResolver {
    * Builds script paths array from application hierarchy.
    * @param applicationHierarchy Array of application paths (from parent to child)
    * @param pathes Configured paths
-   * @param category Optional category subdirectory (e.g., "list", "library")
+   * @param category Category subdirectory. Use "root" for root-level scripts.
    * @returns Array of script directory paths to search
    */
   static buildScriptPathes(
     applicationHierarchy: string[],
     pathes: IConfiguredPathes,
-    category?: string,
+    category: string = "root",
   ): string[] {
     const scriptPathes = applicationHierarchy.map((appDir) =>
       path.join(appDir, "scripts"),
     );
 
-    // Add category paths first if specified
-    if (category) {
+    if (category === "root") {
+      scriptPathes.push(path.join(pathes.localPath, "shared", "scripts"));
+      scriptPathes.push(path.join(pathes.jsonPath, "shared", "scripts"));
+    } else {
       scriptPathes.push(
         path.join(pathes.localPath, "shared", "scripts", category),
       );
@@ -288,9 +289,6 @@ export class TemplatePathResolver {
       );
     }
 
-    // Always include root paths for backward compatibility
-    scriptPathes.push(path.join(pathes.localPath, "shared", "scripts"));
-    scriptPathes.push(path.join(pathes.jsonPath, "shared", "scripts"));
     return scriptPathes;
   }
 }

@@ -1,21 +1,14 @@
 {
   "execute_on": "ve",
-  "name": "Copy-Upgrade Start/Stop",
-  "description": "Stops the source LXC container and starts the newly created target container. If starting the target fails, the source container is started again.",
+  "name": "Upgrade Start/Stop",
+  "description": "Stops the LXC container, backs up its config, destroys and recreates it with the new OCI image at the same VMID, merges all config back from backup, then starts the container. Falls back to restoring the backup on failure.",
   "parameters": [
     {
-      "id": "source_vm_id",
-      "name": "Source VM ID",
-      "type": "number",
-      "required": true,
-      "description": "Existing (source) LXC container ID that will be stopped before starting the target container."
-    },
-    {
       "id": "vm_id",
-      "name": "Target VM ID",
+      "name": "VM ID",
       "type": "number",
       "required": true,
-      "description": "New (target) LXC container ID to start."
+      "description": "LXC container ID to upgrade in-place."
     },
     {
       "id": "template_path",
@@ -30,7 +23,7 @@
       "type": "string",
       "default": "",
       "advanced": true,
-      "description": "Optional OS type for the target container."
+      "description": "Optional OS type for the container."
     },
     {
       "id": "oci_image",
@@ -58,8 +51,8 @@
   ],
   "commands": [
     {
-      "name": "Stop Source / Start Target",
-      "script": "copy-upgrade-start.sh",
+      "name": "Stop / Recreate / Start",
+      "script": "upgrade-start.sh",
       "library": "upgrade-common.sh"
     }
   ]
