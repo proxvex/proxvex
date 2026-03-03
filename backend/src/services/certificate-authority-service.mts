@@ -137,6 +137,21 @@ export class CertificateAuthorityService {
     logger.info("Domain suffix stored", { veContextKey, suffix });
   }
 
+  // --- Shared volume path management (stored per VE context) ---
+
+  private sharedVolpathKey(veContextKey: string): string {
+    return `shared_volpath_${veContextKey}`;
+  }
+
+  getSharedVolpath(veContextKey: string): string | null {
+    return this.contextManager.get<string>(this.sharedVolpathKey(veContextKey)) || null;
+  }
+
+  setSharedVolpath(veContextKey: string, path: string): void {
+    this.contextManager.set(this.sharedVolpathKey(veContextKey), path);
+    logger.info("Shared volpath stored", { veContextKey, path });
+  }
+
   // --- Server SSL certificate management (stored by hostname) ---
 
   private serverCertKey(hostName: string): string {
