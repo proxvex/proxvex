@@ -367,6 +367,7 @@ export function registerCertificateRoutes(
       const scriptContent = repositories.getScript({
         name: "host-provision-pve-certificate.sh",
         scope: "shared",
+        category: "root",
       });
       const libraryContent = repositories.getScript({
         name: "cert-common.sh",

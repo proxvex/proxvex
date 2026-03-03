@@ -75,6 +75,7 @@ describe("FileSystemRepositories", () => {
       const ref = repositories.resolveTemplateRef(
         "child-app",
         "child-template",
+        "root",
       );
 
       expect(ref).not.toBeNull();
@@ -117,6 +118,7 @@ describe("FileSystemRepositories", () => {
       const ref = repositories.resolveTemplateRef(
         "child-app",
         "parent-template",
+        "root",
       );
 
       expect(ref).not.toBeNull();
@@ -168,6 +170,7 @@ describe("FileSystemRepositories", () => {
       const ref = repositories.resolveTemplateRef(
         "child-app",
         "grandparent-template",
+        "root",
       );
 
       expect(ref).not.toBeNull();
@@ -220,6 +223,7 @@ describe("FileSystemRepositories", () => {
       const ref = repositories.resolveTemplateRef(
         "child-app",
         "common-template",
+        "root",
       );
 
       expect(ref).not.toBeNull();
@@ -259,6 +263,7 @@ describe("FileSystemRepositories", () => {
       const ref = repositories.resolveTemplateRef(
         "child-app",
         "shared-template",
+        "root",
       );
 
       expect(ref).not.toBeNull();
@@ -278,7 +283,7 @@ describe("FileSystemRepositories", () => {
         JSON.stringify({ name: "Child App" }),
       );
 
-      const ref = repositories.resolveTemplateRef("child-app", "non-existent");
+      const ref = repositories.resolveTemplateRef("child-app", "non-existent", "root");
 
       expect(ref).toBeNull();
     });
@@ -315,7 +320,7 @@ describe("FileSystemRepositories", () => {
       );
 
       // Should not infinite loop - visited set prevents cycles
-      const ref = repositories.resolveTemplateRef("child-app", "test-template");
+      const ref = repositories.resolveTemplateRef("child-app", "test-template", "root");
 
       expect(ref).not.toBeNull();
       expect(ref!.applicationId).toBe("child-app");

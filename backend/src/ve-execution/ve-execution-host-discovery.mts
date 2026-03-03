@@ -39,6 +39,7 @@ export class VeExecutionHostDiscovery {
     const content = repos.getScript({
       name: "write-vmids-json.sh",
       scope: "shared",
+      category: "root",
     });
     if (!content) {
       throw new Error("write-vmids-json.sh not found in shared scripts");

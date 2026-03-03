@@ -114,12 +114,15 @@ export function registerAddonRoutes(
           for (const templateRef of reconfigurePostStart) {
             const templateName =
               typeof templateRef === "string" ? templateRef : templateRef.name;
+            // Addon reconfigure post_start templates are in the post_start category
+            const templateCategory = "post_start";
 
             try {
               // Load template from repositories
               const template = repositories.getTemplate({
                 name: templateName,
                 scope: "shared",
+                category: templateCategory,
               }) as ITemplate | null;
 
               if (template && template.commands) {
@@ -134,6 +137,7 @@ export function registerAddonRoutes(
                     const scriptContent = repositories.getScript({
                       name: cmd.script,
                       scope: "shared",
+                      category: templateCategory,
                     });
                     if (scriptContent) {
                       command.scriptContent = scriptContent;
@@ -144,6 +148,7 @@ export function registerAddonRoutes(
                     const libraryContent = repositories.getScript({
                       name: cmd.library,
                       scope: "shared",
+                      category: "root",
                     });
                     if (libraryContent) {
                       command.libraryContent = libraryContent;

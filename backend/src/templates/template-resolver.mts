@@ -14,8 +14,9 @@ export class TemplateResolver {
     return typeof template === "string" ? template : template.name;
   }
 
-  extractTemplateCategory(template: ITemplateReference | string): string | undefined {
-    return typeof template === "string" ? undefined : template.category;
+  extractTemplateCategory(template: ITemplateReference | string): string {
+    if (typeof template === "string") return "root";
+    return template.category ?? "root";
   }
 
   normalizeTemplateName(templateName: string): string {
@@ -27,7 +28,7 @@ export class TemplateResolver {
     const filename = `${normalized}.json`;
     if (ref.scope === "shared") {
       const origin = ref.origin ?? "json";
-      const categoryPath = ref.category ? `${ref.category}/` : "";
+      const categoryPath = ref.category && ref.category !== "root" ? `${ref.category}/` : "";
       return `${origin}/shared/templates/${categoryPath}${filename}`;
     }
     const origin = ref.origin ?? "json";
@@ -54,29 +55,28 @@ export class TemplateResolver {
   resolveScriptContent(
     applicationId: string,
     scriptName: string,
-    category?: string,
+    category: string,
   ): { content: string | null; ref: ScriptRef | null } {
     // First try app-specific
     const appRef: ScriptRef = {
       name: scriptName,
       scope: "application",
       applicationId,
+      category: "",
     };
     const appContent = this.repositories.getScript(appRef);
     if (appContent !== null) return { content: appContent, ref: appRef };
 
-    // Then try shared with category (if specified)
-    if (category) {
-      const sharedCategoryRef: ScriptRef = {
-        name: scriptName,
-        scope: "shared",
-        category,
-      };
-      const sharedCategoryContent =
-        this.repositories.getScript(sharedCategoryRef);
-      if (sharedCategoryContent !== null) {
-        return { content: sharedCategoryContent, ref: sharedCategoryRef };
-      }
+    // Then try shared with category
+    const sharedCategoryRef: ScriptRef = {
+      name: scriptName,
+      scope: "shared",
+      category,
+    };
+    const sharedCategoryContent =
+      this.repositories.getScript(sharedCategoryRef);
+    if (sharedCategoryContent !== null) {
+      return { content: sharedCategoryContent, ref: sharedCategoryRef };
     }
 
     return { content: null, ref: null };
@@ -96,19 +96,20 @@ export class TemplateResolver {
       name: libraryName,
       scope: "application",
       applicationId,
+      category: "",
     };
     const appContent = this.repositories.getScript(appRef);
     if (appContent !== null) return { content: appContent, ref: appRef };
 
-    // Then try shared with "library" category
-    const sharedLibRef: ScriptRef = {
+    // Then try shared library category (libraries live in shared/scripts/library/)
+    const sharedRootRef: ScriptRef = {
       name: libraryName,
       scope: "shared",
       category: "library",
     };
-    const sharedLibContent = this.repositories.getScript(sharedLibRef);
-    if (sharedLibContent !== null)
-      return { content: sharedLibContent, ref: sharedLibRef };
+    const sharedRootContent = this.repositories.getScript(sharedRootRef);
+    if (sharedRootContent !== null)
+      return { content: sharedRootContent, ref: sharedRootRef };
 
     return { content: null, ref: null };
   }
@@ -128,6 +129,7 @@ export class TemplateResolver {
       ...(ref.applicationId !== undefined
         ? { applicationId: ref.applicationId }
         : {}),
+      ...(ref.scope === "shared" ? { category: ref.category } : {}),
     };
     return this.repositories.getMarkdownSection(markdownRef, sectionName);
   }

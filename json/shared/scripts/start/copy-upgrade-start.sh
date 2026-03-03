@@ -46,49 +46,13 @@ if [ ! -f "$SOURCE_CONF" ]; then
   fail "Source container config not found: $SOURCE_CONF"
 fi
 
-get_conf_value() {
-  key="$1"
-  awk -v k="$key" -F':' 'BEGIN { found=0 }
-    $1==k { sub(/^[^:]+:[ ]?/, "", $0); print $0; found=1; exit }
-    END { if (!found) exit 1 }' "$SOURCE_CONF" 2>/dev/null
-}
-
-get_conf_line() {
-  key="$1"
-  awk -v k="$key" 'index($0, k":") == 1 { print $0; exit }' "$SOURCE_CONF" 2>/dev/null
-}
-
-normalize_size_to_gb() {
-  val="$1"
-  case "$val" in
-    *[Tt])
-      num=${val%[Tt]}
-      echo $((num * 1024))
-      ;;
-    *[Gg])
-      echo "${val%[Gg]}"
-      ;;
-    *[Mm])
-      num=${val%[Mm]}
-      awk -v m="$num" 'BEGIN { gb = int((m + 1023) / 1024); if (gb < 1) gb = 1; print gb }'
-      ;;
-    *[Kk])
-      num=${val%[Kk]}
-      awk -v k="$num" 'BEGIN { gb = int((k / 1024 / 1024) + 0.999); if (gb < 1) gb = 1; print gb }'
-      ;;
-    *)
-      echo "$val"
-      ;;
-  esac
-}
-
 create_target_from_source() {
   if [ -f "$TARGET_CONF" ]; then
     log "Target config already exists: $TARGET_CONF (skipping create)"
     return 0
   fi
 
-  SOURCE_ROOTFS_LINE=$(get_conf_line "rootfs" || true)
+  SOURCE_ROOTFS_LINE=$(get_conf_line "$SOURCE_CONF" "rootfs" || true)
   SOURCE_ROOTFS_STORAGE=""
   SOURCE_ROOTFS_SIZE=""
   if [ -n "$SOURCE_ROOTFS_LINE" ]; then
@@ -116,14 +80,14 @@ create_target_from_source() {
     esac
   fi
 
-  HOSTNAME=$(get_conf_value "hostname" || true)
-  MEMORY=$(get_conf_value "memory" || true)
-  SWAP=$(get_conf_value "swap" || true)
-  CORES=$(get_conf_value "cores" || true)
-  NET0=$(get_conf_value "net0" || true)
-  UNPRIVILEGED=$(get_conf_value "unprivileged" || true)
-  ARCH=$(get_conf_value "arch" || true)
-  OSTYPE_SRC=$(get_conf_value "ostype" || true)
+  HOSTNAME=$(get_conf_value "$SOURCE_CONF" "hostname" || true)
+  MEMORY=$(get_conf_value "$SOURCE_CONF" "memory" || true)
+  SWAP=$(get_conf_value "$SOURCE_CONF" "swap" || true)
+  CORES=$(get_conf_value "$SOURCE_CONF" "cores" || true)
+  NET0=$(get_conf_value "$SOURCE_CONF" "net0" || true)
+  UNPRIVILEGED=$(get_conf_value "$SOURCE_CONF" "unprivileged" || true)
+  ARCH=$(get_conf_value "$SOURCE_CONF" "arch" || true)
+  OSTYPE_SRC=$(get_conf_value "$SOURCE_CONF" "ostype" || true)
 
   if [ -z "$HOSTNAME" ]; then HOSTNAME="upgrade-${TARGET_VMID}"; fi
   if [ -z "$MEMORY" ]; then MEMORY="512"; fi
@@ -156,79 +120,9 @@ create_target_from_source() {
   fi
 }
 
-copy_mappings_only() {
-  MAPPINGS=$(grep -E '^(mp[0-9]+:|lxc\.mount\.entry:|dev[0-9]+:|usb[0-9]+:|lxc\.cgroup2\.devices\.)' "$SOURCE_CONF" 2>/dev/null || true)
-
-  TMP_CONF=$(mktemp)
-  awk '
-    /^mp[0-9]+:/ { next }
-    /^lxc\.mount\.entry:/ { next }
-    /^dev[0-9]+:/ { next }
-    /^usb[0-9]+:/ { next }
-    /^lxc\.cgroup2\.devices\./ { next }
-    { print }
-  ' "$TARGET_CONF" > "$TMP_CONF"
-
-  if [ -n "$MAPPINGS" ]; then
-    printf "%s\n" "$MAPPINGS" >> "$TMP_CONF"
-  fi
-
-  cp "$TMP_CONF" "$TARGET_CONF" >&2
-  rm -f "$TMP_CONF"
-}
-
-write_notes_block() {
-  OCI_IMAGE_VISIBLE=$(printf "%s" "$OCI_IMAGE_RAW" | sed -E 's#^(docker|oci)://##')
-
-  TMP_DESC=$(mktemp)
-  {
-    printf "<!-- oci-lxc-deployer:managed -->\n"
-    if [ -n "$OCI_IMAGE_VISIBLE" ]; then
-      printf "<!-- oci-lxc-deployer:oci-image %s -->\n" "$OCI_IMAGE_VISIBLE"
-    fi
-    if [ -n "$APP_ID" ]; then
-      printf "<!-- oci-lxc-deployer:application-id %s -->\n" "$APP_ID"
-    fi
-    if [ -n "$APP_NAME" ]; then
-      printf "<!-- oci-lxc-deployer:application-name %s -->\n" "$APP_NAME"
-    fi
-    if [ -n "$APP_ID" ] || [ -n "$APP_NAME" ]; then
-      if [ -n "$APP_ID" ] && [ -n "$APP_NAME" ]; then
-        printf "Application: %s (%s)\n\n" "$APP_NAME" "$APP_ID"
-      elif [ -n "$APP_NAME" ]; then
-        printf "Application: %s\n\n" "$APP_NAME"
-      else
-        printf "Application ID: %s\n\n" "$APP_ID"
-      fi
-    fi
-    if [ -n "$OCI_IMAGE_VISIBLE" ]; then
-      printf "OCI image: %s\n\n" "$OCI_IMAGE_VISIBLE"
-    fi
-  } > "$TMP_DESC"
-
-  TMP_CONF=$(mktemp)
-  awk '
-    # Drop existing OCI LXC Deployer note/comment block (raw or URL-encoded)
-    /^#.*oci-lxc-deployer/ { next }
-    /^#.*OCI LXC Deployer/ { next }
-    /^#.*Managed by .*oci-lxc-deployer/ { next }
-    /^#.*Application:/ { next }
-    /^#.*Application ID:/ { next }
-    /^#.*OCI image:/ { next }
-    { print }
-  ' "$TARGET_CONF" > "$TMP_CONF"
-
-  while IFS= read -r line; do
-    printf '#%s\n' "$line"
-  done < "$TMP_DESC" >> "$TMP_CONF"
-
-  cp "$TMP_CONF" "$TARGET_CONF" >&2
-  rm -f "$TMP_CONF" "$TMP_DESC"
-}
-
 create_target_from_source
-copy_mappings_only
-write_notes_block
+copy_mappings_between "$SOURCE_CONF" "$TARGET_CONF"
+write_notes_block "$TARGET_CONF" "$OCI_IMAGE_RAW" "$APP_ID" "$APP_NAME"
 
 source_status=$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
 target_status=$(pct status "$TARGET_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
