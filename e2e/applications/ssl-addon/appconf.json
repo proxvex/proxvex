@@ -1,0 +1,40 @@
+{
+    "name": "ssl-addon",
+    "description": "E2E test for SSL addon installation on oci-lxc-deployer",
+
+    "baseApplication": "oci-lxc-deployer",
+    "addon": "addon-ssl",
+
+    "addonParams": {
+        "ssl.mode": "proxy"
+    },
+
+    "validation": {
+        "waitBeforeValidation": 15,
+        "files": [
+            {
+                "path": "/etc/ssl/addon/fullchain.pem",
+                "contentPattern": "BEGIN CERTIFICATE"
+            },
+            {
+                "path": "/etc/ssl/addon/privkey.pem",
+                "contentPattern": "BEGIN.*KEY"
+            },
+            {
+                "path": "/etc/ssl/addon/chain.pem",
+                "contentPattern": "BEGIN CERTIFICATE"
+            },
+            {
+                "path": "/etc/ssl/addon/cert.pem",
+                "contentPattern": "BEGIN CERTIFICATE"
+            }
+        ],
+        "commands": [
+            {
+                "command": "openssl x509 -in /etc/ssl/addon/fullchain.pem -noout -subject",
+                "expectedOutput": "CN=",
+                "description": "Certificate should have valid subject"
+            }
+        ]
+    }
+}

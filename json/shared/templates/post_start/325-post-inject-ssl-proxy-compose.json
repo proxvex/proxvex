@@ -12,11 +12,11 @@
       "description": "Docker-Compose project name"
     },
     {
-      "id": "addon_ssl_mode",
+      "id": "ssl.mode",
       "name": "SSL Mode",
       "type": "string",
       "required": true,
-      "description": "SSL mode: proxy (nginx) or native"
+      "description": "SSL mode: proxy (nginx), native, or certs"
     },
     {
       "id": "http_port",

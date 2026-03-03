@@ -31,7 +31,7 @@ describe.skipIf(!hostReachable)(
       const result = await helper.runTemplate({
         templatePath: TEMPLATE_PATH,
         inputs: {
-          addon_ssl_mode: "proxy",
+          "ssl.mode": "proxy",
           http_port: "3000",
           https_port: "3443",
           alpine_mirror: "",
@@ -68,10 +68,10 @@ describe.skipIf(!hostReachable)(
         `openssl req -x509 -newkey rsa:2048 -keyout /tmp/test-ssl-key.pem -out /tmp/test-ssl-cert.pem -days 1 -nodes -subj "/CN=test" 2>/dev/null`,
       );
       await stateManager.execOnHost(
-        `pct push ${vmId} /tmp/test-ssl-cert.pem /etc/ssl/addon/server.crt`,
+        `pct push ${vmId} /tmp/test-ssl-cert.pem /etc/ssl/addon/fullchain.pem`,
       );
       await stateManager.execOnHost(
-        `pct push ${vmId} /tmp/test-ssl-key.pem /etc/ssl/addon/server.key`,
+        `pct push ${vmId} /tmp/test-ssl-key.pem /etc/ssl/addon/privkey.pem`,
       );
 
       // Verify the on-start script exists and check its content
@@ -84,7 +84,7 @@ describe.skipIf(!hostReachable)(
       const certCheck = await stateManager.execOnHost(
         `pct exec ${vmId} -- ls -la /etc/ssl/addon/ 2>&1`,
       );
-      expect(certCheck.stdout).toContain("server.crt");
+      expect(certCheck.stdout).toContain("fullchain.pem");
 
       // Run the on-start script manually to trigger nginx installation
       const runResult = await stateManager.execOnHost(
@@ -116,7 +116,7 @@ describe.skipIf(!hostReachable)(
       const result = await helper.runTemplate({
         templatePath: TEMPLATE_PATH,
         inputs: {
-          addon_ssl_mode: "native",
+          "ssl.mode": "native",
           http_port: "3000",
           https_port: "3443",
           alpine_mirror: "",

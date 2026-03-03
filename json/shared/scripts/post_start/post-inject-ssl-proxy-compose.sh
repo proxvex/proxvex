@@ -5,21 +5,21 @@
 # removes external HTTP port mapping (port stays container-internal),
 # and writes the nginx SSL configuration.
 #
-# For native mode: Does nothing (app handles HTTPS itself).
+# For native/certs mode: Does nothing (app handles HTTPS itself or only certs needed).
 #
 # Limitation v1: Only supports compose files with a single app service.
 # The first service listed under 'services:' is used as upstream.
 #
 # Requires:
 #   - compose_project: Docker-Compose project name
-#   - addon_ssl_mode: "proxy" or "native"
+#   - ssl.mode: "proxy", "native", or "certs"
 #   - http_port: Application HTTP port
 #   - https_port: HTTPS port for nginx proxy
 #
 # Output: errors to stderr only
 
 COMPOSE_PROJECT="{{ compose_project }}"
-SSL_MODE="{{ addon_ssl_mode }}"
+SSL_MODE="{{ ssl.mode }}"
 HTTP_PORT="{{ http_port }}"
 HTTPS_PORT="{{ https_port }}"
 
@@ -29,6 +29,12 @@ HTTPS_PORT="{{ https_port }}"
 # Native mode: nothing to do
 if [ "$SSL_MODE" = "native" ]; then
   echo "SSL native mode: app handles HTTPS itself, no compose modification needed" >&2
+  exit 0
+fi
+
+# Certs mode: nothing to do (only certificates provisioned, no proxy)
+if [ "$SSL_MODE" = "certs" ]; then
+  echo "SSL certs mode: certificates only, no compose modification needed" >&2
   exit 0
 fi
 
@@ -111,8 +117,8 @@ server {
     listen ${HTTPS_PORT} ssl;
     server_name _;
 
-    ssl_certificate /etc/ssl/addon/server.crt;
-    ssl_certificate_key /etc/ssl/addon/server.key;
+    ssl_certificate /etc/ssl/addon/fullchain.pem;
+    ssl_certificate_key /etc/ssl/addon/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;

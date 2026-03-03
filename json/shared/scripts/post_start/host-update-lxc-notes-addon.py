@@ -30,14 +30,15 @@ from urllib.parse import quote, unquote
 # - parse_lxc_config(conf_text) -> LxcConfig
 # - ADDON_MARKER_RE, etc.
 
+# Template variables (replaced by backend before execution)
+VM_ID_RAW = "{{ vm_id }}"
+ADDON_ID_RAW = "{{ addon_id }}"
+ADDON_ACTION_RAW = "{{ addon_action }}"
 
-def get_param(name: str) -> str | None:
-    """Get template parameter value, returns None if NOT_DEFINED."""
-    val = "{{ " + name + " }}"
-    # If template wasn't processed, the literal {{ name }} remains
-    if val.startswith("{{") and val.endswith("}}"):
-        return None
-    if val == "NOT_DEFINED" or val == "":
+
+def _normalize(val: str) -> str | None:
+    """Return None if template variable was not substituted or empty."""
+    if not val or val == "NOT_DEFINED":
         return None
     return val
 
@@ -129,9 +130,9 @@ def update_container_description(vm_id: str, new_description: str) -> None:
 
 
 def main() -> None:
-    vm_id = get_param("vm_id")
-    addon_id = get_param("addon_id")
-    addon_action = get_param("addon_action") or "add"
+    vm_id = _normalize(VM_ID_RAW)
+    addon_id = _normalize(ADDON_ID_RAW)
+    addon_action = _normalize(ADDON_ACTION_RAW) or "add"
 
     if not vm_id:
         print("Error: vm_id is required", file=sys.stderr)

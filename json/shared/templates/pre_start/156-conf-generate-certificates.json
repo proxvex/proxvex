@@ -8,6 +8,7 @@
     { "id": "ca_cert_b64", "name": "CA Cert", "type": "string", "internal": true },
     { "id": "shared_volpath", "name": "Shared Volume Path", "type": "string", "required": true },
     { "id": "hostname", "name": "Hostname", "type": "string", "required": true },
+    { "id": "ssl.certs_dir", "name": "Certificate Directory", "type": "string", "advanced": true },
     { "id": "domain_suffix", "name": "Domain Suffix", "type": "string", "default": ".local", "advanced": true, "description": "FQDN = hostname + domain_suffix" },
     { "id": "uid", "name": "UID", "type": "string", "default": "0", "advanced": true },
     { "id": "gid", "name": "GID", "type": "string", "default": "0", "advanced": true },

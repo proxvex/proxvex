@@ -7,6 +7,7 @@ import {
   ICommand,
   ITemplate,
   IParameter,
+  IOutputObject,
 } from "@src/types.mjs";
 import { CertificateAuthorityService } from "@src/services/certificate-authority-service.mjs";
 import { WebAppVeMessageManager } from "./webapp-ve-message-manager.mjs";
@@ -14,6 +15,7 @@ import { WebAppVeRestartManager } from "./webapp-ve-restart-manager.mjs";
 import { WebAppVeParameterProcessor } from "./webapp-ve-parameter-processor.mjs";
 import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
 import {
+  IApplication,
   IVEContext,
   IVMInstallContext,
 } from "@src/backend-types.mjs";
@@ -200,6 +202,7 @@ export class WebAppVeRouteHandlers {
           commands,
           selectedAddons,
           task as TaskType,
+          loaded.application,
         );
         console.log(
           `[AddonDebug] After insertAddonCommands: ${commands.length} commands`,
@@ -647,6 +650,7 @@ export class WebAppVeRouteHandlers {
     addonIds: string[],
     task: TaskType,
     phase: "pre_start" | "post_start",
+    application?: IApplication,
   ): Promise<ICommand[]> {
     const addonKey = this.getAddonKeyForTask(task);
     if (!addonKey) {
@@ -692,12 +696,37 @@ export class WebAppVeRouteHandlers {
 
       // Add addon properties as commands first (only for pre_start to avoid duplicates)
       if (phase === "pre_start" && addon.properties && addon.properties.length > 0) {
+        const appProperties = application?.properties ?? [];
+        const resolvedProps: IOutputObject[] = addon.properties.map((prop) => {
+          // Check if application overrides this addon property
+          const appOverride = appProperties.find((p: IOutputObject) => p.id === prop.id);
+          const value = appOverride?.value !== undefined ? appOverride.value : prop.value;
+          return {
+            id: prop.id,
+            value: value as string | number | boolean,
+          };
+        });
+
+        // Auto-inject unprefixed aliases for shared scripts
+        // e.g. "ssl.addon_volumes" also injects "addon_volumes"
+        const aliasProps: IOutputObject[] = [];
+        for (const prop of resolvedProps) {
+          const dotIdx = String(prop.id).indexOf(".");
+          if (dotIdx > 0) {
+            const unprefixed = String(prop.id).substring(dotIdx + 1);
+            if (!resolvedProps.find((p) => p.id === unprefixed)) {
+              aliasProps.push({
+                id: unprefixed,
+                value: prop.value as string | number | boolean,
+              });
+            }
+          }
+        }
+        resolvedProps.push(...aliasProps);
+
         const propertiesCommand: ICommand = {
           name: `${addon.name} Properties`,
-          properties: addon.properties.map((prop) => ({
-            id: prop.id,
-            value: prop.value as string | number | boolean,
-          })),
+          properties: resolvedProps,
         };
         commands.push(propertiesCommand);
       }
@@ -806,13 +835,18 @@ export class WebAppVeRouteHandlers {
         } catch {
           continue;
         }
+        // Properties command sets addon_id (must be separate from script command
+        // because VeExecution skips script execution for commands with properties)
+        commands.push({
+          name: `Set Addon ID: ${addon.name}`,
+          properties: [{ id: "addon_id", value: addonId }],
+        });
         commands.push({
           name: `Update LXC Notes with Addon: ${addon.name}`,
           execute_on: "ve",
           script: "host-update-lxc-notes-addon.py",
           scriptContent: notesUpdateScript,
           libraryContent: notesUpdateLibrary,
-          properties: [{ id: "addon_id", value: addonId }],
           outputs: ["success"],
         });
       }
@@ -857,6 +891,7 @@ export class WebAppVeRouteHandlers {
     commands: ICommand[],
     addonIds: string[],
     task: TaskType,
+    application?: IApplication,
   ): Promise<ICommand[]> {
     if (addonIds.length === 0) {
       return commands;
@@ -870,6 +905,7 @@ export class WebAppVeRouteHandlers {
       addonIds,
       task,
       "pre_start",
+      application,
     );
     console.log(`[AddonDebug] pre_start commands loaded: ${preStartCommands.length}`);
     if (preStartCommands.length > 0) {
@@ -884,6 +920,7 @@ export class WebAppVeRouteHandlers {
       addonIds,
       task,
       "post_start",
+      application,
     );
     console.log(`[AddonDebug] post_start commands loaded: ${postStartCommands.length}`);
     if (postStartCommands.length > 0) {
@@ -1023,16 +1060,21 @@ export class WebAppVeRouteHandlers {
         } catch {
           continue;
         }
+        // Properties command sets addon_id and addon_action (must be separate from
+        // script command because VeExecution skips script execution for commands with properties)
+        commands.push({
+          name: `Set Addon ID for Removal: ${addon.name}`,
+          properties: [
+            { id: "addon_id", value: addonId },
+            { id: "addon_action", value: "remove" },
+          ],
+        });
         commands.push({
           name: `Remove Addon from Notes: ${addon.name}`,
           execute_on: "ve",
           script: "host-update-lxc-notes-addon.py",
           scriptContent: notesUpdateScript,
           libraryContent: notesUpdateLibrary,
-          properties: [
-            { id: "addon_id", value: addonId },
-            { id: "addon_action", value: "remove" },
-          ],
           outputs: ["success"],
         });
       }
@@ -1061,7 +1103,7 @@ export class WebAppVeRouteHandlers {
       const hasValue = userValue && userValue !== "" && String(userValue) !== "NOT_DEFINED";
       if (hasValue) continue; // User uploaded own cert
 
-      const volumeKey = this.resolveVolumeKeyForCert(param);
+      const volumeKey = this.resolveVolumeKeyForCert(param, processedParams);
       certLines.push(`${param.id}|${param.certtype}|${volumeKey}`);
     }
 
@@ -1079,9 +1121,16 @@ export class WebAppVeRouteHandlers {
    * Resolves the volume key for a cert parameter.
    * Looks at parameter ID pattern for volume hints, defaults to "secret".
    */
-  private resolveVolumeKeyForCert(param: IParameter): string {
-    // If param id contains a volume key hint (e.g. upload_certs_server_crt_content)
-    // try to extract volume key from the id pattern
+  private resolveVolumeKeyForCert(
+    param: IParameter,
+    processedParams: Array<{ id: string; value: string | number | boolean }>,
+  ): string {
+    // Use ssl.certs_dir if available (format: "volume_key[:subdirectory]")
+    const certsDir = processedParams.find((p) => p.id === "ssl.certs_dir")?.value;
+    if (certsDir && String(certsDir) !== "" && String(certsDir) !== "NOT_DEFINED") {
+      return String(certsDir).split(":")[0] ?? "certs"; // Volume key part
+    }
+    // Fallback: heuristic based on parameter ID
     const id = param.id || "";
     if (id.includes("certs")) return "certs";
     if (id.includes("secret")) return "secret";

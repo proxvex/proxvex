@@ -617,9 +617,9 @@ describe("AddonService", () => {
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
             { id: "https_port", name: "HTTPS Port", type: "string", required: true },
-            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true, default: "proxy" },
-            { id: "addon_ssl_cert", name: "Certificate", type: "string" },
-            { id: "addon_ssl_key", name: "Key", type: "string" },
+            { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true, default: "proxy" },
+            { id: "ssl.cert", name: "Certificate", type: "string" },
+            { id: "ssl.key", name: "Key", type: "string" },
           ],
         }),
       );
@@ -631,7 +631,7 @@ describe("AddonService", () => {
           { id: "https_port", name: "HTTPS Port", type: "string" },
         ],
         properties: [
-          { id: "addon_ssl_mode", value: "native" },
+          { id: "ssl.mode", value: "native" },
         ],
       });
 
@@ -641,11 +641,11 @@ describe("AddonService", () => {
       // http_port, https_port filtered because app defines them as parameters
       expect(paramIds).not.toContain("http_port");
       expect(paramIds).not.toContain("https_port");
-      // addon_ssl_mode filtered because app defines it as property with value
-      expect(paramIds).not.toContain("addon_ssl_mode");
+      // ssl.mode filtered because app defines it as property with value
+      expect(paramIds).not.toContain("ssl.mode");
       // These remain because the app doesn't define them
-      expect(paramIds).toContain("addon_ssl_cert");
-      expect(paramIds).toContain("addon_ssl_key");
+      expect(paramIds).toContain("ssl.cert");
+      expect(paramIds).toContain("ssl.key");
     });
 
     it("should remove addon parameters that match app parameters (not just properties)", () => {
@@ -659,8 +659,8 @@ describe("AddonService", () => {
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
             { id: "https_port", name: "HTTPS Port", type: "string", required: true },
-            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true },
-            { id: "addon_ssl_cert", name: "Certificate", type: "string" },
+            { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
+            { id: "ssl.cert", name: "Certificate", type: "string" },
           ],
         }),
       );
@@ -680,8 +680,8 @@ describe("AddonService", () => {
       expect(paramIds).not.toContain("http_port");
       expect(paramIds).not.toContain("https_port");
       // These remain because app doesn't define them
-      expect(paramIds).toContain("addon_ssl_mode");
-      expect(paramIds).toContain("addon_ssl_cert");
+      expect(paramIds).toContain("ssl.mode");
+      expect(paramIds).toContain("ssl.cert");
     });
 
     it("should keep all addon parameters when app has no matching parameters or properties", () => {
@@ -695,7 +695,7 @@ describe("AddonService", () => {
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
             { id: "https_port", name: "HTTPS Port", type: "string", required: true },
-            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true },
+            { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
           ],
         }),
       );
@@ -711,7 +711,7 @@ describe("AddonService", () => {
       // All addon parameters shown because app doesn't define any of them
       expect(paramIds).toContain("http_port");
       expect(paramIds).toContain("https_port");
-      expect(paramIds).toContain("addon_ssl_mode");
+      expect(paramIds).toContain("ssl.mode");
     });
 
     it("should not filter parameters set via properties with default (only value)", () => {
@@ -723,7 +723,7 @@ describe("AddonService", () => {
           notes_key: "ssl-default",
           compatible_with: "*",
           parameters: [
-            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true },
+            { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
           ],
         }),
       );
@@ -731,14 +731,14 @@ describe("AddonService", () => {
       const app = createApplication({
         id: "default-app",
         properties: [
-          { id: "addon_ssl_mode", default: "proxy" },
+          { id: "ssl.mode", default: "proxy" },
         ],
       });
 
       const result = service.getCompatibleAddonsWithParameters(app);
       expect(result).toHaveLength(1);
       const paramIds = result[0].parameters?.map((p) => p.id) ?? [];
-      expect(paramIds).toContain("addon_ssl_mode");
+      expect(paramIds).toContain("ssl.mode");
     });
   });
 
@@ -754,7 +754,7 @@ describe("AddonService", () => {
           compatible_with: "*",
           required_parameters: ["http_port", "https_port"],
           parameters: [
-            { id: "addon_ssl_mode", name: "SSL Mode", type: "enum", required: true },
+            { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
           ],
         }),
       );

@@ -25,8 +25,8 @@ if [ -d "$VOLUMES_DIR" ]; then
     [ -d "$HOST_DIR" ] || continue
     HOSTNAME=$(basename "$HOST_DIR")
 
-    # Find all .crt files in this host's volume directories
-    for CRT_FILE in $(find "$HOST_DIR" -name "*.crt" -type f 2>/dev/null); do
+    # Find all certificate files (.pem and .crt) in this host's volume directories
+    for CRT_FILE in $(find "$HOST_DIR" \( -name "*.pem" -o -name "*.crt" \) -type f 2>/dev/null); do
       if ! openssl x509 -in "$CRT_FILE" -noout 2>/dev/null; then
         continue
       fi
@@ -37,13 +37,14 @@ if [ -d "$VOLUMES_DIR" ]; then
       NOW_EPOCH=$(date +%s)
       DAYS_REMAINING=$(( (END_EPOCH - NOW_EPOCH) / 86400 ))
 
-      # Determine certtype from filename
+      # Determine certtype from filename (Let's Encrypt + legacy naming)
       BASENAME=$(basename "$CRT_FILE")
       case "$BASENAME" in
-        ca.crt)        CERTTYPE="ca_pub" ;;
-        fullchain.crt) CERTTYPE="fullchain" ;;
-        server.crt)    CERTTYPE="server" ;;
-        *)             CERTTYPE="unknown" ;;
+        chain.pem|ca.crt)           CERTTYPE="ca_pub" ;;
+        fullchain.pem|fullchain.crt) CERTTYPE="fullchain" ;;
+        cert.pem|server.crt)        CERTTYPE="server" ;;
+        privkey.pem)                CERTTYPE="key" ;;
+        *)                          CERTTYPE="unknown" ;;
       esac
 
       # Determine status

@@ -810,14 +810,14 @@ describe("WebAppVE Addon Integration", () => {
         notes_key: "ssl",
         parameters: [
           {
-            id: "addon_ssl_cert",
+            id: "ssl.cert",
             name: "Server Certificate",
             type: "string",
             upload: true,
             certtype: "server",
           },
           {
-            id: "addon_ssl_key",
+            id: "ssl.key",
             name: "Server Private Key",
             type: "string",
             upload: true,

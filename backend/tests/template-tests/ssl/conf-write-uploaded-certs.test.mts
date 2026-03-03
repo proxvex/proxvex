@@ -46,8 +46,8 @@ describe.skipIf(!hostReachable)(
       const result = await helper.runTemplate({
         templatePath: TEMPLATE_PATH,
         inputs: {
-          addon_ssl_cert: testCertB64,
-          addon_ssl_key: testKeyB64,
+          "ssl.cert": testCertB64,
+          "ssl.key": testKeyB64,
           shared_volpath: sharedVolPath,
           hostname,
           uid: "0",
@@ -60,12 +60,12 @@ describe.skipIf(!hostReachable)(
 
       // Verify files exist
       const certExists = await stateManager.execOnHost(
-        `test -f ${sharedVolPath}/volumes/${hostname}/certs/server.crt && echo "OK"`,
+        `test -f ${sharedVolPath}/volumes/${hostname}/certs/fullchain.pem && echo "OK"`,
       );
       expect(certExists.stdout.trim()).toBe("OK");
 
       const keyExists = await stateManager.execOnHost(
-        `test -f ${sharedVolPath}/volumes/${hostname}/certs/server.key && echo "OK"`,
+        `test -f ${sharedVolPath}/volumes/${hostname}/certs/privkey.pem && echo "OK"`,
       );
       expect(keyExists.stdout.trim()).toBe("OK");
     });
@@ -73,14 +73,14 @@ describe.skipIf(!hostReachable)(
     it("should skip when cert is NOT_DEFINED", async () => {
       // Clean up previous test files
       await stateManager.execOnHost(
-        `rm -f ${sharedVolPath}/volumes/${hostname}/certs/server.crt ${sharedVolPath}/volumes/${hostname}/certs/server.key`,
+        `rm -f ${sharedVolPath}/volumes/${hostname}/certs/fullchain.pem ${sharedVolPath}/volumes/${hostname}/certs/privkey.pem`,
       );
 
       const result = await helper.runTemplate({
         templatePath: TEMPLATE_PATH,
         inputs: {
-          addon_ssl_cert: "NOT_DEFINED",
-          addon_ssl_key: "NOT_DEFINED",
+          "ssl.cert": "NOT_DEFINED",
+          "ssl.key": "NOT_DEFINED",
           shared_volpath: sharedVolPath,
           hostname,
           uid: "0",
@@ -93,7 +93,7 @@ describe.skipIf(!hostReachable)(
 
       // Files should NOT exist
       const certExists = await stateManager.execOnHost(
-        `test -f ${sharedVolPath}/volumes/${hostname}/certs/server.crt && echo "EXISTS" || echo "NOT_FOUND"`,
+        `test -f ${sharedVolPath}/volumes/${hostname}/certs/fullchain.pem && echo "EXISTS" || echo "NOT_FOUND"`,
       );
       expect(certExists.stdout.trim()).toBe("NOT_FOUND");
     });

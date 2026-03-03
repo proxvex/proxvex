@@ -5,10 +5,10 @@
 # - Docker-Compose detection (skip if compose app — handled by 325)
 # - nginx installation and SSL configuration (proxy mode)
 # - iptables rules to block external HTTP access (proxy mode)
-# - Native mode: exit (app handles HTTPS itself)
+# - Native/certs mode: exit (app handles HTTPS itself or only certs needed)
 #
 # Requires:
-#   - addon_ssl_mode: "proxy" or "native"
+#   - ssl.mode: "proxy", "native", or "certs"
 #   - http_port: Application HTTP port
 #   - https_port: HTTPS port for nginx proxy
 #   - alpine_mirror: (optional) Alpine mirror URL
@@ -16,7 +16,7 @@
 #
 # Output: errors to stderr only
 
-SSL_MODE="{{ addon_ssl_mode }}"
+SSL_MODE="{{ ssl.mode }}"
 HTTP_PORT="{{ http_port }}"
 HTTPS_PORT="{{ https_port }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
@@ -51,6 +51,12 @@ if [ "$SSL_MODE" = "native" ]; then
   exit 0
 fi
 
+# --- Certs mode: nothing to do ---
+if [ "$SSL_MODE" = "certs" ]; then
+  echo "SSL certs mode: certificates only, no proxy needed" >&2
+  exit 0
+fi
+
 # --- Docker-Compose detection ---
 # If this is a compose app, the nginx injection (325) handles everything.
 # We only need to ensure compose services are running.
@@ -65,7 +71,7 @@ if [ -d /opt/docker-compose ]; then
 fi
 
 # --- Check if certificates exist ---
-if [ ! -f "${CERT_DIR}/server.crt" ] || [ ! -f "${CERT_DIR}/server.key" ]; then
+if [ ! -f "${CERT_DIR}/fullchain.pem" ] || [ ! -f "${CERT_DIR}/privkey.pem" ]; then
   echo "Warning: SSL certificates not found in ${CERT_DIR}, skipping proxy setup" >&2
   exit 0
 fi
@@ -153,8 +159,8 @@ server {
     listen ${HTTPS_PORT} ssl;
     server_name _;
 
-    ssl_certificate ${CERT_DIR}/server.crt;
-    ssl_certificate_key ${CERT_DIR}/server.key;
+    ssl_certificate ${CERT_DIR}/fullchain.pem;
+    ssl_certificate_key ${CERT_DIR}/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;

@@ -5,6 +5,9 @@
 # It parses cert_requests (assembled by backend) and generates certs
 # using the CA key+cert provided as base64 parameters.
 #
+# Uses cert_resolve_dir() from cert-common.sh library when ssl.certs_dir
+# is set to override the default volume key.
+#
 # Template variables:
 #   cert_requests  - Multiline: paramId|certtype|volumeKey per line
 #   ca_key_b64     - Base64-encoded CA private key PEM
@@ -12,11 +15,12 @@
 #   shared_volpath - Base path for volumes
 #   hostname       - Container hostname
 #   domain_suffix  - FQDN suffix (default: .local)
+#   ssl.certs_dir  - Volume key[:subdirectory] override (or empty)
 #   uid, gid       - File ownership
 #   mapped_uid, mapped_gid - Host-mapped ownership
 
 # Library functions are prepended automatically:
-# - cert_generate_server(), cert_generate_fullchain()
+# - cert_resolve_dir(), cert_generate_server(), cert_generate_fullchain()
 # - cert_write_ca_pub(), cert_write_ca()
 # - cert_check_validity(), cert_output_result()
 
@@ -27,10 +31,13 @@ CA_CERT_B64="{{ ca_cert_b64 }}"
 SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
+SSL_CERTS_DIR="{{ ssl.certs_dir }}"
 UID_VAL="{{ uid }}"
 GID_VAL="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
+
+[ "$SSL_CERTS_DIR" = "NOT_DEFINED" ] && SSL_CERTS_DIR=""
 
 # Compute FQDN
 FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
@@ -54,8 +61,8 @@ echo "$CERT_REQUESTS" | while IFS='|' read -r PARAM_ID CERTTYPE VOLUME_KEY; do
   # Skip empty lines
   [ -z "$PARAM_ID" ] && continue
 
-  SAFE_VOL=$(echo "$VOLUME_KEY" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-  TARGET_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/${SAFE_VOL}"
+  # Resolve target directory: use ssl.certs_dir if set, otherwise use volume key from cert_requests
+  TARGET_DIR=$(cert_resolve_dir "$SSL_CERTS_DIR" "$SHARED_VOLPATH" "$SAFE_HOST" "$VOLUME_KEY")
 
   echo "Processing: ${PARAM_ID} (${CERTTYPE}) -> ${TARGET_DIR}" >&2
 
@@ -65,12 +72,12 @@ echo "$CERT_REQUESTS" | while IFS='|' read -r PARAM_ID CERTTYPE VOLUME_KEY; do
     mkdir -p "$TARGET_DIR"
   fi
 
-  # Determine check file based on certtype
+  # Determine check file based on certtype (Let's Encrypt naming)
   case "$CERTTYPE" in
-    server)    CHECK_FILE="${TARGET_DIR}/server.crt" ;;
-    fullchain) CHECK_FILE="${TARGET_DIR}/fullchain.crt" ;;
-    ca_pub)    CHECK_FILE="${TARGET_DIR}/ca.crt" ;;
-    ca)        CHECK_FILE="${TARGET_DIR}/ca.crt" ;;
+    server)    CHECK_FILE="${TARGET_DIR}/cert.pem" ;;
+    fullchain) CHECK_FILE="${TARGET_DIR}/fullchain.pem" ;;
+    ca_pub)    CHECK_FILE="${TARGET_DIR}/chain.pem" ;;
+    ca)        CHECK_FILE="${TARGET_DIR}/chain.pem" ;;
     *)
       echo "Warning: Unknown certtype '${CERTTYPE}' for ${PARAM_ID}, skipping" >&2
       continue

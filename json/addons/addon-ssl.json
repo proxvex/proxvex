@@ -1,59 +1,70 @@
 {
   "name": "SSL/HTTPS",
-  "description": "Enable HTTPS via nginx reverse proxy or native app configuration.",
+  "description": "Enable HTTPS via nginx reverse proxy, native app configuration, or certificate provisioning only.",
   "tags": ["security", "network"],
 
   "compatible_with": "*",
 
   "parameters": [
     {
-      "id": "http_port",
-      "name": "HTTP Port",
-      "type": "string",
-      "required": true,
-      "default": "80",
-      "description": "The HTTP port of the application to be proxied."
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "required": true,
-      "default": "443",
-      "description": "The HTTPS port to listen on."
-    },
-    {
-      "id": "addon_ssl_mode",
+      "id": "ssl.mode",
       "name": "SSL Mode",
       "type": "enum",
       "required": true,
       "default": "proxy",
       "enumValues": [
         { "name": "Proxy (nginx)", "value": "proxy" },
-        { "name": "Native", "value": "native" }
+        { "name": "Native", "value": "native" },
+        { "name": "Certificates only", "value": "certs" }
       ],
-      "description": "Proxy: nginx reverse proxy handles HTTPS. Native: app configures HTTPS itself."
+      "description": "Proxy: nginx reverse proxy handles HTTPS. Native: app configures HTTPS itself. Certs: only provision certificates (no ports, no proxy)."
     },
     {
-      "id": "addon_ssl_cert",
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "The HTTP port of the application to be proxied."
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "The HTTPS port to listen on."
+    },
+    {
+      "id": "ssl.cert",
       "name": "Server Certificate",
       "type": "string",
       "upload": true,
       "certtype": "server",
-      "description": "Optional PEM server certificate for HTTPS.\n- If left empty, a certificate is **auto-generated** by the internal CA\n- Upload your own `.pem` or `.crt` file to use a custom certificate\n- The certificate is stored in `/etc/ssl/addon/server.crt` inside the container\n- The HTTPS configuration persists across container restarts"
+      "description": "Optional PEM server certificate for HTTPS.\n- If left empty, a certificate is **auto-generated** by the internal CA\n- Upload your own `.pem` or `.crt` file to use a custom certificate\n- The certificate is stored as `cert.pem` in the certificate directory\n- The HTTPS configuration persists across container restarts"
     },
     {
-      "id": "addon_ssl_key",
+      "id": "ssl.key",
       "name": "Server Private Key",
       "type": "string",
       "upload": true,
       "secure": true,
-      "description": "Optional PEM private key matching the server certificate.\n- If left empty, a key is **auto-generated** together with the certificate\n- Upload your own `.pem` or `.key` file to use a custom private key\n- The key is stored in `/etc/ssl/addon/server.key` inside the container"
+      "description": "Optional PEM private key matching the server certificate.\n- If left empty, a key is **auto-generated** together with the certificate\n- Upload your own `.pem` or `.key` file to use a custom private key\n- The key is stored as `privkey.pem` in the certificate directory"
+    },
+    {
+      "id": "ssl.certs_dir",
+      "name": "Certificate Directory",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Volume key and optional subdirectory for certificates (format: volume_key[:subdirectory]). If empty, uses the default 'certs' volume."
     }
   ],
 
   "properties": [
-    { "id": "addon_volumes", "value": "certs=/etc/ssl/addon,0700,0:0" }
+    { "id": "ssl.addon_volumes", "value": "certs=/etc/ssl/addon,0700,0:0" }
   ],
 
   "installation": {

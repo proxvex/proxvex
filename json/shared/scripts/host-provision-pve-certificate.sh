@@ -43,9 +43,9 @@ if [ -f /etc/pve/local/pve-ssl.key ]; then
   echo "Backed up existing PVE SSL key" >&2
 fi
 
-# Deploy new certs
-cp "$TMP_DIR/server.crt" /etc/pve/local/pve-ssl.pem
-cp "$TMP_DIR/server.key" /etc/pve/local/pve-ssl.key
+# Deploy new certs (cert_generate_server now uses LE naming)
+cp "$TMP_DIR/cert.pem" /etc/pve/local/pve-ssl.pem
+cp "$TMP_DIR/privkey.pem" /etc/pve/local/pve-ssl.key
 
 # Write CA cert for trust
 echo "$CA_CERT_B64" | base64 -d > /etc/pve/pve-root-ca.pem
