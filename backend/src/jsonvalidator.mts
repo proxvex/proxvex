@@ -105,7 +105,6 @@ export class JsonValidator {
     schemasDir: string = resolve("schemas"),
     baseSchemas: string[] = [
       "templatelist.schema.json",
-      "categorized-templatelist.schema.json",
       "base-deployable.schema.json",
     ],
   ) {

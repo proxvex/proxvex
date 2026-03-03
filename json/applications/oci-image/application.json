@@ -18,22 +18,12 @@
       "305-post-set-pkg-mirror.json"
     ]
   },
-  "upgrade": {
-    "image": [
-      "011-host-get-oci-image.json"
-    ],
-    "start": [
-      "221-upgrade-oci-lxc.json"
-    ]
-  },
-  "copy-upgrade": {
-    "image": [
-      "011-host-get-oci-image.json"
-    ],
-    "start": [
-      "220-copy-upgrade-oci-lxc.json"
-    ]
-  },
+  "upgrade": [
+    "221-upgrade-oci-lxc.json"
+  ],
+  "copy-upgrade": [
+    "220-copy-upgrade-oci-lxc.json"
+  ],
   "addon-reconfigure": {
     "image": [
       "050-stop-lxc.json"

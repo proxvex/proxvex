@@ -20,7 +20,6 @@ import { FileSystemRepositories, type IRepositories } from "./repositories.mjs";
 
 const baseSchemas: string[] = [
   "templatelist.schema.json",
-  "categorized-templatelist.schema.json",
   "base-deployable.schema.json",
 ];
 

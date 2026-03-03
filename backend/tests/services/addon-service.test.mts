@@ -69,7 +69,6 @@ describe("AddonService", () => {
     // Initialize JsonValidator
     jsonValidator = new JsonValidator(schemaPath, [
       "templatelist.schema.json",
-      "categorized-templatelist.schema.json",
       "base-deployable.schema.json",
     ]);
 
