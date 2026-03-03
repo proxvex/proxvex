@@ -99,7 +99,39 @@ export class TestStateManager {
   async ensureNoContainer(vmId: string): Promise<void> {
     const status = await this.getContainerStatus(vmId);
     if (status === "absent") return;
+    // Unlock first so --force --purge can proceed even with stale locks
+    await this.execOnHost(`pct unlock ${vmId} 2>/dev/null || true`, 10000);
     await this.execOnHost(`pct destroy ${vmId} --force --purge`, 30000);
+  }
+
+  /**
+   * Resolves stale container locks left by interrupted operations.
+   * Reads lock state from `pct status` output (more reliable than pct config).
+   * - lock=create or lock=destroyed: container is unreliable → unlock + destroy
+   * - other locks (migrate, …): unlock only, let normal flow continue
+   */
+  private async resolveLockIfNeeded(
+    vmId: string,
+  ): Promise<"absent" | "stopped" | "running"> {
+    const { stdout } = await this.execOnHost(
+      `pct status ${vmId} 2>/dev/null || true`,
+    );
+    const lockMatch = stdout.match(/^lock:\s*(\S+)/m);
+    if (!lockMatch) return this.getContainerStatus(vmId);
+
+    const lock = lockMatch[1];
+    // Unlock first so subsequent commands work
+    await this.execOnHost(`pct unlock ${vmId} 2>/dev/null || true`, 10000);
+
+    if (lock === "create" || lock === "destroyed") {
+      // Container is in an unusable state – destroy so it can be recreated cleanly
+      await this.execOnHost(
+        `pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        30000,
+      );
+      return "absent";
+    }
+    return this.getContainerStatus(vmId);
   }
 
   async ensureContainerCreatedStopped(
@@ -149,7 +181,11 @@ export class TestStateManager {
       storage?: string;
     },
   ): Promise<void> {
-    const status = await this.getContainerStatus(vmId);
+    let status = await this.getContainerStatus(vmId);
+    if (status === "running") return;
+    if (status !== "absent") {
+      status = await this.resolveLockIfNeeded(vmId);
+    }
     if (status === "running") return;
     if (status === "absent") {
       await this.ensureContainerCreatedStopped(vmId, opts);
