@@ -245,7 +245,11 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
           for (const addonId of this.installedAddons) {
             const addon = this.availableAddons.find(a => a.id === addonId);
             if (addon) {
-              this.applyAddonToggle(addonId, true, addon);
+              try {
+                this.applyAddonToggle(addonId, true, addon);
+              } catch (err) {
+                console.error(`Failed to pre-select addon ${addonId}(error ignored, works anyhow):`, err);
+              }
             }
           }
         }

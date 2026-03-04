@@ -156,11 +156,10 @@ export class WebAppVeRouteHandlers {
       const executionMode = determineExecutionMode();
       const sshCommand = executionMode === ExecutionMode.TEST ? "sh" : "ssh";
 
-      // Use changedParams if provided (even if empty), otherwise fall back to params
-      // This allows restarting installation with only changed parameters
-      // For normal installation, changedParams should contain all changed parameters
-      const paramsToUse =
-        body.changedParams !== undefined ? body.changedParams : body.params;
+      // Always use all params for execution — changedParams is only relevant for
+      // the restart flow (separate code path). Using changedParams here would lose
+      // unchanged preset values (e.g. previous_vm_id) that templates still need.
+      const paramsToUse = body.params;
 
       // Prepare initialInputs for loadApplication (for skip_if_all_missing checks)
       // Must use body.params (all parameters), not paramsToUse (changedParams only),
