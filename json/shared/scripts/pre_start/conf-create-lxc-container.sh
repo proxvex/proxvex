@@ -42,7 +42,9 @@ fi
 
 stor="$PREFERRED_STORAGE"
 
-ROOTFS="$stor:{{ disk_size }}"
+# Strip unit suffix (e.g. "1G" -> "1") — pct create expects plain number for ZFS
+DISK_SIZE=$(echo "{{ disk_size }}" | sed 's/[GgMmKk]$//')
+ROOTFS="$stor:${DISK_SIZE}"
 echo "Rootfs: $ROOTFS" >&2
 
 # Auto-select VMID if not set

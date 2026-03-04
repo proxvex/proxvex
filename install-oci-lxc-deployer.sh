@@ -573,7 +573,11 @@ execute_script_from_github \
   "deployer_base_url=${deployer_base_url}" \
   "ve_context_key=ve_${proxmox_hostname}" \
   "icon_base64=${icon_base64}" \
-  "icon_mime_type=${icon_mime_type}" || {
+  "icon_mime_type=${icon_mime_type}" \
+  "username=lxc" \
+  "uid=${LXC_UID}" \
+  "gid=${LXC_GID}" \
+  "is_deployer=true" || {
   echo "Error: Failed to write LXC notes" >&2
   exit 1
 }
