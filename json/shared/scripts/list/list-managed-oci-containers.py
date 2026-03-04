@@ -85,6 +85,8 @@ def main() -> None:
                 item["application_name"] = config.application_name
             if config.version:
                 item["version"] = config.version
+            if config.is_deployer_instance:
+                item["is_deployer_instance"] = True
             if config.addons:
                 item["addons"] = config.addons
             # User/permission info for addon reconfiguration

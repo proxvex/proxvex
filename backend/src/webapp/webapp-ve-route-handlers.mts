@@ -271,6 +271,11 @@ export class WebAppVeRouteHandlers {
         defaults.set("icon_mime_type", iconData.iconType);
       }
 
+      // Mark deployer-instance for self-reconfigure support
+      if (application === "oci-lxc-deployer") {
+        defaults.set("is_deployer", "true");
+      }
+
       // Store selected addon IDs for notes update (comma-separated for shell script)
       if (selectedAddons.length > 0) {
         defaults.set("selected_addons", selectedAddons.join(","));

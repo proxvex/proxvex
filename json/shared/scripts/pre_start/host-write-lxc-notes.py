@@ -18,6 +18,7 @@ ICON_MIME_TYPE = "{{ icon_mime_type }}"
 USERNAME_RAW = "{{ username }}"
 UID_RAW = "{{ uid }}"
 GID_RAW = "{{ gid }}"
+IS_DEPLOYER_RAW = "{{ is_deployer }}"
 
 
 def build_notes(include_icon):
@@ -37,11 +38,14 @@ def build_notes(include_icon):
 
     oci_image_visible = strip_oci_prefix(oci_image_raw)
 
+    is_deployer = normalize_value(IS_DEPLOYER_RAW).lower() == "true"
+
     lines = build_hidden_markers(
         VMID, oci_image_visible=oci_image_visible, app_id=app_id,
         app_name=app_name, version=version, deployer_url=deployer_url,
         ve_context=ve_context, icon_base64=icon_base64,
         icon_mime_type=icon_mime_type, username=username, uid=uid, gid=gid,
+        is_deployer=is_deployer,
     )
 
     lines += build_visible_header(

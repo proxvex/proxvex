@@ -35,10 +35,13 @@ def strip_oci_prefix(oci_image_raw):
 def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
                          version="", deployer_url="", ve_context="",
                          icon_base64="", icon_mime_type="",
-                         username="", uid="", gid=""):
+                         username="", uid="", gid="",
+                         is_deployer=False):
     """Build hidden HTML comment markers for machine parsing."""
     lines = []
     lines.append("<!-- oci-lxc-deployer:managed -->")
+    if is_deployer:
+        lines.append("<!-- oci-lxc-deployer:deployer-instance -->")
     if oci_image_visible:
         lines.append("<!-- oci-lxc-deployer:oci-image %s -->" % oci_image_visible)
     if app_id:

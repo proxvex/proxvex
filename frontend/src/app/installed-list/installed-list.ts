@@ -84,10 +84,13 @@ export class InstalledList implements OnInit {
   }
 
   editAddons(installation: IManagedOciContainer) {
+    // Deployer instances use reinstall mode (new container + cleanup old)
+    // because addon-reconfigure would stop the deployer's own API
+    const isReinstall = !!installation.is_deployer_instance;
+
     // Build query params from all available container data
     const queryParams: Record<string, string | number | undefined> = {
-      mode: 'addon',
-      vm_id: installation.vm_id,
+      mode: isReinstall ? 'reinstall' : 'addon',
       application_id: installation.application_id,
       application_name: installation.application_name,
       hostname: installation.hostname,
@@ -107,6 +110,14 @@ export class InstalledList implements OnInit {
       // Currently installed addons (from container notes markers)
       installed_addons: installation.addons?.join(',') || undefined,
     };
+
+    if (isReinstall) {
+      // Pass old VM ID as previous_vm_id for cleanup after reinstall
+      queryParams['previous_vm_id'] = installation.vm_id;
+    } else {
+      queryParams['vm_id'] = installation.vm_id;
+    }
+
     // Filter out undefined values
     const filteredParams = Object.fromEntries(
       Object.entries(queryParams).filter(([, v]) => v !== undefined)

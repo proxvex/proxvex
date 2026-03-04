@@ -729,6 +729,8 @@ export class VeExecution extends EventEmitter {
         ? `All commands completed successfully. Created container: ${vmId}`
         : "All commands completed successfully";
 
+      const redirectUrl = this.outputs.get("redirect_url") as string | undefined;
+
       this.emit("message", {
         command: "Completed",
         execute_on: "ve",
@@ -739,6 +741,7 @@ export class VeExecution extends EventEmitter {
         index: getNextMessageIndex(),
         partial: false,
         vmId: vmId, // Include VMID in message for E2E tests
+        redirectUrl: redirectUrl || undefined,
       } as IVeExecuteMessage);
 
       if (restartInfo == undefined) {
