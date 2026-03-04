@@ -469,11 +469,11 @@ for line in lines:
             r'(/logs/[^/\s]+/)' + re.escape(old_vmid) + r'(?=[)\s">]|$)',
             r'\g<1>' + new_vmid, orig)
 
-    # Update lxc.console.logfile: container-OLD_VMID.log -> container-NEW_VMID.log
+    # Update lxc.console.logfile: <hostname>-OLD_VMID.log -> <hostname>-NEW_VMID.log
     if orig.startswith('lxc.console.logfile'):
         orig = re.sub(
-            r'container-' + re.escape(old_vmid) + r'\.log',
-            'container-' + new_vmid + '.log', orig)
+            r'-' + re.escape(old_vmid) + r'\.log',
+            '-' + new_vmid + '.log', orig)
 
     # Update visible log file path in notes: hostname-OLD_VMID.log
     if re.search(r'^#.*Log file', orig):

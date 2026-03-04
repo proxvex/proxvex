@@ -56,7 +56,7 @@ lxc.init.uid: 1001
 lxc.init.gid: 1001
 lxc.init.cwd: /
 lxc.signal.halt: SIGTERM
-lxc.console.logfile: /var/log/lxc/container-105.log
+lxc.console.logfile: /var/log/lxc/oci-lxc-deployer-105.log
 mp0: local-zfs:subvol-105-disk-1,mp=/config,size=1G
 `;
 
@@ -229,7 +229,7 @@ ${scriptBody}
         "mp0: local-zfs:subvol-105-disk-1,mp=/config,size=1G",
       );
       expect(merged).toContain(
-        "lxc.console.logfile: /var/log/lxc/container-105.log",
+        "lxc.console.logfile: /var/log/lxc/oci-lxc-deployer-105.log",
       );
     });
 
@@ -330,8 +330,8 @@ ${scriptBody}
       expect(result.exitCode).toBe(0);
 
       const content = fs.readFileSync(confPath, "utf-8");
-      expect(content).toContain("container-110.log");
-      expect(content).not.toContain("container-105.log");
+      expect(content).toContain("oci-lxc-deployer-110.log");
+      expect(content).not.toContain("oci-lxc-deployer-105.log");
     });
 
     it("should update visible log file path VMID", () => {
