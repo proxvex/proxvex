@@ -62,7 +62,7 @@ describe('InstalledList component (vitest)', () => {
     const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.card-actions button'));
     expect(buttons.length).toBe(6);
 
-    // Klick auf Upgrade-Button (Index 0) der ersten Karte
+    // Click Upgrade button (index 0) of the first card
     buttons[0].click();
     fixture.detectChanges();
     expect(svc.postVeUpgrade).toHaveBeenCalledTimes(1);
