@@ -305,8 +305,7 @@ export class WebAppVE {
       }
     });
 
-    // GET /api/ve/logs/:vmId/:veContext/hostname - Get container hostname
-    // IMPORTANT: Must be registered BEFORE VeLogs to avoid :veContext matching "hostname"
+    // GET /api/:veContext/ve/logs/:vmId/hostname - Get container hostname
     this.app.get<{ vmId: string; veContext: string }>(
       ApiUri.VeLogsHostname,
       async (req, res) => {

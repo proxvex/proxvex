@@ -19,7 +19,7 @@ const BACKUP_CONF = `#<!-- oci-lxc-deployer%3Amanaged -->
 #<!-- oci-lxc-deployer%3Aapplication-id oci-lxc-deployer -->
 #<!-- oci-lxc-deployer%3Aapplication-name oci-lxc-deployer -->
 #<!-- oci-lxc-deployer%3Aversion 0.3.4 -->
-#<!-- oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/105/ve_pve1.cluster -->
+#<!-- oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105 -->
 #<!-- oci-lxc-deployer%3Aicon-url data%3Aimage/svg+xml;base64,... -->
 #<!-- oci-lxc-deployer%3Ausername lxc -->
 #<!-- oci-lxc-deployer%3Auid 1001 -->
@@ -35,7 +35,7 @@ const BACKUP_CONF = `#<!-- oci-lxc-deployer%3Amanaged -->
 #Log file%3A /var/log/lxc/oci-lxc-deployer-105.log
 #
 ### Links
-#- [Console Logs](http%3A//myhost.cluster%3A3201/logs/105/ve_pve1.cluster)
+#- [Console Logs](http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105)
 arch: amd64
 cmode: console
 cores: 2
@@ -159,7 +159,7 @@ ${scriptBody}
       expect(merged).toContain("<!-- oci-lxc-deployer%3Amanaged -->");
       expect(merged).toContain("oci-lxc-deployer%3Aversion 0.3.4");
       expect(merged).toContain(
-        "oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/105/ve_pve1.cluster",
+        "oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105",
       );
       expect(merged).toContain("oci-lxc-deployer%3Aicon-url");
       expect(merged).toContain("## oci-lxc-deployer");
@@ -319,8 +319,8 @@ ${scriptBody}
       expect(result.exitCode).toBe(0);
 
       const content = fs.readFileSync(confPath, "utf-8");
-      expect(content).toContain("/logs/110/ve_pve1.cluster");
-      expect(content).not.toContain("/logs/105/ve_pve1.cluster");
+      expect(content).toContain("/logs/ve_pve1.cluster/110");
+      expect(content).not.toContain("/logs/ve_pve1.cluster/105");
     });
 
     it("should update console logfile VMID", () => {

@@ -457,17 +457,17 @@ result = []
 for line in lines:
     orig = line.rstrip('\n')
 
-    # Update log-url marker: .../logs/OLD_VMID/... -> .../logs/NEW_VMID/...
+    # Update log-url marker: .../logs/VE_CONTEXT/OLD_VMID -> .../logs/VE_CONTEXT/NEW_VMID
     if re.search(r'oci-lxc-deployer[:%]3[Aa]log-url', orig):
         orig = re.sub(
-            r'(/logs/)' + re.escape(old_vmid) + r'(/)',
-            r'\g<1>' + new_vmid + r'\2', orig)
+            r'(/logs/[^/\s]+/)' + re.escape(old_vmid) + r'(?=[\s">)]|$)',
+            r'\g<1>' + new_vmid, orig)
 
-    # Update visible log links: .../logs/OLD_VMID/... -> .../logs/NEW_VMID/...
-    elif re.search(r'/logs/' + re.escape(old_vmid) + r'/', orig):
+    # Update visible log links: .../logs/VE_CONTEXT/OLD_VMID -> .../logs/VE_CONTEXT/NEW_VMID
+    elif re.search(r'/logs/[^/)\s]+/' + re.escape(old_vmid) + r'(?=[)\s])', orig):
         orig = re.sub(
-            r'(/logs/)' + re.escape(old_vmid) + r'(/)',
-            r'\g<1>' + new_vmid + r'\2', orig)
+            r'(/logs/[^/\s]+/)' + re.escape(old_vmid) + r'(?=[)\s">]|$)',
+            r'\g<1>' + new_vmid, orig)
 
     # Update lxc.console.logfile: container-OLD_VMID.log -> container-NEW_VMID.log
     if orig.startswith('lxc.console.logfile'):
