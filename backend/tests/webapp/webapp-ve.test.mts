@@ -37,7 +37,7 @@ describe("WebAppVE API", () => {
     await setup.cleanup();
   });
 
-  describe("POST /api/ve-configuration/:application/:task/:veContext", () => {
+  describe("POST /api/:veContext/ve-configuration/:application/:task", () => {
     it("should successfully start configuration and return restartKey and vmInstallKey", async () => {
       // Create a minimal test application
       helper.writeApplication("testapp", {
@@ -129,7 +129,7 @@ describe("WebAppVE API", () => {
     });
   });
 
-  describe("GET /api/ve/execute/:veContext", () => {
+  describe("GET /api/:veContext/ve/execute", () => {
     it("should return messages successfully", async () => {
       const url = ApiUri.VeExecute.replace(":veContext", veContextKey);
 
@@ -147,7 +147,7 @@ describe("WebAppVE API", () => {
     });
   });
 
-  describe("POST /api/ve/restart/:restartKey/:veContext", () => {
+  describe("POST /api/:veContext/ve/restart/:restartKey", () => {
     it("should successfully restart and return new restartKey and vmInstallKey", async () => {
       // Setup: Create a minimal test application
       helper.writeApplication("testapp", {
@@ -259,7 +259,7 @@ describe("WebAppVE API", () => {
     });
   });
 
-  describe("POST /api/ve/restart-installation/:vmInstallKey/:veContext", () => {
+  describe("POST /api/:veContext/ve/restart-installation/:vmInstallKey", () => {
     it("should successfully restart installation from scratch", async () => {
       // Setup: Create a minimal test application
       helper.writeApplication("testapp", {
@@ -341,7 +341,7 @@ describe("WebAppVE API", () => {
     });
   });
 
-  describe("POST /api/ve/copy-upgrade/:application/:veContext", () => {
+  describe("POST /api/:veContext/ve/copy-upgrade/:application", () => {
     it("should start upgrade task and return restartKey (no vmInstallKey)", async () => {
       helper.writeApplication("testapp", {
         name: "Test App",

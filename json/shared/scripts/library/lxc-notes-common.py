@@ -51,7 +51,7 @@ def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
     if version:
         lines.append("<!-- oci-lxc-deployer:version %s -->" % version)
     if deployer_url and ve_context:
-        lines.append("<!-- oci-lxc-deployer:log-url %s/logs/%s/%s -->" % (deployer_url, vmid, ve_context))
+        lines.append("<!-- oci-lxc-deployer:log-url %s/logs/%s/%s -->" % (deployer_url, ve_context, vmid))
     if icon_base64 and icon_mime_type:
         lines.append("<!-- oci-lxc-deployer:icon-url data:%s;base64,... -->" % icon_mime_type)
     if username:
@@ -103,7 +103,7 @@ def build_links_section(vmid, deployer_url, ve_context, link_text="Logs"):
     lines = []
     lines.append("")
     lines.append("## Links")
-    lines.append("- [%s](%s/logs/%s/%s)" % (link_text, deployer_url, vmid, ve_context))
+    lines.append("- [%s](%s/logs/%s/%s)" % (link_text, deployer_url, ve_context, vmid))
     return lines
 
 

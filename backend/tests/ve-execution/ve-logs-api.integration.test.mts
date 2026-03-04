@@ -59,7 +59,7 @@ describe("VE Logs API Integration", () => {
     await setup.cleanup();
   });
 
-  describe("GET /api/ve/logs/:vmId/:veContext", () => {
+  describe("GET /api/:veContext/ve/logs/:vmId", () => {
     it("should return 400 for invalid VM ID", async () => {
       const url = ApiUri.VeLogs.replace(":vmId", "invalid").replace(
         ":veContext",
@@ -152,7 +152,7 @@ describe("VE Logs API Integration", () => {
     });
   });
 
-  describe("GET /api/ve/logs/:vmId/docker/:veContext", () => {
+  describe("GET /api/:veContext/ve/logs/:vmId/docker", () => {
     it("should return 400 for invalid VM ID", async () => {
       const url = ApiUri.VeDockerLogs.replace(":vmId", "invalid").replace(
         ":veContext",

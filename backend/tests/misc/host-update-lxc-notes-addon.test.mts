@@ -21,7 +21,7 @@ const PVE_CONFIG_WITH_NOTES = `#<!-- oci-lxc-deployer%3Amanaged -->
 #<!-- oci-lxc-deployer%3Aapplication-id oci-lxc-deployer -->
 #<!-- oci-lxc-deployer%3Aapplication-name oci-lxc-deployer -->
 #<!-- oci-lxc-deployer%3Aversion 0.3.4 -->
-#<!-- oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/106/ve_pve1.cluster -->
+#<!-- oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/106 -->
 #<!-- oci-lxc-deployer%3Ausername lxc -->
 #<!-- oci-lxc-deployer%3Auid 1001 -->
 #<!-- oci-lxc-deployer%3Agid 1001 -->
@@ -36,7 +36,7 @@ const PVE_CONFIG_WITH_NOTES = `#<!-- oci-lxc-deployer%3Amanaged -->
 #Log file%3A /var/log/lxc/oci-lxc-deployer-106.log
 #
 ### Links
-#- [Console Logs](http%3A//myhost.cluster%3A3201/logs/106/ve_pve1.cluster)
+#- [Console Logs](http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/106)
 arch: amd64
 cmode: console
 hostname: oci-lxc-deployer
