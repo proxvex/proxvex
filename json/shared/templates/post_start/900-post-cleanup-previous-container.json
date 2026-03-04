@@ -1,0 +1,45 @@
+{
+  "execute_on": "ve",
+  "name": "Cleanup Previous Container",
+  "description": "After a deployer reinstall: writes deployer-instance marker to the new container's notes, determines the redirect URL, and schedules async cleanup (stop + destroy) of the previous container.",
+  "skip_if_all_missing": ["previous_vm_id"],
+  "parameters": [
+    {
+      "id": "previous_vm_id",
+      "name": "Previous VM ID",
+      "type": "number",
+      "required": true,
+      "description": "VM ID of the previous deployer container to clean up"
+    },
+    {
+      "id": "vm_id",
+      "name": "New VM ID",
+      "type": "number",
+      "required": true,
+      "description": "VM ID of the newly created container"
+    },
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "default": "3000",
+      "advanced": true,
+      "description": "HTTP port of the new deployer instance"
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "default": "3443",
+      "advanced": true,
+      "description": "HTTPS port of the new deployer instance"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Mark Deployer Instance & Cleanup Previous",
+      "script": "post-cleanup-previous-container.sh",
+      "outputs": ["redirect_url"]
+    }
+  ]
+}

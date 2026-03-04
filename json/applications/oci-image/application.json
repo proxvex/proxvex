@@ -15,7 +15,8 @@
       "210-wait-for-container-ready.json"
     ],
     "post_start": [
-      "305-post-set-pkg-mirror.json"
+      "305-post-set-pkg-mirror.json",
+      "900-post-cleanup-previous-container.json"
     ]
   },
   "upgrade": {

@@ -113,6 +113,7 @@ export interface IVeExecuteMessage {
   finished?: boolean;
   partial?: boolean; // If true, this is a partial/streaming output chunk (process still running)
   vmId?: number; // Container VMID (available in final success message)
+  redirectUrl?: string; // Redirect URL for deployer self-reconfigure (new instance URL)
 }
 
 export type ParameterType = "string" | "number" | "boolean" | "enum";
@@ -307,6 +308,7 @@ export interface IManagedOciContainer {
   version?: string;
   status?: string;
   addons?: string[];
+  is_deployer_instance?: boolean;
   username?: string;
   uid?: string;
   gid?: string;

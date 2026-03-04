@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(git rm json/shared/scripts/upgrade-oci-lxc.sh json/shared/scripts/upgrade-start.sh json/shared/templates/221-upgrade-oci-lxc.json json/shared/templates/231-upgrade-start.json)",
-      "Bash(git revert --no-edit 77b0fdf)"
+      "Bash(git revert --no-edit 77b0fdf)",
+      "Read(//Users/volkmar/oci-lxc-deployer/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/volkmar/oci-lxc-deployer"
     ]
   }
 }

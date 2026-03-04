@@ -28,6 +28,7 @@ APP_ID_VISIBLE_RE = re.compile(r"^\s*#?\s*Application\s+ID\s*:\s*(.+?)\s*$", re.
 APP_NAME_VISIBLE_RE = re.compile(r"^\s*#?\s*##\s+(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 VERSION_VISIBLE_RE = re.compile(r"^\s*#?\s*Version\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 ADDON_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):addon\s+(.+?)\s*-->", re.IGNORECASE)
+DEPLOYER_INSTANCE_RE = re.compile(r"(?:oci-lxc-deployer):deployer-instance", re.IGNORECASE)
 USERNAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):username\s+(.+?)\s*-->", re.IGNORECASE)
 UID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):uid\s+(.+?)\s*-->", re.IGNORECASE)
 GID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):gid\s+(.+?)\s*-->", re.IGNORECASE)
@@ -84,6 +85,7 @@ class LxcConfig:
     # Basic properties
     hostname: str | None = None
     is_managed: bool = False
+    is_deployer_instance: bool = False
 
     # Application info from notes
     oci_image: str | None = None
@@ -113,6 +115,8 @@ class LxcConfig:
         result: dict[str, Any] = {
             "is_managed": self.is_managed,
         }
+        if self.is_deployer_instance:
+            result["is_deployer_instance"] = True
         if self.hostname:
             result["hostname"] = self.hostname
         if self.oci_image:
@@ -238,6 +242,11 @@ def parse_lxc_config(conf_text: str) -> LxcConfig:
     # Check if managed
     config.is_managed = bool(
         MANAGED_RE.search(normalized) or MANAGED_RE.search(decoded)
+    )
+
+    # Check if deployer instance
+    config.is_deployer_instance = bool(
+        DEPLOYER_INSTANCE_RE.search(normalized) or DEPLOYER_INSTANCE_RE.search(decoded)
     )
 
     # Parse hostname (from config, not notes)

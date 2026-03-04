@@ -40,7 +40,15 @@
       <div class="success-block" data-testid="installation-success">
         <span class="success-icon-large">✓</span>
         <strong>{{ msg.result }}</strong>
-        <button class="back-btn" type="button" (click)="close()">Schließen</button>
+        @if (msg.redirectUrl) {
+          <div class="redirect-info">
+            <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>
+            <a [href]="msg.redirectUrl" class="redirect-link">{{ msg.redirectUrl }}</a>
+            <button class="back-btn" type="button" (click)="redirectNow()">Jetzt weiterleiten</button>
+          </div>
+        } @else {
+          <button class="back-btn" type="button" (click)="close()">Schließen</button>
+        }
       </div>
     }
   }

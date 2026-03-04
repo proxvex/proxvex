@@ -69,9 +69,11 @@ export class ApplicationsList implements OnInit {
         this.cacheService.setApplicationIds(applicationIds);
         this.loading = false;
 
-        // Check for addon mode from query params
+        // Check for addon/reinstall mode from query params
         this.route.queryParams.subscribe(params => {
-          if (params['mode'] === 'addon' && params['application_id']) {
+          if (params['mode'] === 'reinstall' && params['application_id']) {
+            this.openReinstallDialog(params);
+          } else if (params['mode'] === 'addon' && params['application_id']) {
             this.openAddonDialog(params);
           }
         });
@@ -79,6 +81,47 @@ export class ApplicationsList implements OnInit {
       error: () => {
         this.error = 'Error loading applications';
         this.loading = false;
+      }
+    });
+  }
+
+  private openReinstallDialog(params: Record<string, string>): void {
+    const applicationId = params['application_id'];
+    const app = this.applications.find(a => a.id === applicationId);
+    if (!app) {
+      this.error = `Application '${applicationId}' not found`;
+      return;
+    }
+
+    // Build preset values from query params (same as addon, plus previous_vm_id)
+    const presetValues: Record<string, string | number> = {};
+    const paramKeys = ['hostname', 'oci_image', 'application_id', 'application_name', 'username', 'uid', 'gid',
+                       'memory', 'cores', 'rootfs_storage', 'disk_size', 'bridge', 'previous_vm_id'];
+    for (const key of paramKeys) {
+      if (params[key] !== undefined) {
+        if (['memory', 'cores', 'previous_vm_id'].includes(key)) {
+          presetValues[key] = parseInt(params[key], 10);
+        } else {
+          presetValues[key] = params[key];
+        }
+      }
+    }
+
+    // Parse installed addons from comma-separated string
+    const installedAddons = params['installed_addons']?.split(',').filter(Boolean) || [];
+
+    // Open dialog in installation mode (reinstall creates a new container)
+    const dialogData: VeConfigurationDialogData = {
+      app,
+      task: 'installation',
+      presetValues,
+      installedAddons,
+    };
+    const dialogRef = this.dialog.open(VeConfigurationDialog, { data: dialogData });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) {
+        this.location.back();
       }
     });
   }

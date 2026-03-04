@@ -18,7 +18,11 @@ import { StderrDialogComponent } from './stderr-dialog.component';
 })
 export class ProcessMonitor implements OnInit, OnDestroy {
   messages: IVeExecuteMessagesResponse | undefined;
+  redirectUrl?: string;
+  redirectCountdown = 0;
   private pollInterval?: number;
+  private redirectTimer?: number;
+  private countdownInterval?: number;
   private initialExpandedState = new Map<string, boolean>();  // Track initial expanded state per group
   private veConfigurationService = inject(VeConfigurationService);
   private router = inject(Router);
@@ -49,6 +53,12 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
+    }
+    if (this.redirectTimer) {
+      clearTimeout(this.redirectTimer);
+    }
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
     }
   }
 
@@ -86,6 +96,40 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     if (!anyInProgress && this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = undefined;
+
+      // Check for redirect URL in finished messages
+      if (!this.redirectUrl) {
+        for (const group of this.messages) {
+          const finishedMsg = group.messages.find(m => m.finished && m.redirectUrl);
+          if (finishedMsg?.redirectUrl) {
+            this.startRedirect(finishedMsg.redirectUrl);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  private startRedirect(url: string): void {
+    this.redirectUrl = url;
+    this.redirectCountdown = 10;
+    this.countdownInterval = setInterval(() => {
+      this.zone.run(() => {
+        this.redirectCountdown--;
+        if (this.redirectCountdown <= 0 && this.countdownInterval) {
+          clearInterval(this.countdownInterval);
+          this.countdownInterval = undefined;
+        }
+      });
+    }, 1000) as unknown as number;
+    this.redirectTimer = setTimeout(() => {
+      window.location.href = url;
+    }, 10000) as unknown as number;
+  }
+
+  redirectNow(): void {
+    if (this.redirectUrl) {
+      window.location.href = this.redirectUrl;
     }
   }
 
