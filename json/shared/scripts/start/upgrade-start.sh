@@ -4,11 +4,11 @@
 # Steps:
 # 1) Stop the container.
 # 2) Back up the .conf file.
-# 3) Capture essential config values (hostname, memory, swap, cores, net0, etc.).
+# 3) Read rootfs storage+size from backup for pct create.
 # 4) Destroy the container (removes rootfs).
-# 5) Recreate the container with the new OCI template using captured config.
-# 6) Merge ALL remaining config from backup (lxc.* settings, capabilities, devices, mount points, etc.).
-# 7) Write updated OCI image marker in notes.
+# 5) Recreate the container with minimal pct create (new rootfs).
+# 6) Reverse-merge: apply new conf keys into backup (preserving notes).
+# 7) Update version and OCI image in notes.
 # 8) Start the container (with retry).
 # 9) On failure: restore backup config and restart old container.
 #
@@ -17,6 +17,7 @@
 #   - template_path: OCI template path (required)
 #   - ostype: Optional OS type
 #   - oci_image: OCI image reference (required)
+#   - oci_image_tag: Version from OCI image labels or backend default
 
 set -eu
 
@@ -24,12 +25,7 @@ VMID="{{ vm_id }}"
 TEMPLATE_PATH="{{ template_path }}"
 NEW_OSTYPE="{{ ostype }}"
 OCI_IMAGE_RAW="{{ oci_image }}"
-APP_ID_RAW="{{ application_id }}"
-APP_NAME_RAW="{{ application_name }}"
-APP_ID=""
-APP_NAME=""
-if [ "$APP_ID_RAW" != "NOT_DEFINED" ]; then APP_ID="$APP_ID_RAW"; fi
-if [ "$APP_NAME_RAW" != "NOT_DEFINED" ]; then APP_NAME="$APP_NAME_RAW"; fi
+OCI_IMAGE_TAG="{{ oci_image_tag }}"
 
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
@@ -43,6 +39,7 @@ fi
 if [ -z "$OCI_IMAGE_RAW" ] || [ "$OCI_IMAGE_RAW" = "NOT_DEFINED" ]; then
   fail "oci_image is required"
 fi
+if [ "$OCI_IMAGE_TAG" = "NOT_DEFINED" ]; then OCI_IMAGE_TAG=""; fi
 
 CONFIG_DIR="/etc/pve/lxc"
 CONF="${CONFIG_DIR}/${VMID}.conf"
@@ -67,15 +64,10 @@ fi
 log "Backing up config to $CONF_BAK..."
 cp "$CONF" "$CONF_BAK"
 
-# ─── Step 3: Capture essential config values for pct create ──────────────────
-HOSTNAME=$(get_conf_value "$CONF" "hostname" || true)
-MEMORY=$(get_conf_value "$CONF" "memory" || true)
-SWAP=$(get_conf_value "$CONF" "swap" || true)
-CORES=$(get_conf_value "$CONF" "cores" || true)
-NET0=$(get_conf_value "$CONF" "net0" || true)
+# ─── Step 3: Read params from backup for pct create ──────────────────────────
 UNPRIVILEGED=$(get_conf_value "$CONF" "unprivileged" || true)
-ARCH=$(get_conf_value "$CONF" "arch" || true)
 OSTYPE_SRC=$(get_conf_value "$CONF" "ostype" || true)
+HOSTNAME_SRC=$(get_conf_value "$CONF" "hostname" || true)
 
 ROOTFS_LINE=$(get_conf_line "$CONF" "rootfs" || true)
 ROOTFS_STORAGE=""
@@ -84,12 +76,6 @@ if [ -n "$ROOTFS_LINE" ]; then
   ROOTFS_STORAGE=$(printf "%s" "$ROOTFS_LINE" | sed -E 's/^rootfs:[ ]*([^:]+):.*/\1/;t;d')
   ROOTFS_SIZE=$(printf "%s" "$ROOTFS_LINE" | sed -E 's/.*size=([^, ]+).*/\1/;t;d')
 fi
-
-if [ -z "$HOSTNAME" ]; then HOSTNAME="upgrade-${VMID}"; fi
-if [ -z "$MEMORY" ]; then MEMORY="512"; fi
-if [ -z "$SWAP" ]; then SWAP="512"; fi
-if [ -z "$CORES" ]; then CORES="1"; fi
-if [ -z "$NET0" ]; then NET0="name=eth0,bridge=vmbr0,ip=dhcp"; fi
 
 stor="$ROOTFS_STORAGE"
 if [ -z "$stor" ]; then stor="local-zfs"; fi
@@ -124,17 +110,12 @@ if [ -f "$CONF" ]; then
   fail "Container config still exists after destroy: $CONF — aborting"
 fi
 
-# ─── Step 5: Recreate the container with the new OCI template ────────────────
+# ─── Step 5: Recreate container with minimal params (new rootfs) ─────────────
 log "Recreating container $VMID from new template '$TEMPLATE_PATH'..."
 pct create "$VMID" "$TEMPLATE_PATH" \
   --rootfs "$ROOTFS_ARG" \
-  --hostname "$HOSTNAME" \
-  --memory "$MEMORY" \
-  --swap "$SWAP" \
-  --cores "$CORES" \
-  --net0 "$NET0" \
+  ${HOSTNAME_SRC:+--hostname "$HOSTNAME_SRC"} \
   ${OSTYPE_ARG:+--ostype "$OSTYPE_ARG"} \
-  ${ARCH:+--arch "$ARCH"} \
   ${UNPRIVILEGED:+--unprivileged "$UNPRIVILEGED"} \
   >&2
 
@@ -144,14 +125,17 @@ if [ ! -f "$CONF" ]; then
   fail "Failed to recreate container $VMID"
 fi
 
-# ─── Step 6: Merge ALL remaining config from backup ──────────────────────────
-# Keys set by pct create above — do not overwrite with backup values
-SKIP_KEYS="rootfs hostname memory swap cores net0 unprivileged arch ostype description"
-log "Merging config from backup (all keys not already in new config)..."
-merge_conf_from_backup "$CONF_BAK" "$CONF" "$SKIP_KEYS"
+# ─── Step 6: Reverse-merge — apply new conf keys into backup ────────────────
+# Backup is the base (preserves notes/comments). New keys from pct create
+# (rootfs, OCI-derived settings) overwrite their counterparts in backup.
+log "Applying new config into backup (preserving notes)..."
+apply_new_conf_to_backup "$CONF_BAK" "$CONF"
 
-# ─── Step 7: Write updated OCI image marker in notes ─────────────────────────
-write_notes_block "$CONF" "$OCI_IMAGE_RAW" "$APP_ID" "$APP_NAME"
+# ─── Step 7: Update version and OCI image in notes ──────────────────────────
+if [ -n "$OCI_IMAGE_TAG" ] || [ -n "$OCI_IMAGE_RAW" ]; then
+  log "Updating version/OCI image in notes..."
+  update_notes_version "$CONF" "$OCI_IMAGE_TAG" "$OCI_IMAGE_RAW"
+fi
 
 # ─── Step 8: Start the container with retry ──────────────────────────────────
 log "Starting container $VMID..."

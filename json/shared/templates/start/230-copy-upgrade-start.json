@@ -54,6 +54,13 @@
       "default": "",
       "advanced": true,
       "description": "Optional application name used in notes/markers."
+    },
+    {
+      "id": "oci_image_tag",
+      "name": "Version",
+      "type": "string",
+      "advanced": true,
+      "description": "OCI image version tag for notes update (from 011-get-oci-image or backend default)."
     }
   ],
   "commands": [

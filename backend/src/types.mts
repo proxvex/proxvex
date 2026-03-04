@@ -337,6 +337,9 @@ export interface IPostVeCopyUpgradeBody {
   registry_password?: string;
   registry_token?: string;
   platform?: string;
+
+  // Addons to re-apply after upgrade (from container notes markers)
+  selectedAddons?: string[];
 }
 
 export type IVeExecuteMessagesResponse = ISingleExecuteMessagesResponse[];

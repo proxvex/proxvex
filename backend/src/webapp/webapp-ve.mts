@@ -272,11 +272,19 @@ export class WebAppVE {
       add("application_name", body.application_name);
       add("version", body.version);
 
+      const configBody: any = { params };
+      if (
+        Array.isArray(body.selectedAddons) &&
+        body.selectedAddons.length > 0
+      ) {
+        configBody.selectedAddons = body.selectedAddons;
+      }
+
       const result = await this.routeHandlers.handleVeConfiguration(
         application,
         "copy-upgrade",
         veContextKey,
-        { params } as unknown as IPostVeConfigurationBody,
+        configBody as IPostVeConfigurationBody,
       );
 
       if (result.success && result.restartKey) {

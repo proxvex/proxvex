@@ -51,6 +51,7 @@ export class InstalledList implements OnInit {
       application_id: installation.application_id,
       application_name: installation.application_name,
       version: installation.version,
+      selectedAddons: installation.addons,
     }).subscribe({
       next: () => {
         this.router.navigate(['/monitor']);
@@ -69,6 +70,7 @@ export class InstalledList implements OnInit {
       application_id: installation.application_id,
       application_name: installation.application_name,
       version: installation.version,
+      addons: installation.addons,
     }).subscribe({
       next: () => {
         this.router.navigate(['/monitor']);

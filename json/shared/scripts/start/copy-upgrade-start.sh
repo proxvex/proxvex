@@ -1,5 +1,14 @@
 #!/bin/sh
-# Stop source LXC and start target LXC. If start fails, try to restart source.
+# Copy-upgrade: create target LXC from source config + new OCI image,
+# then stop source and start target. If start fails, restart source.
+#
+# Steps:
+# 1) Create target container with minimal pct create (new rootfs).
+# 2) Reverse-merge: apply new conf keys into source config (preserving notes).
+# 3) Update VMID references in notes (source → target).
+# 4) Update version and OCI image in notes.
+# 5) Stop source, start target.
+# 6) On failure: restart source.
 #
 # Requires:
 #   - source_vm_id: Source container ID (required)
@@ -7,6 +16,7 @@
 #   - template_path: OCI template path (required)
 #   - ostype: Optional OS type for target container
 #   - oci_image: OCI image reference (required)
+#   - oci_image_tag: Version from OCI image labels or backend default
 
 set -eu
 
@@ -15,12 +25,7 @@ TARGET_VMID="{{ vm_id }}"
 TEMPLATE_PATH="{{ template_path }}"
 NEW_OSTYPE="{{ ostype }}"
 OCI_IMAGE_RAW="{{ oci_image }}"
-APP_ID_RAW="{{ application_id }}"
-APP_NAME_RAW="{{ application_name }}"
-APP_ID=""
-APP_NAME=""
-if [ "$APP_ID_RAW" != "NOT_DEFINED" ]; then APP_ID="$APP_ID_RAW"; fi
-if [ "$APP_NAME_RAW" != "NOT_DEFINED" ]; then APP_NAME="$APP_NAME_RAW"; fi
+OCI_IMAGE_TAG="{{ oci_image_tag }}"
 
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
@@ -37,6 +42,7 @@ fi
 if [ -z "$OCI_IMAGE_RAW" ] || [ "$OCI_IMAGE_RAW" = "NOT_DEFINED" ]; then
   fail "oci_image is required"
 fi
+if [ "$OCI_IMAGE_TAG" = "NOT_DEFINED" ]; then OCI_IMAGE_TAG=""; fi
 
 CONFIG_DIR="/etc/pve/lxc"
 SOURCE_CONF="${CONFIG_DIR}/${SOURCE_VMID}.conf"
@@ -46,6 +52,7 @@ if [ ! -f "$SOURCE_CONF" ]; then
   fail "Source container config not found: $SOURCE_CONF"
 fi
 
+# ─── Step 1: Create target container with minimal pct create ─────────────────
 create_target_from_source() {
   if [ -f "$TARGET_CONF" ]; then
     log "Target config already exists: $TARGET_CONF (skipping create)"
@@ -61,14 +68,10 @@ create_target_from_source() {
   fi
 
   stor="$SOURCE_ROOTFS_STORAGE"
-  if [ -z "$stor" ]; then
-    stor="local-zfs"
-  fi
+  if [ -z "$stor" ]; then stor="local-zfs"; fi
 
   SIZE_INPUT="$SOURCE_ROOTFS_SIZE"
-  if [ -z "$SIZE_INPUT" ]; then
-    SIZE_INPUT="4G"
-  fi
+  if [ -z "$SIZE_INPUT" ]; then SIZE_INPUT="4G"; fi
 
   if [ "$stor" = "local-zfs" ]; then
     SIZE_GB=$(normalize_size_to_gb "$SIZE_INPUT")
@@ -80,20 +83,9 @@ create_target_from_source() {
     esac
   fi
 
-  HOSTNAME=$(get_conf_value "$SOURCE_CONF" "hostname" || true)
-  MEMORY=$(get_conf_value "$SOURCE_CONF" "memory" || true)
-  SWAP=$(get_conf_value "$SOURCE_CONF" "swap" || true)
-  CORES=$(get_conf_value "$SOURCE_CONF" "cores" || true)
-  NET0=$(get_conf_value "$SOURCE_CONF" "net0" || true)
   UNPRIVILEGED=$(get_conf_value "$SOURCE_CONF" "unprivileged" || true)
-  ARCH=$(get_conf_value "$SOURCE_CONF" "arch" || true)
   OSTYPE_SRC=$(get_conf_value "$SOURCE_CONF" "ostype" || true)
-
-  if [ -z "$HOSTNAME" ]; then HOSTNAME="upgrade-${TARGET_VMID}"; fi
-  if [ -z "$MEMORY" ]; then MEMORY="512"; fi
-  if [ -z "$SWAP" ]; then SWAP="512"; fi
-  if [ -z "$CORES" ]; then CORES="1"; fi
-  if [ -z "$NET0" ]; then NET0="name=eth0,bridge=vmbr0,ip=dhcp"; fi
+  HOSTNAME_SRC=$(get_conf_value "$SOURCE_CONF" "hostname" || true)
 
   OSTYPE_ARG=""
   if [ -n "$NEW_OSTYPE" ] && [ "$NEW_OSTYPE" != "NOT_DEFINED" ]; then
@@ -105,13 +97,8 @@ create_target_from_source() {
   log "Creating target container $TARGET_VMID from template '$TEMPLATE_PATH'"
   pct create "$TARGET_VMID" "$TEMPLATE_PATH" \
     --rootfs "$ROOTFS" \
-    --hostname "$HOSTNAME" \
-    --memory "$MEMORY" \
-    --swap "$SWAP" \
-    --cores "$CORES" \
-    --net0 "$NET0" \
+    ${HOSTNAME_SRC:+--hostname "$HOSTNAME_SRC"} \
     ${OSTYPE_ARG:+--ostype "$OSTYPE_ARG"} \
-    ${ARCH:+--arch "$ARCH"} \
     ${UNPRIVILEGED:+--unprivileged "$UNPRIVILEGED"} \
     >&2
 
@@ -121,9 +108,24 @@ create_target_from_source() {
 }
 
 create_target_from_source
-copy_mappings_between "$SOURCE_CONF" "$TARGET_CONF"
-write_notes_block "$TARGET_CONF" "$OCI_IMAGE_RAW" "$APP_ID" "$APP_NAME"
 
+# ─── Step 2: Reverse-merge — apply new conf keys into source config ──────────
+log "Applying new config into source config (preserving notes)..."
+apply_new_conf_to_backup "$SOURCE_CONF" "$TARGET_CONF"
+
+# ─── Step 3: Update VMID references (source → target) ───────────────────────
+if [ "$SOURCE_VMID" != "$TARGET_VMID" ]; then
+  log "Updating VMID references: $SOURCE_VMID → $TARGET_VMID..."
+  update_notes_vmid "$TARGET_CONF" "$SOURCE_VMID" "$TARGET_VMID"
+fi
+
+# ─── Step 4: Update version and OCI image in notes ──────────────────────────
+if [ -n "$OCI_IMAGE_TAG" ] || [ -n "$OCI_IMAGE_RAW" ]; then
+  log "Updating version/OCI image in notes..."
+  update_notes_version "$TARGET_CONF" "$OCI_IMAGE_TAG" "$OCI_IMAGE_RAW"
+fi
+
+# ─── Step 5: Stop source, start target ───────────────────────────────────────
 source_status=$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
 target_status=$(pct status "$TARGET_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
 
@@ -165,6 +167,7 @@ if [ "$target_status" != "running" ]; then
     attempt=$((attempt + 1))
   done
   if [ "$target_status" != "running" ]; then
+    # ─── Step 6: Rollback — restart source ───────────────────────────────────
     log "Failed to start target container $TARGET_VMID. Trying to restart source $SOURCE_VMID..."
     pct start "$SOURCE_VMID" >/dev/null 2>&1 || log "Warning: failed to restart source $SOURCE_VMID"
     log "=== Original error message ==="
