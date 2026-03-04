@@ -33,6 +33,21 @@
       "default": "3443",
       "advanced": true,
       "description": "HTTPS port of the new deployer instance"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of the new container (used for redirect URL)"
+    },
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer Base URL",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Auto-injected by backend: External deployer URL (e.g. https://deployer.example.com). Used for redirect when set."
     }
   ],
   "commands": [
