@@ -137,7 +137,7 @@ export class ApplicationsList implements OnInit {
     // Build preset values from query params
     const presetValues: Record<string, string | number> = {};
     const paramKeys = ['vm_id', 'hostname', 'oci_image', 'application_id', 'application_name', 'username', 'uid', 'gid',
-                       'memory', 'cores', 'rootfs_storage', 'disk_size', 'bridge'];
+                       'memory', 'cores', 'rootfs_storage', 'disk_size', 'bridge', 'volumes'];
     for (const key of paramKeys) {
       if (params[key] !== undefined) {
         // Convert numeric values

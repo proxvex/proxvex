@@ -318,6 +318,7 @@ export interface IManagedOciContainer {
   disk_size?: string;
   bridge?: string;
   mount_points?: { source: string; target: string }[];
+  volumes?: string;
 }
 
 export type IInstallationsResponse = IManagedOciContainer[];

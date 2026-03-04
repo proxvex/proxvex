@@ -113,6 +113,14 @@ def main() -> None:
                     {"source": mp.source, "target": mp.target}
                     for mp in config.mount_points
                 ]
+                # Convert mount points to volumes format (name=path)
+                # Volume name is last component of source path
+                vol_lines = []
+                for mp in config.mount_points:
+                    vol_name = mp.source.rstrip("/").rsplit("/", 1)[-1]
+                    vol_lines.append(f"{vol_name}={mp.target}")
+                if vol_lines:
+                    item["volumes"] = "\n".join(vol_lines)
 
             containers.append(item)
 

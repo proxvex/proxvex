@@ -107,6 +107,8 @@ export class InstalledList implements OnInit {
       bridge: installation.bridge,
       // Mount points for existing volumes display
       mount_points: installation.mount_points ? JSON.stringify(installation.mount_points) : undefined,
+      // Volumes in name=path format (derived from mount points)
+      volumes: installation.volumes,
       // Currently installed addons (from container notes markers)
       installed_addons: installation.addons?.join(',') || undefined,
     };

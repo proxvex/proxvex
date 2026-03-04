@@ -21,9 +21,13 @@
 #   update_notes_version(conf_file, new_version, new_oci_image)
 #   update_notes_vmid(conf_file, old_vmid, new_vmid)
 
-# Extract description block from a Proxmox config (description: ... + indented continuation lines)
+# Extract description block from a Proxmox config.
+# Handles two PVE storage formats:
+#   Format 1: "description: URL-encoded-content" (+ indented continuation lines)
+#   Format 2: "#URL-encoded-line" comment lines at the top (PVE 8)
 extract_description() {
-  awk '
+  # Try Format 1 first: description: key
+  _desc=$(awk '
     BEGIN { in_desc=0 }
     /^description:/ {
       in_desc=1;
@@ -39,7 +43,19 @@ extract_description() {
       }
       exit
     }
-  ' "$1" || true
+  ' "$1" 2>/dev/null || true)
+
+  if [ -n "$_desc" ]; then
+    printf '%s\n' "$_desc"
+    return 0
+  fi
+
+  # Format 2: #-prefixed comment lines at the top (PVE 8)
+  awk '
+    /^#/ { sub(/^#/, "", $0); print $0; next }
+    /^[[:space:]]*$/ { next }
+    { exit }
+  ' "$1" 2>/dev/null || true
 }
 
 # Decode %XX URL sequences (POSIX sh compatible via python3)

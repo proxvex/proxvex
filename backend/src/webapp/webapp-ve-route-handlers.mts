@@ -193,33 +193,20 @@ export class WebAppVeRouteHandlers {
       // Insert addon templates at correct positions for each phase
       const selectedAddons = body.selectedAddons ?? [];
       const disabledAddons = body.disabledAddons ?? [];
-      console.log(
-        `[AddonDebug] handleVeConfiguration: task=${task}, selectedAddons=${JSON.stringify(selectedAddons)}, disabledAddons=${JSON.stringify(disabledAddons)}`,
-      );
+
       if (selectedAddons.length > 0) {
-        console.log(
-          `[AddonDebug] Before insertAddonCommands: ${commands.length} commands`,
-        );
+
         commands = await this.insertAddonCommands(
           commands,
           selectedAddons,
           task as TaskType,
           loaded.application,
         );
-        console.log(
-          `[AddonDebug] After insertAddonCommands: ${commands.length} commands`,
-        );
       }
       if (disabledAddons.length > 0) {
-        console.log(
-          `[AddonDebug] Before insertAddonDisableCommands: ${commands.length} commands`,
-        );
         commands = await this.insertAddonDisableCommands(
           commands,
           disabledAddons,
-        );
-        console.log(
-          `[AddonDebug] After insertAddonDisableCommands: ${commands.length} commands`,
         );
       }
 
@@ -697,18 +684,10 @@ export class WebAppVeRouteHandlers {
       } else {
         // installation and reconfigure have nested structure
         const addonConfig = addon[addonKey];
-        console.log(
-          `[AddonDebug] addon=${addonId}, addonKey=${addonKey}, addonConfig=${JSON.stringify(addonConfig)}, phase=${phase}`,
-        );
         templateRefs = addonConfig?.[phase];
       }
 
-      console.log(
-        `[AddonDebug] templateRefs for ${addonId}/${phase}: ${JSON.stringify(templateRefs)}`,
-      );
-
       if (!templateRefs || templateRefs.length === 0) {
-        console.log(`[AddonDebug] No templates for ${addonId}/${phase}, skipping`);
         continue;
       }
 
@@ -762,18 +741,11 @@ export class WebAppVeRouteHandlers {
           typeof templateRef === "string" ? templateRef : templateRef.name;
 
         try {
-          console.log(
-            `[AddonDebug] Loading template: ${templateName}, category: ${category}`,
-          );
           const template = repositories.getTemplate({
             name: templateName,
             scope: "shared",
             category,
           }) as ITemplate | null;
-
-          console.log(
-            `[AddonDebug] Template ${templateName} found: ${!!template}, commands: ${template?.commands?.length ?? 0}`,
-          );
 
           if (template && template.commands) {
             for (const cmd of template.commands) {
@@ -924,32 +896,26 @@ export class WebAppVeRouteHandlers {
     const result = [...commands];
 
     // Load and insert pre_start commands
-    console.log(`[AddonDebug] insertAddonCommands: loading pre_start for task=${task}`);
     const preStartCommands = await this.loadAddonCommandsForPhase(
       addonIds,
       task,
       "pre_start",
       application,
     );
-    console.log(`[AddonDebug] pre_start commands loaded: ${preStartCommands.length}`);
     if (preStartCommands.length > 0) {
       const preStartIndex = this.findAddonInsertionIndex(result, "pre_start");
-      console.log(`[AddonDebug] Inserting ${preStartCommands.length} pre_start commands at index ${preStartIndex}`);
-      result.splice(preStartIndex, 0, ...preStartCommands);
+     result.splice(preStartIndex, 0, ...preStartCommands);
     }
 
     // Load and insert post_start commands
-    console.log(`[AddonDebug] insertAddonCommands: loading post_start for task=${task}`);
     const postStartCommands = await this.loadAddonCommandsForPhase(
       addonIds,
       task,
       "post_start",
       application,
     );
-    console.log(`[AddonDebug] post_start commands loaded: ${postStartCommands.length}`);
     if (postStartCommands.length > 0) {
       const postStartIndex = this.findAddonInsertionIndex(result, "post_start");
-      console.log(`[AddonDebug] Inserting ${postStartCommands.length} post_start commands at index ${postStartIndex}`);
       result.splice(postStartIndex, 0, ...postStartCommands);
     }
 
@@ -959,12 +925,6 @@ export class WebAppVeRouteHandlers {
     if (preStartCommands.length > 0 || postStartCommands.length > 0) {
       const notesIndex = this.findAddonInsertionIndex(result, "pre_start");
       this.addAddonNotesCommands(result, addonIds, notesIndex);
-    }
-
-    // Debug: log final command order
-    console.log(`[AddonDebug] Final command order (${result.length} commands):`);
-    for (let i = 0; i < result.length; i++) {
-      console.log(`[AddonDebug]   [${i}] ${result[i]?.name || "(unnamed)"}`);
     }
 
     return result;
@@ -999,7 +959,7 @@ export class WebAppVeRouteHandlers {
 
       const templateRefs = addon.disable?.post_start;
       if (!templateRefs || templateRefs.length === 0) {
-        console.log(`[AddonDebug] No disable templates for ${addonId}, skipping`);
+        //console.log(`[AddonDebug] No disable templates for ${addonId}, skipping`);
         continue;
       }
 

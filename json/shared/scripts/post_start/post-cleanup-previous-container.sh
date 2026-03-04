@@ -37,32 +37,58 @@ if [ ! -f "$NEW_CONF" ]; then
 fi
 
 # ─── Step 1: Write deployer-instance marker to new container's notes ─────────
-# Read current description (URL-encoded in Proxmox config)
-CURRENT_DESC=$(grep "^description:" "$NEW_CONF" | sed 's/^description: *//' || echo "")
+# Read and decode current description from Proxmox config.
+# PVE stores descriptions in two formats:
+#   Format 1: "description: URL-encoded-content" (single-line, + for spaces)
+#   Format 2: "#URL-encoded-line" comment lines at the top (PVE 8)
+# We use Python to handle both formats reliably.
+CURRENT_DESC=$(python3 -c "
+import re, sys
+from urllib.parse import unquote
+
+conf_text = open('$NEW_CONF', 'r').read()
+
+# Format 1: single-line description: field
+match = re.search(r'^description:\s*(.*)$', conf_text, re.MULTILINE)
+if match:
+    raw = match.group(1)
+    normalized = raw.replace('\\\\n', '\n')
+    print(unquote(normalized.replace('+', ' ')), end='')
+    sys.exit(0)
+
+# Format 2: #-prefixed comment lines at top of file
+lines = conf_text.split('\n')
+desc_lines = []
+for line in lines:
+    if line.startswith('#'):
+        desc_lines.append(unquote(line[1:]))
+    elif line.strip() == '':
+        continue
+    else:
+        break
+
+if desc_lines:
+    print('\n'.join(desc_lines), end='')
+" 2>/dev/null || echo "")
 
 if echo "$CURRENT_DESC" | grep -qi "deployer-instance"; then
   log "deployer-instance marker already present in new container notes"
 else
-  # Inject the marker after the managed marker
-  # URL-encode the HTML comment for Proxmox config format
-  MARKER_ENCODED="%3C!--%20oci-lxc-deployer%3Adeployer-instance%20--%3E"
-  MANAGED_MARKER="%3C!--%20oci-lxc-deployer%3Amanaged%20--%3E"
+  DEPLOYER_MARKER="<!-- oci-lxc-deployer:deployer-instance -->"
+  MANAGED_MARKER="<!-- oci-lxc-deployer:managed -->"
 
-  if echo "$CURRENT_DESC" | grep -q "$MANAGED_MARKER"; then
-    # Insert after managed marker
-    NEW_DESC=$(echo "$CURRENT_DESC" | sed "s|${MANAGED_MARKER}|${MANAGED_MARKER}%0A${MARKER_ENCODED}|")
+  if echo "$CURRENT_DESC" | grep -qF "$MANAGED_MARKER"; then
+    # Insert deployer-instance marker after managed marker
+    NEW_DESC=$(printf '%s' "$CURRENT_DESC" | sed "s|${MANAGED_MARKER}|${MANAGED_MARKER}\n${DEPLOYER_MARKER}|")
+  elif [ -n "$CURRENT_DESC" ]; then
+    # No managed marker but description exists - prepend deployer-instance marker
+    NEW_DESC=$(printf '%s\n%s' "$DEPLOYER_MARKER" "$CURRENT_DESC")
   else
-    # Prepend marker
-    NEW_DESC="${MARKER_ENCODED}%0A${CURRENT_DESC}"
+    # Empty description - create with deployer-instance marker only
+    NEW_DESC="$DEPLOYER_MARKER"
   fi
 
-  # Write back using pct set
-  # Decode the URL-encoded description for pct set (it re-encodes it)
-  DECODED_DESC=$(python3 -c "import sys; from urllib.parse import unquote; print(unquote(sys.stdin.read().strip()))" <<EOF
-$NEW_DESC
-EOF
-  )
-  pct set "$NEW_VMID" --description "$DECODED_DESC" >&2 || log "Warning: failed to update notes with deployer-instance marker"
+  pct set "$NEW_VMID" --description "$NEW_DESC" >&2 || log "Warning: failed to update notes with deployer-instance marker"
   log "deployer-instance marker written to container $NEW_VMID"
 fi
 
