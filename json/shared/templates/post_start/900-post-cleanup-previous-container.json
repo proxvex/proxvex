@@ -37,7 +37,7 @@
   ],
   "commands": [
     {
-      "name": "Mark Deployer Instance & Cleanup Previous",
+      "name": "Cleanup Previous Container",
       "script": "post-cleanup-previous-container.sh",
       "outputs": ["redirect_url"]
     }

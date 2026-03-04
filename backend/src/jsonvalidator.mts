@@ -218,7 +218,7 @@ export class JsonValidator {
         details = [new JsonError("Unknown error")];
       }
 
-      throw new JsonError("Validation error", details);
+      throw new JsonError("Validation error", details, filePath);
     }
     return jsonData as T;
   }
