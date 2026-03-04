@@ -17,6 +17,9 @@
 #   write_notes_block(conf_file, oci_image, app_id, app_name)
 #   copy_mappings_between(src_conf, tgt_conf)
 #   merge_conf_from_backup(backup_conf, target_conf, skip_keys_space_separated)
+#   apply_new_conf_to_backup(backup_conf, new_conf)
+#   update_notes_version(conf_file, new_version, new_oci_image)
+#   update_notes_vmid(conf_file, old_vmid, new_vmid)
 
 # Extract description block from a Proxmox config (description: ... + indented continuation lines)
 extract_description() {
@@ -278,5 +281,210 @@ if lines_to_add:
     with open(target_file, 'a') as f:
         for line in lines_to_add:
             f.write(line + '\n')
+PY
+}
+
+# Apply keys from a new conf (pct create output) into a backup conf.
+# Uses backup as base (preserving comments/notes), overwrites only keys
+# that appear in new conf. For multi-value keys like lxc.environment.runtime,
+# matches by key + env var name so user-added values are preserved.
+# Args: backup_conf new_conf
+#   Result is written to new_conf path.
+apply_new_conf_to_backup() {
+  _backup="$1"
+  _new="$2"
+
+  python3 - <<'PY' "$_backup" "$_new"
+import sys
+import re
+
+backup_file = sys.argv[1]
+new_file = sys.argv[2]
+
+def get_key(line):
+    """Extract config key from line, e.g. 'hostname: foo' -> 'hostname'"""
+    m = re.match(r'^([a-zA-Z0-9_.]+)\s*:', line)
+    return m.group(1) if m else None
+
+def get_line_identity(line):
+    """Get the identity of a config line for matching.
+    For lxc.environment.runtime: KEY=VALUE -> identity is 'lxc.environment.runtime:KEY='
+    For other keys: identity is just the key name.
+    """
+    key = get_key(line)
+    if not key:
+        return None
+    if key == "lxc.environment.runtime":
+        m = re.match(r'^lxc\.environment\.runtime\s*:\s*([^=]+=)', line)
+        if m:
+            return "lxc.environment.runtime:" + m.group(1)
+    return key
+
+# Read new conf lines with their identities
+new_identities = {}
+with open(new_file, 'r') as f:
+    for line in f:
+        line = line.rstrip('\n')
+        if not line or line.startswith('#'):
+            continue
+        identity = get_line_identity(line)
+        if identity:
+            if identity not in new_identities:
+                new_identities[identity] = []
+            new_identities[identity].append(line)
+
+# Process backup: replace matched lines with new values, keep everything else
+result = []
+used_identities = set()
+with open(backup_file, 'r') as f:
+    for line in f:
+        line = line.rstrip('\n')
+        if line.startswith('#') or not line.strip():
+            result.append(line)
+            continue
+        identity = get_line_identity(line)
+        if identity and identity in new_identities:
+            if identity not in used_identities:
+                used_identities.add(identity)
+                for new_line in new_identities[identity]:
+                    result.append(new_line)
+            # Skip the old backup line (replaced by new)
+        else:
+            result.append(line)
+
+# Append new lines whose identity was not found in backup
+for identity, lines in new_identities.items():
+    if identity not in used_identities:
+        for line in lines:
+            result.append(line)
+
+with open(new_file, 'w') as f:
+    for line in result:
+        f.write(line + '\n')
+PY
+}
+
+# Update version and OCI image markers in container notes (comment lines).
+# Handles both URL-encoded (%3A) and plain (:) format.
+# Args: conf_file new_version new_oci_image
+update_notes_version() {
+  _conf="$1"
+  _version="$2"
+  _oci_image="$3"
+
+  python3 - <<'PY' "$_conf" "$_version" "$_oci_image"
+import sys
+import re
+
+conf_file = sys.argv[1]
+new_version = sys.argv[2] if len(sys.argv) > 2 else ""
+new_oci_image_raw = sys.argv[3] if len(sys.argv) > 3 else ""
+
+# Strip docker:// or oci:// prefix
+new_oci_image = re.sub(r'^(docker|oci)://', '', new_oci_image_raw)
+
+with open(conf_file, 'r') as f:
+    lines = f.readlines()
+
+result = []
+for line in lines:
+    orig = line.rstrip('\n')
+
+    # Update version hidden marker (URL-encoded)
+    if new_version and re.search(r'oci-lxc-deployer%3Aversion\s', orig):
+        orig = re.sub(
+            r'(oci-lxc-deployer%3Aversion\s+)\S+(\s*-->)',
+            r'\g<1>' + new_version + r'\2', orig)
+    # Update version hidden marker (plain)
+    elif new_version and re.search(r'oci-lxc-deployer:version\s', orig):
+        orig = re.sub(
+            r'(oci-lxc-deployer:version\s+)\S+(\s*-->)',
+            r'\g<1>' + new_version + r'\2', orig)
+
+    # Update visible version text (URL-encoded: Version%3A)
+    if new_version and re.search(r'^#Version%3A\s', orig):
+        orig = re.sub(r'^(#Version%3A\s+)\S+', r'\g<1>' + new_version, orig)
+    # Update visible version text (plain: #Version:)
+    elif new_version and re.search(r'^#Version:\s', orig):
+        orig = re.sub(r'^(#Version:\s+)\S+', r'\g<1>' + new_version, orig)
+
+    # Update OCI image hidden marker (URL-encoded)
+    if new_oci_image and re.search(r'oci-lxc-deployer%3Aoci-image\s', orig):
+        orig = re.sub(
+            r'(oci-lxc-deployer%3Aoci-image\s+)\S+(\s*-->)',
+            r'\g<1>' + new_oci_image + r'\2', orig)
+    # Update OCI image hidden marker (plain)
+    elif new_oci_image and re.search(r'oci-lxc-deployer:oci-image\s', orig):
+        orig = re.sub(
+            r'(oci-lxc-deployer:oci-image\s+)\S+(\s*-->)',
+            r'\g<1>' + new_oci_image + r'\2', orig)
+
+    # Update visible OCI image text (URL-encoded)
+    if new_oci_image and re.search(r'^#OCI image%3A\s', orig):
+        orig = re.sub(r'^(#OCI image%3A\s+)\S+', r'\g<1>' + new_oci_image, orig)
+    # Update visible OCI image text (plain)
+    elif new_oci_image and re.search(r'^#OCI image:\s', orig):
+        orig = re.sub(r'^(#OCI image:\s+)\S+', r'\g<1>' + new_oci_image, orig)
+
+    result.append(orig)
+
+with open(conf_file, 'w') as f:
+    for line in result:
+        f.write(line + '\n')
+PY
+}
+
+# Update VMID references in container notes and config.
+# Used by copy-upgrade where the target VMID differs from source.
+# Args: conf_file old_vmid new_vmid
+update_notes_vmid() {
+  _conf="$1"
+  _old_vmid="$2"
+  _new_vmid="$3"
+
+  python3 - <<'PY' "$_conf" "$_old_vmid" "$_new_vmid"
+import sys
+import re
+
+conf_file = sys.argv[1]
+old_vmid = sys.argv[2]
+new_vmid = sys.argv[3]
+
+with open(conf_file, 'r') as f:
+    lines = f.readlines()
+
+result = []
+for line in lines:
+    orig = line.rstrip('\n')
+
+    # Update log-url marker: .../logs/OLD_VMID/... -> .../logs/NEW_VMID/...
+    if re.search(r'oci-lxc-deployer[:%]3[Aa]log-url', orig):
+        orig = re.sub(
+            r'(/logs/)' + re.escape(old_vmid) + r'(/)',
+            r'\g<1>' + new_vmid + r'\2', orig)
+
+    # Update visible log links: .../logs/OLD_VMID/... -> .../logs/NEW_VMID/...
+    elif re.search(r'/logs/' + re.escape(old_vmid) + r'/', orig):
+        orig = re.sub(
+            r'(/logs/)' + re.escape(old_vmid) + r'(/)',
+            r'\g<1>' + new_vmid + r'\2', orig)
+
+    # Update lxc.console.logfile: container-OLD_VMID.log -> container-NEW_VMID.log
+    if orig.startswith('lxc.console.logfile'):
+        orig = re.sub(
+            r'container-' + re.escape(old_vmid) + r'\.log',
+            'container-' + new_vmid + '.log', orig)
+
+    # Update visible log file path in notes: hostname-OLD_VMID.log
+    if re.search(r'^#.*Log file', orig):
+        orig = re.sub(
+            r'-' + re.escape(old_vmid) + r'\.log',
+            '-' + new_vmid + '.log', orig)
+
+    result.append(orig)
+
+with open(conf_file, 'w') as f:
+    for line in result:
+        f.write(line + '\n')
 PY
 }

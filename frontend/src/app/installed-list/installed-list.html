@@ -16,24 +16,19 @@
   <ng-template #cardTemplate let-it>
     <div class="card-header">
       <div class="header-info">
-        <h2>{{ it.application_name || it.application_id || 'Unknown' }}</h2>
+        <h2>{{ it.vm_id }} ({{ it.hostname || 'CT' + it.vm_id }})</h2>
         <p class="sub">
           @if (it.application_id) {
-            <b>{{ it.application_id }}</b>@if (it.version) {<b>({{ it.version }})</b>}
+            <b>{{ it.application_id }}</b>@if (it.version) {<b> ({{ it.version }})</b>}
           }
         </p>
       </div>
+      @if (it.status) {
+        <span class="status-badge" [class.running]="it.status === 'running'" [class.stopped]="it.status === 'stopped'">{{ it.status }}</span>
+      }
     </div>
 
     <div class="card-body">
-      <p>
-        <span class="label">CT:</span>
-        <span class="value">{{ it.vm_id }}</span>
-        @if (it.hostname) {
-          <span class="label" style="margin-left: 1rem;">Host:</span>
-          <span class="value">{{ it.hostname }}</span>
-        }
-      </p>
       <p>
         <span class="label">OCI:</span>
         <span class="value">{{ it.oci_image }}</span>

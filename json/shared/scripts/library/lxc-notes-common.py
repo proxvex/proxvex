@@ -84,7 +84,7 @@ def build_visible_header(app_id="", app_name="", deployer_url="",
 def build_app_info(app_id="", app_name="", version=""):
     """Build application ID and version lines."""
     lines = []
-    if app_id and app_id != app_name:
+    if app_id:
         lines.append("")
         lines.append("Application ID: %s" % app_id)
     if version:

@@ -648,6 +648,7 @@ export class WebAppVeRouteHandlers {
       case "addon-reconfigure":
         return "reconfigure";
       case "copy-upgrade":
+      case "upgrade":
         return "upgrade";
       default:
         return null;
