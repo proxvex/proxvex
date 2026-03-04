@@ -403,12 +403,12 @@ HTTP-basierter Log-Zugriff für Docker-Container in LXC und Optimierung der Prox
 #### API Endpunkte
 
 ```
-GET /api/ve/logs/:vmId/:veContext
+GET /api/:veContext/ve/logs/:vmId
     Query: ?lines=100
     → Liest LXC Console Log vom Host
     → Für alle Anwendungen (oci-image, docker-compose)
 
-GET /api/ve/logs/:vmId/docker/:veContext
+GET /api/:veContext/ve/logs/:vmId/docker
     Query: ?lines=100&service=nextcloud
     → Führt aus: lxc-attach -n VMID -- docker logs [SERVICE]
     → Ohne service: docker-compose logs (alle Services)
@@ -500,7 +500,7 @@ Application: Nextcloud (docker-compose)
 
 ## API Spezifikation
 
-### GET /api/ve/logs/:vmId/:veContext
+### GET /api/:veContext/ve/logs/:vmId
 
 Liest LXC Console Logs.
 
@@ -525,7 +525,7 @@ Liest LXC Console Logs.
 - 404: Container nicht gefunden
 - 500: SSH/Ausführungsfehler
 
-### GET /api/ve/logs/:vmId/docker/:veContext
+### GET /api/:veContext/ve/logs/:vmId/docker
 
 Liest Docker Container Logs.
 

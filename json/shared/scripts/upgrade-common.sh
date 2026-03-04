@@ -21,9 +21,13 @@
 #   update_notes_version(conf_file, new_version, new_oci_image)
 #   update_notes_vmid(conf_file, old_vmid, new_vmid)
 
-# Extract description block from a Proxmox config (description: ... + indented continuation lines)
+# Extract description block from a Proxmox config.
+# Handles two PVE storage formats:
+#   Format 1: "description: URL-encoded-content" (+ indented continuation lines)
+#   Format 2: "#URL-encoded-line" comment lines at the top (PVE 8)
 extract_description() {
-  awk '
+  # Try Format 1 first: description: key
+  _desc=$(awk '
     BEGIN { in_desc=0 }
     /^description:/ {
       in_desc=1;
@@ -39,7 +43,19 @@ extract_description() {
       }
       exit
     }
-  ' "$1" || true
+  ' "$1" 2>/dev/null || true)
+
+  if [ -n "$_desc" ]; then
+    printf '%s\n' "$_desc"
+    return 0
+  fi
+
+  # Format 2: #-prefixed comment lines at the top (PVE 8)
+  awk '
+    /^#/ { sub(/^#/, "", $0); print $0; next }
+    /^[[:space:]]*$/ { next }
+    { exit }
+  ' "$1" 2>/dev/null || true
 }
 
 # Decode %XX URL sequences (POSIX sh compatible via python3)
@@ -457,23 +473,23 @@ result = []
 for line in lines:
     orig = line.rstrip('\n')
 
-    # Update log-url marker: .../logs/OLD_VMID/... -> .../logs/NEW_VMID/...
+    # Update log-url marker: .../logs/VE_CONTEXT/OLD_VMID -> .../logs/VE_CONTEXT/NEW_VMID
     if re.search(r'oci-lxc-deployer[:%]3[Aa]log-url', orig):
         orig = re.sub(
-            r'(/logs/)' + re.escape(old_vmid) + r'(/)',
-            r'\g<1>' + new_vmid + r'\2', orig)
+            r'(/logs/[^/\s]+/)' + re.escape(old_vmid) + r'(?=[\s">)]|$)',
+            r'\g<1>' + new_vmid, orig)
 
-    # Update visible log links: .../logs/OLD_VMID/... -> .../logs/NEW_VMID/...
-    elif re.search(r'/logs/' + re.escape(old_vmid) + r'/', orig):
+    # Update visible log links: .../logs/VE_CONTEXT/OLD_VMID -> .../logs/VE_CONTEXT/NEW_VMID
+    elif re.search(r'/logs/[^/)\s]+/' + re.escape(old_vmid) + r'(?=[)\s])', orig):
         orig = re.sub(
-            r'(/logs/)' + re.escape(old_vmid) + r'(/)',
-            r'\g<1>' + new_vmid + r'\2', orig)
+            r'(/logs/[^/\s]+/)' + re.escape(old_vmid) + r'(?=[)\s">]|$)',
+            r'\g<1>' + new_vmid, orig)
 
-    # Update lxc.console.logfile: container-OLD_VMID.log -> container-NEW_VMID.log
+    # Update lxc.console.logfile: <hostname>-OLD_VMID.log -> <hostname>-NEW_VMID.log
     if orig.startswith('lxc.console.logfile'):
         orig = re.sub(
-            r'container-' + re.escape(old_vmid) + r'\.log',
-            'container-' + new_vmid + '.log', orig)
+            r'-' + re.escape(old_vmid) + r'\.log',
+            '-' + new_vmid + '.log', orig)
 
     # Update visible log file path in notes: hostname-OLD_VMID.log
     if re.search(r'^#.*Log file', orig):

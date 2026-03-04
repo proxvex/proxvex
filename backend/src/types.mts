@@ -163,31 +163,31 @@ export enum ApiUri {
   SshConfig = "/api/sshconfig",
   SshConfigGET = "/api/ssh/config/:host",
   SshCheck = "/api/ssh/check",
-  VeConfiguration = "/api/ve-configuration/:application/:task/:veContext",
-  VeRestart = "/api/ve/restart/:restartKey/:veContext",
-  VeRestartInstallation = "/api/ve/restart-installation/:vmInstallKey/:veContext",
-  VeExecute = "/api/ve/execute/:veContext",
-  VeLogs = "/api/ve/logs/:vmId/:veContext",
-  VeLogsHostname = "/api/ve/logs/:vmId/:veContext/hostname",
-  VeDockerLogs = "/api/ve/logs/:vmId/docker/:veContext",
+  VeConfiguration = "/api/:veContext/ve-configuration/:application/:task",
+  VeRestart = "/api/:veContext/ve/restart/:restartKey",
+  VeRestartInstallation = "/api/:veContext/ve/restart-installation/:vmInstallKey",
+  VeExecute = "/api/:veContext/ve/execute",
+  VeLogs = "/api/:veContext/ve/logs/:vmId",
+  VeLogsHostname = "/api/:veContext/ve/logs/:vmId/hostname",
+  VeDockerLogs = "/api/:veContext/ve/logs/:vmId/docker",
   Applications = "/api/applications",
   ApplicationTags = "/api/applications/tags",
   LocalApplicationIds = "/api/applications/local/ids",
-  Installations = "/api/installations/:veContext",
-  TemplateDetailsForApplication = "/api/template-details/:application/:task/:veContext",
-  UnresolvedParameters = "/api/unresolved-parameters/:application/:task/:veContext",
-  EnumValues = "/api/enum-values/:application/:task/:veContext",
+  Installations = "/api/:veContext/installations",
+  TemplateDetailsForApplication = "/api/:veContext/template-details/:application/:task",
+  UnresolvedParameters = "/api/:veContext/unresolved-parameters/:application/:task",
+  EnumValues = "/api/:veContext/enum-values/:application/:task",
   FrameworkNames = "/api/framework-names",
   FrameworkParameters = "/api/framework-parameters/:frameworkId",
   FrameworkCreateApplication = "/api/framework-create-application",
   FrameworkFromImage = "/api/framework-from-image",
   ApplicationFrameworkData = "/api/application/:applicationId/framework-data",
 
-  VeCopyUpgrade = "/api/ve/copy-upgrade/:application/:veContext",
+  VeCopyUpgrade = "/api/:veContext/ve/copy-upgrade/:application",
 
   CompatibleAddons = "/api/addons/compatible/:application",
-  AddonInstall = "/api/addons/install/:addonId/:veContext",
-  PreviewUnresolvedParameters = "/api/preview-unresolved-parameters/:veContext",
+  AddonInstall = "/api/:veContext/addons/install/:addonId",
+  PreviewUnresolvedParameters = "/api/:veContext/preview-unresolved-parameters",
 
   Stacktypes = "/api/stacktypes",
   Stacks = "/api/stacks",
@@ -197,13 +197,13 @@ export enum ApiUri {
   Version = "/api/version",
 
   // Certificate management endpoints
-  CertificateStatus = "/api/ve/certificates/:veContext",
-  CertificateRenew = "/api/ve/certificates/renew/:veContext",
-  CertificateCa = "/api/ve/certificates/ca/:veContext",
-  CertificateCaGenerate = "/api/ve/certificates/ca/generate/:veContext",
-  CertificatePveStatus = "/api/ve/certificates/pve/:veContext",
-  CertificatePveProvision = "/api/ve/certificates/pve/provision/:veContext",
-  CertificateDomainSuffix = "/api/ve/certificates/domain-suffix/:veContext",
+  CertificateStatus = "/api/:veContext/ve/certificates",
+  CertificateRenew = "/api/:veContext/ve/certificates/renew",
+  CertificateCa = "/api/:veContext/ve/certificates/ca",
+  CertificateCaGenerate = "/api/:veContext/ve/certificates/ca/generate",
+  CertificatePveStatus = "/api/:veContext/ve/certificates/pve",
+  CertificatePveProvision = "/api/:veContext/ve/certificates/pve/provision",
+  CertificateDomainSuffix = "/api/:veContext/ve/certificates/domain-suffix",
   // Logger endpoints
   LoggerConfig = "/api/logger/config",
   LoggerLevel = "/api/logger/level/:level",
@@ -318,6 +318,7 @@ export interface IManagedOciContainer {
   disk_size?: string;
   bridge?: string;
   mount_points?: { source: string; target: string }[];
+  volumes?: string;
 }
 
 export type IInstallationsResponse = IManagedOciContainer[];

@@ -11,6 +11,13 @@
       "description": "ID of the virtual machine"
     },
     {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname (used for log file naming)"
+    },
+    {
       "id": "initial_command",
       "name": "Initial Command",
       "type": "string",

@@ -39,7 +39,7 @@
     { "id": "http_port", "value": "{{http_port}}" },
     { "id": "https_port", "value": "{{https_port}}" },
     { "id": "volume_backup", "value": "true" },
-    { "id": "volumes", "default": "config=/config\nsecure=/secure,0700" }
+    { "id": "volumes", "value": "config=/config\nsecure=/secure,0700" }
   ],
   "installation": {},
   "url": "https://github.com/modbus2mqtt/oci-lxc-deployer",

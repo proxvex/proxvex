@@ -560,6 +560,16 @@ async function main() {
     }
   } catch (err: any) {
     console.error("Unexpected error:", err?.message || err);
+    if (err?.details?.length) {
+      console.error(
+        "Details:",
+        JSON.stringify(
+          err.details.map((d: any) => d.message || d),
+          null,
+          2,
+        ),
+      );
+    }
     if (err?.stack) {
       console.error("Stack trace:", err.stack);
     }

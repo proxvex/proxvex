@@ -6,6 +6,7 @@ import sys
 
 # Get parameters
 vm_id = "{{ vm_id }}"
+hostname = "{{ hostname }}"
 initial_command = """{{ initial_command }}"""
 envs_str = """{{ envs }}"""
 
@@ -15,7 +16,7 @@ if not vm_id or vm_id == "NOT_DEFINED":
 
 config_file = f"/etc/pve/lxc/{vm_id}.conf"
 log_dir = "/var/log/lxc"
-log_file = f"{log_dir}/container-{vm_id}.log"
+log_file = f"{log_dir}/{hostname}-{vm_id}.log"
 
 if not os.path.exists(config_file):
     print(f"Error: Configuration file {config_file} not found", file=sys.stderr)

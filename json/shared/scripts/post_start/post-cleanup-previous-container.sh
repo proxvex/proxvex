@@ -7,15 +7,19 @@
 # Requires:
 #   - previous_vm_id: Previous container to clean up (required)
 #   - vm_id: New container ID (required)
+#   - hostname: Hostname of the new container (required)
 #   - http_port: HTTP port (default 3000)
 #   - https_port: HTTPS port (default 3443)
+#   - deployer_base_url: External URL (optional, e.g. https://deployer.example.com)
 
 set -eu
 
 PREVIOUS_VMID="{{ previous_vm_id }}"
 NEW_VMID="{{ vm_id }}"
+HOSTNAME="{{ hostname }}"
 HTTP_PORT="{{ http_port }}"
 HTTPS_PORT="{{ https_port }}"
+DEPLOYER_BASE_URL="{{ deployer_base_url }}"
 
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
@@ -37,69 +41,97 @@ if [ ! -f "$NEW_CONF" ]; then
 fi
 
 # ─── Step 1: Write deployer-instance marker to new container's notes ─────────
-# Read current description (URL-encoded in Proxmox config)
-CURRENT_DESC=$(grep "^description:" "$NEW_CONF" | sed 's/^description: *//' || echo "")
+# Read and decode current description from Proxmox config.
+# PVE stores descriptions in two formats:
+#   Format 1: "description: URL-encoded-content" (single-line, + for spaces)
+#   Format 2: "#URL-encoded-line" comment lines at the top (PVE 8)
+# We use Python to handle both formats reliably.
+CURRENT_DESC=$(python3 -c "
+import re, sys
+from urllib.parse import unquote
+
+conf_text = open('$NEW_CONF', 'r').read()
+
+# Format 1: single-line description: field
+match = re.search(r'^description:\s*(.*)$', conf_text, re.MULTILINE)
+if match:
+    raw = match.group(1)
+    normalized = raw.replace('\\\\n', '\n')
+    print(unquote(normalized.replace('+', ' ')), end='')
+    sys.exit(0)
+
+# Format 2: #-prefixed comment lines at top of file
+lines = conf_text.split('\n')
+desc_lines = []
+for line in lines:
+    if line.startswith('#'):
+        desc_lines.append(unquote(line[1:]))
+    elif line.strip() == '':
+        continue
+    else:
+        break
+
+if desc_lines:
+    print('\n'.join(desc_lines), end='')
+" 2>/dev/null || echo "")
 
 if echo "$CURRENT_DESC" | grep -qi "deployer-instance"; then
   log "deployer-instance marker already present in new container notes"
 else
-  # Inject the marker after the managed marker
-  # URL-encode the HTML comment for Proxmox config format
-  MARKER_ENCODED="%3C!--%20oci-lxc-deployer%3Adeployer-instance%20--%3E"
-  MANAGED_MARKER="%3C!--%20oci-lxc-deployer%3Amanaged%20--%3E"
+  DEPLOYER_MARKER="<!-- oci-lxc-deployer:deployer-instance -->"
+  MANAGED_MARKER="<!-- oci-lxc-deployer:managed -->"
 
-  if echo "$CURRENT_DESC" | grep -q "$MANAGED_MARKER"; then
-    # Insert after managed marker
-    NEW_DESC=$(echo "$CURRENT_DESC" | sed "s|${MANAGED_MARKER}|${MANAGED_MARKER}%0A${MARKER_ENCODED}|")
+  if echo "$CURRENT_DESC" | grep -qF "$MANAGED_MARKER"; then
+    # Insert deployer-instance marker after managed marker
+    NEW_DESC=$(printf '%s' "$CURRENT_DESC" | sed "s|${MANAGED_MARKER}|${MANAGED_MARKER}\n${DEPLOYER_MARKER}|")
+  elif [ -n "$CURRENT_DESC" ]; then
+    # No managed marker but description exists - prepend deployer-instance marker
+    NEW_DESC=$(printf '%s\n%s' "$DEPLOYER_MARKER" "$CURRENT_DESC")
   else
-    # Prepend marker
-    NEW_DESC="${MARKER_ENCODED}%0A${CURRENT_DESC}"
+    # Empty description - create with deployer-instance marker only
+    NEW_DESC="$DEPLOYER_MARKER"
   fi
 
-  # Write back using pct set
-  # Decode the URL-encoded description for pct set (it re-encodes it)
-  DECODED_DESC=$(python3 -c "import sys; from urllib.parse import unquote; print(unquote(sys.stdin.read().strip()))" <<EOF
-$NEW_DESC
-EOF
-  )
-  pct set "$NEW_VMID" --description "$DECODED_DESC" >&2 || log "Warning: failed to update notes with deployer-instance marker"
+  pct set "$NEW_VMID" --description "$NEW_DESC" >&2 || log "Warning: failed to update notes with deployer-instance marker"
   log "deployer-instance marker written to container $NEW_VMID"
 fi
 
-# ─── Step 2: Determine redirect URL ─────────────────────────────────────────
-# Get the IP of the new container
-NEW_IP=""
-ATTEMPTS=10
-INTERVAL=3
+# ─── Step 2: Determine redirect URL and wait for service ─────────────────────
+if [ -n "$DEPLOYER_BASE_URL" ] && [ "$DEPLOYER_BASE_URL" != "NOT_DEFINED" ]; then
+  # Use configured external URL (handles reverse proxy / nginx)
+  REDIRECT_URL="$DEPLOYER_BASE_URL"
+else
+  # Fallback: build URL from hostname + port with SSL detection
+  HAS_SSL=0
+  if pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/server.crt 2>/dev/null && \
+     pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/server.key 2>/dev/null; then
+    HAS_SSL=1
+  fi
+
+  if [ "$HAS_SSL" -eq 1 ]; then
+    REDIRECT_URL="https://${HOSTNAME}:${HTTPS_PORT}"
+  else
+    REDIRECT_URL="http://${HOSTNAME}:${HTTP_PORT}"
+  fi
+fi
+
+# Wait for the service to actually respond before redirecting
+log "Waiting for service at $REDIRECT_URL ..."
+ATTEMPTS=30
+INTERVAL=2
 attempt=1
 while [ "$attempt" -le "$ATTEMPTS" ]; do
-  NEW_IP=$(pct exec "$NEW_VMID" -- ip -4 -o addr show 2>/dev/null | grep -v "127.0.0.1" | awk '{print $4}' | cut -d/ -f1 | head -1 || echo "")
-  if [ -n "$NEW_IP" ]; then
+  if curl -sk --connect-timeout 2 --max-time 5 -o /dev/null "$REDIRECT_URL" 2>/dev/null; then
+    log "Service responding at $REDIRECT_URL"
     break
   fi
   sleep "$INTERVAL"
   attempt=$((attempt + 1))
 done
 
-if [ -z "$NEW_IP" ]; then
-  log "Warning: Could not determine IP of new container, using hostname"
-  NEW_IP=$(pct exec "$NEW_VMID" -- hostname 2>/dev/null || echo "localhost")
+if [ "$attempt" -gt "$ATTEMPTS" ]; then
+  log "Warning: Service did not respond within $((ATTEMPTS * INTERVAL))s — redirecting anyway"
 fi
-
-# Check if SSL certs exist in the new container
-HAS_SSL=0
-if pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/server.crt 2>/dev/null && \
-   pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/server.key 2>/dev/null; then
-  HAS_SSL=1
-fi
-
-if [ "$HAS_SSL" -eq 1 ]; then
-  REDIRECT_URL="https://${NEW_IP}:${HTTPS_PORT}"
-else
-  REDIRECT_URL="http://${NEW_IP}:${HTTP_PORT}"
-fi
-
-log "Redirect URL: $REDIRECT_URL"
 
 # ─── Step 3: Schedule async cleanup of previous container ────────────────────
 log "Scheduling cleanup of previous container $PREVIOUS_VMID in 15 seconds..."

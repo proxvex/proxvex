@@ -166,8 +166,8 @@ export class VeLogsService {
    * Finds the console log file for a container.
    * Tries multiple possible locations:
    * 1. Path from lxc.console.logfile config
-   * 2. /var/log/lxc/{hostname}-{vmid}.log (docker-compose format)
-   * 3. /var/log/lxc/container-{vmid}.log (oci-image format)
+   * 2. /var/log/lxc/{hostname}-{vmid}.log (standard format)
+   * 3. /var/log/lxc/container-{vmid}.log (legacy fallback)
    */
   async findLogFile(
     vmId: number,
@@ -193,7 +193,7 @@ export class VeLogsService {
       }
     }
 
-    // Try oci-image format: /var/log/lxc/container-{vmid}.log
+    // Legacy fallback: /var/log/lxc/container-{vmid}.log
     const ociPath = `/var/log/lxc/container-${vmId}.log`;
     const checkCmd2 = `test -f "${ociPath}" && echo "exists"`;
     const checkResult2 = await this.executeOnHost(checkCmd2);

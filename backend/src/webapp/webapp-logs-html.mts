@@ -4,15 +4,28 @@ import { VeLogsService } from "../ve-execution/ve-logs-service.mjs";
 import { IVEContext } from "../backend-types.mjs";
 
 /**
- * Register HTML log viewer route at /logs/:vmId/:veContext
+ * Register HTML log viewer route at /logs/:veContext/:vmId
  * This is a human-readable endpoint for direct browser access (e.g., from Proxmox notes).
  * Auto-detects whether to show docker-compose logs or console logs.
- * Hostname is loaded asynchronously via /api/ve/logs/:vmId/:veContext/hostname (in webapp-ve.mts)
+ * Hostname is loaded asynchronously via /api/:veContext/ve/logs/:vmId/hostname (in webapp-ve.mts)
  */
 export function registerLogsHtmlRoute(app: express.Application): void {
   const pm = PersistenceManager.getInstance();
 
-  app.get("/logs/:vmId/:veContext", async (req, res) => {
+  // Legacy redirect: /logs/<number>/<veContext> → /logs/<veContext>/<number>
+  // Keeps old links in existing container notes working
+  app.get("/logs/:first/:second", (req, res, next) => {
+    const { first, second } = req.params;
+    // Old format: /logs/105/ve_pve1 (first is numeric vmId)
+    // New format: /logs/ve_pve1/105 (first is veContext) — handled below
+    if (/^\d+$/.test(first) && !(/^\d+$/.test(second))) {
+      res.redirect(301, `/logs/${second}/${first}`);
+    } else {
+      next();
+    }
+  });
+
+  app.get("/logs/:veContext/:vmId", async (req, res) => {
     const { vmId: vmIdStr, veContext: veContextKey } = req.params;
     const linesStr = req.query.lines as string | undefined;
 
@@ -92,7 +105,7 @@ function renderHtml(
   <script>
     (async function() {
       try {
-        const res = await fetch('/api/ve/logs/${vmId}/${veContextKey}/hostname');
+        const res = await fetch('/api/${veContextKey}/ve/logs/${vmId}/hostname');
         const data = await res.json();
         if (data.hostname) {
           const title = data.hostname + ' (CT ${vmId})';
