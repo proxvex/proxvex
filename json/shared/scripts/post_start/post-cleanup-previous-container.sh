@@ -25,7 +25,9 @@ log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
 
 if [ -z "$PREVIOUS_VMID" ] || [ "$PREVIOUS_VMID" = "NOT_DEFINED" ] || [ "$PREVIOUS_VMID" = "0" ]; then
-  fail "previous_vm_id is required and must be non-zero"
+  log "previous_vm_id not set — skipping cleanup"
+  printf '[{"id":"redirect_url","value":""}]'
+  exit 0
 fi
 if [ -z "$NEW_VMID" ] || [ "$NEW_VMID" = "NOT_DEFINED" ]; then
   fail "vm_id is required"
