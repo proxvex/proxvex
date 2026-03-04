@@ -38,10 +38,7 @@ import { TemplateResolver } from "./template-resolver.mjs";
 import { TemplateTraceBuilder } from "./template-trace-builder.mjs";
 import { EnumValuesResolver } from "./enum-values-resolver.mjs";
 import { TemplateValidator } from "./template-validator.mjs";
-import {
-  TemplateOutputProcessor,
-  PropertyDefaultEntry,
-} from "./template-output-processor.mjs";
+import { TemplateOutputProcessor } from "./template-output-processor.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 
 export type {
@@ -201,8 +198,8 @@ export class TemplateProcessor extends EventEmitter {
           });
           propertiesWithValue.push({ id: prop.id, value: prop.value });
         }
-        // Properties with 'default' are applied after template processing
-        // via applyPropertyDefaults() — they remain editable in the UI
+        // Note: Properties with 'default' will be applied later during parameter resolution
+        // They don't mark the parameter as resolved, allowing UI editing
       }
       // Add a properties command to set these values during execution
       if (propertiesWithValue.length > 0) {
@@ -262,27 +259,6 @@ export class TemplateProcessor extends EventEmitter {
     const traceInfo = this.traceBuilder.buildTraceInfo(applicationName, task);
     // Save resolvedParams for getUnresolvedParameters
     this.resolvedParams = resolvedParams;
-
-    // Apply application-level property defaults to parameters
-    // Properties with 'default' (not 'value') set default values on parameters
-    // without marking them as resolved, so they remain editable in the UI
-    if (application?.properties && application.properties.length > 0) {
-      const appPropertyDefaults: PropertyDefaultEntry[] = [];
-      for (const prop of application.properties) {
-        if (prop.default !== undefined && prop.value === undefined) {
-          appPropertyDefaults.push({
-            id: prop.id,
-            default: prop.default as string | number | boolean,
-          });
-        }
-      }
-      if (appPropertyDefaults.length > 0) {
-        this.outputProcessor.applyPropertyDefaults(
-          appPropertyDefaults,
-          outParameters,
-        );
-      }
-    }
 
     // Apply application-level parameter overrides
     if (application?.parameterOverrides) {
