@@ -4,6 +4,8 @@ import { Router, RouterModule } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { CacheService } from '../shared/services/cache.service';
 import { IManagedOciContainer } from '../../shared/types';
@@ -13,7 +15,7 @@ import { CertificateManagementDialog } from '../certificate-management/certifica
 @Component({
   selector: 'app-installed-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, CardGridComponent, MatButtonModule, MatIconModule],
+  imports: [CommonModule, RouterModule, CardGridComponent, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
   templateUrl: './installed-list.html',
   styleUrl: './installed-list.scss',
 })
