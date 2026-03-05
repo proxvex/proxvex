@@ -1,25 +1,25 @@
 {
-  "name": "Upload server.key",
-  "description": "Uploads server.key to config:certs/server.key",
+  "name": "Upload Mosquitto Configuration",
+  "description": "Uploads Mosquitto Configuration to config:mosquitto.conf",
   "execute_on": "ve",
   "skip_if_all_missing": [
-    "upload_server_key_content"
+    "upload_mosquitto_configuration_content"
   ],
   "parameters": [
     {
-      "id": "upload_server_key_content",
-      "name": "server.key",
+      "id": "upload_mosquitto_configuration_content",
+      "name": "Mosquitto Configuration",
       "type": "string",
       "upload": true,
-      "required": false,
+      "required": true,
       "advanced": false,
-      "description": "Configuration file: server.key"
+      "description": "Configuration file: Mosquitto Configuration"
     },
     {
-      "id": "upload_server_key_destination",
+      "id": "upload_mosquitto_configuration_destination",
       "name": "Destination Path",
       "type": "string",
-      "default": "config:certs/server.key",
+      "default": "config:mosquitto.conf",
       "advanced": true,
       "description": "Target path: {volume_key}:{filename}"
     },
@@ -72,11 +72,11 @@
   ],
   "commands": [
     {
-      "name": "Upload server.key",
-      "script": "2-upload-server-key.sh",
+      "name": "Upload Mosquitto Configuration",
+      "script": "0-upload-mosquitto-configuration.sh",
       "library": "upload-file-common.sh",
       "outputs": [
-        "upload_server_key_uploaded"
+        "upload_mosquitto_configuration_uploaded"
       ]
     }
   ]

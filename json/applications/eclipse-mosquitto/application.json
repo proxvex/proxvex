@@ -1,6 +1,6 @@
 {
-  "name": "mosquitto",
-  "description": "Eclipse Mosquitto is an open source message broker that implements the MQTT protocol.",
+  "name": "Eclipse Mosquitto",
+  "description": "Eclipse Mosquitto MQTT Broker",
   "extends": "oci-image",
   "icon": "icon.svg",
   "parameters": [
@@ -53,16 +53,14 @@
   ],
   "installation": {
     "pre_start": [
-      "0-upload-mosquitto-conf.json",
-      "1-upload-server-crt.json",
-      "2-upload-server-key.json"
+      "0-upload-mosquitto-configuration.json"
     ]
   },
   "url": "https://mosquitto.org/",
   "documentation": "https://mosquitto.org/documentation/",
   "source": "https://github.com/eclipse-mosquitto/mosquitto",
   "tags": [
-    "messaging",
-    "iot"
+    "iot",
+    "messaging"
   ]
 }
