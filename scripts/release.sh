@@ -68,7 +68,7 @@ success "Preflight OK — branch: $BRANCH, version: $VERSION"
 
 # ── 2. Sync fork with upstream ───────────────────────────────────────
 info "Syncing fork with upstream..."
-gh repo sync "$ORIGIN_REPO" --branch main || die "Fork sync failed"
+gh repo sync "$ORIGIN_REPO" --branch main --force || die "Fork sync failed"
 git fetch origin main || die "git fetch origin main failed"
 success "Fork synced"
 
