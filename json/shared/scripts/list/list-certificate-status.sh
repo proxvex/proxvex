@@ -1,26 +1,48 @@
 #!/bin/sh
 # List Certificate Status
 #
-# Scans shared volume directories for certificate files and reports their status.
+# Scans all volume directories for certificate files and reports their status.
 # Runs on PVE host via SSH.
 #
+# Auto-discovers volumes directories from:
+#   1. shared_volpath (if provided)
+#   2. /mnt scan (non-ZFS storage)
+#   3. ZFS mountpoints
+#
 # Template variables:
-#   shared_volpath - Base path for shared volumes (auto-resolved)
+#   shared_volpath - Base path for shared volumes (optional)
 
 SHARED_VOLPATH="{{ shared_volpath }}"
 
-# Default shared_volpath if not set
-if [ -z "$SHARED_VOLPATH" ] || [ "$SHARED_VOLPATH" = "NOT_DEFINED" ]; then
-  SHARED_VOLPATH="/mnt/shared"
+# Discover all volumes directories
+VOLUMES_DIRS=""
+
+# 1. Use shared_volpath if provided
+if [ -n "$SHARED_VOLPATH" ] && [ "$SHARED_VOLPATH" != "NOT_DEFINED" ] && [ -d "${SHARED_VOLPATH}/volumes" ]; then
+  VOLUMES_DIRS="${SHARED_VOLPATH}/volumes"
 fi
 
-VOLUMES_DIR="${SHARED_VOLPATH}/volumes"
+# 2. Scan /mnt for non-ZFS volumes
+for DIR in $(find /mnt -maxdepth 3 -name "volumes" -type d 2>/dev/null); do
+  case " $VOLUMES_DIRS " in *" $DIR "*) ;; *) VOLUMES_DIRS="$VOLUMES_DIRS $DIR" ;; esac
+done
+
+# 3. Scan ZFS mountpoints for volumes directories
+if command -v zfs >/dev/null 2>&1; then
+  for MP in $(zfs list -H -o mountpoint 2>/dev/null); do
+    [ -d "${MP}/volumes" ] || continue
+    DIR="${MP}/volumes"
+    case " $VOLUMES_DIRS " in *" $DIR "*) ;; *) VOLUMES_DIRS="$VOLUMES_DIRS $DIR" ;; esac
+  done
+fi
 
 # Build JSON array of certificate statuses
 RESULT="["
 FIRST=true
 
-if [ -d "$VOLUMES_DIR" ]; then
+for VOLUMES_DIR in $VOLUMES_DIRS; do
+  [ -d "$VOLUMES_DIR" ] || continue
+
   for HOST_DIR in "$VOLUMES_DIR"/*/; do
     [ -d "$HOST_DIR" ] || continue
     HOSTNAME=$(basename "$HOST_DIR")
@@ -67,7 +89,7 @@ if [ -d "$VOLUMES_DIR" ]; then
       RESULT="${RESULT}{\"hostname\":\"${HOSTNAME}\",\"file\":\"${REL_FILE}\",\"certtype\":\"${CERTTYPE}\",\"subject\":\"${SUBJECT}\",\"expiry_date\":\"${END_DATE_STR}\",\"days_remaining\":${DAYS_REMAINING},\"status\":\"${STATUS}\"}"
     done
   done
-done
+done 
 
 RESULT="${RESULT}]"
 
