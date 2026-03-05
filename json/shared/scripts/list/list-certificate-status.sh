@@ -67,7 +67,7 @@ if [ -d "$VOLUMES_DIR" ]; then
       RESULT="${RESULT}{\"hostname\":\"${HOSTNAME}\",\"file\":\"${REL_FILE}\",\"certtype\":\"${CERTTYPE}\",\"subject\":\"${SUBJECT}\",\"expiry_date\":\"${END_DATE_STR}\",\"days_remaining\":${DAYS_REMAINING},\"status\":\"${STATUS}\"}"
     done
   done
-fi
+done
 
 RESULT="${RESULT}]"
 
