@@ -138,8 +138,8 @@ fi
 # ─── Step 3: Schedule async cleanup of previous container + reboot new one ────
 # The new container was started while the old one still held the DNS name.
 # After stopping the old container, reboot the new one so it picks up the hostname via DHCP/DNS.
-log "Scheduling cleanup of previous container $PREVIOUS_VMID and reboot of $NEW_VMID in 15 seconds..."
-nohup sh -c "sleep 15 && pct stop $PREVIOUS_VMID 2>/dev/null; pct destroy $PREVIOUS_VMID --purge 2>/dev/null; echo 'Cleaned up container $PREVIOUS_VMID' >&2; sleep 2 && pct reboot $NEW_VMID 2>/dev/null && echo 'Rebooted container $NEW_VMID for DNS pickup' >&2" >/dev/null 2>&1 &
+log "Scheduling cleanup of previous container $PREVIOUS_VMID and reboot of $NEW_VMID..."
+nohup sh -c "pct stop $PREVIOUS_VMID 2>/dev/null; pct destroy $PREVIOUS_VMID --purge 2>/dev/null; echo 'Cleaned up container $PREVIOUS_VMID' >&2; sleep 2 && pct reboot $NEW_VMID 2>/dev/null && echo 'Rebooted container $NEW_VMID for DNS pickup' >&2" >/dev/null 2>&1 &
 
 # ─── Output ──────────────────────────────────────────────────────────────────
 printf '[{"id":"redirect_url","value":"%s"}]' "$REDIRECT_URL"
