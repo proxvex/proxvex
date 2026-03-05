@@ -7,6 +7,7 @@
 set -euo pipefail
 
 UPSTREAM_REPO="modbus2mqtt/oci-lxc-deployer"
+UPSTREAM_GH_USER="modbus2mqtt"
 ORIGIN_OWNER="volkmarnissen"
 ORIGIN_REPO="${ORIGIN_OWNER}/oci-lxc-deployer"
 VERSION="${1:-patch}"
@@ -32,6 +33,16 @@ confirm() {
     *) return 1 ;;
   esac
 }
+
+# Switch gh CLI to a specific GitHub account
+gh_switch() {
+  local user="$1"
+  info "Switching gh auth to $user..."
+  gh auth switch --user "$user" 2>/dev/null || die "gh auth switch to $user failed. Run: gh auth login"
+}
+
+# Remember initial gh user to restore later
+INITIAL_GH_USER=$(gh api user --jq '.login' 2>/dev/null || echo "")
 
 # ── 1. Preflight checks ──────────────────────────────────────────────
 info "Preflight checks..."
@@ -103,11 +114,20 @@ if ! confirm "Merge PR #$PR_NUMBER '$PR_TITLE' with rebase?"; then
   die "Aborted. PR #$PR_NUMBER is still open — merge manually when ready."
 fi
 
+# Switch to upstream account for merge + release
+gh_switch "$UPSTREAM_GH_USER"
+
 info "Merging PR #$PR_NUMBER..."
-gh pr merge "$PR_NUMBER" --repo "$UPSTREAM_REPO" --rebase --delete-branch || die "Merge failed"
+if ! gh pr merge "$PR_NUMBER" --repo "$UPSTREAM_REPO" --rebase --delete-branch --admin; then
+  gh_switch "$ORIGIN_OWNER"
+  die "Merge failed"
+fi
 success "PR merged"
 
 # ── 7. Re-sync fork and local main ───────────────────────────────────
+# Switch back to origin account for fork sync
+gh_switch "$ORIGIN_OWNER"
+
 info "Re-syncing fork and local main..."
 gh repo sync "$ORIGIN_REPO" --branch main || warn "Fork re-sync failed (non-critical)"
 git checkout main || die "git checkout main failed"
@@ -120,10 +140,16 @@ if ! confirm "Trigger release with version=$VERSION on $UPSTREAM_REPO?"; then
   exit 0
 fi
 
+# Switch to upstream account for workflow dispatch
+gh_switch "$UPSTREAM_GH_USER"
+
 info "Triggering release-assets-on-dispatch with version=$VERSION..."
-gh workflow run release-assets-on-dispatch.yml \
+if ! gh workflow run release-assets-on-dispatch.yml \
   --repo "$UPSTREAM_REPO" \
-  -f "version=$VERSION" || die "Workflow dispatch failed"
+  -f "version=$VERSION"; then
+  gh_switch "$ORIGIN_OWNER"
+  die "Workflow dispatch failed"
+fi
 
 success "Release workflow triggered!"
 
@@ -132,6 +158,11 @@ sleep 2
 RUN_URL=$(gh run list --repo "$UPSTREAM_REPO" --workflow="release-assets-on-dispatch.yml" --limit=1 --json url --jq '.[0].url' 2>/dev/null || true)
 if [ -n "$RUN_URL" ]; then
   info "Follow progress: $RUN_URL"
+fi
+
+# Restore original gh user
+if [ -n "$INITIAL_GH_USER" ] && [ "$INITIAL_GH_USER" != "$UPSTREAM_GH_USER" ]; then
+  gh_switch "$INITIAL_GH_USER"
 fi
 
 printf "\n${GREEN}Done!${NC} Release pipeline is running.\n"
