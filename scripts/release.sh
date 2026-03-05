@@ -72,12 +72,20 @@ gh repo sync "$ORIGIN_REPO" --branch main --force || die "Fork sync failed"
 git fetch origin main || die "git fetch origin main failed"
 success "Fork synced"
 
-# ── 3. Push feature branch ───────────────────────────────────────────
+# ── 3. Rebase feature branch onto synced main ────────────────────────
+info "Rebasing '$BRANCH' onto origin/main..."
+if ! git rebase origin/main; then
+  git rebase --abort 2>/dev/null
+  die "Rebase failed — resolve conflicts manually: git rebase origin/main"
+fi
+success "Branch rebased"
+
+# ── 4. Push feature branch ───────────────────────────────────────────
 info "Pushing branch '$BRANCH' to origin..."
-git push -u origin "$BRANCH" || die "git push failed"
+git push --force-with-lease -u origin "$BRANCH" || die "git push failed"
 success "Branch pushed"
 
-# ── 4. Create PR ─────────────────────────────────────────────────────
+# ── 5. Create PR ─────────────────────────────────────────────────────
 info "Creating PR against $UPSTREAM_REPO..."
 
 # Check if a PR already exists for this branch
@@ -102,13 +110,13 @@ else
   success "PR created: $PR_URL"
 fi
 
-# ── 5. Wait for CI checks ────────────────────────────────────────────
+# ── 6. Wait for CI checks ────────────────────────────────────────────
 info "Waiting for CI checks on PR #$PR_NUMBER..."
 if ! gh pr checks "$PR_NUMBER" --repo "$UPSTREAM_REPO" --watch --fail-level all 2>/dev/null; then
   warn "Some checks failed or no checks configured. Review before merging."
 fi
 
-# ── 6. Merge PR (confirm) ────────────────────────────────────────────
+# ── 7. Merge PR (confirm) ────────────────────────────────────────────
 PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$UPSTREAM_REPO" --json title --jq '.title')
 if ! confirm "Merge PR #$PR_NUMBER '$PR_TITLE' with rebase?"; then
   die "Aborted. PR #$PR_NUMBER is still open — merge manually when ready."
@@ -124,7 +132,7 @@ if ! gh pr merge "$PR_NUMBER" --repo "$UPSTREAM_REPO" --rebase --delete-branch -
 fi
 success "PR merged"
 
-# ── 7. Re-sync fork and local main ───────────────────────────────────
+# ── 8. Re-sync fork and local main ───────────────────────────────────
 # Switch back to origin account for fork sync
 gh_switch "$ORIGIN_OWNER"
 
@@ -134,7 +142,7 @@ git checkout main || die "git checkout main failed"
 git pull origin main || die "git pull failed"
 success "Local main is up to date"
 
-# ── 8. Trigger release (confirm) ─────────────────────────────────────
+# ── 9. Trigger release (confirm) ─────────────────────────────────────
 if ! confirm "Trigger release with version=$VERSION on $UPSTREAM_REPO?"; then
   info "Skipped. Trigger manually: gh workflow run release-assets-on-dispatch.yml --repo $UPSTREAM_REPO -f version=$VERSION"
   exit 0
