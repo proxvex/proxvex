@@ -159,6 +159,18 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
           this.router
         );
         this.formManager.enableHostnameTracking();
+
+        // Sync pre-selected addons that were loaded before formManager existed
+        // (loadCompatibleAddons may complete before getUnresolvedParameters)
+        if (this.selectedAddons().length > 0) {
+          for (const addonId of this.selectedAddons()) {
+            const addon = this.availableAddons.find(a => a.id === addonId);
+            if (addon?.parameters) {
+              this.formManager.addAddonControls(addon.parameters);
+            }
+          }
+          this.formManager.setSelectedAddons(this.selectedAddons());
+        }
       },
       error: (err: unknown) => {
         this.errorHandler.handleError('Failed to load parameters', err);
