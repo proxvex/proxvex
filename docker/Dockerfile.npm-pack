@@ -3,7 +3,7 @@ ARG NODE_MAJOR=24
 FROM node:${NODE_MAJOR}-alpine
 
 # Install tools needed for SSH key generation (ssh-keygen)
-RUN apk add --no-cache openssh-client
+RUN apk add --no-cache openssh-client openssl
 
 # Build metadata
 ARG BUILD_DATE
