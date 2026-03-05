@@ -1,4 +1,4 @@
-import { ICommand, IVeExecuteMessage } from "../types.mjs";
+import { ICommand, IVeExecuteMessage, IJsonError } from "../types.mjs";
 import { IVEContext } from "../backend-types.mjs";
 import { spawnAsync } from "../spawn-utils.mjs";
 import { JsonError } from "../jsonvalidator.mjs";
@@ -456,7 +456,6 @@ export class VeExecutionSshExecutor {
       }
     } catch (e: any) {
       msg.index = getNextMessageIndex();
-      // If e is already a JsonError, preserve its details; otherwise create a new one
       if (e instanceof JsonError) {
         msg.error = e;
       } else {
@@ -465,7 +464,12 @@ export class VeExecutionSshExecutor {
       msg.exitCode = -1;
       msg.partial = false;
       eventEmitter.emit("message", msg);
-      throw new Error("An error occurred during command execution.");
+      // Non-fatal: log warning instead of aborting execution
+      logger.warn("Output validation error", {
+        command: tmplCommand.name,
+        error: e.message,
+        ...(e instanceof JsonError && e.details ? { details: e.details.map((d: IJsonError) => d.message) } : {}),
+      });
     }
     if (exitCode !== 0) {
       throw new Error(

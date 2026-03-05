@@ -1,8 +1,8 @@
 {
-  "name": "postgres",
-  "description": "PostgreSQL is an open source object-relational database system.",
+  "name": "Postgres",
+  "description": "Postgres SQL Database open Source",
   "extends": "oci-image",
-  "icon": "Postgresql_elephant.svg",
+  "icon": "icon.svg",
   "parameters": [
     {
       "id": "hostname",
@@ -48,18 +48,18 @@
     },
     {
       "id": "username",
-      "value": "root"
+      "value": "postgres"
+    },
+    {
+      "id": "ssl.mode",
+      "value": "certs"
+    },
+    {
+      "id": "ssl.certs_dir",
+      "value": "certs"
     }
   ],
-  "installation": {
-    "pre_start": [
-      "0-upload-server-crt.json",
-      "1-upload-server-key.json",
-      "2-upload-enable-ssl-sh.json"
-    ]
-  },
-  "tags": [
-    "database"
-  ],
+  "installation": {},
+  "tags": ["database"],
   "stacktype": "postgres"
 }

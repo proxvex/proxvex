@@ -7,9 +7,10 @@
     {
       "id": "previous_vm_id",
       "name": "Previous VM ID",
-      "type": "number",
-      "required": true,
-      "description": "VM ID of the previous deployer container to clean up"
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "VM ID of the previous deployer container to clean up (auto-injected by backend)"
     },
     {
       "id": "vm_id",

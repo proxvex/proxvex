@@ -1,9 +1,10 @@
 import { EventEmitter } from "events";
-import { ICommand, IVeExecuteMessage } from "../types.mjs";
+import { ICommand, IVeExecuteMessage, IJsonError } from "../types.mjs";
 import { IVEContext, IVMContext } from "../backend-types.mjs";
 import { VariableResolver } from "../variable-resolver.mjs";
 import { OutputProcessor } from "../output-processor.mjs";
 import { JsonError } from "../jsonvalidator.mjs";
+import { createLogger } from "../logger/index.mjs";
 import {
   IProxmoxRunResult,
   IRestartInfo,
@@ -30,6 +31,8 @@ export type { IOutput, IProxmoxRunResult, IRestartInfo };
 /**
  * ProxmoxExecution: Executes a list of ICommand objects with variable substitution and remote/container execution.
  */
+const logger = createLogger("ve-execution");
+
 export class VeExecution extends EventEmitter {
   private commands!: ICommand[];
   private inputs!: Record<string, string | number | boolean>;
@@ -387,7 +390,6 @@ export class VeExecution extends EventEmitter {
         }
       } catch (e: any) {
         msg.index = getNextMessageIndex();
-        // If e is already a JsonError, preserve its details; otherwise create a new one
         if (e instanceof JsonError) {
           msg.error = e;
         } else {
@@ -396,7 +398,12 @@ export class VeExecution extends EventEmitter {
         msg.exitCode = -1;
         msg.partial = false;
         this.emit("message", msg);
-        throw new Error("An error occurred during command execution.");
+        // Non-fatal: log warning instead of aborting execution
+        logger.warn("Output validation error", {
+          command: tmplCommand.name,
+          error: e.message,
+          ...(e instanceof JsonError && e.details ? { details: e.details.map((d: IJsonError) => d.message) } : {}),
+        });
       }
       if (exitCode !== 0) {
         throw new Error(
@@ -512,7 +519,12 @@ export class VeExecution extends EventEmitter {
       msg.exitCode = -1;
       msg.partial = false;
       this.emit("message", msg);
-      throw new Error("An error occurred during command execution.");
+      // Non-fatal: log warning instead of aborting execution
+      logger.warn("Output validation error", {
+          command: tmplCommand.name,
+          error: e.message,
+          ...(e instanceof JsonError && e.details ? { details: e.details.map((d: IJsonError) => d.message) } : {}),
+        });
     }
     if (exitCode !== 0) {
       throw new Error(

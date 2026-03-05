@@ -5,10 +5,12 @@
         <input type="checkbox" [checked]="showInternal" (change)="toggleShowInternal()" />
         Show internal
       </label>
-      <label class="filter-checkbox">
-        <input type="checkbox" [checked]="showFramework" (change)="toggleShowFramework()" />
-        Show framework
-      </label>
+      @if (enableFrameworkFilter) {
+        <label class="filter-checkbox">
+          <input type="checkbox" [checked]="showFramework" (change)="toggleShowFramework()" />
+          Show framework
+        </label>
+      }
     </div>
   }
 

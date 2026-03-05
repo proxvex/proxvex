@@ -49,6 +49,8 @@ export class CardGridComponent<T> implements OnInit, OnChanges {
   @Input() enableGrouping = false;
   @Input() getItemTags?: (item: T) => string[] | undefined;
 
+  @Input() enableFrameworkFilter = false;
+
   @Output() itemsFiltered = new EventEmitter<T[]>();
 
   @ContentChild('cardTemplate') cardTemplate!: TemplateRef<{ $implicit: T }>;

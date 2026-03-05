@@ -322,22 +322,15 @@ export class WebAppVeAddonCommandBuilder {
   }
 
   /**
-   * Inserts addon disable commands and notes removal commands for disabled addons.
-   * Disable commands only use post_start phase (container is already running).
+   * Loads disable commands for a specific phase from all disabled addons.
    */
-  async insertAddonDisableCommands(
-    commands: ICommand[],
+  private loadDisableCommandsForPhase(
     disabledAddonIds: string[],
-  ): Promise<ICommand[]> {
-    if (disabledAddonIds.length === 0) {
-      return commands;
-    }
-
-    const result = [...commands];
-    const pm = this.pm;
-    const addonService = pm.getAddonService();
-    const repositories = pm.getRepositories();
-    const disableCommands: ICommand[] = [];
+    phase: "pre_start" | "post_start",
+  ): ICommand[] {
+    const addonService = this.pm.getAddonService();
+    const repositories = this.pm.getRepositories();
+    const commands: ICommand[] = [];
 
     for (const addonId of disabledAddonIds) {
       let addon;
@@ -348,7 +341,7 @@ export class WebAppVeAddonCommandBuilder {
         continue;
       }
 
-      const templateRefs = addon.disable?.post_start;
+      const templateRefs = addon.disable?.[phase];
       if (!templateRefs || templateRefs.length === 0) {
         continue;
       }
@@ -361,7 +354,7 @@ export class WebAppVeAddonCommandBuilder {
           const template = repositories.getTemplate({
             name: templateName,
             scope: "shared",
-            category: "post_start",
+            category: phase,
           }) as ITemplate | null;
 
           if (template && template.commands) {
@@ -378,7 +371,7 @@ export class WebAppVeAddonCommandBuilder {
                 const scriptContent = repositories.getScript({
                   name: cmd.script,
                   scope: "shared",
-                  category: "post_start",
+                  category: phase,
                 });
                 if (scriptContent) {
                   command.scriptContent = scriptContent;
@@ -395,7 +388,7 @@ export class WebAppVeAddonCommandBuilder {
                 }
               }
 
-              disableCommands.push(command);
+              commands.push(command);
             }
           }
         } catch (e) {
@@ -404,9 +397,34 @@ export class WebAppVeAddonCommandBuilder {
       }
     }
 
-    // Append disable commands at end (post_start position)
-    if (disableCommands.length > 0) {
-      result.push(...disableCommands);
+    return commands;
+  }
+
+  /**
+   * Inserts addon disable commands and notes removal commands for disabled addons.
+   * Supports both pre_start (before container start) and post_start (after start) phases.
+   */
+  async insertAddonDisableCommands(
+    commands: ICommand[],
+    disabledAddonIds: string[],
+  ): Promise<ICommand[]> {
+    if (disabledAddonIds.length === 0) {
+      return commands;
+    }
+
+    const result = [...commands];
+
+    // Load and insert pre_start disable commands (before container start)
+    const preStartCommands = this.loadDisableCommandsForPhase(disabledAddonIds, "pre_start");
+    if (preStartCommands.length > 0) {
+      const preStartIndex = this.findAddonInsertionIndex(result, "pre_start");
+      result.splice(preStartIndex, 0, ...preStartCommands);
+    }
+
+    // Load and append post_start disable commands (after container start)
+    const postStartCommands = this.loadDisableCommandsForPhase(disabledAddonIds, "post_start");
+    if (postStartCommands.length > 0) {
+      result.push(...postStartCommands);
     }
 
     // Add notes removal commands BEFORE "Start LXC Container" (pre_start position)

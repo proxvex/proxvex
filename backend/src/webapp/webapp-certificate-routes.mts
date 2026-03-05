@@ -139,8 +139,9 @@ export function registerCertificateRoutes(
       await ve.run(null);
 
       const certsRaw = ve.outputs.get("certificates");
-      const certificates =
-        typeof certsRaw === "string" && certsRaw.trim().length > 0
+      const certificates = Array.isArray(certsRaw)
+        ? certsRaw
+        : typeof certsRaw === "string" && certsRaw.trim().length > 0
           ? JSON.parse(certsRaw)
           : [];
 

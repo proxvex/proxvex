@@ -72,6 +72,7 @@
       { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
       { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
+      { "name": "159-conf-enable-ssl-app.json", "after": "157-conf-write-uploaded-certs.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
     ],
@@ -87,6 +88,7 @@
       { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
       { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
+      { "name": "159-conf-enable-ssl-app.json", "after": "157-conf-write-uploaded-certs.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
     ],
@@ -98,6 +100,9 @@
   },
 
   "disable": {
+    "pre_start": [
+      "158-conf-disable-ssl-app.json"
+    ],
     "post_start": [
       "345-post-disable-ssl-proxy.json"
     ]

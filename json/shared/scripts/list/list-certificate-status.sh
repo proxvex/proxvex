@@ -93,4 +93,6 @@ done
 
 RESULT="${RESULT}]"
 
-echo "[{\"id\":\"certificates\",\"value\":${RESULT}}]"
+# Encode value as JSON string to satisfy outputs.schema.json (value must be a primitive)
+ESCAPED=$(printf '%s' "$RESULT" | sed 's/\\/\\\\/g; s/"/\\"/g')
+echo "[{\"id\":\"certificates\",\"value\":\"${ESCAPED}\"}]"
