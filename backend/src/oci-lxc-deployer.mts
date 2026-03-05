@@ -168,8 +168,8 @@ async function startWebApp(
 
   // Check if SSL certificates exist in the addon certs volume
   let httpsEnabled = false;
-  const certPath = "/etc/ssl/addon/server.crt";
-  const keyPath = "/etc/ssl/addon/server.key";
+  const certPath = "/etc/ssl/addon/fullchain.pem";
+  const keyPath = "/etc/ssl/addon/privkey.pem";
 
   if (existsSync(certPath) && existsSync(keyPath)) {
     try {

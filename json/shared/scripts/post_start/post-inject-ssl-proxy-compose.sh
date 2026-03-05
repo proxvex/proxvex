@@ -15,6 +15,7 @@
 #   - ssl.mode: "proxy", "native", or "certs"
 #   - http_port: Application HTTP port
 #   - https_port: HTTPS port for nginx proxy
+#   - uid/gid: Application user (for cert file access in nginx container)
 #
 # Output: errors to stderr only
 
@@ -22,9 +23,13 @@ COMPOSE_PROJECT="{{ compose_project }}"
 SSL_MODE="{{ ssl.mode }}"
 HTTP_PORT="{{ http_port }}"
 HTTPS_PORT="{{ https_port }}"
+UID_VALUE="{{ uid }}"
+GID_VALUE="{{ gid }}"
 
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
 [ "$COMPOSE_PROJECT" = "NOT_DEFINED" ] && COMPOSE_PROJECT=""
+[ "$UID_VALUE" = "NOT_DEFINED" ] && UID_VALUE="0"
+[ "$GID_VALUE" = "NOT_DEFINED" ] && GID_VALUE="0"
 
 # Native mode: nothing to do
 if [ "$SSL_MODE" = "native" ]; then
@@ -150,6 +155,7 @@ cat >> "$COMPOSE_FILE" <<COMPOSEEOF
 
   nginx-ssl-proxy:
     image: nginx:alpine
+    user: "${UID_VALUE}:${GID_VALUE}"
     ports:
       - "${HTTPS_PORT}:${HTTPS_PORT}"
     volumes:

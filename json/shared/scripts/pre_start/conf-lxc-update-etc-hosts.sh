@@ -72,7 +72,7 @@ edit_or_remove_line() {
 
   if [ -z "$NEWLINE" ]; then
     # Remove the existing line entirely
-    sed -i '' "${LINENUM}d" "$TMP_FILE"
+    sed -i "${LINENUM}d" "$TMP_FILE"
     return
   fi
 
@@ -80,18 +80,18 @@ edit_or_remove_line() {
   if [ "$HAS4" = true ] && [ "$HAS6" = true ]; then
     # Both present; if one differs, edit to new values
     # Replace the line with new one(s)
-    sed -i '' "${LINENUM}s/.*/$IP4\t$HN/" "$TMP_FILE"
+    sed -i "${LINENUM}s/.*/$IP4\t$HN/" "$TMP_FILE"
     # add IPv6 entry on next line
-    sed -i '' "${LINENUM}a\
+    sed -i "${LINENUM}a\
 $IP6\t$HN\
 " "$TMP_FILE"
   elif [ "$HAS4" = true ] && [ -n "$IP4" ]; then
-    sed -i '' "${LINENUM}s/.*/$IP4\t$HN/" "$TMP_FILE"
+    sed -i "${LINENUM}s/.*/$IP4\t$HN/" "$TMP_FILE"
   elif [ "$HAS6" = true ] && [ -n "$IP6" ]; then
-    sed -i '' "${LINENUM}s/.*/$IP6\t$HN/" "$TMP_FILE"
+    sed -i "${LINENUM}s/.*/$IP6\t$HN/" "$TMP_FILE"
   else
     # Only one IP present but not in new values -> remove line
-    sed -i '' "${LINENUM}d" "$TMP_FILE"
+    sed -i "${LINENUM}d" "$TMP_FILE"
   fi
 }
 

@@ -42,6 +42,8 @@ EOF
 # Part 2: Append script body (no variable expansion)
 cat >> "$SCRIPT_PATH" << 'SSLEOF'
 
+APP_UID="${1:-0}"
+APP_GID="${2:-0}"
 CERT_DIR="/etc/ssl/addon"
 NGINX_CONF_DIR=""
 
@@ -196,9 +198,24 @@ iptables -C INPUT -p tcp --dport "${HTTP_PORT}" -j DROP 2>/dev/null || \
 
 echo "iptables: blocked external access to HTTP port ${HTTP_PORT}" >&2
 
-# --- Start nginx ---
-echo "Starting nginx..." >&2
-nginx >&2
+# --- Ensure nginx dirs are writable by app user ---
+if [ "$APP_UID" != "0" ]; then
+  # nginx needs write access to tmp/logs dirs when running as non-root
+  for dir in /var/lib/nginx /var/log/nginx /run/nginx; do
+    mkdir -p "$dir" 2>/dev/null
+    chown -R "${APP_UID}:${APP_GID}" "$dir" 2>/dev/null || true
+  done
+fi
+
+# --- Start nginx as the application user ---
+echo "Starting nginx as UID ${APP_UID}..." >&2
+if [ "$APP_UID" != "0" ]; then
+  # Run nginx as the application user (same UID as cert files)
+  su -s /bin/sh -c "nginx" "$(getent passwd "$APP_UID" | cut -d: -f1 2>/dev/null || echo "#${APP_UID}")" >&2 || \
+    nginx -g "user #${APP_UID} #${APP_GID};" >&2
+else
+  nginx >&2
+fi
 
 echo "SSL proxy setup complete (HTTPS on port ${HTTPS_PORT})" >&2
 SSLEOF

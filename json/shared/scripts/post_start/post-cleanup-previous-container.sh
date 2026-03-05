@@ -105,8 +105,8 @@ if [ -n "$DEPLOYER_BASE_URL" ] && [ "$DEPLOYER_BASE_URL" != "NOT_DEFINED" ]; the
 else
   # Fallback: build URL from hostname + port with SSL detection
   HAS_SSL=0
-  if pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/server.crt 2>/dev/null && \
-     pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/server.key 2>/dev/null; then
+  if pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/fullchain.pem 2>/dev/null && \
+     pct exec "$NEW_VMID" -- test -f /etc/ssl/addon/privkey.pem 2>/dev/null; then
     HAS_SSL=1
   fi
 

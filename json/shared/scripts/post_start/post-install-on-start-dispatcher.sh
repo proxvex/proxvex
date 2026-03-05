@@ -22,14 +22,16 @@ echo "Created ${DROPIN_DIR}" >&2
 cat > "$DISPATCHER" << 'DISPEOF'
 #!/bin/sh
 # on_start_container - runs all drop-in scripts on container start
-# Called by Proxmox hookscript via: pct exec <CTID> -- /etc/lxc-oci-deployer/on_start_container
+# Called by Proxmox hookscript via: pct exec <CTID> -- /etc/lxc-oci-deployer/on_start_container [UID] [GID]
 
+APP_UID="${1:-0}"
+APP_GID="${2:-0}"
 DROPIN_DIR="/etc/lxc-oci-deployer/on_start.d"
 
 for script in "$DROPIN_DIR"/*.sh; do
   [ -x "$script" ] || continue
   echo "Running: $script" >&2
-  "$script" 2>&1 | while IFS= read -r line; do echo "  $line" >&2; done
+  "$script" "$APP_UID" "$APP_GID" 2>&1 | while IFS= read -r line; do echo "  $line" >&2; done
 done
 DISPEOF
 chmod +x "$DISPATCHER"

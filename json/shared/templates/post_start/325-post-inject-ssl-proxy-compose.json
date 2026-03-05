@@ -31,6 +31,22 @@
       "type": "string",
       "required": true,
       "description": "HTTPS port for nginx proxy"
+    },
+    {
+      "id": "uid",
+      "name": "UID",
+      "type": "string",
+      "default": "0",
+      "advanced": true,
+      "description": "User ID for nginx process (matches cert file ownership)"
+    },
+    {
+      "id": "gid",
+      "name": "GID",
+      "type": "string",
+      "default": "0",
+      "advanced": true,
+      "description": "Group ID for nginx process"
     }
   ],
   "commands": [{

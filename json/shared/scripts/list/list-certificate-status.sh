@@ -42,7 +42,7 @@ if [ -d "$VOLUMES_DIR" ]; then
       case "$BASENAME" in
         chain.pem|ca.crt)           CERTTYPE="ca_pub" ;;
         fullchain.pem|fullchain.crt) CERTTYPE="fullchain" ;;
-        cert.pem|server.crt)        CERTTYPE="server" ;;
+        cert.pem)                   CERTTYPE="server" ;;
         privkey.pem)                CERTTYPE="key" ;;
         *)                          CERTTYPE="unknown" ;;
       esac
