@@ -38,6 +38,7 @@ MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
 
 [ "$SSL_CERTS_DIR" = "NOT_DEFINED" ] && SSL_CERTS_DIR=""
+[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
 
 # Compute FQDN
 FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
@@ -84,10 +85,13 @@ echo "$CERT_REQUESTS" | while IFS='|' read -r PARAM_ID CERTTYPE VOLUME_KEY; do
       ;;
   esac
 
-  # Check validity (skip if valid for >30 days)
-  if cert_check_validity "$CHECK_FILE" 30; then
-    echo "Certificate ${CHECK_FILE} is still valid, skipping regeneration" >&2
+  # Check validity AND FQDN match (regenerate if FQDN changed or cert expiring)
+  if cert_check_validity "$CHECK_FILE" 30 && cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
+    echo "Certificate ${CHECK_FILE} is still valid and FQDN matches, skipping regeneration" >&2
     continue
+  fi
+  if [ -f "$CHECK_FILE" ] && ! cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
+    echo "FQDN mismatch detected, regenerating certificate for ${FQDN}" >&2
   fi
 
   # Generate cert based on certtype

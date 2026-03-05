@@ -17,7 +17,8 @@
 #   4. cert_write_ca_pub       - Write CA public cert only (chain.pem)
 #   5. cert_write_ca           - Write CA key+cert
 #   6. cert_check_validity     - Check if cert is valid for N days
-#   7. cert_output_result      - Generate JSON output
+#   7. cert_check_fqdn_match   - Check if cert CN matches expected FQDN
+#   8. cert_output_result      - Generate JSON output
 #
 # Global state variables:
 #   CERT_FILES_WRITTEN - Counter for cert files written
@@ -78,6 +79,25 @@ cert_check_validity() {
   else
     return 1
   fi
+}
+
+# ============================================================================
+# cert_check_fqdn_match()
+# Check if certificate CN matches the expected FQDN
+# Arguments:
+#   $1 - cert_path: Path to certificate file
+#   $2 - expected_fqdn: Expected FQDN (CN) value
+# Returns: 0 = match, 1 = mismatch/missing/invalid
+# ============================================================================
+cert_check_fqdn_match() {
+  _cert_path="$1"
+  _expected_fqdn="$2"
+
+  [ ! -f "$_cert_path" ] && return 1
+
+  _cn=$(openssl x509 -in "$_cert_path" -noout -subject 2>/dev/null | sed -n 's/.*CN *= *\([^ ,]*\).*/\1/p')
+  [ "$_cn" = "$_expected_fqdn" ] && return 0
+  return 1
 }
 
 # ============================================================================
