@@ -43,14 +43,11 @@ def build_notes(include_icon):
     )
 
     lines += build_visible_header(
-        app_id=app_id, app_name=app_name, deployer_url=deployer_url,
+        app_id=app_id, app_name=app_name, oci_image_tag=version,
         icon_base64=icon_base64, icon_mime_type=icon_mime_type,
         include_icon=include_icon,
     )
 
-    lines += build_app_info(app_id=app_id, app_name=app_name, version=version)
-
-    # No "LXC template" or "Log file" for docker-compose apps
     lines += build_links_section(VMID, deployer_url, ve_context, link_text="Logs")
 
     return "\n".join(lines)

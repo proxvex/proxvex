@@ -26,7 +26,7 @@ APP_ID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):application-id\s+(.+?)\s*--
 APP_NAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):application-name\s+(.+?)\s*-->", re.IGNORECASE)
 APP_ID_VISIBLE_RE = re.compile(r"^\s*#?\s*Application\s+ID\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 APP_NAME_VISIBLE_RE = re.compile(r"^\s*#?\s*##\s+(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
-VERSION_VISIBLE_RE = re.compile(r"^\s*#?\s*Version\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+VERSION_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):version\s+(.+?)\s*-->", re.IGNORECASE)
 ADDON_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):addon\s+(.+?)\s*-->", re.IGNORECASE)
 DEPLOYER_INSTANCE_RE = re.compile(r"(?:oci-lxc-deployer):deployer-instance", re.IGNORECASE)
 USERNAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):username\s+(.+?)\s*-->", re.IGNORECASE)
@@ -272,8 +272,8 @@ def parse_lxc_config(conf_text: str) -> LxcConfig:
     )
 
     config.version = (
-        _extract_from_patterns(decoded, [VERSION_VISIBLE_RE]) or
-        _extract_from_patterns(normalized, [VERSION_VISIBLE_RE])
+        _extract_from_patterns(decoded, [VERSION_MARKER_RE]) or
+        _extract_from_patterns(normalized, [VERSION_MARKER_RE])
     )
 
     # Parse addons from notes (can have multiple)

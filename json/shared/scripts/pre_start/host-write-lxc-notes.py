@@ -5,7 +5,6 @@
 
 # Template variables (will be replaced by backend)
 VMID = "{{ vm_id }}"
-TEMPLATE_PATH = "{{ template_path }}"
 OCI_IMAGE_RAW = "{{ oci_image }}"
 APP_ID_RAW = "{{ application_id }}"
 APP_NAME_RAW = "{{ application_name }}"
@@ -33,7 +32,6 @@ def build_notes(include_icon):
     username = normalize_value(USERNAME_RAW)
     uid = normalize_value(UID_RAW)
     gid = normalize_value(GID_RAW)
-    template_path = normalize_value(TEMPLATE_PATH)
     oci_image_raw = normalize_value(OCI_IMAGE_RAW)
 
     oci_image_visible = strip_oci_prefix(oci_image_raw)
@@ -49,25 +47,15 @@ def build_notes(include_icon):
     )
 
     lines += build_visible_header(
-        app_id=app_id, app_name=app_name, deployer_url=deployer_url,
+        app_id=app_id, app_name=app_name, oci_image_tag=version,
         icon_base64=icon_base64, icon_mime_type=icon_mime_type,
         include_icon=include_icon,
     )
 
-    lines += build_app_info(app_id=app_id, app_name=app_name, version=version)
-
-    # OCI image or LXC template
-    if oci_image_visible:
-        lines.append("")
-        lines.append("OCI image: %s" % oci_image_visible)
-    elif template_path:
-        lines.append("")
-        lines.append("LXC template: %s" % template_path)
-
     # Log file location
     if hostname:
-        log_file = "/var/log/lxc/%s-%s.log" % (hostname, VMID)
         lines.append("")
+        log_file = "/var/log/lxc/%s-%s.log" % (hostname, VMID)
         lines.append("Log file: %s" % log_file)
 
     lines += build_links_section(VMID, deployer_url, ve_context, link_text="Console Logs")

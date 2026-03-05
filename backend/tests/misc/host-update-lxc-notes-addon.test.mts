@@ -25,18 +25,13 @@ const PVE_CONFIG_WITH_NOTES = `#<!-- oci-lxc-deployer%3Amanaged -->
 #<!-- oci-lxc-deployer%3Ausername lxc -->
 #<!-- oci-lxc-deployer%3Auid 1001 -->
 #<!-- oci-lxc-deployer%3Agid 1001 -->
-## oci-lxc-deployer
-#
-#Managed by [oci-lxc-deployer](http%3A//myhost.cluster%3A3201/).
-#
-#Version%3A 0.3.4
-#
-#OCI image%3A ghcr.io/modbus2mqtt/oci-lxc-deployer
+## oci-lxc-deployer (0.3.4)
 #
 #Log file%3A /var/log/lxc/oci-lxc-deployer-106.log
 #
-### Links
+#**Links**
 #- [Console Logs](http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/106)
+#Managed by [oci-lxc-deployer](http%3A//myhost.cluster%3A3201/).
 arch: amd64
 cmode: console
 hostname: oci-lxc-deployer
@@ -53,7 +48,7 @@ unprivileged: 1
  * Alternative PVE config format: single-line URL-encoded description.
  * This format may be used by older PVE versions or shorter descriptions.
  */
-const PVE_CONFIG_SINGLE_LINE = `description: %3C%21--+oci-lxc-deployer%3Amanaged+--%3E%0A%3C%21--+oci-lxc-deployer%3Aapplication-id+test-app+--%3E%0A%23+test-app%0A%0AManaged+by+oci-lxc-deployer.%0A%0A%23%23+Links%0A-+%5BLogs%5D(http%3A%2F%2Fhost%3A3201%2Flogs%2F100)
+const PVE_CONFIG_SINGLE_LINE = `description: %3C%21--+oci-lxc-deployer%3Amanaged+--%3E%0A%3C%21--+oci-lxc-deployer%3Aapplication-id+test-app+--%3E%0A%23+test-app%0A%0A**Links**%0A-+%5BLogs%5D(http%3A%2F%2Fhost%3A3201%2Flogs%2F100)%0AManaged+by+oci-lxc-deployer.
 arch: amd64
 hostname: test-app
 memory: 512
@@ -192,11 +187,11 @@ exit 1
       expect(description).toContain("oci-lxc-deployer:application-id");
       expect(description).toContain("# oci-lxc-deployer");
       expect(description).toContain("Managed by");
-      expect(description).toContain("## Links");
+      expect(description).toContain("**Links**");
       expect(description).toContain("Console Logs");
     });
 
-    it("should place addon marker before ## Links section", () => {
+    it("should place addon marker before **Links** section", () => {
       const result = runAddonNotesScript("106", "addon-ssl");
       expect(result.exitCode).toBe(0);
 
@@ -204,7 +199,7 @@ exit 1
       const markerPos = description.indexOf(
         "<!-- oci-lxc-deployer:addon addon-ssl -->",
       );
-      const linksPos = description.indexOf("## Links");
+      const linksPos = description.indexOf("**Links**");
 
       expect(markerPos).toBeGreaterThan(-1);
       expect(linksPos).toBeGreaterThan(-1);
@@ -332,7 +327,7 @@ exit 1
       );
       expect(description).toContain("<!-- oci-lxc-deployer:managed -->");
       expect(description).toContain("test-app");
-      expect(description).toContain("## Links");
+      expect(description).toContain("**Links**");
     });
   });
 

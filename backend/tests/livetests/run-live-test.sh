@@ -205,7 +205,7 @@ NOTES=$(ssh "$PVE_SSH" "pct config $VM_ID 2>/dev/null" | grep -A100 "description
 assert 'echo "$NOTES" | grep -qE "oci-lxc-deployer(:managed|%3Amanaged)"' "Notes contain oci-lxc-deployer:managed marker"
 assert 'echo "$NOTES" | grep -qE "oci-lxc-deployer(:log-url|%3Alog-url)"' "Notes contain log-url"
 assert 'echo "$NOTES" | grep -qE "oci-lxc-deployer(:icon-url|%3Aicon-url)"' "Notes contain icon-url"
-assert 'echo "$NOTES" | grep -qE "(## Links|%23%23 Links)"' "Notes contain Links section"
+assert 'echo "$NOTES" | grep -qE "(\*\*Links\*\*|%2A%2ALinks%2A%2A)"' "Notes contain Links section"
 
 # 5d. Optional: Check if container has network
 IP=$(ssh "$PVE_SSH" "pct exec $VM_ID -- ip -4 addr show eth0 2>/dev/null | grep inet | awk '{print \$2}' | cut -d/ -f1" 2>/dev/null || echo "")

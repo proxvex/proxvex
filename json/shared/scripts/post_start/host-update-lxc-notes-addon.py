@@ -105,13 +105,13 @@ def insert_addon_marker(description: str, addon_id: str) -> str:
     marker_inserted = False
 
     for line in lines:
-        # Insert before first ## header (visible section)
-        if not marker_inserted and line.strip().startswith("##"):
+        # Insert before **Links** section
+        if not marker_inserted and line.strip().startswith("**Links**"):
             result_lines.append(marker)
             marker_inserted = True
         result_lines.append(line)
 
-    # If no ## header found, insert before visible content or at end
+    # If no **Links** section found, insert before visible content or at end
     if not marker_inserted:
         # Find last marker comment and insert after it
         last_marker_idx = -1

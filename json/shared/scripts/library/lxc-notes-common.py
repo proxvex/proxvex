@@ -63,47 +63,35 @@ def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
     return lines
 
 
-def build_visible_header(app_id="", app_name="", deployer_url="",
+def build_visible_header(app_id="", app_name="", oci_image_tag="",
                          icon_base64="", icon_mime_type="", include_icon=True):
-    """Build visible Markdown header: title, icon, managed-by link."""
+    """Build visible Markdown header: title with version tag, icon."""
     lines = []
     header_name = app_name if app_name else app_id if app_id else "Container"
-    lines.append("# %s" % header_name)
-    lines.append("")
+    if oci_image_tag:
+        lines.append("# %s (%s)" % (header_name, oci_image_tag))
+    else:
+        lines.append("# %s" % header_name)
 
     if include_icon and icon_base64 and icon_mime_type:
         icon_alt = app_name if app_name else app_id
         lines.append('<img src="data:%s;base64,%s" width="16" height="16" alt="%s"/>' % (icon_mime_type, icon_base64, icon_alt))
-        lines.append("")
 
-    if deployer_url:
-        lines.append("Managed by [oci-lxc-deployer](%s/)." % deployer_url)
-    else:
-        lines.append("Managed by **oci-lxc-deployer**.")
-
-    return lines
-
-
-def build_app_info(app_id="", app_name="", version=""):
-    """Build application ID and version lines."""
-    lines = []
-    if app_id:
-        lines.append("")
-        lines.append("Application ID: %s" % app_id)
-    if version:
-        lines.append("")
-        lines.append("Version: %s" % version)
     return lines
 
 
 def build_links_section(vmid, deployer_url, ve_context, link_text="Logs"):
-    """Build the Links section with log viewer link."""
+    """Build the Links section with log viewer link and managed-by footer."""
     if not deployer_url or not ve_context:
         return []
     lines = []
     lines.append("")
-    lines.append("## Links")
+    lines.append("**Links**")
     lines.append("- [%s](%s/logs/%s/%s)" % (link_text, deployer_url, ve_context, vmid))
+
+    if deployer_url:
+        lines.append("Managed by [oci-lxc-deployer](%s/)." % deployer_url)
+
     return lines
 
 
