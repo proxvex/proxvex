@@ -49,6 +49,14 @@
     {
       "id": "username",
       "value": "root"
+    },
+    {
+      "id": "ssl.mode",
+      "value": "certs"
+    },
+    {
+      "id": "ssl.certs_dir",
+      "value": "config:certs"
     }
   ],
   "installation": {

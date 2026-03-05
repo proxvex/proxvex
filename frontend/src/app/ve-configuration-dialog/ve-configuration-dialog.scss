@@ -110,12 +110,24 @@ form {
 
 .missing-required-text {
   margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.missing-required-help-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
 }
 
 .missing-required-list {
   margin-top: 0.35rem;
   font-weight: 600;
 }
+
 
 .missing-required-task {
   margin-top: 0.35rem;

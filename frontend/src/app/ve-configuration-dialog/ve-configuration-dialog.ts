@@ -491,6 +491,11 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       if (p.if && !this.evaluateCondition(p.if)) {
         return false;
       }
+      // Skip if user has already provided a value via the form
+      const control = this.form.get(p.id);
+      if (control && control.value) {
+        return false;
+      }
       return true;
     });
   }
@@ -529,6 +534,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   get taskKey(): string {
     return this.task;
   }
+
 
   openTemplateTrace(): void {
     this.configService.getTemplateTrace(this.data.app.id, this.task).subscribe({

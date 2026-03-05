@@ -26,13 +26,9 @@
 			<div class="missing-required-hint" role="alert">
 				<strong>Missing required parameters detected.</strong>
 				<div class="missing-required-text">
-					If these values should be auto-filled, verify that the parameters template is included
-					and runs before the dependent template, and that no local override hides it.
+					Missing: {{ missingRequiredParamsLabel }}.
+					Click the <mat-icon class="missing-required-help-icon">help_outline</mat-icon> icon next to the field for details.
 				</div>
-				<div class="missing-required-list">
-					Missing: {{ missingRequiredParamsLabel }}
-				</div>
-				<div class="missing-required-task">Task key: {{ taskKey }}</div>
 			</div>
 		}
 		<div class="group-container">

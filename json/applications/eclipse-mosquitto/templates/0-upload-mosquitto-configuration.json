@@ -13,7 +13,7 @@
       "upload": true,
       "required": true,
       "advanced": false,
-      "description": "Configuration file: Mosquitto Configuration"
+      "description": "Upload your mosquitto.conf file.\nWith the **SSL addon** (mode: Certificates only), TLS certs are provisioned at:\n- `/mosquitto/config/certs/fullchain.pem` (server cert + CA)\n- `/mosquitto/config/certs/privkey.pem` (private key)\n- `/mosquitto/config/certs/chain.pem` (CA cert)\n\nMQTTS listener example:\n```\nlistener 8883\ncafile /mosquitto/config/certs/chain.pem\ncertfile /mosquitto/config/certs/fullchain.pem\nkeyfile /mosquitto/config/certs/privkey.pem\n```\nSee [Mosquitto TLS docs](https://mosquitto.org/man/mosquitto-conf-5.html)"
     },
     {
       "id": "upload_mosquitto_configuration_destination",

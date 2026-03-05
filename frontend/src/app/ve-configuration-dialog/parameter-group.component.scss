@@ -84,6 +84,11 @@
   margin-left: 4px;
 }
 
+.expandable-help-fullwidth {
+  width: 100%;
+  flex-basis: 100%;
+}
+
 .expandable-help {
   width: calc(100% - 2rem);
   min-width: 0;

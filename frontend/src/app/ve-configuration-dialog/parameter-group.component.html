@@ -57,9 +57,6 @@
 						@if (param['certtype'] && !getDisplayValue(param.id)) {
 							<span class="cert-auto-hint">Auto-generated if not uploaded</span>
 						}
-						@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
-							<div class="expandable-help" [innerHTML]="getMarkdownHelp(param)"></div>
-						}
 						@if (param.id === 'compose_file' && composeProperties()) {
 							<mat-card class="compose-properties-card">
 								<mat-card-header>
@@ -107,6 +104,9 @@
 							</div>
 						}
 						</div>
+						@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
+							<div class="expandable-help expandable-help-fullwidth" [innerHTML]="getMarkdownHelp(param)"></div>
+						}
 						} @else {
 						<mat-form-field appearance="outline" class="param-field" [class.param-field-multiline]="param.multiline">
 						<mat-label>{{ param.name }}</mat-label>
