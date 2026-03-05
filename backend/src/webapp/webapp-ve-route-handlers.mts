@@ -207,6 +207,7 @@ export class WebAppVeRouteHandlers {
         commands = await this.addonCommandBuilder.insertAddonDisableCommands(
           commands,
           disabledAddons,
+          loaded.application,
         );
       }
 
@@ -245,7 +246,18 @@ export class WebAppVeRouteHandlers {
         `http://${os.hostname()}:${deployerPort}`;
       defaults.set("deployer_base_url", deployerUrl);
       defaults.set("ve_context_key", veContextKey);
-      defaults.set("oci_image_tag", buildInfo.version);
+
+      // Extract OCI image tag from application properties (e.g., "postgres:16-alpine" → "16-alpine")
+      // During fresh install, this is overwritten by the image download script output.
+      // During reconfigure, image scripts don't run, so this default is used for notes.
+      const ociImageProp = loaded.application?.properties?.find(
+        (p: { id: string }) => p.id === "oci_image",
+      );
+      const ociImageValue = ociImageProp?.value ? String(ociImageProp.value) : "";
+      const ociImageTag = ociImageValue.includes(":")
+        ? ociImageValue.split(":").pop() ?? ""
+        : ociImageValue;
+      defaults.set("oci_image_tag", ociImageTag || buildInfo.version);
 
       // Icon data for embedding in notes (Data URL avoids mixed content issues)
       // Always use readApplicationIcon() which normalizes SVG size for notes display

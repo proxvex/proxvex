@@ -6,6 +6,7 @@ import {
 } from "@src/types.mjs";
 import { IApplication } from "@src/backend-types.mjs";
 import { PersistenceManager } from "@src/persistence/persistence-manager.mjs";
+import { TemplateResolver } from "@src/templates/template-resolver.mjs";
 
 /**
  * Builds and inserts addon commands into the command pipeline.
@@ -56,6 +57,7 @@ export class WebAppVeAddonCommandBuilder {
     const pm = this.pm;
     const addonService = pm.getAddonService();
     const repositories = pm.getRepositories();
+    const resolver = new TemplateResolver(repositories);
     const commands: ICommand[] = [];
 
     for (const addonId of addonIds) {
@@ -152,27 +154,44 @@ export class WebAppVeAddonCommandBuilder {
                 command.execute_on = template.execute_on;
               }
 
-              // Resolve script content (scripts are in same category subdirectory as templates)
+              // Resolve script content with application-scope fallback
+              // (allows applications to override shared addon scripts)
               if (cmd.script && !cmd.scriptContent) {
-                const scriptContent = repositories.getScript({
-                  name: cmd.script,
-                  scope: "shared",
-                  category,
-                });
-                if (scriptContent) {
-                  command.scriptContent = scriptContent;
+                const appId = application?.id ?? "";
+                if (appId) {
+                  const resolved = resolver.resolveScriptContent(appId, cmd.script, category);
+                  if (resolved.content) {
+                    command.scriptContent = resolved.content;
+                  }
+                } else {
+                  const scriptContent = repositories.getScript({
+                    name: cmd.script,
+                    scope: "shared",
+                    category,
+                  });
+                  if (scriptContent) {
+                    command.scriptContent = scriptContent;
+                  }
                 }
               }
 
-              // Resolve library content (libraries are in library/ subdirectory)
+              // Resolve library content with application-scope fallback
               if (cmd.library && !cmd.libraryContent) {
-                const libraryContent = repositories.getScript({
-                  name: cmd.library,
-                  scope: "shared",
-                  category: "library",
-                });
-                if (libraryContent) {
-                  command.libraryContent = libraryContent;
+                const appId = application?.id ?? "";
+                if (appId) {
+                  const resolved = resolver.resolveLibraryContent(appId, cmd.library);
+                  if (resolved.content) {
+                    command.libraryContent = resolved.content;
+                  }
+                } else {
+                  const libraryContent = repositories.getScript({
+                    name: cmd.library,
+                    scope: "shared",
+                    category: "library",
+                  });
+                  if (libraryContent) {
+                    command.libraryContent = libraryContent;
+                  }
                 }
               }
 
@@ -327,9 +346,11 @@ export class WebAppVeAddonCommandBuilder {
   private loadDisableCommandsForPhase(
     disabledAddonIds: string[],
     phase: "pre_start" | "post_start",
+    application?: IApplication,
   ): ICommand[] {
     const addonService = this.pm.getAddonService();
     const repositories = this.pm.getRepositories();
+    const resolver = new TemplateResolver(repositories);
     const commands: ICommand[] = [];
 
     for (const addonId of disabledAddonIds) {
@@ -368,23 +389,39 @@ export class WebAppVeAddonCommandBuilder {
                 command.execute_on = template.execute_on;
               }
               if (cmd.script && !cmd.scriptContent) {
-                const scriptContent = repositories.getScript({
-                  name: cmd.script,
-                  scope: "shared",
-                  category: phase,
-                });
-                if (scriptContent) {
-                  command.scriptContent = scriptContent;
+                const appId = application?.id ?? "";
+                if (appId) {
+                  const resolved = resolver.resolveScriptContent(appId, cmd.script, phase);
+                  if (resolved.content) {
+                    command.scriptContent = resolved.content;
+                  }
+                } else {
+                  const scriptContent = repositories.getScript({
+                    name: cmd.script,
+                    scope: "shared",
+                    category: phase,
+                  });
+                  if (scriptContent) {
+                    command.scriptContent = scriptContent;
+                  }
                 }
               }
               if (cmd.library && !cmd.libraryContent) {
-                const libraryContent = repositories.getScript({
-                  name: cmd.library,
-                  scope: "shared",
-                  category: "library",
-                });
-                if (libraryContent) {
-                  command.libraryContent = libraryContent;
+                const appId = application?.id ?? "";
+                if (appId) {
+                  const resolved = resolver.resolveLibraryContent(appId, cmd.library);
+                  if (resolved.content) {
+                    command.libraryContent = resolved.content;
+                  }
+                } else {
+                  const libraryContent = repositories.getScript({
+                    name: cmd.library,
+                    scope: "shared",
+                    category: "library",
+                  });
+                  if (libraryContent) {
+                    command.libraryContent = libraryContent;
+                  }
                 }
               }
 
@@ -407,6 +444,7 @@ export class WebAppVeAddonCommandBuilder {
   async insertAddonDisableCommands(
     commands: ICommand[],
     disabledAddonIds: string[],
+    application?: IApplication,
   ): Promise<ICommand[]> {
     if (disabledAddonIds.length === 0) {
       return commands;
@@ -415,14 +453,14 @@ export class WebAppVeAddonCommandBuilder {
     const result = [...commands];
 
     // Load and insert pre_start disable commands (before container start)
-    const preStartCommands = this.loadDisableCommandsForPhase(disabledAddonIds, "pre_start");
+    const preStartCommands = this.loadDisableCommandsForPhase(disabledAddonIds, "pre_start", application);
     if (preStartCommands.length > 0) {
       const preStartIndex = this.findAddonInsertionIndex(result, "pre_start");
       result.splice(preStartIndex, 0, ...preStartCommands);
     }
 
     // Load and append post_start disable commands (after container start)
-    const postStartCommands = this.loadDisableCommandsForPhase(disabledAddonIds, "post_start");
+    const postStartCommands = this.loadDisableCommandsForPhase(disabledAddonIds, "post_start", application);
     if (postStartCommands.length > 0) {
       result.push(...postStartCommands);
     }
