@@ -966,19 +966,25 @@ export class DockerComposeService {
    * Analyze docker-compose data and detect unsupported/partial features for LXC migration
    */
   detectComposeWarnings(data: ParsedComposeData): IComposeWarning[] {
-    const warnings: IComposeWarning[] = [];
     const services = data.composeData['services'] as Record<string, Record<string, unknown>> || {};
+    const features = this.getUnsupportedFeatureDefinitions();
 
-    // Define unsupported features with their descriptions
-    const unsupportedFeatures: {
-      key: string;
-      id: string;
-      title: string;
-      description: string;
-      category: 'unsupported' | 'partial' | 'manual';
-      severity: 'info' | 'warning';
-      checkService?: boolean;
-    }[] = [
+    return [
+      ...this.checkTopLevelFeatures(features, data),
+      ...this.checkServiceLevelFeatures(features, services),
+    ];
+  }
+
+  private getUnsupportedFeatureDefinitions(): {
+    key: string;
+    id: string;
+    title: string;
+    description: string;
+    category: 'unsupported' | 'partial' | 'manual';
+    severity: 'info' | 'warning';
+    checkService?: boolean;
+  }[] {
+    return [
       {
         key: 'depends_on',
         id: 'depends_on',
@@ -1148,9 +1154,16 @@ Or use \`prlimit\` for process-specific limits.`,
         checkService: true
       }
     ];
+  }
 
-    // Check top-level features
-    for (const feature of unsupportedFeatures) {
+  private checkTopLevelFeatures(
+    features: ReturnType<DockerComposeService['getUnsupportedFeatureDefinitions']>,
+    data: ParsedComposeData,
+  ): IComposeWarning[] {
+    const warnings: IComposeWarning[] = [];
+
+    for (const feature of features) {
+      // Top-level only: networks (no checkService flag) and any future top-level-only features
       if (!feature.checkService && data.composeData[feature.key]) {
         warnings.push({
           id: feature.id,
@@ -1163,10 +1176,10 @@ Or use \`prlimit\` for process-specific limits.`,
       }
     }
 
-    // Check networks at top level
+    // Networks exist at top level (separate from service-level check)
     if (data.composeData['networks']) {
-      const networkFeature = unsupportedFeatures.find(f => f.key === 'networks');
-      if (networkFeature) {
+      const networkFeature = features.find(f => f.key === 'networks');
+      if (networkFeature && !warnings.some(w => w.id === 'networks')) {
         warnings.push({
           id: networkFeature.id,
           severity: networkFeature.severity,
@@ -1178,8 +1191,16 @@ Or use \`prlimit\` for process-specific limits.`,
       }
     }
 
-    // Check service-level features
-    for (const feature of unsupportedFeatures) {
+    return warnings;
+  }
+
+  private checkServiceLevelFeatures(
+    features: ReturnType<DockerComposeService['getUnsupportedFeatureDefinitions']>,
+    services: Record<string, Record<string, unknown>>,
+  ): IComposeWarning[] {
+    const warnings: IComposeWarning[] = [];
+
+    for (const feature of features) {
       if (!feature.checkService) continue;
 
       const affectedServices: string[] = [];
