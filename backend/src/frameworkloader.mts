@@ -150,7 +150,75 @@ export class FrameworkLoader {
   public async createApplicationFromFramework(
     request: IPostFrameworkCreateApplicationBody,
   ): Promise<string> {
-    // Load framework
+    const { framework, baseApplication, allParameters } =
+      await this.loadAndValidateFramework(request);
+
+    this.checkExistingApplication(request);
+
+    const appDir = path.join(
+      this.pathes.localPath,
+      "applications",
+      request.applicationId,
+    );
+
+    const paramValuesMap = new Map<string, string | number | boolean>();
+    for (const pv of request.parameterValues) {
+      paramValuesMap.set(pv.id, pv.value);
+    }
+
+    const { parameters, properties } = this.classifyFrameworkProperties(
+      framework,
+      allParameters,
+      paramValuesMap,
+      request.applicationId,
+    );
+
+    this.applyComposeAndEnvHandling(
+      framework,
+      paramValuesMap,
+      allParameters,
+      parameters,
+      properties,
+    );
+
+    this.ensureHostnameProperty(
+      framework,
+      request.applicationId,
+      paramValuesMap,
+      properties,
+    );
+
+    const applicationJson = this.buildApplicationJson(
+      request,
+      baseApplication,
+      framework,
+      parameters,
+      properties,
+    );
+
+    this.persistence.writeApplication(
+      request.applicationId,
+      applicationJson as any,
+    );
+
+    if (request.iconContent) {
+      const iconPath = path.join(appDir, request.icon || "icon.png");
+      const iconBuffer = Buffer.from(request.iconContent, "base64");
+      fs.writeFileSync(iconPath, iconBuffer);
+    }
+
+    this.processUploadFiles(request, appDir, paramValuesMap);
+
+    return request.applicationId;
+  }
+
+  private async loadAndValidateFramework(
+    request: IPostFrameworkCreateApplicationBody,
+  ): Promise<{
+    framework: IFramework;
+    baseApplication: any;
+    allParameters: IParameter[];
+  }> {
     const frameworkOpts: IReadFrameworkOptions = {
       error: new VEConfigurationError("", request.frameworkId),
     };
@@ -159,7 +227,6 @@ export class FrameworkLoader {
       frameworkOpts,
     );
 
-    // Load base application to get template list
     const appOpts: IReadApplicationOptions = {
       applicationHierarchy: [],
       error: new VEConfigurationError("", framework.extends),
@@ -170,9 +237,6 @@ export class FrameworkLoader {
       appOpts,
     );
 
-    // Get all parameters from base application to find parameter definitions
-    // No veContext needed - we only need parameter definitions, not execution
-    // TemplateProcessor expects ContextManager, not StorageContext
     const contextManager =
       this.storage instanceof ContextManager
         ? this.storage
@@ -188,12 +252,15 @@ export class FrameworkLoader {
       "installation",
     );
 
-    // Check if application already exists in local directory only
-    // Allow creating local applications even if the same ID exists in json directory
+    return { framework, baseApplication, allParameters };
+  }
+
+  private checkExistingApplication(
+    request: IPostFrameworkCreateApplicationBody,
+  ): void {
     const localAppNames = this.persistence.getLocalAppNames();
     if (localAppNames.has(request.applicationId)) {
       if (request.update) {
-        // In update mode, delete existing application directory first
         const existingAppPath = localAppNames.get(request.applicationId)!;
         fs.rmSync(existingAppPath, { recursive: true, force: true });
       } else {
@@ -203,23 +270,23 @@ export class FrameworkLoader {
         );
       }
     }
+  }
 
-    // Application directory will be created by writeApplication
-    const appDir = path.join(
-      this.pathes.localPath,
-      "applications",
-      request.applicationId,
-    );
-
-    // Build parameterValues map for quick lookup
-    const paramValuesMap = new Map<string, string | number | boolean>();
-    for (const pv of request.parameterValues) {
-      paramValuesMap.set(pv.id, pv.value);
-    }
-
-    // Separate properties into parameters (default: true) and outputs (others)
-    const templateParameters: IParameter[] = [];
-    const templateProperties: Array<{
+  /**
+   * Separates framework properties into parameters (default: true) and output properties.
+   * Also persists remaining parameterValues not listed in framework.properties.
+   */
+  private classifyFrameworkProperties(
+    framework: IFramework,
+    allParameters: IParameter[],
+    paramValuesMap: Map<string, string | number | boolean>,
+    applicationId: string,
+  ): {
+    parameters: IParameter[];
+    properties: Array<{ id: string; value: string | number | boolean }>;
+  } {
+    const parameters: IParameter[] = [];
+    const properties: Array<{
       id: string;
       value: string | number | boolean;
     }> = [];
@@ -228,12 +295,9 @@ export class FrameworkLoader {
       const propId = typeof prop === "string" ? prop : prop.id;
       const isDefault = typeof prop === "object" && prop.default === true;
 
-      // Find parameter definition from base application
       const paramDef = allParameters.find((p) => p.id === propId);
       const paramValue = paramValuesMap.get(propId);
 
-      // Special handling for docker-compose framework: ensure hostname is always added as parameter
-      // even if it's not marked as default, so it can be used with Application ID as default
       const shouldAddAsParameter =
         isDefault ||
         (framework.id === "docker-compose" &&
@@ -241,94 +305,79 @@ export class FrameworkLoader {
           paramDef);
 
       if (shouldAddAsParameter && paramDef) {
-        // Create parameter entry
-        const param: IParameter = {
-          ...paramDef,
-        };
+        const param: IParameter = { ...paramDef };
         if (
           paramValue !== undefined &&
           String(paramValue) !== String(paramDef.default)
         ) {
-          // Only store user value if it differs from template default.
-          // This ensures template default changes propagate to existing apps.
           param.default = paramValue;
         } else if (paramDef.default !== undefined) {
           param.default = paramDef.default;
         }
 
-        // Special handling for hostname: use Application ID as default if not provided
-        // This applies to both docker-compose and oci-image frameworks
         if (propId === "hostname") {
           if (
             framework.id === "docker-compose" ||
             framework.id === "oci-image"
           ) {
-            param.required = false; // Optional - Application ID can be used as default
-            // If hostname is not provided, use Application ID as default
+            param.required = false;
             if (paramValue === undefined && paramDef.default === undefined) {
-              param.default = request.applicationId;
+              param.default = applicationId;
             }
           }
         }
 
-        // Special handling for docker-compose framework:
-        // - compose_project should always be optional
-        if (framework.id === "docker-compose") {
-          if (propId === "compose_project") {
-            param.required = false;
-          }
+        if (framework.id === "docker-compose" && propId === "compose_project") {
+          param.required = false;
         }
 
-        templateParameters.push(param);
+        parameters.push(param);
       } else if (paramValue !== undefined) {
-        // For docker-compose framework: env_file is handled separately below (marker detection)
-        // Note: volumes is now marked as default:true in docker-compose.json,
-        // so it takes the shouldAddAsParameter path above and never reaches here.
-
-        // Create property/output entry
-        templateProperties.push({
-          id: propId,
-          value: paramValue,
-        });
+        properties.push({ id: propId, value: paramValue });
       }
     }
 
-    // Persist remaining parameterValues that match template parameters
-    // but aren't listed in framework.properties (e.g., memory, disk_size from Step 5).
-    // Only store values that differ from template defaults, so template updates propagate.
+    // Persist remaining parameterValues not listed in framework.properties
     const processedIds = new Set([
-      ...templateParameters.map((p) => p.id),
-      ...templateProperties.map((p) => p.id),
+      ...parameters.map((p) => p.id),
+      ...properties.map((p) => p.id),
     ]);
     for (const [paramId, paramValue] of paramValuesMap) {
       if (processedIds.has(paramId)) continue;
       const paramDef = allParameters.find((p) => p.id === paramId);
       if (paramDef && String(paramValue) !== String(paramDef.default)) {
-        templateParameters.push({ ...paramDef, default: paramValue });
+        parameters.push({ ...paramDef, default: paramValue });
       }
     }
 
-    // For docker-compose framework ONLY: store compose_file in application.json
-    // compose_file is base64-encoded and used as default at deployment (user doesn't need to re-upload)
-    // Note: For oci-image framework, compose_file is NOT stored (not needed)
+    return { parameters, properties };
+  }
+
+  /**
+   * Handles compose_file storage (docker-compose only) and env_file marker detection
+   * (docker-compose and oci-image).
+   */
+  private applyComposeAndEnvHandling(
+    framework: IFramework,
+    paramValuesMap: Map<string, string | number | boolean>,
+    allParameters: IParameter[],
+    parameters: IParameter[],
+    properties: Array<{ id: string; value: string | number | boolean }>,
+  ): void {
+    // docker-compose only: store compose_file in application.json
     if (framework.id === "docker-compose") {
       const composeFileValue = paramValuesMap.get("compose_file");
-
       if (composeFileValue && typeof composeFileValue === "string") {
-        const composeFileIndex = templateProperties.findIndex(
+        const composeFileIndex = properties.findIndex(
           (p) => p.id === "compose_file",
         );
-        if (composeFileIndex >= 0 && templateProperties[composeFileIndex]) {
-          templateProperties[composeFileIndex].value = composeFileValue;
+        if (composeFileIndex >= 0 && properties[composeFileIndex]) {
+          properties[composeFileIndex].value = composeFileValue;
         } else {
-          templateProperties.push({
-            id: "compose_file",
-            value: composeFileValue,
-          });
+          properties.push({ id: "compose_file", value: composeFileValue });
         }
 
-        // Also ensure it's in parameters if not already there
-        const composeParamIndex = templateParameters.findIndex(
+        const composeParamIndex = parameters.findIndex(
           (p) => p.id === "compose_file",
         );
         if (composeParamIndex < 0) {
@@ -336,100 +385,104 @@ export class FrameworkLoader {
             (p) => p.id === "compose_file",
           );
           if (composeParamDef) {
-            templateParameters.push({
-              ...composeParamDef,
-              default: composeFileValue,
-            });
+            parameters.push({ ...composeParamDef, default: composeFileValue });
           }
         }
       }
     }
 
-    // For docker-compose and oci-image frameworks: store env_file template and detect markers
-    // If env_file contains {{ }} markers, user must upload a new .env at deployment time
-    // If no markers, the stored template can be used directly
+    // docker-compose and oci-image: env_file marker detection
     if (framework.id === "docker-compose" || framework.id === "oci-image") {
       const envFileValue = paramValuesMap.get("env_file");
       if (envFileValue && typeof envFileValue === "string") {
-        // Decode base64 and check for {{ }} markers
         const envContent = Buffer.from(envFileValue, "base64").toString("utf8");
         const hasMarkers = /\{\{.*?\}\}/.test(envContent);
-
-        // Store marker flag as property (for dynamic required check at deployment)
         if (hasMarkers) {
-          templateProperties.push({
-            id: "env_file_has_markers",
-            value: "true",
-          });
+          properties.push({ id: "env_file_has_markers", value: "true" });
         }
-
-        // Store env_file template
-        templateProperties.push({ id: "env_file", value: envFileValue });
+        properties.push({ id: "env_file", value: envFileValue });
       }
     }
+  }
 
-    // For docker-compose and oci-image frameworks: ensure hostname is set as property if not provided
-    // Use Application ID as default so it can be passed to templates
-    if (framework.id === "docker-compose" || framework.id === "oci-image") {
-      const hostnameValue = paramValuesMap.get("hostname");
-      if (hostnameValue === undefined) {
-        // hostname not provided, use Application ID as default
-        const hostnamePropIndex = templateProperties.findIndex(
-          (p) => p.id === "hostname",
-        );
-        if (hostnamePropIndex < 0) {
-          templateProperties.push({
-            id: "hostname",
-            value: request.applicationId,
-          });
-        }
+  /**
+   * Ensures hostname is set as a property for docker-compose/oci-image frameworks
+   * when not explicitly provided, using the Application ID as default.
+   */
+  private ensureHostnameProperty(
+    framework: IFramework,
+    applicationId: string,
+    paramValuesMap: Map<string, string | number | boolean>,
+    properties: Array<{ id: string; value: string | number | boolean }>,
+  ): void {
+    if (framework.id !== "docker-compose" && framework.id !== "oci-image") {
+      return;
+    }
+    const hostnameValue = paramValuesMap.get("hostname");
+    if (hostnameValue === undefined) {
+      const hostnamePropIndex = properties.findIndex(
+        (p) => p.id === "hostname",
+      );
+      if (hostnamePropIndex < 0) {
+        properties.push({ id: "hostname", value: applicationId });
       }
     }
+  }
 
-    // Create application.json with parameters and properties directly embedded (new 1-file format)
-    // Note: Templates from the extended application (framework.extends) are automatically
-    // loaded through the 'extends' mechanism. We should NOT add them to the installation
-    // list again, as this would cause duplicates.
+  /**
+   * Builds the application.json object from framework data, parameters and properties.
+   */
+  private buildApplicationJson(
+    request: IPostFrameworkCreateApplicationBody,
+    baseApplication: any,
+    framework: IFramework,
+    parameters: IParameter[],
+    properties: Array<{ id: string; value: string | number | boolean }>,
+  ): any {
     const applicationJson: any = {
       name: request.name,
       description: request.description,
       extends: framework.extends,
       icon: request.icon || baseApplication.icon || "icon.png",
-      // Parameters defined directly in application.json (new approach - no separate template needed)
-      ...(templateParameters.length > 0 && { parameters: templateParameters }),
-      // Properties defined directly in application.json (new approach - no separate template needed)
-      ...(templateProperties.length > 0 && { properties: templateProperties }),
-      // Empty installation - all templates come from extended application
+      ...(parameters.length > 0 && { parameters }),
+      ...(properties.length > 0 && { properties }),
       installation: {},
     };
 
-    // Optional OCI / metadata fields: prefer request overrides, then framework, then base application
-    const url =
-      request.url ?? (framework as any).url ?? (baseApplication as any).url;
-    const documentation =
-      request.documentation ??
-      (framework as any).documentation ??
-      (baseApplication as any).documentation;
-    const source =
-      request.source ??
-      (framework as any).source ??
-      (baseApplication as any).source;
-    const vendor =
-      request.vendor ??
-      (framework as any).vendor ??
-      (baseApplication as any).vendor;
-
-    if (url) {
-      applicationJson.url = url;
-    }
-    if (documentation) {
-      applicationJson.documentation = documentation;
-    }
-    if (source) {
-      applicationJson.source = source;
-    }
-    if (vendor) {
-      applicationJson.vendor = vendor;
+    const metaFields: Array<{ key: string; value: any }> = [
+      {
+        key: "url",
+        value:
+          request.url ??
+          (framework as any).url ??
+          (baseApplication as any).url,
+      },
+      {
+        key: "documentation",
+        value:
+          request.documentation ??
+          (framework as any).documentation ??
+          (baseApplication as any).documentation,
+      },
+      {
+        key: "source",
+        value:
+          request.source ??
+          (framework as any).source ??
+          (baseApplication as any).source,
+      },
+      {
+        key: "vendor",
+        value:
+          request.vendor ??
+          (framework as any).vendor ??
+          (baseApplication as any).vendor,
+      },
+    ];
+    for (const { key, value } of metaFields) {
+      if (value) {
+        applicationJson[key] = value;
+      }
     }
     if (request.tags && request.tags.length > 0) {
       applicationJson.tags = request.tags;
@@ -438,128 +491,128 @@ export class FrameworkLoader {
       applicationJson.stacktype = request.stacktype;
     }
 
-    // Write application.json using persistence
-    // Note: We pass applicationJson without 'id' - it will be added when reading
-    // Type assertion needed because writeApplication expects IApplication, but we don't want to write 'id'
-    this.persistence.writeApplication(
-      request.applicationId,
-      applicationJson as any,
-    );
+    return applicationJson;
+  }
 
-    // Write icon if provided
-    if (request.iconContent) {
-      const iconPath = path.join(appDir, request.icon || "icon.png");
-      const iconBuffer = Buffer.from(request.iconContent, "base64");
-      fs.writeFileSync(iconPath, iconBuffer);
+  /**
+   * Processes upload files: creates template and script files for each uploaded file,
+   * then updates application.json with pre_start template references.
+   */
+  private processUploadFiles(
+    request: IPostFrameworkCreateApplicationBody,
+    appDir: string,
+    paramValuesMap: Map<string, string | number | boolean>,
+  ): void {
+    if (!request.uploadfiles || request.uploadfiles.length === 0) {
+      return;
     }
 
-    // Process uploadfiles: create template and script for each uploaded file
-    if (request.uploadfiles && request.uploadfiles.length > 0) {
-      const uploadTemplateNames: string[] = [];
+    const uploadTemplateNames: string[] = [];
 
-      for (let i = 0; i < request.uploadfiles.length; i++) {
-        const uploadFile = request.uploadfiles[i]!;
-        const fileLabel = this.getUploadFileLabel(uploadFile);
-        const sanitized = this.sanitizeFilename(fileLabel);
-        const templateName = `${i}-upload-${sanitized}`;
-        const scriptName = `${i}-upload-${sanitized}.sh`;
-        const contentParamId = `upload_${sanitized.replace(/-/g, "_")}_content`;
-        const destParamId = `upload_${sanitized.replace(/-/g, "_")}_destination`;
-        const outputId = `upload_${sanitized.replace(/-/g, "_")}_uploaded`;
+    for (let i = 0; i < request.uploadfiles.length; i++) {
+      const uploadFile = request.uploadfiles[i]!;
+      const fileLabel = this.getUploadFileLabel(uploadFile);
+      const sanitized = this.sanitizeFilename(fileLabel);
+      const templateName = `${i}-upload-${sanitized}`;
+      const scriptName = `${i}-upload-${sanitized}.sh`;
+      const contentParamId = `upload_${sanitized.replace(/-/g, "_")}_content`;
+      const destParamId = `upload_${sanitized.replace(/-/g, "_")}_destination`;
+      const outputId = `upload_${sanitized.replace(/-/g, "_")}_uploaded`;
 
-        // Merge content from parameterValues if not already on uploadFile
-        const fileContent =
-          uploadFile.content ??
-          (paramValuesMap.get(contentParamId) as string | undefined);
+      const fileContent =
+        uploadFile.content ??
+        (paramValuesMap.get(contentParamId) as string | undefined);
 
-        // Generate the template
-        const uploadTemplate = {
-          name: `Upload ${fileLabel}`,
-          description: `Uploads ${fileLabel} to ${uploadFile.destination}`,
-          execute_on: "ve",
-          skip_if_all_missing: [contentParamId],
-          parameters: [
-            {
-              id: contentParamId,
-              name: fileLabel,
-              type: "string",
-              upload: true,
-              ...(uploadFile.certtype ? { certtype: uploadFile.certtype } : {}),
-              required: uploadFile.required ?? false,
-              advanced: uploadFile.advanced ?? false,
-              description: `Configuration file: ${fileLabel}`,
-              ...(fileContent ? { default: fileContent } : {}),
-            },
-            {
-              id: destParamId,
-              name: "Destination Path",
-              type: "string",
-              default: uploadFile.destination,
-              advanced: true,
-              description: "Target path: {volume_key}:{filename}",
-            },
-            {
-              id: "shared_volpath",
-              name: "Shared Volume Path",
-              type: "string",
-              advanced: true,
-              description: "Path to the shared volume mount point",
-            },
-            {
-              id: "hostname",
-              name: "Hostname",
-              type: "string",
-              required: true,
-              description: "Container hostname",
-            },
-            {
-              id: "uid",
-              name: "UID",
-              type: "string",
-              default: "0",
-              advanced: true,
-              description: "User ID for file ownership",
-            },
-            {
-              id: "gid",
-              name: "GID",
-              type: "string",
-              default: "0",
-              advanced: true,
-              description: "Group ID for file ownership",
-            },
-            {
-              id: "mapped_uid",
-              name: "Mapped UID",
-              type: "string",
-              default: "",
-              advanced: true,
-              description: "Mapped user ID for unprivileged containers",
-            },
-            {
-              id: "mapped_gid",
-              name: "Mapped GID",
-              type: "string",
-              default: "",
-              advanced: true,
-              description: "Mapped group ID for unprivileged containers",
-            },
-          ],
-          commands: [
-            {
-              name: `Upload ${fileLabel}`,
-              script: scriptName,
-              library: "upload-file-common.sh",
-              outputs: [outputId],
-            },
-          ],
-        };
+      const uploadTemplate = {
+        name: `Upload ${fileLabel}`,
+        description: `Uploads ${fileLabel} to ${uploadFile.destination}`,
+        execute_on: "ve",
+        skip_if_all_missing: [contentParamId],
+        parameters: [
+          {
+            id: contentParamId,
+            name: fileLabel,
+            type: "string",
+            upload: true,
+            ...(uploadFile.certtype ? { certtype: uploadFile.certtype } : {}),
+            required: uploadFile.required ?? false,
+            advanced: uploadFile.advanced ?? false,
+            description: `Configuration file: ${fileLabel}`,
+            ...(fileContent ? { default: fileContent } : {}),
+          },
+          {
+            id: destParamId,
+            name: "Destination Path",
+            type: "string",
+            default: uploadFile.destination,
+            advanced: true,
+            description: "Target path: {volume_key}:{filename}",
+          },
+          {
+            id: "shared_volpath",
+            name: "Shared Volume Path",
+            type: "string",
+            advanced: true,
+            description: "Path to the shared volume mount point",
+          },
+          {
+            id: "hostname",
+            name: "Hostname",
+            type: "string",
+            required: true,
+            description: "Container hostname",
+          },
+          {
+            id: "uid",
+            name: "UID",
+            type: "string",
+            default: "0",
+            advanced: true,
+            description: "User ID for file ownership",
+          },
+          {
+            id: "gid",
+            name: "GID",
+            type: "string",
+            default: "0",
+            advanced: true,
+            description: "Group ID for file ownership",
+          },
+          {
+            id: "mapped_uid",
+            name: "Mapped UID",
+            type: "string",
+            default: "",
+            advanced: true,
+            description: "Mapped user ID for unprivileged containers",
+          },
+          {
+            id: "mapped_gid",
+            name: "Mapped GID",
+            type: "string",
+            default: "",
+            advanced: true,
+            description: "Mapped group ID for unprivileged containers",
+          },
+        ],
+        commands: [
+          {
+            name: `Upload ${fileLabel}`,
+            script: scriptName,
+            library: "upload-file-common.sh",
+            outputs: [outputId],
+          },
+        ],
+      };
 
-        // Write the template
-        this.persistence.writeTemplate(templateName, uploadTemplate as any, false, appDir);
+      this.persistence.writeTemplate(
+        templateName,
+        uploadTemplate as any,
+        false,
+        appDir,
+      );
 
-        // Generate the script
-        const scriptContent = `#!/bin/sh
+      const scriptContent = `#!/bin/sh
 # Upload file: ${fileLabel}
 # Auto-generated by create-application
 set -eu
@@ -577,34 +630,24 @@ upload_pre_start_file \\
 
 upload_output_result "${outputId}"
 `;
-        this.persistence.writeScript(scriptName, scriptContent, false, appDir);
-
-        uploadTemplateNames.push(`${templateName}.json`);
-      }
-
-      // Update application.json with pre_start templates
-      if (uploadTemplateNames.length > 0) {
-        const appJsonPath = path.join(appDir, "application.json");
-        const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
-
-        // Ensure installation.pre_start exists
-        if (!appJson.installation) {
-          appJson.installation = {};
-        }
-        if (!appJson.installation.pre_start) {
-          appJson.installation.pre_start = [];
-        }
-
-        // Add upload templates at the end of pre_start
-        for (const templateName of uploadTemplateNames) {
-          appJson.installation.pre_start.push(templateName);
-        }
-
-        fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2));
-      }
+      this.persistence.writeScript(scriptName, scriptContent, false, appDir);
+      uploadTemplateNames.push(`${templateName}.json`);
     }
 
-    return request.applicationId;
+    if (uploadTemplateNames.length > 0) {
+      const appJsonPath = path.join(appDir, "application.json");
+      const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
+      if (!appJson.installation) {
+        appJson.installation = {};
+      }
+      if (!appJson.installation.pre_start) {
+        appJson.installation.pre_start = [];
+      }
+      for (const templateName of uploadTemplateNames) {
+        appJson.installation.pre_start.push(templateName);
+      }
+      fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2));
+    }
   }
 
   /**

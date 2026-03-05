@@ -1,0 +1,473 @@
+import {
+  TaskType,
+  ICommand,
+  ITemplate,
+  IOutputObject,
+} from "@src/types.mjs";
+import { IApplication } from "@src/backend-types.mjs";
+import { PersistenceManager } from "@src/persistence/persistence-manager.mjs";
+
+/**
+ * Builds and inserts addon commands into the command pipeline.
+ * Handles pre_start/post_start phase placement, notes updates,
+ * and addon disable/removal flows.
+ */
+export class WebAppVeAddonCommandBuilder {
+  private pm: PersistenceManager;
+
+  constructor() {
+    this.pm = PersistenceManager.getInstance();
+  }
+
+  /**
+   * Maps task types to addon configuration keys.
+   */
+  private getAddonKeyForTask(
+    task: TaskType,
+  ): "installation" | "reconfigure" | "upgrade" | null {
+    switch (task) {
+      case "installation":
+        return "installation";
+      case "addon-reconfigure":
+        return "reconfigure";
+      case "copy-upgrade":
+      case "upgrade":
+        return "upgrade";
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Loads addon commands for a specific phase (pre_start or post_start).
+   * Returns an array of ICommand objects ready for execution.
+   */
+  private async loadAddonCommandsForPhase(
+    addonIds: string[],
+    task: TaskType,
+    phase: "pre_start" | "post_start",
+    application?: IApplication,
+  ): Promise<ICommand[]> {
+    const addonKey = this.getAddonKeyForTask(task);
+    if (!addonKey) {
+      return [];
+    }
+
+    const pm = this.pm;
+    const addonService = pm.getAddonService();
+    const repositories = pm.getRepositories();
+    const commands: ICommand[] = [];
+
+    for (const addonId of addonIds) {
+      let addon;
+      try {
+        addon = addonService.getAddon(addonId);
+      } catch {
+        console.warn(`Addon not found: ${addonId}, skipping`);
+        continue;
+      }
+
+      // Get templates for the phase from the appropriate addon key
+      let templateRefs;
+      if (addonKey === "upgrade") {
+        // upgrade is flat (only has one phase)
+        templateRefs = phase === "post_start" ? addon.upgrade : undefined;
+      } else {
+        // installation and reconfigure have nested structure
+        const addonConfig = addon[addonKey];
+        templateRefs = addonConfig?.[phase];
+      }
+
+      if (!templateRefs || templateRefs.length === 0) {
+        continue;
+      }
+
+      // Add addon properties as commands first (only for pre_start to avoid duplicates)
+      if (phase === "pre_start" && addon.properties && addon.properties.length > 0) {
+        const appProperties = application?.properties ?? [];
+        const resolvedProps: IOutputObject[] = addon.properties.map((prop) => {
+          // Check if application overrides this addon property
+          const appOverride = appProperties.find((p: IOutputObject) => p.id === prop.id);
+          const value = appOverride?.value !== undefined ? appOverride.value : prop.value;
+          return {
+            id: prop.id,
+            value: value as string | number | boolean,
+          };
+        });
+
+        // Auto-inject unprefixed aliases for shared scripts
+        // e.g. "ssl.addon_volumes" also injects "addon_volumes"
+        const aliasProps: IOutputObject[] = [];
+        for (const prop of resolvedProps) {
+          const dotIdx = String(prop.id).indexOf(".");
+          if (dotIdx > 0) {
+            const unprefixed = String(prop.id).substring(dotIdx + 1);
+            if (!resolvedProps.find((p) => p.id === unprefixed)) {
+              aliasProps.push({
+                id: unprefixed,
+                value: prop.value as string | number | boolean,
+              });
+            }
+          }
+        }
+        resolvedProps.push(...aliasProps);
+
+        const propertiesCommand: ICommand = {
+          name: `${addon.name} Properties`,
+          properties: resolvedProps,
+        };
+        commands.push(propertiesCommand);
+      }
+
+      // Load templates and build commands
+      // Map phase to template category directory
+      const categoryMap: Record<string, string> = {
+        pre_start: "pre_start",
+        post_start: "post_start",
+      };
+      const category = categoryMap[phase] ?? "root";
+
+      for (const templateRef of templateRefs) {
+        const templateName =
+          typeof templateRef === "string" ? templateRef : templateRef.name;
+
+        try {
+          const template = repositories.getTemplate({
+            name: templateName,
+            scope: "shared",
+            category,
+          }) as ITemplate | null;
+
+          if (template && template.commands) {
+            for (const cmd of template.commands) {
+              const command: ICommand = { ...cmd };
+
+              // Set command name from template name if missing (same logic as TemplateProcessor)
+              if (!command.name || command.name.trim() === "") {
+                command.name = template.name || templateName;
+              }
+
+              // Set execute_on from template if not on command
+              if (!command.execute_on && template.execute_on) {
+                command.execute_on = template.execute_on;
+              }
+
+              // Resolve script content (scripts are in same category subdirectory as templates)
+              if (cmd.script && !cmd.scriptContent) {
+                const scriptContent = repositories.getScript({
+                  name: cmd.script,
+                  scope: "shared",
+                  category,
+                });
+                if (scriptContent) {
+                  command.scriptContent = scriptContent;
+                }
+              }
+
+              // Resolve library content (libraries are in library/ subdirectory)
+              if (cmd.library && !cmd.libraryContent) {
+                const libraryContent = repositories.getScript({
+                  name: cmd.library,
+                  scope: "shared",
+                  category: "library",
+                });
+                if (libraryContent) {
+                  command.libraryContent = libraryContent;
+                }
+              }
+
+              commands.push(command);
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to load addon template ${templateName}:`, e);
+        }
+      }
+    }
+
+    return commands;
+  }
+
+  /**
+   * Adds notes update commands for all selected addons.
+   */
+  private addAddonNotesCommands(
+    commands: ICommand[],
+    addonIds: string[],
+    notesIndex: number
+  ): void {
+    const pm = this.pm;
+    const addonService = pm.getAddonService();
+    const repositories = pm.getRepositories();
+
+    const notesUpdateScript = repositories.getScript({
+      name: "host-update-lxc-notes-addon.py",
+      scope: "shared",
+      category: "post_start",
+    });
+    const notesUpdateLibrary = repositories.getScript({
+      name: "lxc_config_parser_lib.py",
+      scope: "shared",
+      category: "library",
+    });
+
+    if (notesUpdateScript && notesUpdateLibrary) {
+      for (const addonId of addonIds) {
+        let addon;
+        try {
+          addon = addonService.getAddon(addonId);
+        } catch {
+          continue;
+        }
+        // Properties command sets addon_id (must be separate from script command
+        // because VeExecution skips script execution for commands with properties)
+        commands.splice(notesIndex, 0,
+          {
+            name: `Set Addon ID: ${addon.name}`,
+            properties: [{ id: "addon_id", value: addonId }],
+          },
+          {
+            name: `Update LXC Notes with Addon: ${addon.name}`,
+            execute_on: "ve",
+            script: "host-update-lxc-notes-addon.py",
+            scriptContent: notesUpdateScript,
+            libraryContent: notesUpdateLibrary,
+            outputs: ["success"],
+          },
+        );
+        notesIndex += 2; // Advance past the two commands we just inserted
+      }
+    }
+  }
+
+  /**
+   * Finds the insertion index for addon commands based on phase.
+   * pre_start commands go BEFORE "Start LXC Container" (the start phase).
+   * post_start commands go AFTER the last post_start command (at the end before completion).
+   */
+  private findAddonInsertionIndex(
+    commands: ICommand[],
+    phase: "pre_start" | "post_start",
+  ): number {
+    if (phase === "pre_start") {
+      // Insert BEFORE "Start LXC Container" - this marks the start phase
+      for (let i = 0; i < commands.length; i++) {
+        const cmd = commands[i];
+        if (!cmd) continue;
+        const name = cmd.name || "";
+
+        // Look for the start phase marker
+        if (
+          name.includes("Start LXC Container") ||
+          name.includes("Start LXC") ||
+          name === "Start LXC Container"
+        ) {
+          return i;
+        }
+      }
+    }
+
+    // For post_start, or if no start marker found: append at the end
+    return commands.length;
+  }
+
+  /**
+   * Inserts addon commands at the correct position for the given phase.
+   */
+  async insertAddonCommands(
+    commands: ICommand[],
+    addonIds: string[],
+    task: TaskType,
+    application?: IApplication,
+  ): Promise<ICommand[]> {
+    if (addonIds.length === 0) {
+      return commands;
+    }
+
+    const result = [...commands];
+
+    // Load and insert pre_start commands
+    const preStartCommands = await this.loadAddonCommandsForPhase(
+      addonIds,
+      task,
+      "pre_start",
+      application,
+    );
+    if (preStartCommands.length > 0) {
+      const preStartIndex = this.findAddonInsertionIndex(result, "pre_start");
+     result.splice(preStartIndex, 0, ...preStartCommands);
+    }
+
+    // Load and insert post_start commands
+    const postStartCommands = await this.loadAddonCommandsForPhase(
+      addonIds,
+      task,
+      "post_start",
+      application,
+    );
+    if (postStartCommands.length > 0) {
+      const postStartIndex = this.findAddonInsertionIndex(result, "post_start");
+      result.splice(postStartIndex, 0, ...postStartCommands);
+    }
+
+    // Add notes update commands BEFORE "Start LXC Container" (pre_start position).
+    // Must run AFTER "Write LXC Notes" (from conf-create-configure-lxc) which is
+    // already in the result array before the addon commands are inserted.
+    if (preStartCommands.length > 0 || postStartCommands.length > 0) {
+      const notesIndex = this.findAddonInsertionIndex(result, "pre_start");
+      this.addAddonNotesCommands(result, addonIds, notesIndex);
+    }
+
+    return result;
+  }
+
+  /**
+   * Inserts addon disable commands and notes removal commands for disabled addons.
+   * Disable commands only use post_start phase (container is already running).
+   */
+  async insertAddonDisableCommands(
+    commands: ICommand[],
+    disabledAddonIds: string[],
+  ): Promise<ICommand[]> {
+    if (disabledAddonIds.length === 0) {
+      return commands;
+    }
+
+    const result = [...commands];
+    const pm = this.pm;
+    const addonService = pm.getAddonService();
+    const repositories = pm.getRepositories();
+    const disableCommands: ICommand[] = [];
+
+    for (const addonId of disabledAddonIds) {
+      let addon;
+      try {
+        addon = addonService.getAddon(addonId);
+      } catch {
+        console.warn(`Addon not found for disable: ${addonId}, skipping`);
+        continue;
+      }
+
+      const templateRefs = addon.disable?.post_start;
+      if (!templateRefs || templateRefs.length === 0) {
+        continue;
+      }
+
+      for (const templateRef of templateRefs) {
+        const templateName =
+          typeof templateRef === "string" ? templateRef : templateRef.name;
+
+        try {
+          const template = repositories.getTemplate({
+            name: templateName,
+            scope: "shared",
+            category: "post_start",
+          }) as ITemplate | null;
+
+          if (template && template.commands) {
+            for (const cmd of template.commands) {
+              const command: ICommand = { ...cmd };
+
+              if (!command.name || command.name.trim() === "") {
+                command.name = template.name || templateName;
+              }
+              if (!command.execute_on && template.execute_on) {
+                command.execute_on = template.execute_on;
+              }
+              if (cmd.script && !cmd.scriptContent) {
+                const scriptContent = repositories.getScript({
+                  name: cmd.script,
+                  scope: "shared",
+                  category: "post_start",
+                });
+                if (scriptContent) {
+                  command.scriptContent = scriptContent;
+                }
+              }
+              if (cmd.library && !cmd.libraryContent) {
+                const libraryContent = repositories.getScript({
+                  name: cmd.library,
+                  scope: "shared",
+                  category: "library",
+                });
+                if (libraryContent) {
+                  command.libraryContent = libraryContent;
+                }
+              }
+
+              disableCommands.push(command);
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to load addon disable template ${templateName}:`, e);
+        }
+      }
+    }
+
+    // Append disable commands at end (post_start position)
+    if (disableCommands.length > 0) {
+      result.push(...disableCommands);
+    }
+
+    // Add notes removal commands BEFORE "Start LXC Container" (pre_start position)
+    const removalNotesIndex = this.findAddonInsertionIndex(result, "pre_start");
+    this.addAddonNotesRemovalCommands(result, disabledAddonIds, removalNotesIndex);
+
+    return result;
+  }
+
+  /**
+   * Adds notes removal commands for disabled addons.
+   */
+  private addAddonNotesRemovalCommands(
+    commands: ICommand[],
+    addonIds: string[],
+    notesIndex: number,
+  ): void {
+    const pm = this.pm;
+    const addonService = pm.getAddonService();
+    const repositories = pm.getRepositories();
+
+    const notesUpdateScript = repositories.getScript({
+      name: "host-update-lxc-notes-addon.py",
+      scope: "shared",
+      category: "post_start",
+    });
+    const notesUpdateLibrary = repositories.getScript({
+      name: "lxc_config_parser_lib.py",
+      scope: "shared",
+      category: "library",
+    });
+
+    if (notesUpdateScript && notesUpdateLibrary) {
+      for (const addonId of addonIds) {
+        let addon;
+        try {
+          addon = addonService.getAddon(addonId);
+        } catch {
+          continue;
+        }
+        // Properties command sets addon_id and addon_action (must be separate from
+        // script command because VeExecution skips script execution for commands with properties)
+        commands.splice(notesIndex, 0,
+          {
+            name: `Set Addon ID for Removal: ${addon.name}`,
+            properties: [
+              { id: "addon_id", value: addonId },
+              { id: "addon_action", value: "remove" },
+            ],
+          },
+          {
+            name: `Remove Addon from Notes: ${addon.name}`,
+            execute_on: "ve",
+            script: "host-update-lxc-notes-addon.py",
+            scriptContent: notesUpdateScript,
+            libraryContent: notesUpdateLibrary,
+            outputs: ["success"],
+          },
+        );
+        notesIndex += 2;
+      }
+    }
+  }
+}

@@ -4,20 +4,17 @@ import {
   IPostVeConfigurationBody,
   IVeExecuteMessagesResponse,
   IJsonError,
-  ICommand,
-  ITemplate,
   IParameter,
-  IOutputObject,
 } from "@src/types.mjs";
 import { CertificateAuthorityService } from "@src/services/certificate-authority-service.mjs";
 import { WebAppVeMessageManager } from "./webapp-ve-message-manager.mjs";
 import { WebAppVeRestartManager } from "./webapp-ve-restart-manager.mjs";
 import { WebAppVeParameterProcessor } from "./webapp-ve-parameter-processor.mjs";
 import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
+import { WebAppVeAddonCommandBuilder } from "./webapp-ve-addon-command-builder.mjs";
+import { WebAppVeCertificateInjector } from "./webapp-ve-certificate-injector.mjs";
 import {
-  IApplication,
   IVEContext,
-  IVMContext,
   IVMInstallContext,
 } from "@src/backend-types.mjs";
 import { PersistenceManager } from "@src/persistence/persistence-manager.mjs";
@@ -35,6 +32,8 @@ import {
  */
 export class WebAppVeRouteHandlers {
   private pm: PersistenceManager;
+  private addonCommandBuilder: WebAppVeAddonCommandBuilder;
+  private certificateInjector: WebAppVeCertificateInjector;
 
   constructor(
     private messageManager: WebAppVeMessageManager,
@@ -43,6 +42,8 @@ export class WebAppVeRouteHandlers {
     private executionSetup: WebAppVeExecutionSetup,
   ) {
     this.pm = PersistenceManager.getInstance();
+    this.addonCommandBuilder = new WebAppVeAddonCommandBuilder();
+    this.certificateInjector = new WebAppVeCertificateInjector();
   }
 
   /**
@@ -195,7 +196,7 @@ export class WebAppVeRouteHandlers {
 
       if (selectedAddons.length > 0) {
 
-        commands = await this.insertAddonCommands(
+        commands = await this.addonCommandBuilder.insertAddonCommands(
           commands,
           selectedAddons,
           task as TaskType,
@@ -203,7 +204,7 @@ export class WebAppVeRouteHandlers {
         );
       }
       if (disabledAddons.length > 0) {
-        commands = await this.insertAddonDisableCommands(
+        commands = await this.addonCommandBuilder.insertAddonDisableCommands(
           commands,
           disabledAddons,
         );
@@ -293,7 +294,7 @@ export class WebAppVeRouteHandlers {
       }
 
       // Auto-generate certificate parameters for certtype params without user upload
-      this.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey);
+      this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey);
 
       // Start ProxmoxExecution
       const inputs = processedParams.map((p) => ({
@@ -314,7 +315,7 @@ export class WebAppVeRouteHandlers {
       );
 
       // Persist shared_volpath per VE context whenever it appears in outputs
-      exec.on("finished", (msg: IVMContext) => {
+      exec.on("finished", (msg: import("@src/backend-types.mjs").IVMContext) => {
         const sharedVolpath = msg.outputs?.shared_volpath;
         if (sharedVolpath && typeof sharedVolpath === "string") {
           const caService = new CertificateAuthorityService(storageContext);
@@ -625,515 +626,5 @@ export class WebAppVeRouteHandlers {
       restartKey,
       ...(vmInstallKey && { vmInstallKey }),
     };
-  }
-
-  /**
-   * Maps task types to addon configuration keys.
-   */
-  private getAddonKeyForTask(
-    task: TaskType,
-  ): "installation" | "reconfigure" | "upgrade" | null {
-    switch (task) {
-      case "installation":
-        return "installation";
-      case "addon-reconfigure":
-        return "reconfigure";
-      case "copy-upgrade":
-      case "upgrade":
-        return "upgrade";
-      default:
-        return null;
-    }
-  }
-
-  /**
-   * Loads addon commands for a specific phase (pre_start or post_start).
-   * Returns an array of ICommand objects ready for execution.
-   */
-  private async loadAddonCommandsForPhase(
-    addonIds: string[],
-    task: TaskType,
-    phase: "pre_start" | "post_start",
-    application?: IApplication,
-  ): Promise<ICommand[]> {
-    const addonKey = this.getAddonKeyForTask(task);
-    if (!addonKey) {
-      return [];
-    }
-
-    const pm = this.pm;
-    const addonService = pm.getAddonService();
-    const repositories = pm.getRepositories();
-    const commands: ICommand[] = [];
-
-    for (const addonId of addonIds) {
-      let addon;
-      try {
-        addon = addonService.getAddon(addonId);
-      } catch {
-        console.warn(`Addon not found: ${addonId}, skipping`);
-        continue;
-      }
-
-      // Get templates for the phase from the appropriate addon key
-      let templateRefs;
-      if (addonKey === "upgrade") {
-        // upgrade is flat (only has one phase)
-        templateRefs = phase === "post_start" ? addon.upgrade : undefined;
-      } else {
-        // installation and reconfigure have nested structure
-        const addonConfig = addon[addonKey];
-        templateRefs = addonConfig?.[phase];
-      }
-
-      if (!templateRefs || templateRefs.length === 0) {
-        continue;
-      }
-
-      // Add addon properties as commands first (only for pre_start to avoid duplicates)
-      if (phase === "pre_start" && addon.properties && addon.properties.length > 0) {
-        const appProperties = application?.properties ?? [];
-        const resolvedProps: IOutputObject[] = addon.properties.map((prop) => {
-          // Check if application overrides this addon property
-          const appOverride = appProperties.find((p: IOutputObject) => p.id === prop.id);
-          const value = appOverride?.value !== undefined ? appOverride.value : prop.value;
-          return {
-            id: prop.id,
-            value: value as string | number | boolean,
-          };
-        });
-
-        // Auto-inject unprefixed aliases for shared scripts
-        // e.g. "ssl.addon_volumes" also injects "addon_volumes"
-        const aliasProps: IOutputObject[] = [];
-        for (const prop of resolvedProps) {
-          const dotIdx = String(prop.id).indexOf(".");
-          if (dotIdx > 0) {
-            const unprefixed = String(prop.id).substring(dotIdx + 1);
-            if (!resolvedProps.find((p) => p.id === unprefixed)) {
-              aliasProps.push({
-                id: unprefixed,
-                value: prop.value as string | number | boolean,
-              });
-            }
-          }
-        }
-        resolvedProps.push(...aliasProps);
-
-        const propertiesCommand: ICommand = {
-          name: `${addon.name} Properties`,
-          properties: resolvedProps,
-        };
-        commands.push(propertiesCommand);
-      }
-
-      // Load templates and build commands
-      // Map phase to template category directory
-      const categoryMap: Record<string, string> = {
-        pre_start: "pre_start",
-        post_start: "post_start",
-      };
-      const category = categoryMap[phase] ?? "root";
-
-      for (const templateRef of templateRefs) {
-        const templateName =
-          typeof templateRef === "string" ? templateRef : templateRef.name;
-
-        try {
-          const template = repositories.getTemplate({
-            name: templateName,
-            scope: "shared",
-            category,
-          }) as ITemplate | null;
-
-          if (template && template.commands) {
-            for (const cmd of template.commands) {
-              const command: ICommand = { ...cmd };
-
-              // Set command name from template name if missing (same logic as TemplateProcessor)
-              if (!command.name || command.name.trim() === "") {
-                command.name = template.name || templateName;
-              }
-
-              // Set execute_on from template if not on command
-              if (!command.execute_on && template.execute_on) {
-                command.execute_on = template.execute_on;
-              }
-
-              // Resolve script content (scripts are in same category subdirectory as templates)
-              if (cmd.script && !cmd.scriptContent) {
-                const scriptContent = repositories.getScript({
-                  name: cmd.script,
-                  scope: "shared",
-                  category,
-                });
-                if (scriptContent) {
-                  command.scriptContent = scriptContent;
-                }
-              }
-
-              // Resolve library content (libraries are in library/ subdirectory)
-              if (cmd.library && !cmd.libraryContent) {
-                const libraryContent = repositories.getScript({
-                  name: cmd.library,
-                  scope: "shared",
-                  category: "library",
-                });
-                if (libraryContent) {
-                  command.libraryContent = libraryContent;
-                }
-              }
-
-              commands.push(command);
-            }
-          }
-        } catch (e) {
-          console.error(`Failed to load addon template ${templateName}:`, e);
-        }
-      }
-    }
-
-    return commands;
-  }
-
-  /**
-   * Adds notes update commands for all selected addons.
-   */
-  private addAddonNotesCommands(
-    commands: ICommand[],
-    addonIds: string[],
-    notesIndex: number
-  ): void {
-    const pm = this.pm;
-    const addonService = pm.getAddonService();
-    const repositories = pm.getRepositories();
-
-    const notesUpdateScript = repositories.getScript({
-      name: "host-update-lxc-notes-addon.py",
-      scope: "shared",
-      category: "post_start",
-    });
-    const notesUpdateLibrary = repositories.getScript({
-      name: "lxc_config_parser_lib.py",
-      scope: "shared",
-      category: "library",
-    });
-
-    if (notesUpdateScript && notesUpdateLibrary) {
-      for (const addonId of addonIds) {
-        let addon;
-        try {
-          addon = addonService.getAddon(addonId);
-        } catch {
-          continue;
-        }
-        // Properties command sets addon_id (must be separate from script command
-        // because VeExecution skips script execution for commands with properties)
-        commands.splice(notesIndex, 0,
-          {
-            name: `Set Addon ID: ${addon.name}`,
-            properties: [{ id: "addon_id", value: addonId }],
-          },
-          {
-            name: `Update LXC Notes with Addon: ${addon.name}`,
-            execute_on: "ve",
-            script: "host-update-lxc-notes-addon.py",
-            scriptContent: notesUpdateScript,
-            libraryContent: notesUpdateLibrary,
-            outputs: ["success"],
-          },
-        );
-        notesIndex += 2; // Advance past the two commands we just inserted
-      }
-    }
-  }
-
-  /**
-   * Finds the insertion index for addon commands based on phase.
-   * pre_start commands go BEFORE "Start LXC Container" (the start phase).
-   * post_start commands go AFTER the last post_start command (at the end before completion).
-   */
-  private findAddonInsertionIndex(
-    commands: ICommand[],
-    phase: "pre_start" | "post_start",
-  ): number {
-    if (phase === "pre_start") {
-      // Insert BEFORE "Start LXC Container" - this marks the start phase
-      for (let i = 0; i < commands.length; i++) {
-        const cmd = commands[i];
-        if (!cmd) continue;
-        const name = cmd.name || "";
-
-        // Look for the start phase marker
-        if (
-          name.includes("Start LXC Container") ||
-          name.includes("Start LXC") ||
-          name === "Start LXC Container"
-        ) {
-          return i;
-        }
-      }
-    }
-
-    // For post_start, or if no start marker found: append at the end
-    return commands.length;
-  }
-
-  /**
-   * Inserts addon commands at the correct position for the given phase.
-   */
-  async insertAddonCommands(
-    commands: ICommand[],
-    addonIds: string[],
-    task: TaskType,
-    application?: IApplication,
-  ): Promise<ICommand[]> {
-    if (addonIds.length === 0) {
-      return commands;
-    }
-
-    const result = [...commands];
-
-    // Load and insert pre_start commands
-    const preStartCommands = await this.loadAddonCommandsForPhase(
-      addonIds,
-      task,
-      "pre_start",
-      application,
-    );
-    if (preStartCommands.length > 0) {
-      const preStartIndex = this.findAddonInsertionIndex(result, "pre_start");
-     result.splice(preStartIndex, 0, ...preStartCommands);
-    }
-
-    // Load and insert post_start commands
-    const postStartCommands = await this.loadAddonCommandsForPhase(
-      addonIds,
-      task,
-      "post_start",
-      application,
-    );
-    if (postStartCommands.length > 0) {
-      const postStartIndex = this.findAddonInsertionIndex(result, "post_start");
-      result.splice(postStartIndex, 0, ...postStartCommands);
-    }
-
-    // Add notes update commands BEFORE "Start LXC Container" (pre_start position).
-    // Must run AFTER "Write LXC Notes" (from conf-create-configure-lxc) which is
-    // already in the result array before the addon commands are inserted.
-    if (preStartCommands.length > 0 || postStartCommands.length > 0) {
-      const notesIndex = this.findAddonInsertionIndex(result, "pre_start");
-      this.addAddonNotesCommands(result, addonIds, notesIndex);
-    }
-
-    return result;
-  }
-
-  /**
-   * Inserts addon disable commands and notes removal commands for disabled addons.
-   * Disable commands only use post_start phase (container is already running).
-   */
-  async insertAddonDisableCommands(
-    commands: ICommand[],
-    disabledAddonIds: string[],
-  ): Promise<ICommand[]> {
-    if (disabledAddonIds.length === 0) {
-      return commands;
-    }
-
-    const result = [...commands];
-    const pm = this.pm;
-    const addonService = pm.getAddonService();
-    const repositories = pm.getRepositories();
-    const disableCommands: ICommand[] = [];
-
-    for (const addonId of disabledAddonIds) {
-      let addon;
-      try {
-        addon = addonService.getAddon(addonId);
-      } catch {
-        console.warn(`Addon not found for disable: ${addonId}, skipping`);
-        continue;
-      }
-
-      const templateRefs = addon.disable?.post_start;
-      if (!templateRefs || templateRefs.length === 0) {
-        //console.log(`[AddonDebug] No disable templates for ${addonId}, skipping`);
-        continue;
-      }
-
-      for (const templateRef of templateRefs) {
-        const templateName =
-          typeof templateRef === "string" ? templateRef : templateRef.name;
-
-        try {
-          const template = repositories.getTemplate({
-            name: templateName,
-            scope: "shared",
-            category: "post_start",
-          }) as ITemplate | null;
-
-          if (template && template.commands) {
-            for (const cmd of template.commands) {
-              const command: ICommand = { ...cmd };
-
-              if (!command.name || command.name.trim() === "") {
-                command.name = template.name || templateName;
-              }
-              if (!command.execute_on && template.execute_on) {
-                command.execute_on = template.execute_on;
-              }
-              if (cmd.script && !cmd.scriptContent) {
-                const scriptContent = repositories.getScript({
-                  name: cmd.script,
-                  scope: "shared",
-                  category: "post_start",
-                });
-                if (scriptContent) {
-                  command.scriptContent = scriptContent;
-                }
-              }
-              if (cmd.library && !cmd.libraryContent) {
-                const libraryContent = repositories.getScript({
-                  name: cmd.library,
-                  scope: "shared",
-                  category: "library",
-                });
-                if (libraryContent) {
-                  command.libraryContent = libraryContent;
-                }
-              }
-
-              disableCommands.push(command);
-            }
-          }
-        } catch (e) {
-          console.error(`Failed to load addon disable template ${templateName}:`, e);
-        }
-      }
-    }
-
-    // Append disable commands at end (post_start position)
-    if (disableCommands.length > 0) {
-      result.push(...disableCommands);
-    }
-
-    // Add notes removal commands BEFORE "Start LXC Container" (pre_start position)
-    const removalNotesIndex = this.findAddonInsertionIndex(result, "pre_start");
-    this.addAddonNotesRemovalCommands(result, disabledAddonIds, removalNotesIndex);
-
-    return result;
-  }
-
-  /**
-   * Adds notes removal commands for disabled addons.
-   */
-  private addAddonNotesRemovalCommands(
-    commands: ICommand[],
-    addonIds: string[],
-    notesIndex: number,
-  ): void {
-    const pm = this.pm;
-    const addonService = pm.getAddonService();
-    const repositories = pm.getRepositories();
-
-    const notesUpdateScript = repositories.getScript({
-      name: "host-update-lxc-notes-addon.py",
-      scope: "shared",
-      category: "post_start",
-    });
-    const notesUpdateLibrary = repositories.getScript({
-      name: "lxc_config_parser_lib.py",
-      scope: "shared",
-      category: "library",
-    });
-
-    if (notesUpdateScript && notesUpdateLibrary) {
-      for (const addonId of addonIds) {
-        let addon;
-        try {
-          addon = addonService.getAddon(addonId);
-        } catch {
-          continue;
-        }
-        // Properties command sets addon_id and addon_action (must be separate from
-        // script command because VeExecution skips script execution for commands with properties)
-        commands.splice(notesIndex, 0,
-          {
-            name: `Set Addon ID for Removal: ${addon.name}`,
-            properties: [
-              { id: "addon_id", value: addonId },
-              { id: "addon_action", value: "remove" },
-            ],
-          },
-          {
-            name: `Remove Addon from Notes: ${addon.name}`,
-            execute_on: "ve",
-            script: "host-update-lxc-notes-addon.py",
-            scriptContent: notesUpdateScript,
-            libraryContent: notesUpdateLibrary,
-            outputs: ["success"],
-          },
-        );
-        notesIndex += 2;
-      }
-    }
-  }
-
-  /**
-   * Injects cert_requests, ca_key_b64, ca_cert_b64 into processedParams
-   * when certtype parameters exist and user didn't upload their own certs.
-   */
-  private injectCertificateRequests(
-    processedParams: Array<{ id: string; value: string | number | boolean }>,
-    loadedParameters: IParameter[],
-    contextManager: import("@src/context-manager.mjs").ContextManager,
-    veContextKey: string,
-  ): void {
-    // SSL is enabled whenever certtype parameters are present (from SSL addon)
-    const certParams = loadedParameters.filter((p) => p.certtype && p.upload);
-    if (certParams.length === 0) return;
-
-    const inputMap = new Map(processedParams.map((p) => [p.id, p.value]));
-    const certLines: string[] = [];
-
-    for (const param of certParams) {
-      const userValue = inputMap.get(param.id);
-      const hasValue = userValue && userValue !== "" && String(userValue) !== "NOT_DEFINED";
-      if (hasValue) continue; // User uploaded own cert
-
-      const volumeKey = this.resolveVolumeKeyForCert(param, processedParams);
-      certLines.push(`${param.id}|${param.certtype}|${volumeKey}`);
-    }
-
-    if (certLines.length > 0) {
-      const caService = new CertificateAuthorityService(contextManager);
-      const ca = caService.ensureCA(veContextKey);
-      processedParams.push({ id: "cert_requests", value: certLines.join("\n") });
-      processedParams.push({ id: "ca_key_b64", value: ca.key });
-      processedParams.push({ id: "ca_cert_b64", value: ca.cert });
-      processedParams.push({ id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) });
-    }
-  }
-
-  /**
-   * Resolves the volume key for a cert parameter.
-   * Looks at parameter ID pattern for volume hints, defaults to "secret".
-   */
-  private resolveVolumeKeyForCert(
-    param: IParameter,
-    processedParams: Array<{ id: string; value: string | number | boolean }>,
-  ): string {
-    // Use ssl.certs_dir if available (format: "volume_key[:subdirectory]")
-    const certsDir = processedParams.find((p) => p.id === "ssl.certs_dir")?.value;
-    if (certsDir && String(certsDir) !== "" && String(certsDir) !== "NOT_DEFINED") {
-      return String(certsDir).split(":")[0] ?? "certs"; // Volume key part
-    }
-    // Fallback: heuristic based on parameter ID
-    const id = param.id || "";
-    if (id.includes("certs")) return "certs";
-    if (id.includes("secret")) return "secret";
-    if (id.includes("ssl") || id.includes("tls")) return "certs";
-    return "secret";
   }
 }
