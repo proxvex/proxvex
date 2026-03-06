@@ -67,15 +67,17 @@ export class RemoteCli {
       // Addons may not be available
     }
 
-    // 5. Fetch stacks
+    // 5. Fetch stacks and detect stacktype
     let stacks: IStack[] = [];
+    let appStacktype: string | undefined;
     try {
       const apps = await this.client.getApplications();
       const app = apps.find(
         (a) => a.name === this.options.application || a.id === this.options.application,
       );
-      if (app?.stacktype) {
-        const stacksResp = await this.client.getStacks(app.stacktype);
+      appStacktype = app?.stacktype;
+      if (appStacktype) {
+        const stacksResp = await this.client.getStacks(appStacktype);
         stacks = stacksResp.stacks;
       }
     } catch {
@@ -84,7 +86,7 @@ export class RemoteCli {
 
     // 6a. Generate template mode
     if (this.options.generateTemplate) {
-      await this.generateTemplate(parameterDefs, addons, stacks);
+      await this.generateTemplate(parameterDefs, addons, stacks, appStacktype);
       return;
     }
 
@@ -101,6 +103,13 @@ export class RemoteCli {
     // 7. Process file uploads
     const processedParams = this.processFileUploads(paramsInput.params);
 
+    // 7b. Auto-resolve stack if app has stacktype
+    const resolvedStackId = await this.resolveStack(
+      paramsInput.stackId,
+      appStacktype,
+      stacks,
+    );
+
     // 8. Validate
     const validationResult = await this.client.postValidateParameters(
       veContext,
@@ -109,7 +118,7 @@ export class RemoteCli {
       {
         params: processedParams,
         ...(paramsInput.addons ? { selectedAddons: paramsInput.addons } : {}),
-        ...(paramsInput.stackId ? { stackId: paramsInput.stackId } : {}),
+        ...(resolvedStackId ? { stackId: resolvedStackId } : {}),
       },
     );
 
@@ -136,7 +145,7 @@ export class RemoteCli {
       {
         params: processedParams,
         ...(paramsInput.addons ? { selectedAddons: paramsInput.addons } : {}),
-        ...(paramsInput.stackId ? { stackId: paramsInput.stackId } : {}),
+        ...(resolvedStackId ? { stackId: resolvedStackId } : {}),
       },
     );
 
@@ -186,6 +195,7 @@ export class RemoteCli {
     parameterDefs: IParameter[],
     addons: IAddonWithParameters[],
     stacks: IStack[],
+    stacktype?: string,
   ): Promise<void> {
     const generator = new CliTemplateGenerator();
     const template = generator.generate({
@@ -194,6 +204,7 @@ export class RemoteCli {
       parameters: parameterDefs,
       addons,
       stacks,
+      ...(stacktype ? { stacktype } : {}),
     });
 
     const json = JSON.stringify(template, null, 2) + "\n";
@@ -206,6 +217,57 @@ export class RemoteCli {
     } else {
       process.stdout.write(json);
     }
+  }
+
+  private async resolveStack(
+    requestedStackId: string | undefined,
+    appStacktype: string | undefined,
+    existingStacks: IStack[],
+  ): Promise<string | undefined> {
+    if (!appStacktype) return requestedStackId;
+
+    if (requestedStackId) {
+      // Check if the requested stack exists
+      const exists = existingStacks.some(
+        (s) => s.id === requestedStackId || s.name === requestedStackId,
+      );
+      if (exists) return requestedStackId;
+
+      // Auto-create the requested stack
+      if (!this.options.quiet) {
+        process.stderr.write(
+          `Stack '${requestedStackId}' not found. Creating stack '${requestedStackId}' (type: ${appStacktype})...\n`,
+        );
+      }
+      await this.client.postCreateStack({
+        name: requestedStackId,
+        stacktype: appStacktype,
+      });
+      return requestedStackId;
+    }
+
+    // No stackId given — use existing or create default
+    if (existingStacks.length > 0) {
+      const stack = existingStacks[0]!;
+      const stackId = stack.id || stack.name;
+      if (!this.options.quiet) {
+        process.stderr.write(`Using existing stack '${stackId}'.\n`);
+      }
+      return stackId;
+    }
+
+    // No stacks exist — create "default"
+    const defaultName = "default";
+    if (!this.options.quiet) {
+      process.stderr.write(
+        `No stacks found. Creating stack '${defaultName}' (type: ${appStacktype})...\n`,
+      );
+    }
+    await this.client.postCreateStack({
+      name: defaultName,
+      stacktype: appStacktype,
+    });
+    return defaultName;
   }
 
   private readParametersFile(filePath: string): {
