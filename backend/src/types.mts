@@ -94,7 +94,7 @@ export interface ICommand {
   libraryPath?: string; // Internal: resolved full path to library file
   template?: string;
   properties?: IOutputObject | IOutputObject[];
-  outputs?: ({ id: string; default?: boolean } | string)[]; // Expected outputs from this command/script
+  outputs?: ({ id: string; default?: boolean; optional?: boolean } | string)[]; // Expected outputs from this command/script
   description?: string;
   /** @internal execute_on is set internally from template.execute_on, not part of the schema */
   execute_on?: "ve" | "lxc" | string;

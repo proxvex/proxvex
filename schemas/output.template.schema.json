@@ -6,7 +6,12 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "default": { "type": "boolean" }
+        "default": { "type": "boolean" },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "Optional output: may or may not be produced at runtime. Allows the same output ID to be set by another template without conflict."
+        }
       },
       "required": ["id"],
       "additionalProperties": false

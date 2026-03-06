@@ -24,7 +24,8 @@
     "prepack": "pnpm sync-dependencies"
   },
   "bin": {
-    "oci-lxc-deployer": "backend/dist/oci-lxc-deployer.mjs"
+    "oci-lxc-deployer": "backend/dist/oci-lxc-deployer.mjs",
+    "oci-lxc-cli": "backend/dist/cli/oci-lxc-cli.mjs"
   },
   "files": [
     "backend/dist",

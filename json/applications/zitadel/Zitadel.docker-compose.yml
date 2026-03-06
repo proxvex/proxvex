@@ -2,11 +2,13 @@ services:
   zitadel:
     image: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-latest}
     restart: unless-stopped
-    command: 'start-from-init --masterkey "{{ ZITADEL_MASTERKEY }}" --tlsMode disabled'
+    command: 'start-from-init --masterkey "{{ ZITADEL_MASTERKEY }}" --tlsMode ${ZITADEL_TLS_MODE:-disabled}'
     environment:
       ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-localhost}
       ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
       ZITADEL_EXTERNALPORT: ${ZITADEL_PORT:-8080}
+      ZITADEL_TLS_CERTPATH: /certs/fullchain.pem
+      ZITADEL_TLS_KEYPATH: /certs/privkey.pem
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
       ZITADEL_DATABASE_POSTGRES_PORT: 5432
       ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DB:-zitadel}
