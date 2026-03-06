@@ -169,6 +169,17 @@ export class CliApiClient {
     );
   }
 
+  async postCreateStack(body: {
+    name: string;
+    stacktype: string;
+    entries?: { name: string; value: string | number | boolean }[];
+  }): Promise<{ success: boolean; key: string }> {
+    return this.request("POST", "/api/stacks", {
+      ...body,
+      entries: body.entries ?? [],
+    });
+  }
+
   async getExecuteMessages(
     veCtx: string,
   ): Promise<IVeExecuteMessagesResponse> {

@@ -134,4 +134,34 @@ describe("CliTemplateGenerator", () => {
     const parsed = JSON.parse(json);
     expect(parsed.params).toHaveLength(1);
   });
+
+  it("should add $stackComment when stacktype exists but no stacks", () => {
+    const result = generator.generate({
+      application: "zitadel",
+      task: "installation",
+      parameters: [],
+      addons: [],
+      stacks: [],
+      stacktype: "postgres",
+    }) as any;
+
+    expect(result.$stackComment).toContain("postgres");
+    expect(result.$stackComment).toContain("default");
+    expect(result.$stackComment).toContain("custom name");
+    expect(result.availableStacks).toEqual([]);
+  });
+
+  it("should not add $stackComment when stacks exist", () => {
+    const result = generator.generate({
+      application: "zitadel",
+      task: "installation",
+      parameters: [],
+      addons: [],
+      stacks: [{ id: "pg-prod", name: "Production" } as any],
+      stacktype: "postgres",
+    }) as any;
+
+    expect(result.$stackComment).toBeUndefined();
+    expect(result.availableStacks).toHaveLength(1);
+  });
 });
