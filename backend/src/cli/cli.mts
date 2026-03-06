@@ -90,15 +90,17 @@ export class RemoteCli {
       return;
     }
 
-    // 6b. Execute mode — read parameters file
-    if (!this.options.parametersFile) {
-      throw new CliError(
-        "Parameters file required. Use --generate-template to create one.",
-        1,
-      );
-    }
+    // 6b. Execute mode — read parameters file (optional, defaults to empty params)
+    const paramsInput = this.options.parametersFile
+      ? this.readParametersFile(this.options.parametersFile)
+      : { params: [] };
 
-    const paramsInput = this.readParametersFile(this.options.parametersFile);
+    // 6c. Fill in defaults for missing parameters
+    for (const def of parameterDefs) {
+      if (def.default !== undefined && !paramsInput.params.some((p) => p.name === def.id)) {
+        paramsInput.params.push({ name: def.id, value: def.default });
+      }
+    }
 
     // 7. Process file uploads
     const processedParams = this.processFileUploads(paramsInput.params);
@@ -161,6 +163,7 @@ export class RemoteCli {
     const progress = new CliProgress(this.client, veContext, {
       quiet: this.options.quiet ?? false,
       json: this.options.json ?? false,
+      verbose: this.options.verbose ?? false,
       timeout: this.options.timeout,
     });
 
@@ -294,9 +297,10 @@ export class RemoteCli {
     }
 
     // Strip $-prefixed metadata fields from params
+    // Support both "name" and "id" keys (generate-template outputs "id")
     const params = parsed.params.map(
       (p: Record<string, unknown>) => ({
-        name: p.name as string,
+        name: (p.name ?? p.id) as string,
         value: p.value as IParameterValue,
       }),
     );

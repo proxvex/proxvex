@@ -312,6 +312,12 @@ find_free_partition() {
       continue
     fi
 
+    # Skip partitions smaller than 100MB (e.g. BIOS boot partition)
+    _size_bytes=$(blockdev --getsize64 "$dev" 2>/dev/null || echo 0)
+    if [ "$_size_bytes" -lt 104857600 ]; then
+      continue
+    fi
+
     # Check if it has a filesystem
     _fstype=$(blkid -o value -s TYPE "$dev" 2>/dev/null || true)
 

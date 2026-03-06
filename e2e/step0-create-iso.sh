@@ -235,7 +235,7 @@ elif [ "$FILESYSTEM" = "ext4" ]; then
 
 [disk-setup.lvm]
 swapsize = $SWAP_SIZE
-maxroot = 10
+maxroot = 30
 EOF
 fi
 

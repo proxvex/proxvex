@@ -154,6 +154,7 @@ LXC_GID=1001
 # Static IP configuration (optional)
 static_ip=""
 static_gw=""
+nameserver=""
 
 # External URL for deployer (optional, for NAT/port-forwarding scenarios)
 deployer_url=""
@@ -171,6 +172,7 @@ while [ "$#" -gt 0 ]; do
     --storage) storage="$2"; shift 2 ;;
     --static-ip) static_ip="$2"; shift 2 ;;
     --gateway) static_gw="$2"; shift 2 ;;
+    --nameserver) nameserver="$2"; shift 2 ;;
     --deployer-url) deployer_url="$2"; shift 2 ;;
     --help|-h)
       cat >&2 <<USAGE
@@ -189,6 +191,7 @@ Options:
   --storage <name>      Proxmox storage for OCI image. Default: local
   --static-ip <IP/CIDR> Static IP address (e.g., 10.0.0.100/24). Default: DHCP
   --gateway <IP>        Gateway IP address (required if --static-ip is used)
+  --nameserver <IP>     DNS nameserver (e.g., 10.0.0.1). Optional, defaults to host resolv.conf
   --deployer-url <URL>  External URL for deployer (e.g., http://pve1:3080 for NAT setups)
 
 Notes:
@@ -438,7 +441,9 @@ if [ -n "$static_ip" ]; then
     "static_gw=${static_gw}" \
     "static_ip6=" \
     "static_gw6=" \
-    "bridge=${bridge}" >/dev/null
+    "bridge=${bridge}" \
+    "nameserver4=${nameserver}" \
+    "nameserver6=" >/dev/null
   echo "  Static IP configured: ${static_ip} (gateway: ${static_gw})" >&2
 fi
 

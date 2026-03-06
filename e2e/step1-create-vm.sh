@@ -431,12 +431,22 @@ dhcp-option=option:dns-server,10.0.0.1,8.8.8.8
 local=/e2e.local/
 domain=e2e.local
 expand-hosts
+# Explicit upstream DNS (don't read /etc/resolv.conf which points to ourselves)
+no-resolv
+server=8.8.8.8
+server=8.8.4.4
 DNSEOF
 
     systemctl enable dnsmasq
     systemctl restart dnsmasq
+
+    # Update host resolv.conf to use local dnsmasq as primary DNS.
+    # This ensures containers with static IP (which inherit the host's resolv.conf)
+    # can resolve other container hostnames via dnsmasq expand-hosts.
+    echo 'nameserver 10.0.0.1' > /etc/resolv.conf
+    echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
 " || error "Failed to configure dnsmasq"
-success "DHCP server configured on vmbr1 (10.0.0.100-200)"
+success "DHCP server configured on vmbr1 (10.0.0.100-200, DNS: 10.0.0.1)"
 
 # Step 10e: Reboot nested VM to apply kernel upgrade + load modules
 header "Rebooting Nested VM"

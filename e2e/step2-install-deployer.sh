@@ -176,12 +176,12 @@ if [ -f "$LOCAL_INSTALL_SCRIPT" ] && [ -d "$LOCAL_SHARED_SCRIPTS" ]; then
     info "Running installation script with OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH..."
     # Run local script with custom parameters and local scripts path
     nested_ssh "chmod +x /tmp/install-oci-lxc-deployer.sh && \
-        OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH /tmp/install-oci-lxc-deployer.sh --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script failed"
+        OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH /tmp/install-oci-lxc-deployer.sh --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script failed"
 else
     info "Running installation script from GitHub with OWNER=$OWNER OCI_OWNER=$OCI_OWNER..."
     # Fallback: Download and run from GitHub
     nested_ssh "curl -sSL https://raw.githubusercontent.com/$OWNER/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | \
-        OWNER=$OWNER OCI_OWNER=$OCI_OWNER bash -s -- --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script from GitHub failed"
+        OWNER=$OWNER OCI_OWNER=$OCI_OWNER bash -s -- --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script from GitHub failed"
 fi
 
 success "Installation script completed"
@@ -421,6 +421,7 @@ if [ "$UPDATE_ONLY" != "true" ]; then
     done
     pve_ssh "qm status $TEST_VMID 2>/dev/null | grep -q stopped" 2>/dev/null \
         || error "VM $TEST_VMID did not shut down cleanly — cannot create reliable snapshot"
+    pve_ssh "qm delsnapshot $TEST_VMID deployer-installed 2>/dev/null || true"
     pve_ssh "qm snapshot $TEST_VMID deployer-installed --description 'Nested VM with oci-lxc-deployer after step2'"
     success "Snapshot 'deployer-installed' created"
     pve_ssh "qm start $TEST_VMID"

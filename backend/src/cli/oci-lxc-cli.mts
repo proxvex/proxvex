@@ -26,6 +26,7 @@ interface ParsedArgs {
   templateOutput?: string;
   quiet?: boolean;
   jsonOutput?: boolean;
+  verbose?: boolean;
   timeout?: number;
 }
 
@@ -88,6 +89,9 @@ function parseArgs(): ParsedArgs {
         }
       } else if (arg === "--quiet") {
         args.quiet = true;
+        i += 1;
+      } else if (arg === "--verbose" || arg === "-v") {
+        args.verbose = true;
         i += 1;
       } else if (arg === "--json") {
         args.jsonOutput = true;
@@ -205,6 +209,7 @@ async function runRemoteCommand(args: ParsedArgs): Promise<void> {
   if (args.templateOutput) options.templateOutput = args.templateOutput;
   if (args.quiet) options.quiet = args.quiet;
   if (args.jsonOutput) options.json = args.jsonOutput;
+  if (args.verbose) options.verbose = args.verbose;
 
   const cli = new RemoteCli(options);
   await cli.run();
@@ -229,7 +234,7 @@ function printHelp(): void {
   console.log("");
   console.log("Remote command:");
   console.log(
-    "  oci-lxc-cli remote --ve <host> <application> <task> [parameters.json]",
+    "  oci-lxc-cli remote --ve <host> <application> <task> [parameters.json]  (defaults used if omitted)",
   );
   console.log(
     "  oci-lxc-cli remote --ve <host> <application> <task> --generate-template [output.json]",
@@ -240,6 +245,7 @@ function printHelp(): void {
   console.log("  --token <token>           API token (env: OCI_DEPLOYER_TOKEN)");
   console.log("  --insecure                Skip TLS certificate verification");
   console.log("  --generate-template [f]   Generate parameters.json template and exit");
+  console.log("  --verbose, -v             Show full script content in progress output");
   console.log("  --quiet                   Minimal output, final JSON result only");
   console.log("  --json                    All progress as JSON lines");
   console.log("  --timeout <seconds>       Max execution time (default: 1800)");

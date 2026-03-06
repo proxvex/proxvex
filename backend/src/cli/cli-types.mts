@@ -10,6 +10,7 @@ export interface CliOptions {
   templateOutput?: string;
   quiet?: boolean;
   json?: boolean;
+  verbose?: boolean;
   timeout: number;
 }
 

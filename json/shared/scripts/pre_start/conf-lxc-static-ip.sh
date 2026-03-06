@@ -32,11 +32,15 @@ static_ip6="{{ static_ip6 }}"
 static_gw="{{ static_gw }}"
 static_gw6="{{ static_gw6 }}"
 bridge="{{ bridge }}"
+nameserver4="{{ nameserver4 }}"
+nameserver6="{{ nameserver6 }}"
 [ "$static_ip" = "NOT_DEFINED" ] && static_ip=""
 [ "$static_ip6" = "NOT_DEFINED" ] && static_ip6=""
 [ "$static_gw" = "NOT_DEFINED" ] && static_gw=""
 [ "$static_gw6" = "NOT_DEFINED" ] && static_gw6=""
 [ "$bridge" = "NOT_DEFINED" ] && bridge=""
+[ "$nameserver4" = "NOT_DEFINED" ] && nameserver4=""
+[ "$nameserver6" = "NOT_DEFINED" ] && nameserver6=""
 
 # Auto-detect static IP usage
 if [ -z "$static_ip" ] && [ -z "$static_ip6" ]; then
@@ -175,6 +179,19 @@ if [ $RC -ne 0 ]; then
   echo "Failed to set network configuration!" >&2
   output_result "false" ""
   exit $RC
+fi
+
+# Set DNS nameserver(s) if provided
+nameservers=""
+if [ -n "$nameserver4" ]; then
+  nameservers="$nameserver4"
+fi
+if [ -n "$nameserver6" ]; then
+  nameservers="${nameservers:+$nameservers }$nameserver6"
+fi
+if [ -n "$nameservers" ]; then
+  pct set {{ vm_id }} --nameserver "$nameservers" >&2
+  echo "DNS nameserver set: $nameservers" >&2
 fi
 
 echo "Network configuration updated for VM {{ vm_id }}." >&2

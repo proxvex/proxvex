@@ -86,6 +86,15 @@ if [ -n "{{ arch }}" ] && [ "{{ arch }}" != "NOT_DEFINED" ]; then
   echo "Using architecture: {{ arch }}" >&2
 fi
 
+# Pass the host's primary nameserver so Proxmox writes /etc/resolv.conf.
+# OCI containers have no DHCP client, so ip=dhcp alone won't set DNS.
+HOST_NS=$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf 2>/dev/null || true)
+NS_ARG=""
+if [ -n "$HOST_NS" ]; then
+  NS_ARG="--nameserver $HOST_NS"
+  echo "Using host nameserver: $HOST_NS" >&2
+fi
+
 # Create the container
 # Note: The error "newuidmap: uid range [0-65536) -> [100000-165536) not allowed"
 # occurs because Proxmox tries to use idmap during template extraction.
@@ -99,6 +108,7 @@ pct create "$VMID" "$TEMPLATE_PATH" \
   --ostype "{{ ostype }}" \
   --unprivileged 1 \
   --onboot 1 \
+  $NS_ARG \
   $ARCH_ARG >&2
 RC=$? 
 if [ $RC -ne 0 ]; then

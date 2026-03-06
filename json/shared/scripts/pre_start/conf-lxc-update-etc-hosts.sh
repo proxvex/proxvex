@@ -25,6 +25,9 @@ HOSTS_FILE="/etc/hosts"
 HN="{{ hostname }}"
 IP4="{{ static_ip }}"
 IP6="{{ static_ip6 }}"
+[ "$HN" = "NOT_DEFINED" ] && HN=""
+[ "$IP4" = "NOT_DEFINED" ] && IP4=""
+[ "$IP6" = "NOT_DEFINED" ] && IP6=""
 
 if [ -z "$HN" ]; then
   echo "No hostname provided" >&2

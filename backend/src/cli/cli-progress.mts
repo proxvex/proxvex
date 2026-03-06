@@ -5,6 +5,7 @@ import { TimeoutError, ExecutionFailedError } from "./cli-types.mjs";
 export interface ProgressOptions {
   quiet?: boolean;
   json?: boolean;
+  verbose?: boolean;
   timeout: number;
 }
 
@@ -95,7 +96,9 @@ export class CliProgress {
           ? `FAILED (exit ${msg.exitCode})`
           : "...";
     const extra = msg.vmId ? ` (VMID: ${msg.vmId})` : "";
-    const name = msg.commandtext || msg.command;
+    const name = this.options.verbose
+      ? (msg.commandtext || msg.command)
+      : msg.command;
 
     process.stderr.write(
       `[${time}] ${step} ${name} ${"."
