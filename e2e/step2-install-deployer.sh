@@ -424,7 +424,20 @@ if [ "$UPDATE_ONLY" != "true" ]; then
     pve_ssh "qm snapshot $TEST_VMID deployer-installed --description 'Nested VM with oci-lxc-deployer after step2'"
     success "Snapshot 'deployer-installed' created"
     pve_ssh "qm start $TEST_VMID"
-    success "VM restarted"
+    info "Waiting for deployer API after VM restart..."
+    for i in $(seq 1 60); do
+        if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
+            break
+        fi
+        printf "\r${YELLOW}[INFO]${NC} Waiting for API... %ds" "$i"
+        sleep 1
+    done
+    echo ""
+    if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
+        success "Deployer API is ready"
+    else
+        error "Deployer API not reachable after 60s"
+    fi
 fi
 
 # Summary
