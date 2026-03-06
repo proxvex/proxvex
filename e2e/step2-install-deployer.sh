@@ -251,6 +251,32 @@ if [ "$API_READY" != "true" ]; then
     error "API failed to respond within 30 seconds at $DEPLOYER_IP:3080"
 fi
 
+# Step 5a: Generate CA certificate and set domain suffix for SSL addon
+info "Querying VE context from deployer API..."
+VE_HOST=$(nested_ssh "curl -s http://$DEPLOYER_IP:3080/api/sshconfigs" | jq -r '.sshs[0].host // empty')
+if [ -n "$VE_HOST" ]; then
+    VE_CONTEXT="ve_${VE_HOST}"
+    info "VE context: $VE_CONTEXT (host: $VE_HOST)"
+
+    info "Generating CA certificate..."
+    CA_RESULT=$(nested_ssh "curl -s -X POST http://$DEPLOYER_IP:3080/api/$VE_CONTEXT/ve/certificates/ca/generate")
+    if echo "$CA_RESULT" | jq -e '.success' &>/dev/null; then
+        success "CA certificate generated"
+    else
+        info "CA generation: $(echo "$CA_RESULT" | jq -r '.error // .message // "already exists or failed"')"
+    fi
+
+    info "Setting domain suffix to .e2e.local..."
+    SUFFIX_RESULT=$(nested_ssh "curl -s -X POST -H 'Content-Type: application/json' -d '{\"domain_suffix\":\".e2e.local\"}' http://$DEPLOYER_IP:3080/api/$VE_CONTEXT/ve/certificates/domain-suffix")
+    if echo "$SUFFIX_RESULT" | jq -e '.success' &>/dev/null; then
+        success "Domain suffix set to .e2e.local"
+    else
+        info "Domain suffix: $(echo "$SUFFIX_RESULT" | jq -r '.error // "failed"')"
+    fi
+else
+    info "Warning: No SSH config found, skipping CA generation and domain suffix setup"
+fi
+
 fi # end of full install block (skipped with --update-only)
 
 # Ensure DEPLOYER_IP is set (needed for port forwarding and package deployment)

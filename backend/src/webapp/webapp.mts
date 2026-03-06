@@ -15,6 +15,8 @@ import { setupStaticRoutes } from "./webapp-static.mjs";
 import { WebAppVE } from "./webapp-ve.mjs";
 import { WebAppStack } from "./webapp-stack-routes.mjs";
 import { registerCertificateRoutes } from "./webapp-certificate-routes.mjs";
+import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
+import { createAuthMiddleware } from "./webapp-auth-middleware.mjs";
 
 export class VEWebApp {
   app: express.Application;
@@ -40,6 +42,12 @@ export class VEWebApp {
     // No socket.io needed anymore
     const staticDir = setupStaticRoutes(this.app);
 
+    // Optional Bearer token auth on /api/* routes (must be before route registration)
+    const authMiddleware = createAuthMiddleware();
+    if (authMiddleware) {
+      this.app.use("/api", authMiddleware);
+    }
+
     registerLogsHtmlRoute(this.app);
     registerLoggerRoutes(this.app);
     registerVersionRoutes(this.app);
@@ -57,6 +65,8 @@ export class VEWebApp {
     registerInstallationsRoutes(this.app, this.storageContext);
     registerCertificateRoutes(this.app, this.storageContext);
     registerAddonRoutes(this.app, this.storageContext);
+    registerValidationRoutes(this.app);
+
     registerFrameworkRoutes(
       this.app,
       this.storageContext,

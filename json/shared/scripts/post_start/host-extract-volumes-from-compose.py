@@ -139,6 +139,11 @@ def main():
                         container_path_normalized = container_path.lstrip("/")
                         volumes_list.append(f"{volume_key}={container_path_normalized}")
     
+    # Always include compose directory as a persistent volume.
+    # This ensures docker-compose files survive container upgrades
+    # and are accessible from the VE host (e.g. for addon reconfigure).
+    volumes_list.append("compose=opt/docker-compose")
+
     # Remove duplicates while preserving order
     seen = set()
     unique_volumes = []

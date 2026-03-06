@@ -12,6 +12,8 @@ export interface OutputCollectionResult {
   allOutputIds: Set<string>;
   outputIdsFromOutputs: Set<string>;
   outputIdsFromProperties: Set<string>;
+  /** Output IDs marked as optional — may or may not be produced at runtime */
+  optionalOutputIds: Set<string>;
   /** Properties that use 'default' instead of 'value' - these should NOT be added to resolvedParams */
   propertyDefaults: PropertyDefaultEntry[];
   duplicateIds: Set<string>;
@@ -48,6 +50,7 @@ export class TemplateOutputProcessor {
     const allOutputIds = new Set<string>();
     const outputIdsFromOutputs = new Set<string>();
     const outputIdsFromProperties = new Set<string>();
+    const optionalOutputIds = new Set<string>();
     const propertyDefaults: PropertyDefaultEntry[] = [];
     const duplicateIds = new Set<string>();
     const seenIds = new Set<string>();
@@ -56,6 +59,11 @@ export class TemplateOutputProcessor {
       if (cmd.outputs) {
         for (const output of cmd.outputs) {
           const id = typeof output === "string" ? output : output.id;
+          const isOptional =
+            typeof output === "object" && output.optional === true;
+          if (isOptional) {
+            optionalOutputIds.add(id);
+          }
           if (seenIds.has(id)) {
             duplicateIds.add(id);
           } else {
@@ -117,6 +125,7 @@ export class TemplateOutputProcessor {
       allOutputIds,
       outputIdsFromOutputs,
       outputIdsFromProperties,
+      optionalOutputIds,
       propertyDefaults,
       duplicateIds,
     };
@@ -133,7 +142,8 @@ export class TemplateOutputProcessor {
       processedTemplates,
       errors,
     } = opts;
-    const { allOutputIds, outputIdsFromProperties } = outputCollection;
+    const { allOutputIds, outputIdsFromProperties, optionalOutputIds } =
+      outputCollection;
 
     for (const outputId of allOutputIds) {
       const existing = resolvedParams.find((p) => p.id === outputId);
@@ -174,7 +184,9 @@ export class TemplateOutputProcessor {
         }
 
         let conflictingTemplateIsConditional = false;
+        let conflictingOutputIsOptional = false;
         let conflictingTemplateSetsOutput = true;
+        const currentOutputIsOptional = optionalOutputIds.has(outputId);
         if (processedTemplates) {
           const normalizedConflictingName =
             this.normalizeTemplateName(conflictingTemplate);
@@ -203,6 +215,12 @@ export class TemplateOutputProcessor {
                         typeof output === "string" ? output : output.id;
                       if (id === outputId) {
                         conflictingTemplateSetsOutput = true;
+                        if (
+                          typeof output === "object" &&
+                          output.optional === true
+                        ) {
+                          conflictingOutputIsOptional = true;
+                        }
                         break;
                       }
                     }
@@ -254,7 +272,12 @@ export class TemplateOutputProcessor {
                 : "outputs",
             });
           }
-        } else if (isConditional || conflictingTemplateIsConditional) {
+        } else if (
+          isConditional ||
+          conflictingTemplateIsConditional ||
+          currentOutputIsOptional ||
+          conflictingOutputIsOptional
+        ) {
           const existingIndex = resolvedParams.findIndex(
             (p) => p.id === outputId,
           );
