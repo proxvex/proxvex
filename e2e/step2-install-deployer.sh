@@ -307,23 +307,30 @@ if [ "$UPDATE_ONLY" = "true" ]; then
 fi
 
 # Step 5b: Set up port forwarding on nested VM to deployer container
-# Note: nested VM receives traffic on port 3080 (from PVE host PORT_DEPLOYER)
-# and forwards it to the deployer container at $DEPLOYER_IP:3080
+# Note: nested VM receives traffic on port 3080/3443 (from PVE host PORT_DEPLOYER/PORT_DEPLOYER_HTTPS)
+# and forwards it to the deployer container at $DEPLOYER_IP:3080/3443
 header "Setting up Port Forwarding on Nested VM"
 info "Configuring port forwarding to deployer container at $DEPLOYER_IP..."
 
 # Configure port forwarding in single SSH call
 nested_ssh "
-  iptables -t nat -D PREROUTING -p tcp --dport 3000 -j DNAT --to-destination $DEPLOYER_IP:3000 2>/dev/null || true
-  iptables -D FORWARD -p tcp -d $DEPLOYER_IP --dport 3000 -j ACCEPT 2>/dev/null || true
-  iptables -t nat -A PREROUTING -p tcp --dport 3000 -j DNAT --to-destination $DEPLOYER_IP:3000
-  iptables -A FORWARD -p tcp -d $DEPLOYER_IP --dport 3000 -j ACCEPT
+  # Remove existing rules (idempotency for re-runs)
+  iptables -t nat -D PREROUTING -p tcp --dport 3080 -j DNAT --to-destination $DEPLOYER_IP:3080 2>/dev/null || true
+  iptables -D FORWARD -p tcp -d $DEPLOYER_IP --dport 3080 -j ACCEPT 2>/dev/null || true
+  iptables -t nat -D PREROUTING -p tcp --dport 3443 -j DNAT --to-destination $DEPLOYER_IP:3443 2>/dev/null || true
+  iptables -D FORWARD -p tcp -d $DEPLOYER_IP --dport 3443 -j ACCEPT 2>/dev/null || true
+  # Add forwarding rules
+  iptables -t nat -A PREROUTING -p tcp --dport 3080 -j DNAT --to-destination $DEPLOYER_IP:3080
+  iptables -A FORWARD -p tcp -d $DEPLOYER_IP --dport 3080 -j ACCEPT
+  iptables -t nat -A PREROUTING -p tcp --dport 3443 -j DNAT --to-destination $DEPLOYER_IP:3443
+  iptables -A FORWARD -p tcp -d $DEPLOYER_IP --dport 3443 -j ACCEPT
   # Persist iptables rules so they survive reboot/snapshot-rollback
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent >/dev/null 2>&1 || true
   mkdir -p /etc/iptables
   iptables-save > /etc/iptables/rules.v4
 "
-success "Nested VM :3000 -> $DEPLOYER_IP:3000 (container, persisted)"
+success "Nested VM :3080 -> $DEPLOYER_IP:3080 (HTTP, persisted)"
+success "Nested VM :3443 -> $DEPLOYER_IP:3443 (HTTPS, persisted)"
 
 # Step 5c: Build and deploy local package (if LOCAL_PACKAGE is set or we're in the project directory)
 if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "$PROJECT_ROOT/package.json"; then

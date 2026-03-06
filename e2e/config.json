@@ -45,6 +45,7 @@
     "pveWeb": 1008,
     "pveSsh": 1022,
     "deployer": 1080,
+    "deployerHttps": 1443,
     "testWorkerSsh": 2222
   }
 }

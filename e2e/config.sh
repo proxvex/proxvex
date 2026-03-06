@@ -86,14 +86,17 @@ load_config() {
     local base_pve_web=$(jq -r '.ports.pveWeb' "$CONFIG_FILE")
     local base_pve_ssh=$(jq -r '.ports.pveSsh' "$CONFIG_FILE")
     local base_deployer=$(jq -r '.ports.deployer' "$CONFIG_FILE")
+    local base_deployer_https=$(jq -r '.ports.deployerHttps' "$CONFIG_FILE")
 
     export PORT_PVE_WEB=$((base_pve_web + PORT_OFFSET))
     export PORT_PVE_SSH=$((base_pve_ssh + PORT_OFFSET))
     export PORT_DEPLOYER=$((base_deployer + PORT_OFFSET))
+    export PORT_DEPLOYER_HTTPS=$((base_deployer_https + PORT_OFFSET))
 
     # Calculated values
     export NESTED_STATIC_IP="${SUBNET}.10"
     export DEPLOYER_URL="http://${PVE_HOST}:${PORT_DEPLOYER}"
+    export DEPLOYER_HTTPS_URL="https://${PVE_HOST}:${PORT_DEPLOYER_HTTPS}"
     export PVE_WEB_URL="https://${PVE_HOST}:${PORT_PVE_WEB}"
 
     # Store in file for other scripts
@@ -115,7 +118,8 @@ show_config() {
     echo "Port Forwarding (offset: $PORT_OFFSET):"
     echo "  PVE Web:         $PVE_HOST:$PORT_PVE_WEB -> $NESTED_STATIC_IP:8006"
     echo "  PVE SSH:         $PVE_HOST:$PORT_PVE_SSH -> $NESTED_STATIC_IP:22"
-    echo "  Deployer:        $PVE_HOST:$PORT_DEPLOYER -> deployer:3080"
+    echo "  Deployer HTTP:   $PVE_HOST:$PORT_DEPLOYER -> deployer:3080"
+    echo "  Deployer HTTPS:  $PVE_HOST:$PORT_DEPLOYER_HTTPS -> deployer:3443"
     echo ""
     echo "URLs:"
     echo "  PVE Web UI:      $PVE_WEB_URL"
