@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from "node:path";
 import http from "node:http";
+import { exec } from "node:child_process";
 import express from "express";
 import { existsSync, readFileSync } from "node:fs";
 import { PersistenceManager } from "./persistence/persistence-manager.mjs";
@@ -161,6 +162,31 @@ async function startWebApp(
 
   const shutdown = (signal: string) => {
     logger.info("Shutdown initiated", { signal });
+
+    // Close PersistenceManager (FileWatchers)
+    try {
+      PersistenceManager.getInstance().close();
+      logger.info("PersistenceManager closed");
+    } catch {
+      // not initialized
+    }
+
+    // Kill SSH master connections (ControlPersist=60 spawns background ssh processes)
+    exec(
+      'for sock in /tmp/lxc-manager-ssh-*; do [ -S "$sock" ] && ssh -O exit -o ControlPath="$sock" dummy 2>/dev/null; done',
+      { timeout: 3000 },
+      (err) => {
+        if (!err) {
+          logger.info("SSH master connections closed");
+        }
+      },
+    );
+
+    // Destroy active keep-alive connections so server.close() completes
+    for (const server of servers) {
+      server.closeAllConnections();
+    }
+
     let closedCount = 0;
     const onClosed = () => {
       closedCount++;
@@ -174,11 +200,11 @@ async function startWebApp(
       server.close(onClosed);
     }
 
-    // Force shutdown after 10 seconds
+    // Force shutdown after 5 seconds
     setTimeout(() => {
       logger.error("Forced shutdown after timeout");
       process.exit(1);
-    }, 10000);
+    }, 5000);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));
