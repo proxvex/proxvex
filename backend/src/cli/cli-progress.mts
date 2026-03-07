@@ -96,14 +96,18 @@ export class CliProgress {
           ? `FAILED (exit ${msg.exitCode})`
           : "...";
     const extra = msg.vmId ? ` (VMID: ${msg.vmId})` : "";
-    const name = this.options.verbose
-      ? (msg.commandtext || msg.command)
-      : msg.command;
+    const name = msg.command;
 
     process.stderr.write(
       `[${time}] ${step} ${name} ${"."
         .repeat(Math.max(1, 40 - name.length))} ${status}${extra}\n`,
     );
+
+    if (this.options.verbose && msg.stderr) {
+      for (const line of msg.stderr.split("\n")) {
+        if (line) process.stderr.write(`    ${line}\n`);
+      }
+    }
   }
 }
 

@@ -406,18 +406,8 @@ while IFS= read -r line <&3; do
       echo "Mount $SOURCE_PATH -> $CONTAINER_PATH already exists in $EXISTING_MP, skipping." >&2
       continue
     fi
-    # Source path differs: update existing mp entry to new source
-    if [ "$NEEDS_STOP" -eq 0 ] && container_running; then
-      pct stop "$VMID" >&2
-      NEEDS_STOP=1
-    fi
-    MOUNT_OPTIONS="$SOURCE_PATH,mp=$CONTAINER_PATH"
-    if ! pct set "$VMID" -$EXISTING_MP "$MOUNT_OPTIONS" >&2; then
-      echo "Error: Failed to update mount point $EXISTING_MP in container $VMID" >&2
-      rm -f "$TMPFILE"
-      exit 1
-    fi
-    echo "Updated $EXISTING_MP: $SOURCE_PATH -> $CONTAINER_PATH in container $VMID" >&2
+    # Source path differs: keep existing mount (e.g. PVE storage volume from template 150)
+    echo "Mount for $CONTAINER_PATH already exists in $EXISTING_MP with different source ($EXISTING_SRC), keeping existing mount." >&2
     VOLUME_COUNT=$((VOLUME_COUNT + 1))
     continue
   fi

@@ -55,6 +55,10 @@
     {
       "id": "ssl.certs_dir",
       "value": "certs"
+    },
+    {
+      "id": "ssl.addon_volumes",
+      "value": "certs=certs,0700,0:0"
     }
   ],
   "installation": {},
