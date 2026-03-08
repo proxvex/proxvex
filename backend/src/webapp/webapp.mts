@@ -6,6 +6,7 @@ import { ContextManager } from "../context-manager.mjs";
 import { registerApplicationRoutes } from "./webapp-application-routes.mjs";
 import { registerFrameworkRoutes } from "./webapp-framework-routes.mjs";
 import { registerInstallationsRoutes } from "./webapp-installations-routes.mjs";
+import { registerContainerConfigRoutes } from "./webapp-container-config-routes.mjs";
 import { registerSshRoutes } from "./webapp-ssh-routes.mjs";
 import { registerAddonRoutes } from "./webapp-addon-routes.mjs";
 import { registerLogsHtmlRoute } from "./webapp-logs-html.mjs";
@@ -63,6 +64,7 @@ export class VEWebApp {
       this.returnResponse.bind(this),
     );
     registerInstallationsRoutes(this.app, this.storageContext);
+    registerContainerConfigRoutes(this.app, this.storageContext);
     registerCertificateRoutes(this.app, this.storageContext);
     registerAddonRoutes(this.app, this.storageContext);
     registerValidationRoutes(this.app);

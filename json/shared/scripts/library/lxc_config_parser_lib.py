@@ -53,8 +53,10 @@ CORES_RE = re.compile(r"^cores:\s*(\d+)\s*$", re.MULTILINE)
 # rootfs: local-lvm:vm-123-disk-0,size=4G
 ROOTFS_RE = re.compile(r"^rootfs:\s*([^:]+):([^,]+)(?:,size=(\d+)([GMK]?))?", re.MULTILINE)
 
-# net0: name=eth0,bridge=vmbr0,hwaddr=...
+# net0: name=eth0,bridge=vmbr0,hwaddr=...,ip=10.0.0.100/24,gw=10.0.0.1,...
 NET_BRIDGE_RE = re.compile(r"^net\d+:.*bridge=([^,\s]+)", re.MULTILINE)
+NET_IP_RE = re.compile(r"^net\d+:.*\bip=([^,\s]+)", re.MULTILINE)
+NET_GW_RE = re.compile(r"^net\d+:.*\bgw=([^,\s]+)", re.MULTILINE)
 
 
 @dataclass
@@ -109,6 +111,8 @@ class LxcConfig:
     rootfs_storage: str | None = None
     disk_size: str | None = None  # e.g. "4G"
     bridge: str | None = None
+    static_ip: str | None = None  # e.g. "10.0.0.100/24" (None if "dhcp")
+    static_gw: str | None = None  # e.g. "10.0.0.1"
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -145,6 +149,10 @@ class LxcConfig:
             result["disk_size"] = self.disk_size
         if self.bridge:
             result["bridge"] = self.bridge
+        if self.static_ip:
+            result["static_ip"] = self.static_ip
+        if self.static_gw:
+            result["static_gw"] = self.static_gw
         if self.id_mappings:
             result["id_mappings"] = [
                 {
@@ -325,6 +333,16 @@ def parse_lxc_config(conf_text: str) -> LxcConfig:
     bridge_match = NET_BRIDGE_RE.search(normalized)
     if bridge_match:
         config.bridge = bridge_match.group(1)
+
+    ip_match = NET_IP_RE.search(normalized)
+    if ip_match:
+        ip_val = ip_match.group(1)
+        if ip_val.lower() != "dhcp":
+            config.static_ip = ip_val
+
+    gw_match = NET_GW_RE.search(normalized)
+    if gw_match:
+        config.static_gw = gw_match.group(1)
 
     return config
 

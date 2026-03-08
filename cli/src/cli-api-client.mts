@@ -10,8 +10,8 @@ import type {
   IPostVeConfigurationBody,
   IPostVeConfigurationResponse,
   IVeExecuteMessagesResponse,
-} from "../types.mjs";
-import type { ValidationResult } from "../parameter-validator.mjs";
+} from "@shared/types.mjs";
+import type { ValidationResult } from "@shared/parameter-validator.mjs";
 import {
   ConnectionError,
   AuthenticationError,
@@ -146,6 +146,7 @@ export class CliApiClient {
     body: {
       params: { name: string; value: any }[];
       selectedAddons?: string[];
+      disabledAddons?: string[];
       stackId?: string;
     },
   ): Promise<ValidationResult> {
@@ -180,9 +181,20 @@ export class CliApiClient {
     });
   }
 
+  async getContainerConfig(
+    veCtx: string,
+    vmId: number,
+  ): Promise<Record<string, any>> {
+    return this.request("GET", `/api/${veCtx}/container-config/${vmId}`);
+  }
+
   async getExecuteMessages(
     veCtx: string,
   ): Promise<IVeExecuteMessagesResponse> {
     return this.request("GET", `/api/${veCtx}/ve/execute`);
+  }
+
+  async getValidation(): Promise<{ valid: boolean; [key: string]: any }> {
+    return this.request("GET", "/api/validate");
   }
 }

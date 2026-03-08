@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { CliTemplateGenerator } from "@src/cli/cli-template-generator.mjs";
-import type { IParameter, IAddonWithParameters, IStack } from "@src/types.mjs";
+import { CliTemplateGenerator } from "../src/cli-template-generator.mjs";
+import type { IParameter, IAddonWithParameters, IStack } from "@shared/types.mjs";
 
 describe("CliTemplateGenerator", () => {
   const generator = new CliTemplateGenerator();

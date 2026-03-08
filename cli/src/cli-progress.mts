@@ -1,4 +1,4 @@
-import type { IVeExecuteMessage } from "../types.mjs";
+import type { IVeExecuteMessage } from "@shared/types.mjs";
 import type { CliApiClient } from "./cli-api-client.mjs";
 import { TimeoutError, ExecutionFailedError } from "./cli-types.mjs";
 

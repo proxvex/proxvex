@@ -21,8 +21,9 @@ export class WebAppVeCertificateInjector {
     const sslParam = loadedParameters.find((p) => p.certtype === "server");
     if (!sslParam) return;
 
-    // Check if user provided the ssl.mode value
-    const sslMode = processedParams.find((p) => p.id === "ssl.mode")?.value;
+    // Check if ssl.mode value is set (from params or addon parameter default)
+    const sslMode = processedParams.find((p) => p.id === sslParam.id)?.value
+      ?? sslParam.default;
     if (!sslMode || sslMode === "" || String(sslMode) === "NOT_DEFINED") return;
 
     const caService = new CertificateAuthorityService(contextManager);

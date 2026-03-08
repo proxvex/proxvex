@@ -159,6 +159,10 @@ nameserver=""
 # External URL for deployer (optional, for NAT/port-forwarding scenarios)
 deployer_url=""
 
+# HTTPS option (reconfigure with SSL addon after install)
+enable_https=""
+domain_suffix=".local"
+
 # Parse CLI flags
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -174,6 +178,8 @@ while [ "$#" -gt 0 ]; do
     --gateway) static_gw="$2"; shift 2 ;;
     --nameserver) nameserver="$2"; shift 2 ;;
     --deployer-url) deployer_url="$2"; shift 2 ;;
+    --https) enable_https="true"; shift ;;
+    --domain-suffix) domain_suffix="$2"; shift 2 ;;
     --help|-h)
       cat >&2 <<USAGE
 Usage: $0 [options]
@@ -193,6 +199,8 @@ Options:
   --gateway <IP>        Gateway IP address (required if --static-ip is used)
   --nameserver <IP>     DNS nameserver (e.g., 10.0.0.1). Optional, defaults to host resolv.conf
   --deployer-url <URL>  External URL for deployer (e.g., http://pve1:3080 for NAT setups)
+  --https               Enable HTTPS (reconfigures with SSL addon after install)
+  --domain-suffix <sfx> Domain suffix for SSL certificates (default: .local)
 
 Notes:
   - OCI image: ${OCI_IMAGE}
@@ -402,6 +410,15 @@ fi
 
 echo "  OCI image ready: ${template_path}" >&2
 
+
+# If --https with a specific vm_id: create temp container at vm_id-1,
+# then reinstall to the target vm_id with SSL addon
+https_target_vmid=""
+if [ "$enable_https" = "true" ] && [ -n "$vm_id" ]; then
+  https_target_vmid="$vm_id"
+  vm_id=$((vm_id - 1))
+  echo "  HTTPS mode: creating temp container at $vm_id, target: $https_target_vmid" >&2
+fi
 
 # 2) Create LXC container from OCI image
 echo "Step 2: Creating LXC container..." >&2
@@ -680,6 +697,10 @@ fi
 
 # Pre-populate known_hosts with PVE host key
 host_pubkey=$(ssh-keyscan -t ed25519 "${proxmox_hostname}" 2>/dev/null || true)
+if [ -z "$host_pubkey" ]; then
+  # Hostname might not resolve on host itself; try localhost and rewrite
+  host_pubkey=$(ssh-keyscan -t ed25519 localhost 2>/dev/null | sed "s/^localhost/${proxmox_hostname}/" || true)
+fi
 if [ -n "$host_pubkey" ]; then
   echo "${host_pubkey}" >> "${ssh_dir}/known_hosts"
   chown "${mapped_uid}:${mapped_gid}" "${ssh_dir}/known_hosts"
@@ -692,6 +713,152 @@ echo "  SSH access configured" >&2
 # 8) Application startup note (no API configuration; app reads storagecontext.json)
 echo "Step 8: Application startup context ready (no API calls)" >&2
 
+# 9) Enable HTTPS via addon-reconfigure (optional)
+https_done=""
+if [ "$enable_https" = "true" ]; then
+  echo "Step 9: Enabling HTTPS via addon-reconfigure..." >&2
+
+  # Resolve container IP (use static_ip if set, otherwise query from container)
+  container_ip=""
+  if [ -n "$static_ip" ]; then
+    container_ip="${static_ip%/*}"
+  else
+    # Wait briefly for networking, then grab the IP
+    sleep 3
+    container_ip=$(pct exec "${vm_id}" -- sh -c "hostname -I 2>/dev/null" | awk '{print $1}')
+  fi
+
+  if [ -z "$container_ip" ]; then
+    echo "Warning: Could not determine container IP, skipping HTTPS setup" >&2
+  else
+
+  # Wait for deployer API to be ready
+  deployer_api="http://${container_ip}:3080"
+  echo "  Waiting for deployer API at ${deployer_api}..." >&2
+  for i in $(seq 1 30); do
+    if curl -sf "${deployer_api}/api/applications" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+
+  if ! curl -sf "${deployer_api}/api/applications" >/dev/null 2>&1; then
+    echo "Warning: Deployer API not ready after 60s, skipping HTTPS setup" >&2
+  else
+    # Ensure container can resolve PVE hostname (needed for SSH from deployer to host)
+    pve_host_ip=""
+    if [ -n "$static_gw" ]; then
+      pve_host_ip="$static_gw"
+    else
+      pve_host_ip=$(ip route | awk '/default/ {print $3; exit}')
+    fi
+    if [ -n "$pve_host_ip" ] && [ -n "$proxmox_hostname" ]; then
+      pct exec "${vm_id}" -- sh -c "grep -q '${proxmox_hostname}' /etc/hosts 2>/dev/null || echo '${pve_host_ip} ${proxmox_hostname} ${proxmox_hostname%%.*}' >> /etc/hosts"
+      echo "  Added /etc/hosts entry: ${pve_host_ip} ${proxmox_hostname}" >&2
+    fi
+
+    # Resolve VE context key
+    ve_key=$(curl -sf "${deployer_api}/api/ssh/config/${proxmox_hostname}" | \
+      python3 -c "import sys,json; print(json.load(sys.stdin)['key'])" 2>/dev/null || echo "")
+
+    if [ -z "$ve_key" ]; then
+      echo "Warning: Could not resolve VE context for '${proxmox_hostname}', skipping HTTPS setup" >&2
+    else
+      echo "  VE context: ${ve_key}" >&2
+
+      # Verify SSH connection is ready (deployer needs SSH to PVE host for reconfigure)
+      echo "  Verifying SSH connection to PVE host (${proxmox_hostname}:22)..." >&2
+      ssh_ok=""
+      for i in $(seq 1 5); do
+        ssh_check=$(curl -s --max-time 5 \
+          "${deployer_api}/api/ssh/check?host=${proxmox_hostname}&port=22" 2>/dev/null || echo "")
+        echo "  SSH check attempt $i: ${ssh_check}" >&2
+        if printf '%s' "$ssh_check" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('permissionOk') else 1)" 2>/dev/null; then
+          ssh_ok="true"
+          break
+        fi
+        sleep 2
+      done
+
+      if [ "$ssh_ok" != "true" ]; then
+        echo "Warning: SSH connection to PVE host not ready, skipping HTTPS setup" >&2
+      else
+        echo "  SSH connection verified" >&2
+
+        # Generate CA certificate (required for SSL addon)
+        echo "  Generating CA certificate..." >&2
+        ca_resp=$(curl -s -X POST \
+          "${deployer_api}/api/${ve_key}/ve/certificates/ca/generate" 2>/dev/null || echo "")
+        ca_ok=$(printf '%s' "$ca_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
+        if [ "$ca_ok" = "true" ]; then
+          echo "  CA certificate generated" >&2
+        else
+          echo "  CA certificate: $(printf '%s' "$ca_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','already exists or failed'))" 2>/dev/null || echo "see response")" >&2
+        fi
+
+        # Set domain suffix for SSL certificates
+        echo "  Setting domain suffix to ${domain_suffix}..." >&2
+        suffix_resp=$(curl -s -X POST -H "Content-Type: application/json" \
+          -d "{\"domain_suffix\":\"${domain_suffix}\"}" \
+          "${deployer_api}/api/${ve_key}/ve/certificates/domain-suffix" 2>/dev/null || echo "")
+        suffix_ok=$(printf '%s' "$suffix_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
+        if [ "$suffix_ok" = "true" ]; then
+          echo "  Domain suffix set to ${domain_suffix}" >&2
+        else
+          echo "  Domain suffix: $(printf '%s' "$suffix_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")" >&2
+        fi
+
+        # Build params file for reinstall with SSL
+        # Uses installation task (not addon-reconfigure) like the UI does for deployer instances
+        # (see installed-list.ts:89 — deployer instances use reinstall mode)
+        params_json='{"params":['
+        if [ -n "$https_target_vmid" ]; then
+          params_json="${params_json}{\"name\":\"vm_id\",\"value\":${https_target_vmid}},"
+        fi
+        params_json="${params_json}{\"name\":\"previous_vm_id\",\"value\":${vm_id}}"
+        params_json="${params_json}],\"addons\":[\"addon-ssl\"]}"
+
+        pct exec "${vm_id}" -- sh -c "printf '%s' '${params_json}' > /tmp/ssl-params.json"
+
+        # Run reinstall via oci-lxc-cli (already in OCI image via npm install -g)
+        echo "  Running reinstall with SSL via oci-lxc-cli..." >&2
+        pct exec "${vm_id}" -- oci-lxc-cli remote \
+          --server http://localhost:3080 \
+          --ve "${proxmox_hostname}" \
+          --insecure \
+          --timeout 600 \
+          oci-lxc-deployer installation /tmp/ssl-params.json >&2 \
+          && https_done="true" || true
+
+        # Fallback: if CLI died (container replaced before finished), check HTTPS
+        if [ "$https_done" != "true" ]; then
+          echo "  CLI exited, checking HTTPS on ${container_ip}:3443..." >&2
+          for i in $(seq 1 24); do
+            if curl -sk --connect-timeout 3 "https://${container_ip}:3443/" >/dev/null 2>&1; then
+              https_done="true"
+              break
+            fi
+            sleep 5
+          done
+        fi
+
+        if [ "$https_done" = "true" ]; then
+          echo "  HTTPS enabled." >&2
+        else
+          echo "  Warning: HTTPS did not come up within 120s" >&2
+        fi
+
+        # Update vm_id to target after reinstall
+        if [ -n "$https_target_vmid" ]; then
+          vm_id="$https_target_vmid"
+        fi
+      fi
+    fi
+  fi
+
+  fi # end container_ip check
+fi
+
 echo "" >&2
 echo "Installation complete!" >&2
 echo "  Container ID: ${vm_id}" >&2
@@ -699,6 +866,10 @@ echo "  Hostname: ${hostname}" >&2
 echo "  Config: ${config_volume_path}" >&2
 echo "  Secure: ${secure_volume_path}" >&2
 echo "" >&2
-echo "  Access the web interface at http://${hostname}:3080" >&2
+if [ "$enable_https" = "true" ] && [ "$https_done" = "true" ]; then
+  echo "  Access the web interface at https://${hostname}:3443" >&2
+else
+  echo "  Access the web interface at http://${hostname}:3080" >&2
+fi
 
 exit 0

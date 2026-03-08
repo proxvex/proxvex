@@ -5,7 +5,7 @@ import type {
   IParameterValue,
   IAddonWithParameters,
   IStack,
-} from "../types.mjs";
+} from "@shared/types.mjs";
 import { CliApiClient } from "./cli-api-client.mjs";
 import { CliTemplateGenerator } from "./cli-template-generator.mjs";
 import { CliProgress } from "./cli-progress.mjs";
@@ -95,6 +95,28 @@ export class RemoteCli {
       ? this.readParametersFile(this.options.parametersFile)
       : { params: [] };
 
+    // 6b2. If previous_vm_id is in params, fetch previous container config as defaults
+    const previousVmId = paramsInput.params.find(p => p.name === "previous_vm_id");
+    if (previousVmId) {
+      try {
+        const containerConfig = await this.client.getContainerConfig(
+          veContext, Number(previousVmId.value),
+        );
+        const configKeys = ["bridge", "memory", "cores", "rootfs_storage",
+                            "disk_size", "hostname", "static_ip", "static_gw"];
+        for (const def of parameterDefs) {
+          if (configKeys.includes(def.id) && containerConfig[def.id] != null) {
+            def.default = containerConfig[def.id];
+          }
+        }
+        if (!this.options.quiet) {
+          process.stderr.write(`Using previous container ${previousVmId.value} config as defaults.\n`);
+        }
+      } catch {
+        // Container config not available — use template defaults
+      }
+    }
+
     // 6c. Fill in defaults for missing parameters
     for (const def of parameterDefs) {
       if (def.default !== undefined && !paramsInput.params.some((p) => p.name === def.id)) {
@@ -112,6 +134,13 @@ export class RemoteCli {
       stacks,
     );
 
+    // 7c. Merge addons from CLI flags with addons from parameters file
+    const selectedAddons = [
+      ...(paramsInput.addons ?? []),
+      ...(this.options.enableAddons ?? []),
+    ];
+    const disabledAddons = this.options.disableAddons ?? [];
+
     // 8. Validate
     const validationResult = await this.client.postValidateParameters(
       veContext,
@@ -119,7 +148,8 @@ export class RemoteCli {
       this.options.task,
       {
         params: processedParams,
-        ...(paramsInput.addons ? { selectedAddons: paramsInput.addons } : {}),
+        ...(selectedAddons.length > 0 ? { selectedAddons } : {}),
+        ...(disabledAddons.length > 0 ? { disabledAddons } : {}),
         ...(resolvedStackId ? { stackId: resolvedStackId } : {}),
       },
     );
@@ -146,7 +176,8 @@ export class RemoteCli {
       this.options.task,
       {
         params: processedParams,
-        ...(paramsInput.addons ? { selectedAddons: paramsInput.addons } : {}),
+        ...(selectedAddons.length > 0 ? { selectedAddons } : {}),
+        ...(disabledAddons.length > 0 ? { disabledAddons } : {}),
         ...(resolvedStackId ? { stackId: resolvedStackId } : {}),
       },
     );

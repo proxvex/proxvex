@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { CliProgress } from "@src/cli/cli-progress.mjs";
-import { TimeoutError, ExecutionFailedError } from "@src/cli/cli-types.mjs";
-import type { CliApiClient } from "@src/cli/cli-api-client.mjs";
+import { CliProgress } from "../src/cli-progress.mjs";
+import { TimeoutError, ExecutionFailedError } from "../src/cli-types.mjs";
+import type { CliApiClient } from "../src/cli-api-client.mjs";
 
 describe("CliProgress", () => {
   let mockClient: {
