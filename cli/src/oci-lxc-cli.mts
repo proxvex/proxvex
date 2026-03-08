@@ -1,19 +1,11 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { RemoteCli } from "./cli.mjs";
+import { CliApiClient } from "./cli-api-client.mjs";
 import { CliError } from "./cli-types.mjs";
 import type { CliOptions } from "./cli-types.mjs";
-import {
-  validateAllJson,
-  ValidationError,
-} from "../validateAllJson.mjs";
-import { DocumentationGenerator } from "../documentation-generator.mjs";
-import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 
 interface ParsedArgs {
   command?: string;
-  localPath?: string;
   application?: string;
   task?: string;
   parametersFile?: string;
@@ -28,6 +20,8 @@ interface ParsedArgs {
   jsonOutput?: boolean;
   verbose?: boolean;
   timeout?: number;
+  enableAddons?: string;
+  disableAddons?: string;
 }
 
 function parseArgs(): ParsedArgs {
@@ -42,29 +36,10 @@ function parseArgs(): ParsedArgs {
       continue;
     }
 
-    // Global options
-    if (arg === "--local") {
-      const value = argv[i + 1];
-      if (value && !value.startsWith("--")) {
-        args.localPath = path.isAbsolute(value)
-          ? value
-          : path.join(process.cwd(), value);
-        i += 2;
-      } else {
-        args.localPath = path.join(process.cwd(), "local");
-        i += 1;
-      }
-    } else if (!args.command && !arg.startsWith("--")) {
+    if (!args.command && !arg.startsWith("--")) {
       // First non-option argument is the command
       args.command = arg;
       i += 1;
-    } else if (args.command === "updatedoc") {
-      if (!args.application && !arg.startsWith("--")) {
-        args.application = arg;
-        i += 1;
-      } else {
-        i += 1;
-      }
     } else if (args.command === "remote") {
       if (arg === "--server") {
         args.server = argv[i + 1] ?? "";
@@ -99,6 +74,12 @@ function parseArgs(): ParsedArgs {
       } else if (arg === "--timeout") {
         args.timeout = parseInt(argv[i + 1] || "1800", 10);
         i += 2;
+      } else if (arg === "--enable-addons") {
+        args.enableAddons = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--disable-addons") {
+        args.disableAddons = argv[i + 1] ?? "";
+        i += 2;
       } else if (!arg.startsWith("--")) {
         // Positional args: application, task, parametersFile
         if (!args.application) {
@@ -116,63 +97,25 @@ function parseArgs(): ParsedArgs {
       } else {
         i += 1;
       }
+    } else if (args.command === "validate") {
+      if (arg === "--server") {
+        args.server = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--token") {
+        args.token = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--insecure") {
+        args.insecure = true;
+        i += 1;
+      } else {
+        i += 1;
+      }
     } else {
       i += 1;
     }
   }
 
   return args;
-}
-
-async function runValidateCommand(localPath?: string): Promise<void> {
-  try {
-    await validateAllJson(localPath);
-    process.exit(0);
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      process.exit(1);
-    }
-    throw err;
-  }
-}
-
-async function runUpdatedocCommand(
-  applicationName?: string,
-  localPathArg?: string,
-): Promise<void> {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  // From cli/ in dist, go up to dist (backend root), then up to workspace root
-  const backendRoot = path.resolve(__dirname, "../..");
-  const projectRoot = path.resolve(backendRoot, "..");
-  const schemaPath = path.join(projectRoot, "schemas");
-  const jsonPath = path.join(projectRoot, "json");
-  const localPath = localPathArg || path.join(projectRoot, "local", "json");
-
-  console.log(
-    "Validating all JSON files before generating documentation...\n",
-  );
-  try {
-    await validateAllJson(localPathArg);
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      process.exit(1);
-    }
-    throw err;
-  }
-  console.log(
-    "\n✓ Validation successful. Proceeding with documentation generation...\n",
-  );
-
-  PersistenceManager.initialize(
-    localPath,
-    path.join(localPath, "storagecontext.json"),
-    path.join(localPath, "secret.txt"),
-  );
-
-  const generator = new DocumentationGenerator(jsonPath, localPath, schemaPath);
-  await generator.generateDocumentation(applicationName);
-  console.log("\n✓ Documentation generation completed!");
 }
 
 async function runRemoteCommand(args: ParsedArgs): Promise<void> {
@@ -210,9 +153,37 @@ async function runRemoteCommand(args: ParsedArgs): Promise<void> {
   if (args.quiet) options.quiet = args.quiet;
   if (args.jsonOutput) options.json = args.jsonOutput;
   if (args.verbose) options.verbose = args.verbose;
+  if (args.enableAddons) options.enableAddons = args.enableAddons.split(",").filter(Boolean);
+  if (args.disableAddons) options.disableAddons = args.disableAddons.split(",").filter(Boolean);
 
   const cli = new RemoteCli(options);
   await cli.run();
+}
+
+async function runValidateCommand(args: ParsedArgs): Promise<void> {
+  const server =
+    args.server ||
+    process.env.OCI_DEPLOYER_URL ||
+    "http://localhost:3080";
+  const token = args.token || process.env.OCI_DEPLOYER_TOKEN;
+
+  const client = new CliApiClient(server, token, args.insecure);
+
+  try {
+    const result = await client.getValidation();
+    if (result.valid) {
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(0);
+    } else {
+      console.error(JSON.stringify(result, null, 2));
+      process.exit(1);
+    }
+  } catch (err) {
+    if (err instanceof CliError) {
+      throw err;
+    }
+    throw new CliError(`Validation failed: ${(err as Error).message}`, 1);
+  }
 }
 
 function printHelp(): void {
@@ -226,10 +197,7 @@ function printHelp(): void {
     "  remote      Execute a task on a remote deployer instance via HTTP API",
   );
   console.log(
-    "  validate    Validate all templates, applications and frameworks against their schemas",
-  );
-  console.log(
-    "  updatedoc   Generate or update documentation for applications and templates",
+    "  validate    Validate all templates and applications on a remote deployer",
   );
   console.log("");
   console.log("Remote command:");
@@ -245,19 +213,17 @@ function printHelp(): void {
   console.log("  --token <token>           API token (env: OCI_DEPLOYER_TOKEN)");
   console.log("  --insecure                Skip TLS certificate verification");
   console.log("  --generate-template [f]   Generate parameters.json template and exit");
+  console.log("  --enable-addons <ids>     Comma-separated addon IDs to enable (e.g. addon-ssl)");
+  console.log("  --disable-addons <ids>    Comma-separated addon IDs to disable");
   console.log("  --verbose, -v             Show full script content in progress output");
   console.log("  --quiet                   Minimal output, final JSON result only");
   console.log("  --json                    All progress as JSON lines");
   console.log("  --timeout <seconds>       Max execution time (default: 1800)");
   console.log("");
   console.log("Validate command:");
-  console.log("  oci-lxc-cli validate [--local <path>]");
-  console.log("");
-  console.log("Updatedoc command:");
-  console.log("  oci-lxc-cli updatedoc [application] [--local <path>]");
+  console.log("  oci-lxc-cli validate [--server <url>]");
   console.log("");
   console.log("Global options:");
-  console.log("  --local <path>            Path to the local data directory");
   console.log("  --help, -h                Show this help message");
 }
 
@@ -276,20 +242,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (args.command === "validate") {
-    const localPath =
-      args.localPath || path.join(process.cwd(), "examples");
-    await runValidateCommand(localPath);
-  } else if (args.command === "updatedoc") {
-    const localPath =
-      args.localPath || path.join(process.cwd(), "examples");
-    await runUpdatedocCommand(args.application, localPath);
-  } else if (args.command === "remote") {
+  if (args.command === "remote") {
     await runRemoteCommand(args);
+  } else if (args.command === "validate") {
+    await runValidateCommand(args);
   } else {
     console.error(`Unknown command: ${args.command}`);
     console.error("");
-    console.error("Available commands: remote, validate, updatedoc");
+    console.error("Available commands: remote, validate");
     process.exit(1);
   }
 }

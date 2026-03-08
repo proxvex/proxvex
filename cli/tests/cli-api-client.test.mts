@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { CliApiClient } from "@src/cli/cli-api-client.mjs";
+import { CliApiClient } from "../src/cli-api-client.mjs";
 import {
   ConnectionError,
   AuthenticationError,
   NotFoundError,
   ApiError,
-} from "@src/cli/cli-types.mjs";
+} from "../src/cli-types.mjs";
 
 describe("CliApiClient", () => {
   const originalFetch = globalThis.fetch;

@@ -298,7 +298,7 @@ export class WebAppVeRouteHandlers {
             const addon = addonService.getAddon(addonId);
             if (addon.parameters) {
               allCertParameters.push(
-                ...addon.parameters.filter(p => p.certtype && p.upload),
+                ...addon.parameters.filter(p => p.certtype),
               );
             }
           } catch { /* addon not found, skip */ }

@@ -1,0 +1,255 @@
+#!/usr/bin/env node
+import { RemoteCli } from "./cli.mjs";
+import { CliApiClient } from "./cli-api-client.mjs";
+import { CliError } from "./cli-types.mjs";
+function parseArgs() {
+    const args = {};
+    const argv = process.argv.slice(2);
+    let i = 0;
+    while (i < argv.length) {
+        const arg = argv[i];
+        if (!arg) {
+            i += 1;
+            continue;
+        }
+        if (!args.command && !arg.startsWith("--")) {
+            // First non-option argument is the command
+            args.command = arg;
+            i += 1;
+        }
+        else if (args.command === "remote") {
+            if (arg === "--server") {
+                args.server = argv[i + 1] ?? "";
+                i += 2;
+            }
+            else if (arg === "--ve") {
+                args.ve = argv[i + 1] ?? "";
+                i += 2;
+            }
+            else if (arg === "--token") {
+                args.token = argv[i + 1] ?? "";
+                i += 2;
+            }
+            else if (arg === "--insecure") {
+                args.insecure = true;
+                i += 1;
+            }
+            else if (arg === "--generate-template") {
+                args.generateTemplate = true;
+                const next = argv[i + 1];
+                if (next && !next.startsWith("--")) {
+                    args.templateOutput = next;
+                    i += 2;
+                }
+                else {
+                    i += 1;
+                }
+            }
+            else if (arg === "--quiet") {
+                args.quiet = true;
+                i += 1;
+            }
+            else if (arg === "--verbose" || arg === "-v") {
+                args.verbose = true;
+                i += 1;
+            }
+            else if (arg === "--json") {
+                args.jsonOutput = true;
+                i += 1;
+            }
+            else if (arg === "--timeout") {
+                args.timeout = parseInt(argv[i + 1] || "1800", 10);
+                i += 2;
+            }
+            else if (arg === "--enable-addons") {
+                args.enableAddons = argv[i + 1] ?? "";
+                i += 2;
+            }
+            else if (arg === "--disable-addons") {
+                args.disableAddons = argv[i + 1] ?? "";
+                i += 2;
+            }
+            else if (!arg.startsWith("--")) {
+                // Positional args: application, task, parametersFile
+                if (!args.application) {
+                    args.application = arg;
+                    i += 1;
+                }
+                else if (!args.task) {
+                    args.task = arg;
+                    i += 1;
+                }
+                else if (!args.parametersFile) {
+                    args.parametersFile = arg;
+                    i += 1;
+                }
+                else {
+                    i += 1;
+                }
+            }
+            else {
+                i += 1;
+            }
+        }
+        else if (args.command === "validate") {
+            if (arg === "--server") {
+                args.server = argv[i + 1] ?? "";
+                i += 2;
+            }
+            else if (arg === "--token") {
+                args.token = argv[i + 1] ?? "";
+                i += 2;
+            }
+            else if (arg === "--insecure") {
+                args.insecure = true;
+                i += 1;
+            }
+            else {
+                i += 1;
+            }
+        }
+        else {
+            i += 1;
+        }
+    }
+    return args;
+}
+async function runRemoteCommand(args) {
+    const server = args.server ||
+        process.env.OCI_DEPLOYER_URL ||
+        "http://localhost:3080";
+    const token = args.token || process.env.OCI_DEPLOYER_TOKEN;
+    if (!args.ve) {
+        console.error("Error: --ve <host> is required");
+        process.exit(1);
+    }
+    if (!args.application) {
+        console.error("Error: <application> is required");
+        process.exit(1);
+    }
+    if (!args.task) {
+        console.error("Error: <task> is required");
+        process.exit(1);
+    }
+    const options = {
+        server,
+        ve: args.ve,
+        application: args.application,
+        task: args.task,
+        timeout: args.timeout ?? 1800,
+    };
+    if (args.parametersFile)
+        options.parametersFile = args.parametersFile;
+    if (token)
+        options.token = token;
+    if (args.insecure)
+        options.insecure = args.insecure;
+    if (args.generateTemplate)
+        options.generateTemplate = args.generateTemplate;
+    if (args.templateOutput)
+        options.templateOutput = args.templateOutput;
+    if (args.quiet)
+        options.quiet = args.quiet;
+    if (args.jsonOutput)
+        options.json = args.jsonOutput;
+    if (args.verbose)
+        options.verbose = args.verbose;
+    if (args.enableAddons)
+        options.enableAddons = args.enableAddons.split(",").filter(Boolean);
+    if (args.disableAddons)
+        options.disableAddons = args.disableAddons.split(",").filter(Boolean);
+    const cli = new RemoteCli(options);
+    await cli.run();
+}
+async function runValidateCommand(args) {
+    const server = args.server ||
+        process.env.OCI_DEPLOYER_URL ||
+        "http://localhost:3080";
+    const token = args.token || process.env.OCI_DEPLOYER_TOKEN;
+    const client = new CliApiClient(server, token, args.insecure);
+    try {
+        const result = await client.getValidation();
+        if (result.valid) {
+            console.log(JSON.stringify(result, null, 2));
+            process.exit(0);
+        }
+        else {
+            console.error(JSON.stringify(result, null, 2));
+            process.exit(1);
+        }
+    }
+    catch (err) {
+        if (err instanceof CliError) {
+            throw err;
+        }
+        throw new CliError(`Validation failed: ${err.message}`, 1);
+    }
+}
+function printHelp() {
+    console.log("OCI LXC CLI - Command-line tools for OCI LXC Deployer");
+    console.log("");
+    console.log("Usage:");
+    console.log("  oci-lxc-cli <command> [options]");
+    console.log("");
+    console.log("Commands:");
+    console.log("  remote      Execute a task on a remote deployer instance via HTTP API");
+    console.log("  validate    Validate all templates and applications on a remote deployer");
+    console.log("");
+    console.log("Remote command:");
+    console.log("  oci-lxc-cli remote --ve <host> <application> <task> [parameters.json]  (defaults used if omitted)");
+    console.log("  oci-lxc-cli remote --ve <host> <application> <task> --generate-template [output.json]");
+    console.log("");
+    console.log("  --server <url>            Backend URL (default: http://localhost:3080, env: OCI_DEPLOYER_URL)");
+    console.log("  --ve <host>               Proxmox VE host name (required)");
+    console.log("  --token <token>           API token (env: OCI_DEPLOYER_TOKEN)");
+    console.log("  --insecure                Skip TLS certificate verification");
+    console.log("  --generate-template [f]   Generate parameters.json template and exit");
+    console.log("  --enable-addons <ids>     Comma-separated addon IDs to enable (e.g. addon-ssl)");
+    console.log("  --disable-addons <ids>    Comma-separated addon IDs to disable");
+    console.log("  --verbose, -v             Show full script content in progress output");
+    console.log("  --quiet                   Minimal output, final JSON result only");
+    console.log("  --json                    All progress as JSON lines");
+    console.log("  --timeout <seconds>       Max execution time (default: 1800)");
+    console.log("");
+    console.log("Validate command:");
+    console.log("  oci-lxc-cli validate [--server <url>]");
+    console.log("");
+    console.log("Global options:");
+    console.log("  --help, -h                Show this help message");
+}
+async function main() {
+    const argv = process.argv.slice(2);
+    if (argv.includes("--help") || argv.includes("-h") || argv.length === 0) {
+        printHelp();
+        process.exit(0);
+    }
+    const args = parseArgs();
+    if (!args.command) {
+        printHelp();
+        process.exit(1);
+    }
+    if (args.command === "remote") {
+        await runRemoteCommand(args);
+    }
+    else if (args.command === "validate") {
+        await runValidateCommand(args);
+    }
+    else {
+        console.error(`Unknown command: ${args.command}`);
+        console.error("");
+        console.error("Available commands: remote, validate");
+        process.exit(1);
+    }
+}
+main().catch((err) => {
+    if (err instanceof CliError) {
+        console.error(`Error: ${err.message}`);
+        process.exit(err.exitCode);
+    }
+    console.error("Unexpected error:", err?.message || err);
+    if (err?.stack) {
+        console.error("Stack trace:", err.stack);
+    }
+    process.exit(1);
+});
+//# sourceMappingURL=oci-lxc-cli.mjs.map

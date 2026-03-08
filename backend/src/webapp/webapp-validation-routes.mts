@@ -4,10 +4,25 @@ import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { ParameterValidator } from "../parameter-validator.mjs";
 import type { TaskType } from "../types.mjs";
 import { VEConfigurationError } from "../backend-types.mjs";
+import { validateAllJson, ValidationError } from "../validateAllJson.mjs";
 
 const validator = new ParameterValidator();
 
 export function registerValidationRoutes(app: Application): void {
+  // GET /api/validate — validate all JSON files (templates, applications, frameworks, addons)
+  app.get("/api/validate", async (_req, res) => {
+    try {
+      await validateAllJson();
+      res.status(200).json({ valid: true });
+    } catch (err: any) {
+      if (err instanceof ValidationError) {
+        res.status(200).json({ valid: false, error: err.message });
+      } else {
+        res.status(500).json({ valid: false, error: err?.message || "Validation failed" });
+      }
+    }
+  });
+
   app.post(
     "/api/:veContext/validate-parameters/:application/:task",
     express.json(),

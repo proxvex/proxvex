@@ -9,8 +9,9 @@
     "name": "Volkmar Nissen"
   },
   "scripts": {
-    "build": "pnpm build:backend && pnpm build:frontend",
+    "build": "pnpm build:backend && pnpm build:cli && pnpm build:frontend",
     "build:backend": "cd backend && pnpm build",
+    "build:cli": "cd cli && pnpm build",
     "build:frontend": "cd frontend && pnpm build",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
@@ -25,10 +26,11 @@
   },
   "bin": {
     "oci-lxc-deployer": "backend/dist/oci-lxc-deployer.mjs",
-    "oci-lxc-cli": "backend/dist/cli/oci-lxc-cli.mjs"
+    "oci-lxc-cli": "cli/dist/cli/src/oci-lxc-cli.mjs"
   },
   "files": [
     "backend/dist",
+    "cli/dist",
     "frontend/dist",
     "json",
     "schemas",

@@ -12,6 +12,8 @@ export interface CliOptions {
   json?: boolean;
   verbose?: boolean;
   timeout: number;
+  enableAddons?: string[];
+  disableAddons?: string[];
 }
 
 export class CliError extends Error {

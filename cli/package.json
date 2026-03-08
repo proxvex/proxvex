@@ -1,0 +1,24 @@
+{
+  "name": "oci-lxc-cli",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "oci-lxc-cli": "dist/cli/src/oci-lxc-cli.mjs"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.production.json && tsc-alias -p tsconfig.production.json",
+    "postbuild": "chmod +x ./dist/cli/src/oci-lxc-cli.mjs",
+    "test": "vitest run",
+    "lint:fix": "eslint \"src/**/*.mts\" \"tests/**/*.mts\" --fix"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vitest": "^0.5.4",
+    "prettier": "^3.6.2",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.47.0",
+    "vitest": "^4.0.12"
+  }
+}

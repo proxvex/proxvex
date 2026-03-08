@@ -174,6 +174,7 @@ export enum ApiUri {
   ApplicationTags = "/api/applications/tags",
   LocalApplicationIds = "/api/applications/local/ids",
   Installations = "/api/:veContext/installations",
+  ContainerConfig = "/api/:veContext/container-config/:vmId",
   TemplateDetailsForApplication = "/api/:veContext/template-details/:application/:task",
   UnresolvedParameters = "/api/:veContext/unresolved-parameters/:application/:task",
   EnumValues = "/api/:veContext/enum-values/:application/:task",

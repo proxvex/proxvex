@@ -2,7 +2,7 @@ import type {
   IParameter,
   IAddonWithParameters,
   IStack,
-} from "../types.mjs";
+} from "@shared/types.mjs";
 
 export class CliTemplateGenerator {
   generate(input: {
