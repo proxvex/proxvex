@@ -38,9 +38,9 @@ describe("Certificate template (156)", () => {
     const certTemplate = {
       execute_on: "ve",
       name: "Generate Certificates",
-      skip_if_all_missing: ["cert_requests"],
+      skip_if_all_missing: ["ca_key_b64"],
       parameters: [
-        { id: "cert_requests", name: "Cert Requests", type: "string", internal: true, description: "Certificate generation requests" },
+        { id: "ca_key_b64", name: "CA Key", type: "string", internal: true, secure: true, description: "CA private key" },
         { id: "hostname", name: "Hostname", type: "string", default: "test", description: "Container hostname" },
       ],
       commands: [{
@@ -54,16 +54,15 @@ describe("Certificate template (156)", () => {
       certTemplate,
     );
 
-    // Create application.json with certtype parameters
+    // Create application.json with certtype on ssl.mode parameter
     const applicationJson = {
       name: "Test Cert Application",
-      description: "Test application with certtype parameters",
+      description: "Test application with certtype parameter",
       parameters: [
         {
-          id: "server_cert",
-          name: "Server Cert",
+          id: "ssl.mode",
+          name: "SSL Mode",
           type: "string",
-          upload: true,
           certtype: "server",
         },
       ],
@@ -93,17 +92,17 @@ describe("Certificate template (156)", () => {
     env.cleanup();
   });
 
-  it("should be skipped when cert_requests is missing", async () => {
+  it("should be skipped when ca_key_b64 is missing", async () => {
     const loaded = await tp.loadApplication(
       "test-cert-app",
       "installation",
       veContext,
       ExecutionMode.TEST,
-      [], // No inputs, so cert_requests won't exist
+      [], // No inputs, so ca_key_b64 won't exist
     );
 
-    // The template has skip_if_all_missing: ["cert_requests"]
-    // Since cert_requests is not provided, it should be skipped
+    // The template has skip_if_all_missing: ["ca_key_b64"]
+    // Since ca_key_b64 is not provided, it should be skipped
     const certCommand = loaded.commands.find(
       (cmd) => cmd.name === "Generate Certificates",
     );
@@ -116,13 +115,13 @@ describe("Certificate template (156)", () => {
     expect(skippedCommand).toBeDefined();
   });
 
-  it("should be included when cert_requests is provided", async () => {
+  it("should be included when ca_key_b64 is provided", async () => {
     const loaded = await tp.loadApplication(
       "test-cert-app",
       "installation",
       veContext,
       ExecutionMode.TEST,
-      [{ id: "cert_requests", value: "server_cert|server|secret" }],
+      [{ id: "ca_key_b64", value: "dGVzdC1jYS1rZXk=" }],
     );
 
     const certCommand = loaded.commands.find(
@@ -140,11 +139,10 @@ describe("Certificate template (156)", () => {
       [],
     );
 
-    const serverCertParam = loaded.parameters.find(
-      (p) => p.id === "server_cert",
+    const sslModeParam = loaded.parameters.find(
+      (p) => p.id === "ssl.mode",
     );
-    expect(serverCertParam).toBeDefined();
-    expect(serverCertParam!.upload).toBe(true);
-    expect(serverCertParam!.certtype).toBe("server");
+    expect(sslModeParam).toBeDefined();
+    expect(sslModeParam!.certtype).toBe("server");
   });
 });

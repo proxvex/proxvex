@@ -212,9 +212,6 @@ export function registerCertificateRoutes(
         return;
       }
 
-      // Build renewal requests for each hostname
-      const renewLines = body.hostnames.map((h) => `${h}|server|secret`);
-
       const cmd: ICommand = {
         name: "Renew Certificates",
         execute_on: "ve",
@@ -225,7 +222,7 @@ export function registerCertificateRoutes(
       };
 
       const inputs = [
-        { id: "cert_renew_requests", value: renewLines.join("\n") },
+        { id: "cert_renew_requests", value: body.hostnames.join("\n") },
         { id: "ca_key_b64", value: ca.key },
         { id: "ca_cert_b64", value: ca.cert },
         { id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) },

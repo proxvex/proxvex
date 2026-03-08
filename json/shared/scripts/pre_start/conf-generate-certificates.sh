@@ -1,44 +1,45 @@
 #!/bin/sh
 # Generate Certificates
 #
-# This script auto-generates TLS certificates for deployed containers.
-# It parses cert_requests (assembled by backend) and generates certs
-# using the CA key+cert provided as base64 parameters.
+# Generates TLS certificates for deployed containers.
+# Writes cert files to <shared_volpath>/volumes/<hostname>/certs/
+# (the directory is created by template 160 via addon_volumes).
 #
-# Uses cert_resolve_dir() from cert-common.sh library when ssl.certs_dir
-# is set to override the default volume key.
+# Controlled by two flags:
+#   ssl.needs_server_cert (default true) - Generate server cert (privkey.pem, cert.pem, fullchain.pem)
+#   ssl.needs_ca_cert (default false)    - Write CA certificate (chain.pem)
 #
 # Template variables:
-#   cert_requests  - Multiline: paramId|certtype|volumeKey per line
 #   ca_key_b64     - Base64-encoded CA private key PEM
 #   ca_cert_b64    - Base64-encoded CA certificate PEM
-#   shared_volpath - Base path for volumes
+#   shared_volpath - Base path for volumes (output from template 160)
 #   hostname       - Container hostname
 #   domain_suffix  - FQDN suffix (default: .local)
-#   ssl.certs_dir  - Volume key[:subdirectory] override (or empty)
+#   ssl.needs_server_cert - Generate server certificate
+#   ssl.needs_ca_cert     - Write CA certificate
 #   uid, gid       - File ownership
 #   mapped_uid, mapped_gid - Host-mapped ownership
 
 # Library functions are prepended automatically:
-# - cert_resolve_dir(), cert_generate_server(), cert_generate_fullchain()
+# - cert_generate_server(), cert_generate_fullchain()
 # - cert_write_ca_pub(), cert_write_ca()
-# - cert_check_validity(), cert_output_result()
+# - cert_check_validity(), cert_check_fqdn_match(), cert_output_result()
 
-# Get template variables
-CERT_REQUESTS="{{ cert_requests }}"
 CA_KEY_B64="{{ ca_key_b64 }}"
 CA_CERT_B64="{{ ca_cert_b64 }}"
 SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
-SSL_CERTS_DIR="{{ ssl.certs_dir }}"
+NEEDS_SERVER_CERT="{{ ssl.needs_server_cert }}"
+NEEDS_CA_CERT="{{ ssl.needs_ca_cert }}"
 UID_VAL="{{ uid }}"
 GID_VAL="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
 
-[ "$SSL_CERTS_DIR" = "NOT_DEFINED" ] && SSL_CERTS_DIR=""
 [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
+[ "$NEEDS_SERVER_CERT" = "NOT_DEFINED" ] && NEEDS_SERVER_CERT="true"
+[ "$NEEDS_CA_CERT" = "NOT_DEFINED" ] && NEEDS_CA_CERT="false"
 
 # Compute FQDN
 FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
@@ -54,67 +55,39 @@ if [ -n "$MAPPED_GID" ] && [ "$MAPPED_GID" != "NOT_DEFINED" ]; then
   EFFECTIVE_GID="$MAPPED_GID"
 fi
 
-# Sanitize hostname for directory name (same logic as upload-file-common.sh)
+# Sanitize hostname for directory name
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
-# Parse cert_requests line by line
-echo "$CERT_REQUESTS" | while IFS='|' read -r PARAM_ID CERTTYPE VOLUME_KEY; do
-  # Skip empty lines
-  [ -z "$PARAM_ID" ] && continue
+# Cert directory: <shared_volpath>/volumes/<hostname>/certs/
+CERT_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/certs"
+mkdir -p "$CERT_DIR"
 
-  # Resolve target directory: use ssl.certs_dir if set, otherwise use volume key from cert_requests
-  TARGET_DIR=$(cert_resolve_dir "$SSL_CERTS_DIR" "$SHARED_VOLPATH" "$SAFE_HOST" "$VOLUME_KEY")
+GENERATED=false
 
-  echo "Processing: ${PARAM_ID} (${CERTTYPE}) -> ${TARGET_DIR}" >&2
-
-  # Ensure target directory exists
-  if [ ! -d "$TARGET_DIR" ]; then
-    echo "Warning: Volume directory '${TARGET_DIR}' not found for ${PARAM_ID}, creating it" >&2
-    mkdir -p "$TARGET_DIR"
-  fi
-
-  # Determine check file based on certtype (Let's Encrypt naming)
-  case "$CERTTYPE" in
-    server)    CHECK_FILE="${TARGET_DIR}/cert.pem" ;;
-    fullchain) CHECK_FILE="${TARGET_DIR}/fullchain.pem" ;;
-    ca_pub)    CHECK_FILE="${TARGET_DIR}/chain.pem" ;;
-    ca)        CHECK_FILE="${TARGET_DIR}/chain.pem" ;;
-    *)
-      echo "Warning: Unknown certtype '${CERTTYPE}' for ${PARAM_ID}, skipping" >&2
-      continue
-      ;;
-  esac
-
-  # Check validity AND FQDN match (regenerate if FQDN changed or cert expiring)
+# Server certificate (default: true)
+if [ "$NEEDS_SERVER_CERT" != "false" ]; then
+  CHECK_FILE="${CERT_DIR}/cert.pem"
   if cert_check_validity "$CHECK_FILE" 30 && cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
-    echo "Certificate ${CHECK_FILE} is still valid and FQDN matches, skipping regeneration" >&2
-    continue
+    echo "Server certificate still valid and FQDN matches, skipping" >&2
+  else
+    if [ -f "$CHECK_FILE" ] && ! cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
+      echo "FQDN mismatch detected, regenerating server certificate for ${FQDN}" >&2
+    fi
+    cert_generate_server "$CA_KEY_B64" "$CA_CERT_B64" "$FQDN" "$CERT_DIR" "$HOSTNAME"
+    GENERATED=true
   fi
-  if [ -f "$CHECK_FILE" ] && ! cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
-    echo "FQDN mismatch detected, regenerating certificate for ${FQDN}" >&2
-  fi
+fi
 
-  # Generate cert based on certtype
-  case "$CERTTYPE" in
-    server)
-      cert_generate_server "$CA_KEY_B64" "$CA_CERT_B64" "$FQDN" "$TARGET_DIR" "$HOSTNAME"
-      ;;
-    fullchain)
-      cert_generate_fullchain "$CA_KEY_B64" "$CA_CERT_B64" "$FQDN" "$TARGET_DIR" "$HOSTNAME"
-      ;;
-    ca_pub)
-      cert_write_ca_pub "$CA_CERT_B64" "$TARGET_DIR"
-      ;;
-    ca)
-      cert_write_ca "$CA_KEY_B64" "$CA_CERT_B64" "$TARGET_DIR"
-      ;;
-  esac
+# CA certificate (default: false)
+if [ "$NEEDS_CA_CERT" = "true" ]; then
+  cert_write_ca_pub "$CA_CERT_B64" "$CERT_DIR"
+  GENERATED=true
+fi
 
-  # Set ownership on generated files
-  if [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
-    chown -R "${EFFECTIVE_UID}:${EFFECTIVE_GID}" "$TARGET_DIR" 2>/dev/null || true
-  fi
-done
+# Set ownership on cert directory
+if [ "$GENERATED" = "true" ] && [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
+  chown -R "${EFFECTIVE_UID}:${EFFECTIVE_GID}" "$CERT_DIR" 2>/dev/null || true
+  echo "Set ownership of ${CERT_DIR} to ${EFFECTIVE_UID}:${EFFECTIVE_GID}" >&2
+fi
 
-# Output result
 cert_output_result "certs_generated"

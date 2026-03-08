@@ -802,7 +802,7 @@ describe("WebAppVE Addon Integration", () => {
     });
 
     it("should include addon certtype parameters for cert injection", async () => {
-      // Create addon with certtype parameter (like addon-ssl)
+      // Create addon with certtype marker on ssl.mode (like addon-ssl)
       writeAddon(helper.jsonDir, "ssl-addon", {
         name: "SSL Addon",
         description: "Addon with certtype parameter",
@@ -810,18 +810,11 @@ describe("WebAppVE Addon Integration", () => {
         notes_key: "ssl",
         parameters: [
           {
-            id: "ssl.cert",
-            name: "Server Certificate",
+            id: "ssl.mode",
+            name: "SSL Mode",
             type: "string",
-            upload: true,
             certtype: "server",
-          },
-          {
-            id: "ssl.key",
-            name: "Server Private Key",
-            type: "string",
-            upload: true,
-            secure: true,
+            default: "proxy",
           },
         ],
         properties: [

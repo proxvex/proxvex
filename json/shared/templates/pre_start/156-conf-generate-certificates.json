@@ -1,15 +1,15 @@
 {
   "execute_on": "ve",
   "name": "Generate Certificates",
-  "skip_if_all_missing": ["cert_requests"],
+  "skip_if_all_missing": ["ca_key_b64"],
   "parameters": [
-    { "id": "cert_requests", "name": "Cert Requests", "type": "string", "internal": true, "multiline": true },
     { "id": "ca_key_b64", "name": "CA Key", "type": "string", "internal": true, "secure": true },
     { "id": "ca_cert_b64", "name": "CA Cert", "type": "string", "internal": true },
     { "id": "shared_volpath", "name": "Shared Volume Path", "type": "string", "required": true },
     { "id": "hostname", "name": "Hostname", "type": "string", "required": true },
-    { "id": "ssl.certs_dir", "name": "Certificate Directory", "type": "string", "advanced": true },
     { "id": "domain_suffix", "name": "Domain Suffix", "type": "string", "default": ".local", "advanced": true, "description": "FQDN = hostname + domain_suffix" },
+    { "id": "ssl.needs_server_cert", "name": "Needs Server Cert", "type": "boolean", "default": "true", "advanced": true, "description": "Generate server certificate (privkey.pem, cert.pem, fullchain.pem)" },
+    { "id": "ssl.needs_ca_cert", "name": "Needs CA Cert", "type": "boolean", "default": "false", "advanced": true, "description": "Write CA certificate (chain.pem)" },
     { "id": "uid", "name": "UID", "type": "string", "default": "0", "advanced": true },
     { "id": "gid", "name": "GID", "type": "string", "default": "0", "advanced": true },
     { "id": "mapped_uid", "name": "Mapped UID", "type": "string", "advanced": true },
