@@ -1,0 +1,6 @@
+{
+  "params": [
+    { "name": "ssl.mode", "value": "proxy" }
+  ],
+  "addons": ["addon-ssl"]
+}

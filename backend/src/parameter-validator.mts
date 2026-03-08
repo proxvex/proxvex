@@ -27,6 +27,7 @@ export class ParameterValidator {
     parameterDefs: IParameter[];
     selectedAddons?: string[];
     availableAddons?: IAddonWithParameters[];
+    applicationParamIds?: Set<string>;
     stackId?: string;
     availableStacks?: IStack[];
   }): ValidationResult {
@@ -117,7 +118,7 @@ export class ParameterValidator {
       }
     }
 
-    // Validate addon IDs
+    // Validate addon IDs and required_parameters
     if (selectedAddons && selectedAddons.length > 0 && availableAddons) {
       const addonIds = new Set(availableAddons.map((a) => a.id));
       for (const addonId of selectedAddons) {
@@ -126,6 +127,23 @@ export class ParameterValidator {
             field: "addons",
             message: `Unknown addon '${addonId}'`,
           });
+          continue;
+        }
+
+        // Check required_parameters: application must define all of them
+        if (input.applicationParamIds) {
+          const addon = availableAddons.find((a) => a.id === addonId);
+          if (addon?.required_parameters?.length) {
+            const missing = addon.required_parameters.filter(
+              (id) => !input.applicationParamIds!.has(id),
+            );
+            if (missing.length > 0) {
+              errors.push({
+                field: "addons",
+                message: `Addon '${addon.name}' requires parameters [${missing.join(", ")}] to be defined in the application`,
+              });
+            }
+          }
         }
       }
     }

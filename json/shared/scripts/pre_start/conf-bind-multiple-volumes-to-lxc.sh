@@ -52,16 +52,21 @@ if [ -z "$VMID" ] || [ -z "$HOSTNAME" ]; then
   exit 1
 fi
 
+# Merge addon_volumes with base volumes BEFORE the empty check,
+# otherwise addon-only volumes are silently ignored
+if [ -n "$ADDON_VOLUMES" ] && [ "$ADDON_VOLUMES" != "" ]; then
+  if [ -n "$VOLUMES" ]; then
+    VOLUMES="$VOLUMES
+$ADDON_VOLUMES"
+  else
+    VOLUMES="$ADDON_VOLUMES"
+  fi
+  echo "Merged addon_volumes with base volumes" >&2
+fi
+
 if [ -z "$VOLUMES" ]; then
   echo "No volumes to bind, skipping." >&2
   exit 0
-fi
-
-# Merge addon_volumes with base volumes (if addon_volumes is set)
-if [ -n "$ADDON_VOLUMES" ] && [ "$ADDON_VOLUMES" != "" ]; then
-  VOLUMES="$VOLUMES
-$ADDON_VOLUMES"
-  echo "Merged addon_volumes with base volumes" >&2
 fi
 
 # Set default base_path if not provided
@@ -457,5 +462,15 @@ fi
 # No need to set permissions inside the container as they are already correct on the host.
 
 echo "Successfully processed volumes for container $VMID" >&2
+
+# Output shared_volpath so downstream templates (e.g. cert generation) can locate volumes
+SHARED_VOLPATH=""
+if [ -n "$HOST_MOUNTPOINT" ] && [ "$HOST_MOUNTPOINT" != "" ]; then
+  SHARED_VOLPATH="$HOST_MOUNTPOINT"
+else
+  SHARED_VOLPATH="/mnt"
+fi
+echo "{\"id\":\"shared_volpath\",\"default\":\"$SHARED_VOLPATH\"}"
+
 exit 0
 

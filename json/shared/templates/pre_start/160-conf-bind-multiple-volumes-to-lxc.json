@@ -94,7 +94,12 @@
   "commands": [
     {
       "script": "conf-bind-multiple-volumes-to-lxc.sh",
-      "description": "Executes the script to bind multiple volumes in the container."
+      "description": "Executes the script to bind multiple volumes in the container.",
+      "outputs": [
+        {
+          "id": "shared_volpath"
+        }
+      ]
     }
   ]
 }

@@ -69,8 +69,7 @@
 
   "installation": {
     "pre_start": [
-      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "156-conf-generate-certificates.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
       { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
       { "name": "159-conf-enable-ssl-app.json", "after": "157-conf-write-uploaded-certs.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
@@ -85,8 +84,7 @@
 
   "reconfigure": {
     "pre_start": [
-      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "156-conf-generate-certificates.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
       { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
       { "name": "159-conf-enable-ssl-app.json", "after": "157-conf-write-uploaded-certs.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },

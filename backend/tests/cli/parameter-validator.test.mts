@@ -191,6 +191,70 @@ describe("ParameterValidator", () => {
     });
   });
 
+  describe("addon required_parameters validation", () => {
+    const sslAddon: IAddonWithParameters = {
+      id: "addon-ssl",
+      name: "SSL/HTTPS",
+      required_parameters: ["ssl.mode", "ssl.certs_dir"],
+      parameters: [],
+      description: "",
+    } as any;
+
+    const noReqAddon: IAddonWithParameters = {
+      id: "addon-basic",
+      name: "Basic",
+      parameters: [],
+      description: "",
+    } as any;
+
+    it("should pass when all required_parameters are present in application", () => {
+      const result = validator.validate({
+        params: [],
+        parameterDefs: [],
+        selectedAddons: ["addon-ssl"],
+        availableAddons: [sslAddon],
+        applicationParamIds: new Set(["ssl.mode", "ssl.certs_dir", "hostname"]),
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it("should fail when required_parameters are missing from application", () => {
+      const result = validator.validate({
+        params: [],
+        parameterDefs: [],
+        selectedAddons: ["addon-ssl"],
+        availableAddons: [sslAddon],
+        applicationParamIds: new Set(["hostname"]),
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe("addons");
+      expect(result.errors[0].message).toContain("ssl.mode");
+      expect(result.errors[0].message).toContain("ssl.certs_dir");
+    });
+
+    it("should pass when addon has no required_parameters", () => {
+      const result = validator.validate({
+        params: [],
+        parameterDefs: [],
+        selectedAddons: ["addon-basic"],
+        availableAddons: [noReqAddon],
+        applicationParamIds: new Set(["hostname"]),
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it("should skip required_parameters check when applicationParamIds is not provided", () => {
+      const result = validator.validate({
+        params: [],
+        parameterDefs: [],
+        selectedAddons: ["addon-ssl"],
+        availableAddons: [sslAddon],
+      });
+      expect(result.valid).toBe(true);
+    });
+  });
+
   describe("stack validation", () => {
     const stacks: IStack[] = [
       { id: "postgres-prod", name: "Production" } as any,

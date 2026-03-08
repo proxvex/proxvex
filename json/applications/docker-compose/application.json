@@ -51,7 +51,10 @@
     ],
     "pre_start": [
       "100-conf-create-configure-lxc.json",
-      "101-conf-configure-lxc-for-docker.json"
+      "101-conf-configure-lxc-for-docker.json",
+      { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
+      "121-conf-mount-zfs-pool-on-host.json",
+      "160-conf-bind-multiple-volumes-to-lxc.json"
     ],
     "start": [
       "200-start-lxc.json"
@@ -59,9 +62,6 @@
     "post_start": [
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
-      "310-post-extract-volumes-from-compose.json",
-      { "name": "121-conf-mount-zfs-pool-on-host.json", "category": "pre_start" },
-      { "name": "160-conf-bind-multiple-volumes-to-lxc.json", "category": "pre_start" },
       "320-post-upload-docker-compose-files.json",
       "330-svc-start-docker-compose.json"
     ]

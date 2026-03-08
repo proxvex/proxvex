@@ -72,11 +72,17 @@ export function registerValidationRoutes(app: Application): void {
           ? contextManager.listStacks(appObj.stacktype)
           : [];
 
+        // Build application parameter/property ID set for addon requirements check
+        const applicationParamIds = new Set<string>();
+        for (const p of appObj.parameters ?? []) applicationParamIds.add(p.id);
+        for (const p of appObj.properties ?? []) applicationParamIds.add(p.id);
+
         const result = validator.validate({
           params: body.params,
           parameterDefs,
           ...(body.selectedAddons ? { selectedAddons: body.selectedAddons } : {}),
           availableAddons,
+          applicationParamIds,
           ...(body.stackId ? { stackId: body.stackId } : {}),
           availableStacks,
         });
