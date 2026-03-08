@@ -22,7 +22,7 @@
       "description": "One per line: key=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "certs=certs"
+      "default": ""
     },
     {
       "id": "compose_file",
@@ -53,12 +53,16 @@
       "value": "native"
     },
     {
-      "id": "ssl.certs_dir",
-      "value": "certs"
-    },
-    {
       "id": "ssl.addon_volumes",
       "value": "certs=certs,0700,0:0"
+    },
+    {
+      "id": "ssl.needs_server_cert",
+      "value": "true"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "value": "true"
     }
   ],
   "installation": {},

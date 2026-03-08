@@ -12,6 +12,7 @@
       "type": "enum",
       "required": true,
       "default": "proxy",
+      "certtype": "server",
       "enumValues": [
         { "name": "Proxy (nginx)", "value": "proxy" },
         { "name": "Native", "value": "native" },
@@ -36,30 +37,6 @@
       "default": "",
       "advanced": true,
       "description": "The HTTPS port to listen on."
-    },
-    {
-      "id": "ssl.cert",
-      "name": "Server Certificate",
-      "type": "string",
-      "upload": true,
-      "certtype": "server",
-      "description": "Optional PEM server certificate for HTTPS.\n- If left empty, a certificate is **auto-generated** by the internal CA\n- Upload your own `.pem` or `.crt` file to use a custom certificate\n- The certificate is stored as `cert.pem` in the certificate directory\n- The HTTPS configuration persists across container restarts"
-    },
-    {
-      "id": "ssl.key",
-      "name": "Server Private Key",
-      "type": "string",
-      "upload": true,
-      "secure": true,
-      "description": "Optional PEM private key matching the server certificate.\n- If left empty, a key is **auto-generated** together with the certificate\n- Upload your own `.pem` or `.key` file to use a custom private key\n- The key is stored as `privkey.pem` in the certificate directory"
-    },
-    {
-      "id": "ssl.certs_dir",
-      "name": "Certificate Directory",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Volume key and optional subdirectory for certificates (format: volume_key[:subdirectory]). If empty, uses the default 'certs' volume."
     }
   ],
 
@@ -70,8 +47,7 @@
   "installation": {
     "pre_start": [
       { "name": "156-conf-generate-certificates.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
-      { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
-      { "name": "159-conf-enable-ssl-app.json", "after": "157-conf-write-uploaded-certs.json" },
+      { "name": "159-conf-enable-ssl-app.json", "after": "156-conf-generate-certificates.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
     ],
@@ -85,8 +61,7 @@
   "reconfigure": {
     "pre_start": [
       { "name": "156-conf-generate-certificates.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
-      { "name": "157-conf-write-uploaded-certs.json", "after": "156-conf-generate-certificates.json" },
-      { "name": "159-conf-enable-ssl-app.json", "after": "157-conf-write-uploaded-certs.json" },
+      { "name": "159-conf-enable-ssl-app.json", "after": "156-conf-generate-certificates.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
     ],

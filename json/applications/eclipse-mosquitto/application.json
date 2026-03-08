@@ -55,8 +55,16 @@
       "value": "certs"
     },
     {
-      "id": "ssl.certs_dir",
-      "value": "config:certs"
+      "id": "ssl.addon_volumes",
+      "value": "certs=/mosquitto/config/certs,0700,1883:1883"
+    },
+    {
+      "id": "ssl.needs_server_cert",
+      "value": "true"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "value": "true"
     }
   ],
   "installation": {

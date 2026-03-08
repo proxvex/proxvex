@@ -11,14 +11,13 @@
 #   fullchain.pem - Server certificate + CA certificate concatenated
 #
 # Main functions:
-#   1. cert_resolve_dir        - Resolve certificate directory from ssl.certs_dir
-#   2. cert_generate_server    - Generate all 4 cert files signed by CA
-#   3. cert_generate_fullchain - Generate all 4 cert files (alias for cert_generate_server)
-#   4. cert_write_ca_pub       - Write CA public cert only (chain.pem)
-#   5. cert_write_ca           - Write CA key+cert
-#   6. cert_check_validity     - Check if cert is valid for N days
-#   7. cert_check_fqdn_match   - Check if cert CN matches expected FQDN
-#   8. cert_output_result      - Generate JSON output
+#   1. cert_generate_server    - Generate all 4 cert files signed by CA
+#   2. cert_generate_fullchain - Generate all 4 cert files (alias for cert_generate_server)
+#   3. cert_write_ca_pub       - Write CA public cert only (chain.pem)
+#   4. cert_write_ca           - Write CA key+cert
+#   5. cert_check_validity     - Check if cert is valid for N days
+#   6. cert_check_fqdn_match   - Check if cert CN matches expected FQDN
+#   7. cert_output_result      - Generate JSON output
 #
 # Global state variables:
 #   CERT_FILES_WRITTEN - Counter for cert files written
@@ -27,35 +26,6 @@
 # GLOBAL STATE
 # ============================================================================
 CERT_FILES_WRITTEN=0
-
-# ============================================================================
-# cert_resolve_dir()
-# Resolve certificate directory from ssl.certs_dir parameter
-# Arguments:
-#   $1 - ssl_certs_dir: Format "volume_key[:subdirectory]" or empty
-#   $2 - shared_volpath: Base path for volumes
-#   $3 - safe_host: Sanitized hostname
-#   $4 - default_vol_key: Fallback volume key (e.g., "certs")
-# Returns: Absolute path to certificate directory via stdout
-# ============================================================================
-cert_resolve_dir() {
-  _ssl_certs_dir="$1"
-  _shared_volpath="$2"
-  _safe_host="$3"
-  _default_vol_key="${4:-certs}"
-
-  if [ -n "$_ssl_certs_dir" ] && [ "$_ssl_certs_dir" != "NOT_DEFINED" ]; then
-    _vol_key=$(echo "$_ssl_certs_dir" | cut -d: -f1)
-    _subdir=$(echo "$_ssl_certs_dir" | cut -d: -f2 -s)
-    _safe_vol=$(echo "$_vol_key" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-    _result="${_shared_volpath}/volumes/${_safe_host}/${_safe_vol}"
-    [ -n "$_subdir" ] && _result="${_result}/${_subdir}"
-    echo "$_result"
-  else
-    _safe_vol=$(echo "$_default_vol_key" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-    echo "${_shared_volpath}/volumes/${_safe_host}/${_safe_vol}"
-  fi
-}
 
 # ============================================================================
 # cert_check_validity()

@@ -195,7 +195,7 @@ describe("ParameterValidator", () => {
     const sslAddon: IAddonWithParameters = {
       id: "addon-ssl",
       name: "SSL/HTTPS",
-      required_parameters: ["ssl.mode", "ssl.certs_dir"],
+      required_parameters: ["ssl.mode", "ssl.addon_volumes"],
       parameters: [],
       description: "",
     } as any;
@@ -213,7 +213,7 @@ describe("ParameterValidator", () => {
         parameterDefs: [],
         selectedAddons: ["addon-ssl"],
         availableAddons: [sslAddon],
-        applicationParamIds: new Set(["ssl.mode", "ssl.certs_dir", "hostname"]),
+        applicationParamIds: new Set(["ssl.mode", "ssl.addon_volumes", "hostname"]),
       });
       expect(result.valid).toBe(true);
     });
@@ -230,7 +230,7 @@ describe("ParameterValidator", () => {
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].field).toBe("addons");
       expect(result.errors[0].message).toContain("ssl.mode");
-      expect(result.errors[0].message).toContain("ssl.certs_dir");
+      expect(result.errors[0].message).toContain("ssl.addon_volumes");
     });
 
     it("should pass when addon has no required_parameters", () => {
