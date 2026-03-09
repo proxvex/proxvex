@@ -301,21 +301,27 @@ done < "$TMPFILE"
 for TARGET in $TARGETS; do
   # Find all mp entries for this target
   MAP_LINES=$(pct config "$VMID" | grep -aE "^mp[0-9]+: .*mp=$TARGET" || true)
-  # If multiple entries exist, keep the first and delete the rest
   if [ -n "$MAP_LINES" ]; then
-    # Stop container once before deletions
-    if [ "$NEEDS_STOP" -eq 0 ] && container_running; then
-      pct stop "$VMID" >&2
-      NEEDS_STOP=1
-    fi
-    # Delete all mp entries for this target; we'll re-add cleanly below
+    # Only delete OUR bind mounts (source under HOST_PATH), preserve PVE storage mounts
     printf '%s\n' "$MAP_LINES" | while IFS= read -r mline; do
       mpkey=$(echo "$mline" | cut -d: -f1)
-      if pct set "$VMID" -delete "$mpkey" >&2; then
-        echo "Deleted mount $mpkey for target $TARGET" >&2
-      else
-        echo "Warning: Failed to delete mount $mpkey for target $TARGET" >&2
-      fi
+      mpsrc=$(echo "$mline" | sed -E 's/^mp[0-9]+: ([^,]+),.*/\1/')
+      case "$mpsrc" in
+        "$HOST_PATH"/*)
+          if [ "$NEEDS_STOP" -eq 0 ] && container_running; then
+            pct stop "$VMID" >&2
+            NEEDS_STOP=1
+          fi
+          if pct set "$VMID" -delete "$mpkey" >&2; then
+            echo "Deleted mount $mpkey for target $TARGET" >&2
+          else
+            echo "Warning: Failed to delete mount $mpkey for target $TARGET" >&2
+          fi
+          ;;
+        *)
+          echo "Keeping mount $mpkey for target $TARGET (PVE storage: $mpsrc)" >&2
+          ;;
+      esac
     done
   fi
 done
@@ -371,7 +377,8 @@ while IFS= read -r line <&3; do
 
   # Construct paths: <base_path>/<hostname>/<volume-key>
   SOURCE_PATH="$HOST_PATH/$VOLUME_KEY"
-  CONTAINER_PATH="/$VOLUME_VALUE"
+  # Normalize: ensure exactly one leading slash (avoid //config when value starts with /)
+  CONTAINER_PATH=$(printf '%s' "$VOLUME_VALUE" | sed -E 's#^/*#/#')
 
   # Create source directory if it doesn't exist
   if [ ! -d "$SOURCE_PATH" ]; then
