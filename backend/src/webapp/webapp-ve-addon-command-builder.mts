@@ -313,8 +313,24 @@ export class WebAppVeAddonCommandBuilder {
       application,
     );
     if (preStartCommands.length > 0) {
-      const preStartIndex = this.findAddonInsertionIndex(result, "pre_start");
-     result.splice(preStartIndex, 0, ...preStartCommands);
+      // Addon property commands (e.g. addon_volumes from SSL addon) must be
+      // injected at the beginning of the pipeline so their values are available
+      // to application templates like 160-conf-bind-multiple-volumes-to-lxc.
+      // Script commands are inserted at the normal pre_start position (before Start LXC).
+      const propertyCommands = preStartCommands.filter(
+        (cmd) => cmd.properties && !cmd.script && !cmd.scriptContent,
+      );
+      const scriptCommands = preStartCommands.filter(
+        (cmd) => !cmd.properties || cmd.script || cmd.scriptContent,
+      );
+
+      if (propertyCommands.length > 0) {
+        result.splice(0, 0, ...propertyCommands);
+      }
+      if (scriptCommands.length > 0) {
+        const preStartIndex = this.findAddonInsertionIndex(result, "pre_start");
+        result.splice(preStartIndex, 0, ...scriptCommands);
+      }
     }
 
     // Load and insert post_start commands
