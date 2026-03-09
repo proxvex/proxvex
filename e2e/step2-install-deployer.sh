@@ -160,11 +160,15 @@ deploy_to_container() {
     nested_ssh "pct exec $target_vmid -- sh -c 'ip link set lo up; ip link set eth0 up; ip addr add $DEPLOYER_STATIC_IP dev eth0 2>/dev/null; ip route add default via $DEPLOYER_GATEWAY 2>/dev/null' || true"
     success "Container $target_vmid restarted"
 
-    # Wait for API
+    # Wait for API (try both HTTP and HTTPS - after SSL reconfigure, HTTP redirects to HTTPS)
     info "Waiting for API to restart..."
     local api_ok=false
-    for i in $(seq 1 20); do
+    for i in $(seq 1 60); do
         if nested_ssh "curl -s --connect-timeout 1 http://$deployer_ip:3080/ 2>/dev/null" | grep -q "doctype"; then
+            api_ok=true
+            break
+        fi
+        if nested_ssh "curl -sk --connect-timeout 1 https://$deployer_ip:3443/ 2>/dev/null" | grep -q "doctype"; then
             api_ok=true
             break
         fi
@@ -173,7 +177,7 @@ deploy_to_container() {
     done
     echo ""
     if [ "$api_ok" != "true" ]; then
-        error "API failed to restart within 20 seconds"
+        error "API failed to restart within 60 seconds"
     fi
     success "API healthy in container $target_vmid"
 }
@@ -527,15 +531,19 @@ if [ "$UPDATE_ONLY" != "true" ]; then
     success "Snapshot 'deployer-installed' created"
     pve_ssh "qm start $TEST_VMID"
     info "Waiting for deployer API after VM restart..."
+    local api_ready=false
     for i in $(seq 1 60); do
         if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
-            break
+            api_ready=true; break
+        fi
+        if nested_ssh "curl -sk --connect-timeout 1 https://$DEPLOYER_IP:3443/ 2>/dev/null" | grep -q "doctype"; then
+            api_ready=true; break
         fi
         printf "\r${YELLOW}[INFO]${NC} Waiting for API... %ds" "$i"
         sleep 1
     done
     echo ""
-    if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
+    if [ "$api_ready" = "true" ]; then
         success "Deployer API is ready"
     else
         error "Deployer API not reachable after 60s"

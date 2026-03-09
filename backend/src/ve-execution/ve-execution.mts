@@ -759,6 +759,21 @@ export class VeExecution extends EventEmitter {
       if (restartInfo == undefined) {
         this.emit("finished", this.buildVmContext());
       }
+    } else {
+      // Send a final failure message so CLI/polling clients stop waiting
+      const vmId = rcRestartInfo?.vm_id;
+
+      this.emit("message", {
+        command: "Failed",
+        execute_on: "ve",
+        exitCode: 1,
+        result: null,
+        stderr: "Execution failed",
+        finished: true,
+        index: getNextMessageIndex(),
+        partial: false,
+        vmId: vmId,
+      } as IVeExecuteMessage);
     }
     return rcRestartInfo;
   }

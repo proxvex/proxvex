@@ -31,6 +31,21 @@
     "stacktype": {
       "type": "string"
     },
+    "dependencies": {
+      "type": "array",
+      "description": "Applications that must be installed before this one (in the same stack)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "application": {
+            "type": "string",
+            "description": "Application ID of the dependency"
+          }
+        },
+        "required": ["application"],
+        "additionalProperties": false
+      }
+    },
     "installation": {
       "$ref": "categorized-templatelist"
     },

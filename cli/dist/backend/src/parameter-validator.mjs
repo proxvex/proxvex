@@ -11,6 +11,13 @@ export class ParameterValidator {
         for (const def of parameterDefs) {
             if (!def.required)
                 continue;
+            // Conditional requirement: if 'if' is set, only require when the
+            // referenced parameter/property has a truthy value
+            if (def.if) {
+                const condValue = paramMap.get(def.if);
+                if (!condValue || condValue === "false" || condValue === "0")
+                    continue;
+            }
             const value = paramMap.get(def.id);
             if (value === undefined || value === "" || value === null) {
                 errors.push({

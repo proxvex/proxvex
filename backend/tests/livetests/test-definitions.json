@@ -1,0 +1,99 @@
+{
+  "eclipse-mosquitto": {
+    "description": "Eclipse Mosquitto MQTT Broker (simple oci-image test)",
+    "steps": [
+      {
+        "application": "eclipse-mosquitto",
+        "task": "installation",
+        "verify": {
+          "container_running": true,
+          "notes_managed": true,
+          "lxc_log_no_errors": true
+        }
+      }
+    ]
+  },
+  "postgres": {
+    "description": "Postgres database installation",
+    "steps": [
+      {
+        "application": "postgres",
+        "task": "installation",
+        "wait_seconds": 30,
+        "verify": {
+          "container_running": true,
+          "notes_managed": true,
+          "lxc_log_no_errors": true
+        }
+      }
+    ]
+  },
+  "postgres-ssl": {
+    "description": "Postgres with SSL addon",
+    "steps": [
+      {
+        "application": "postgres",
+        "task": "installation",
+        "addons": ["addon-ssl"],
+        "wait_seconds": 30,
+        "verify": {
+          "container_running": true,
+          "notes_managed": true,
+          "lxc_log_no_errors": true,
+          "pg_ssl_on": true
+        }
+      }
+    ]
+  },
+  "zitadel": {
+    "description": "Zitadel with Postgres dependency (no SSL)",
+    "steps": [
+      {
+        "application": "postgres",
+        "task": "installation",
+        "verify": {
+          "container_running": true,
+          "lxc_log_no_errors": true
+        }
+      },
+      {
+        "application": "zitadel",
+        "task": "installation",
+        "wait_seconds": 60,
+        "verify": {
+          "container_running": true,
+          "notes_managed": true,
+          "services_up": true,
+          "docker_log_no_errors": true
+        }
+      }
+    ]
+  },
+  "zitadel-ssl": {
+    "description": "Zitadel with SSL and Postgres with SSL",
+    "steps": [
+      {
+        "application": "postgres",
+        "task": "installation",
+        "addons": ["addon-ssl"],
+        "verify": {
+          "container_running": true,
+          "lxc_log_no_errors": true
+        }
+      },
+      {
+        "application": "zitadel",
+        "task": "installation",
+        "addons": ["addon-ssl"],
+        "wait_seconds": 60,
+        "verify": {
+          "container_running": true,
+          "notes_managed": true,
+          "services_up": true,
+          "docker_log_no_errors": true,
+          "tls_connect": 8080
+        }
+      }
+    ]
+  }
+}

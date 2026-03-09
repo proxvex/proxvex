@@ -36,7 +36,7 @@ def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
                          version="", deployer_url="", ve_context="",
                          icon_base64="", icon_mime_type="",
                          username="", uid="", gid="",
-                         is_deployer=False):
+                         is_deployer=False, stack_name=""):
     """Build hidden HTML comment markers for machine parsing."""
     lines = []
     lines.append("<!-- oci-lxc-deployer:managed -->")
@@ -60,6 +60,8 @@ def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
         lines.append("<!-- oci-lxc-deployer:uid %s -->" % uid)
     if gid:
         lines.append("<!-- oci-lxc-deployer:gid %s -->" % gid)
+    if stack_name:
+        lines.append("<!-- oci-lxc-deployer:stack-name %s -->" % stack_name)
     return lines
 
 

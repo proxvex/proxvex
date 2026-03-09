@@ -1,70 +1,65 @@
 # Live Integration Tests
 
-Diese Tests erstellen echte Container auf einem Proxmox VE Host via `oci-lxc-cli` und verifizieren die Funktionalität.
+These tests create real containers on a Proxmox VE host via `oci-lxc-cli` and verify functionality.
 
-## Voraussetzungen
+## Prerequisites
 
-1. **Nested VM mit Deployer** muss laufen (via `e2e/step1` + `e2e/step2`)
+1. **Nested VM with Deployer** running (via `e2e/step1` + `e2e/step2`)
+2. **Project is built** (incl. CLI): `cd $PROJECT_ROOT && pnpm run build`
+3. **Deployer API** is reachable (checked automatically)
 
-2. **Projekt ist gebaut** (inkl. CLI)
-   ```bash
-   cd $PROJECT_ROOT && pnpm run build
-   ```
+## Configuration
 
-3. **Deployer API** ist erreichbar (wird automatisch geprüft)
+Tests use the central `e2e/config.json` for all settings (PVE host, ports, etc.).
 
-## Konfiguration
+## Usage
 
-Die Tests nutzen die zentrale `e2e/config.json` für alle Einstellungen (PVE Host, Ports, etc.).
+```bash
+# Default test (alpine-packages)
+./run-live-test.sh github-action
 
-Umgebungsvariablen in `config.json` werden unterstützt:
+# Specific test definition
+./run-live-test.sh github-action zitadel-ssl
+
+# Keep containers for debugging
+KEEP_VM=1 ./run-live-test.sh github-action zitadel
+```
+
+### Arguments
+
+1. `instance` - Instance name from `e2e/config.json` (optional, uses default)
+2. `test-name` - Test name from `test-definitions.json` or application name (default: alpine-packages)
+
+## Test Definitions
+
+Tests are defined in `test-definitions.json`. Each test has sequential steps:
+
 ```json
 {
-  "pveHost": "${PVE_HOST:-ubuntupve}"
+  "zitadel-ssl": {
+    "description": "Zitadel with SSL and Postgres",
+    "steps": [
+      { "application": "postgres", "task": "installation", "addons": ["addon-ssl"],
+        "verify": { "container_running": true, "lxc_log_no_errors": true } },
+      { "application": "zitadel", "task": "installation", "addons": ["addon-ssl"],
+        "wait_seconds": 60,
+        "verify": { "container_running": true, "services_up": true, "tls_connect": 8080 } }
+    ]
+  }
 }
 ```
 
-## Verwendung
+### Verify Options
 
-```bash
-# Standard-Test mit alpine-packages (default Instance aus config.json)
-./run-live-test.sh
-
-# Spezifische Instance
-./run-live-test.sh local-test
-
-# Spezifische Applikation testen
-./run-live-test.sh local-test node-red installation
-
-# Container nach Test behalten (für Debugging)
-KEEP_VM=1 ./run-live-test.sh local-test
-
-# PVE Host per Umgebungsvariable überschreiben
-PVE_HOST=pve2.cluster ./run-live-test.sh local-test
-```
-
-### Argumente
-
-1. `instance` - Instance-Name aus `e2e/config.json` (optional, default aus config)
-2. `application` - Name der zu testenden Applikation (optional, default: alpine-packages)
-3. `task` - Task-Typ (optional, default: installation)
-
-## Was wird getestet?
-
-1. **Container-Erstellung** via `oci-lxc-cli remote`
-   - Container wird erfolgreich erstellt
-   - VM_ID wird korrekt zurückgegeben
-
-2. **Notes-Generierung**
-   - `oci-lxc-deployer:managed` Marker
-   - `oci-lxc-deployer:log-url` für Log-Viewer
-   - `oci-lxc-deployer:icon-url` für Icons
-   - `**Links**` Abschnitt
-
-3. **Container-Status**
-   - Container läuft
-   - Hat Netzwerkverbindung (optional)
+| Option | Description |
+|--------|-------------|
+| `container_running` | LXC container status is "running" |
+| `notes_managed` | Notes contain `oci-lxc-deployer:managed` marker |
+| `services_up` | All docker services show "Up" status |
+| `lxc_log_no_errors` | No ERROR lines in LXC console log |
+| `docker_log_no_errors` | No ERROR lines in docker container logs |
+| `tls_connect` | TLS connection succeeds on given port |
 
 ## Cleanup
 
-Container werden automatisch nach dem Test gelöscht, es sei denn `KEEP_VM=1` ist gesetzt.
+Containers are automatically destroyed after the test, unless `KEEP_VM=1` is set.

@@ -549,10 +549,17 @@ export interface IStacktypeVariable {
   length?: number; // length of generated secret (default: 32)
 }
 
+// Stacktype dependency (application that must be installed for this stacktype)
+export interface IStacktypeDependency {
+  application: string;
+  task?: string; // default: "installation"
+}
+
 // Stacktype entry (aggregated from json/stacktypes/*.json)
 export interface IStacktypeEntry {
   name: string; // derived from filename
   entries: IStacktypeVariable[];
+  dependencies?: IStacktypeDependency[];
 }
 
 // Stack entry (items in stack.entries array)

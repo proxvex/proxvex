@@ -506,9 +506,14 @@ export interface IStacktypeVariable {
     external?: boolean;
     length?: number;
 }
+export interface IStacktypeDependency {
+    application: string;
+    task?: string;
+}
 export interface IStacktypeEntry {
     name: string;
     entries: IStacktypeVariable[];
+    dependencies?: IStacktypeDependency[];
 }
 export interface IStackEntry {
     name: string;

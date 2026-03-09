@@ -1,16 +1,48 @@
 {
   "$id": "stacktype",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Schema for stacktype files in json/stacktypes/*.json. Each file defines the variables for a stacktype.",
-  "type": "array",
-  "items": {
-    "type": "object",
-    "properties": {
-      "name": { "type": "string", "description": "Variable name" },
-      "external": { "type": "boolean", "description": "true = manual input required, false/missing = auto-generate" },
-      "length": { "type": "number", "minimum": 16, "default": 32, "description": "Length of generated secret" }
+  "description": "Schema for stacktype files in json/stacktypes/*.json. Each file defines the variables (and optional dependencies) for a stacktype.",
+  "definitions": {
+    "variable": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Variable name" },
+        "external": { "type": "boolean", "description": "true = manual input required, false/missing = auto-generate" },
+        "length": { "type": "number", "minimum": 16, "default": 32, "description": "Length of generated secret" }
+      },
+      "required": ["name"],
+      "additionalProperties": false
     },
-    "required": ["name"],
-    "additionalProperties": false
-  }
+    "dependency": {
+      "type": "object",
+      "properties": {
+        "application": { "type": "string", "description": "Application name that must be installed for this stacktype" },
+        "task": { "type": "string", "default": "installation", "description": "Task to execute (default: installation)" }
+      },
+      "required": ["application"],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "type": "array",
+      "items": { "$ref": "#/definitions/variable" }
+    },
+    {
+      "type": "object",
+      "properties": {
+        "variables": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/variable" }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/dependency" },
+          "description": "Applications that must be installed before apps using this stacktype"
+        }
+      },
+      "required": ["variables"],
+      "additionalProperties": false
+    }
+  ]
 }
