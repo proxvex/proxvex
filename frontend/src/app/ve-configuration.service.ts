@@ -1,6 +1,6 @@
 //
 
-import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostVeCopyUpgradeBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus } from '../shared/types';
+import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostVeCopyUpgradeBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus, IPostGenerateCertBody, IGenerateCertResponse } from '../shared/types';
 import { ICreateStackResponse } from '../shared/types-frontend';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -321,6 +321,17 @@ export class VeConfigurationService {
 
   postDomainSuffix(suffix: string): Observable<{ success: boolean; domain_suffix: string }> {
     return this.post<{ success: boolean; domain_suffix: string }, object>(ApiUri.CertificateDomainSuffix, { domain_suffix: suffix });
+  }
+
+  downloadCaCert(): Observable<Blob> {
+    const url = this.veContextKey ? ApiUri.CertificateCaDownload.replace(':veContext', this.veContextKey) : ApiUri.CertificateCaDownload;
+    return this.http.get(url, { responseType: 'blob' }).pipe(
+      catchError((err) => this.handleError(err)),
+    );
+  }
+
+  postGenerateCert(hostname: string): Observable<IGenerateCertResponse> {
+    return this.post<IGenerateCertResponse, IPostGenerateCertBody>(ApiUri.CertificateGenerate, { hostname });
   }
 
 }

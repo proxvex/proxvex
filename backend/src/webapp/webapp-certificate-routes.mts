@@ -6,6 +6,8 @@ import {
   IPostCertRenewBody,
   IPostCertRenewResponse,
   IPostCaImportBody,
+  IPostGenerateCertBody,
+  IGenerateCertResponse,
   ICommand,
 } from "@src/types.mjs";
 import { ContextManager } from "../context-manager.mjs";
@@ -339,6 +341,77 @@ export function registerCertificateRoutes(
       const caService = new CertificateAuthorityService(storageContext);
       caService.setDomainSuffix(veContextKey, suffix);
       res.status(200).json({ success: true, domain_suffix: suffix });
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // GET /api/ve/certificates/ca/download/:veContext - Download CA cert as PEM
+  app.get(ApiUri.CertificateCaDownload, (req, res) => {
+    try {
+      const veContextKey = String(req.params.veContext || "").trim();
+      if (!veContextKey) {
+        res.status(400).json({ error: "Missing veContext" });
+        return;
+      }
+
+      const caService = new CertificateAuthorityService(storageContext);
+      if (!caService.hasCA(veContextKey)) {
+        res.status(404).json({ error: "No CA configured" });
+        return;
+      }
+
+      const ca = caService.getCA(veContextKey)!;
+      const pemBytes = Buffer.from(ca.cert, "base64");
+
+      res.setHeader("Content-Type", "application/x-pem-file");
+      res.setHeader("Content-Disposition", "attachment; filename=\"ca.pem\"");
+      res.status(200).send(pemBytes);
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // POST /api/ve/certificates/generate/:veContext - Generate cert for arbitrary hostname
+  app.post(ApiUri.CertificateGenerate, express.json(), (req, res) => {
+    try {
+      const veContextKey = String(req.params.veContext || "").trim();
+      if (!veContextKey) {
+        res.status(400).json({ error: "Missing veContext" });
+        return;
+      }
+
+      const body = req.body as IPostGenerateCertBody;
+      if (!body.hostname || typeof body.hostname !== "string" || body.hostname.trim().length === 0) {
+        res.status(400).json({ error: "Missing or invalid hostname" });
+        return;
+      }
+
+      const caService = new CertificateAuthorityService(storageContext);
+      if (!caService.hasCA(veContextKey)) {
+        res.status(400).json({ error: "No CA configured. Generate or import a CA first." });
+        return;
+      }
+
+      const hostname = body.hostname.trim();
+      const domainSuffix = caService.getDomainSuffix(veContextKey);
+      const fqdn = `${hostname}${domainSuffix}`;
+
+      const generated = caService.generateSelfSignedCert(veContextKey, hostname);
+      const ca = caService.getCA(veContextKey)!;
+
+      const fullchain = Buffer.from(
+        Buffer.from(generated.cert, "base64").toString("utf-8") +
+        Buffer.from(ca.cert, "base64").toString("utf-8"),
+      ).toString("base64");
+
+      const payload: IGenerateCertResponse = {
+        hostname,
+        fqdn,
+        key: generated.key,
+        fullchain,
+      };
+      res.status(200).json(payload);
     } catch (err: any) {
       sendErrorResponse(res, err);
     }

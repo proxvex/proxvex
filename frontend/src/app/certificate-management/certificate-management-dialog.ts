@@ -10,10 +10,12 @@ import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatCardModule } from '@angular/material/card';
 import { FormsModule } from '@angular/forms';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
-import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
+import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../../shared/types';
 
 @Component({
   selector: 'app-certificate-management-dialog',
@@ -30,137 +32,220 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
     MatTooltipModule,
     MatFormFieldModule,
     MatInputModule,
+    MatTabsModule,
+    MatCardModule,
     FormsModule,
   ],
   template: `
     <h2 mat-dialog-title>Certificate Management</h2>
     <mat-dialog-content>
-      <!-- Section 1: CA Management -->
-      <section class="ca-section">
-        <h3>Certificate Authority</h3>
-        @if (loadingCa()) {
-          <mat-spinner diameter="24"></mat-spinner>
-        } @else if (caInfo()?.exists) {
-          <div class="ca-info">
-            <p><strong>Subject:</strong> {{ caInfo()?.subject }}</p>
-            <p><strong>Expires:</strong> {{ caInfo()?.expiry_date | date:'mediumDate' }}</p>
-            <p><strong>Days remaining:</strong> {{ caInfo()?.days_remaining }}</p>
+      <mat-tab-group animationDuration="200ms">
+
+        <!-- Tab 1: Certificate Authority -->
+        <mat-tab label="Certificate Authority">
+          <div class="tab-content">
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>CA Status</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                @if (loadingCa()) {
+                  <mat-spinner diameter="24"></mat-spinner>
+                } @else if (caInfo()?.exists) {
+                  <div class="info-grid">
+                    <span class="label">Subject:</span>
+                    <span>{{ caInfo()?.subject }}</span>
+                    <span class="label">Expires:</span>
+                    <span>{{ caInfo()?.expiry_date | date:'mediumDate' }}</span>
+                    <span class="label">Days remaining:</span>
+                    <span>
+                      {{ caInfo()?.days_remaining }}
+                      <span class="status-chip" [class]="caInfo()!.days_remaining! <= 30 ? 'status-warning' : 'status-ok'">
+                        {{ caInfo()!.days_remaining! <= 30 ? 'WARNING' : 'OK' }}
+                      </span>
+                    </span>
+                  </div>
+                } @else {
+                  <p class="hint-text">No CA configured. Generate or import a CA to get started.</p>
+                }
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button (click)="generateCa()" [disabled]="loadingCa()">
+                  <mat-icon>add_circle</mat-icon>
+                  Generate CA
+                </button>
+                <button mat-stroked-button (click)="importCa()" [disabled]="loadingCa()">
+                  <mat-icon>upload_file</mat-icon>
+                  Import CA
+                </button>
+                @if (caInfo()?.exists) {
+                  <button mat-stroked-button (click)="downloadCaCert()" matTooltip="Download CA certificate PEM for client trust">
+                    <mat-icon>download</mat-icon>
+                    Download CA Cert
+                  </button>
+                }
+              </mat-card-actions>
+            </mat-card>
+
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Domain Suffix</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <mat-form-field class="domain-suffix-field" appearance="outline">
+                  <mat-label>Domain Suffix</mat-label>
+                  <input matInput [ngModel]="domainSuffix()" (ngModelChange)="domainSuffix.set($event)"
+                    (blur)="saveDomainSuffix()" placeholder=".local">
+                  <mat-hint>FQDN = hostname + suffix (e.g. myhost{{ domainSuffix() }})</mat-hint>
+                </mat-form-field>
+              </mat-card-content>
+            </mat-card>
           </div>
-        } @else {
-          <p class="no-ca-hint">No CA configured</p>
-        }
-        <mat-form-field class="domain-suffix-field" appearance="outline">
-          <mat-label>Domain Suffix</mat-label>
-          <input matInput [ngModel]="domainSuffix()" (ngModelChange)="domainSuffix.set($event)"
-            (blur)="saveDomainSuffix()" placeholder=".local">
-          <mat-hint>FQDN = hostname + suffix (e.g. myhost{{ domainSuffix() }})</mat-hint>
-        </mat-form-field>
+        </mat-tab>
 
-        <div class="ca-actions">
-          <button mat-stroked-button (click)="importCa()" [disabled]="loadingCa()">
-            <mat-icon>upload_file</mat-icon>
-            Import CA
-          </button>
-          <button mat-stroked-button (click)="generateCa()" [disabled]="loadingCa()">
-            <mat-icon>add_circle</mat-icon>
-            Generate CA
-          </button>
-          @if (caInfo()?.exists) {
-            <button mat-stroked-button (click)="downloadCaCert()" matTooltip="Download CA cert for client trust">
-              <mat-icon>download</mat-icon>
-              Download CA Cert
-            </button>
-          }
-        </div>
-      </section>
+        <!-- Tab 2: Server Certificates -->
+        <mat-tab label="Server Certificates">
+          <div class="tab-content">
 
-      <!-- Section 2: PVE Host Certificate -->
-      <section class="pve-section">
-        <h3>PVE Host Certificate</h3>
-        @if (loadingPve()) {
-          <mat-spinner diameter="24"></mat-spinner>
-        } @else if (pveStatus()) {
-          <div class="pve-info">
-            <p><strong>Subject:</strong> {{ pveStatus()?.subject || 'N/A' }}</p>
-            <p><strong>Expires:</strong> {{ pveStatus()?.expiry_date | date:'mediumDate' }}</p>
-            <span class="status-chip" [class]="'status-' + pveStatus()?.status">
-              {{ pveStatus()?.status | uppercase }}
-            </span>
+            <!-- Generate Certificate -->
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Generate Certificate</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <p class="hint-text">Generate a CA-signed server certificate for any hostname.</p>
+                <div class="generate-form">
+                  <mat-form-field appearance="outline" class="hostname-field">
+                    <mat-label>Hostname</mat-label>
+                    <input matInput [ngModel]="generateHostname()" (ngModelChange)="generateHostname.set($event)"
+                      placeholder="external-host">
+                    <mat-hint>FQDN: {{ generateHostname() || 'hostname' }}{{ domainSuffix() }}</mat-hint>
+                  </mat-form-field>
+                  <button mat-flat-button color="primary" (click)="generateCert()"
+                    [disabled]="!generateHostname() || !caInfo()?.exists || generatingCert()">
+                    @if (generatingCert()) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      <ng-container>
+                        <mat-icon>verified</mat-icon>
+                        Generate & Download
+                      </ng-container>
+                    }
+                  </button>
+                </div>
+                @if (!caInfo()?.exists) {
+                  <p class="hint-text warn">A Certificate Authority must be configured first.</p>
+                }
+              </mat-card-content>
+            </mat-card>
+
+            <!-- PVE Host Certificate -->
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>PVE Host Certificate</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                @if (loadingPve()) {
+                  <mat-spinner diameter="24"></mat-spinner>
+                } @else if (pveStatus()) {
+                  <div class="info-grid">
+                    <span class="label">Subject:</span>
+                    <span>{{ pveStatus()?.subject || 'N/A' }}</span>
+                    <span class="label">Expires:</span>
+                    <span>{{ pveStatus()?.expiry_date | date:'mediumDate' }}</span>
+                    <span class="label">Status:</span>
+                    <span>
+                      <span class="status-chip" [class]="'status-' + pveStatus()?.status">
+                        {{ pveStatus()?.status | uppercase }}
+                      </span>
+                    </span>
+                  </div>
+                } @else {
+                  <p class="hint-text">No PVE certificate status available.</p>
+                }
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button color="warn" (click)="provisionPve()"
+                  [disabled]="!caInfo()?.exists || loadingPve()"
+                  matTooltip="Generates server cert for PVE host and restarts pveproxy">
+                  <mat-icon>security</mat-icon>
+                  Provision PVE Certificate
+                </button>
+              </mat-card-actions>
+            </mat-card>
+
+            <!-- Deployed Certificates -->
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Deployed Certificates</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                @if (loadingCerts()) {
+                  <mat-spinner diameter="24"></mat-spinner>
+                } @else if (certificates().length === 0) {
+                  <p class="hint-text">No certificates found.</p>
+                } @else {
+                  <table mat-table [dataSource]="certificates()" class="cert-table">
+                    <ng-container matColumnDef="select">
+                      <th mat-header-cell *matHeaderCellDef>
+                        <mat-checkbox (change)="toggleAllSelection($event.checked)" [checked]="allSelected()"></mat-checkbox>
+                      </th>
+                      <td mat-cell *matCellDef="let cert">
+                        <mat-checkbox [checked]="isSelected(cert)" (change)="toggleSelection(cert)"></mat-checkbox>
+                      </td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="hostname">
+                      <th mat-header-cell *matHeaderCellDef>Hostname</th>
+                      <td mat-cell *matCellDef="let cert">{{ cert.hostname }}</td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="certtype">
+                      <th mat-header-cell *matHeaderCellDef>Type</th>
+                      <td mat-cell *matCellDef="let cert">{{ cert.certtype }}</td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="subject">
+                      <th mat-header-cell *matHeaderCellDef>Subject</th>
+                      <td mat-cell *matCellDef="let cert">{{ cert.subject }}</td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="expiry">
+                      <th mat-header-cell *matHeaderCellDef>Expires</th>
+                      <td mat-cell *matCellDef="let cert">{{ cert.expiry_date | date:'mediumDate' }}</td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="status">
+                      <th mat-header-cell *matHeaderCellDef>Status</th>
+                      <td mat-cell *matCellDef="let cert">
+                        <span class="status-chip" [class]="'status-' + cert.status">
+                          {{ cert.status | uppercase }}
+                        </span>
+                      </td>
+                    </ng-container>
+
+                    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+                  </table>
+
+                  <div class="renewal-actions">
+                    <button mat-stroked-button (click)="renewSelected()" [disabled]="selectedCerts().length === 0 || !caInfo()?.exists">
+                      <mat-icon>autorenew</mat-icon>
+                      Renew Selected ({{ selectedCerts().length }})
+                    </button>
+                    <button mat-stroked-button (click)="renewExpiring()" [disabled]="!caInfo()?.exists"
+                      matTooltip="Renew all certificates expiring within 30 days">
+                      <mat-icon>warning</mat-icon>
+                      Renew All Expiring
+                    </button>
+                  </div>
+                }
+              </mat-card-content>
+            </mat-card>
+
           </div>
-        }
-        <div class="pve-actions">
-          <button mat-stroked-button color="warn" (click)="provisionPve()" [disabled]="!caInfo()?.exists || loadingPve()"
-            matTooltip="Generates server cert for PVE host and restarts pveproxy">
-            <mat-icon>security</mat-icon>
-            Provision PVE Certificate
-          </button>
-        </div>
-      </section>
-
-      <!-- Section 4: Certificate Status & Renewal -->
-      <section class="certs-section">
-        <h3>Deployed Certificates</h3>
-        @if (loadingCerts()) {
-          <mat-spinner diameter="24"></mat-spinner>
-        } @else if (certificates().length === 0) {
-          <p class="no-certs-hint">No certificates found</p>
-        } @else {
-          <table mat-table [dataSource]="certificates()" class="cert-table">
-            <ng-container matColumnDef="select">
-              <th mat-header-cell *matHeaderCellDef>
-                <mat-checkbox (change)="toggleAllSelection($event.checked)" [checked]="allSelected()"></mat-checkbox>
-              </th>
-              <td mat-cell *matCellDef="let cert">
-                <mat-checkbox [checked]="isSelected(cert)" (change)="toggleSelection(cert)"></mat-checkbox>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="hostname">
-              <th mat-header-cell *matHeaderCellDef>Hostname</th>
-              <td mat-cell *matCellDef="let cert">{{ cert.hostname }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="certtype">
-              <th mat-header-cell *matHeaderCellDef>Type</th>
-              <td mat-cell *matCellDef="let cert">{{ cert.certtype }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="subject">
-              <th mat-header-cell *matHeaderCellDef>Subject</th>
-              <td mat-cell *matCellDef="let cert">{{ cert.subject }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="expiry">
-              <th mat-header-cell *matHeaderCellDef>Expires</th>
-              <td mat-cell *matCellDef="let cert">{{ cert.expiry_date | date:'mediumDate' }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Status</th>
-              <td mat-cell *matCellDef="let cert">
-                <span class="status-chip" [class]="'status-' + cert.status">
-                  {{ cert.status | uppercase }}
-                </span>
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
-
-          <div class="renewal-actions">
-            <button mat-stroked-button (click)="renewSelected()" [disabled]="selectedCerts().length === 0 || !caInfo()?.exists">
-              <mat-icon>autorenew</mat-icon>
-              Renew Selected ({{ selectedCerts().length }})
-            </button>
-            <button mat-stroked-button (click)="renewExpiring()" [disabled]="!caInfo()?.exists"
-              matTooltip="Renew all certificates expiring within 30 days">
-              <mat-icon>warning</mat-icon>
-              Renew All Expiring
-            </button>
-          </div>
-        }
-      </section>
+        </mat-tab>
+      </mat-tab-group>
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
@@ -169,55 +254,61 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
   `,
   styles: [`
     mat-dialog-content {
-      min-width: 600px;
+      min-width: 650px;
       max-height: 70vh;
       overflow-y: auto;
     }
 
-    section {
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid #e0e0e0;
-
-      &:last-child {
-        border-bottom: none;
-      }
-    }
-
-    h3 {
-      margin: 0 0 0.75rem 0;
-      font-weight: 500;
-      color: #333;
-    }
-
-    .ca-info, .pve-info {
-      background: #f5f5f5;
-      padding: 0.75rem;
-      border-radius: 4px;
-      margin-bottom: 0.75rem;
-
-      p {
-        margin: 0.25rem 0;
-        font-size: 0.9rem;
-      }
-    }
-
-    .domain-suffix-field {
-      width: 280px;
-      margin-bottom: 0.5rem;
-    }
-
-    .ca-actions, .pve-actions, .renewal-actions {
+    .tab-content {
       display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      margin-top: 0.5rem;
+      flex-direction: column;
+      gap: 1rem;
+      padding-top: 1rem;
     }
 
-    .no-ca-hint, .no-certs-hint {
+    mat-card {
+      mat-card-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0 16px 16px;
+      }
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.25rem 1rem;
+      font-size: 0.9rem;
+
+      .label {
+        font-weight: 500;
+        color: #555;
+      }
+    }
+
+    .domain-suffix-field, .hostname-field {
+      width: 300px;
+    }
+
+    .generate-form {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+
+      button {
+        margin-top: 4px;
+      }
+    }
+
+    .hint-text {
       color: #999;
-      font-style: italic;
-      margin: 0.5rem 0;
+      font-size: 0.875rem;
+      margin: 0.25rem 0;
+
+      &.warn {
+        color: #e65100;
+      }
     }
 
     .status-chip {
@@ -246,6 +337,13 @@ import { ICertificateStatus, ICaInfoResponse } from '../../shared/types';
       margin-bottom: 0.75rem;
     }
 
+    .renewal-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+
     mat-spinner {
       margin: 0.5rem 0;
     }
@@ -261,6 +359,9 @@ export class CertificateManagementDialog implements OnInit {
   pveStatus = signal<ICertificateStatus | null>(null);
   certificates = signal<ICertificateStatus[]>([]);
   selectedCerts = signal<ICertificateStatus[]>([]);
+
+  generateHostname = signal('');
+  generatingCert = signal(false);
 
   loadingCa = signal(false);
   loadingPve = signal(false);
@@ -305,7 +406,6 @@ export class CertificateManagementDialog implements OnInit {
   }
 
   importCa(): void {
-    // Create file inputs for key and cert
     const keyInput = document.createElement('input');
     keyInput.type = 'file';
     keyInput.accept = '.key,.pem';
@@ -342,7 +442,6 @@ export class CertificateManagementDialog implements OnInit {
         keyReader.readAsText(keyFile);
       });
 
-      // Prompt user to select cert file
       certInput.click();
     });
 
@@ -369,23 +468,52 @@ export class CertificateManagementDialog implements OnInit {
   }
 
   downloadCaCert(): void {
-    // The CA cert is available via getCaInfo, but we need the actual PEM content
-    // For now, we'll re-fetch via the status endpoint which includes CA info
-    this.configService.getCertificateStatus().subscribe({
+    this.configService.downloadCaCert().subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'ca.pem';
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err) => this.errorHandler.handleError('Failed to download CA certificate', err)
+    });
+  }
+
+  generateCert(): void {
+    const hostname = this.generateHostname().trim();
+    if (!hostname) return;
+
+    this.generatingCert.set(true);
+    this.configService.postGenerateCert(hostname).subscribe({
       next: (res) => {
-        if (res.ca) {
-          // Create a simple info text since we don't expose the PEM via the info endpoint
-          // The actual download would require a dedicated endpoint - for now show info
-          const blob = new Blob([`CA Subject: ${res.ca.subject}\nExpiry: ${res.ca.expiry_date}\n\nTo get the CA certificate file, check the encrypted storagecontext.`], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'ca-info.txt';
-          a.click();
-          URL.revokeObjectURL(url);
-        }
+        this.downloadGeneratedCert(res);
+        this.generatingCert.set(false);
+        this.generateHostname.set('');
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Failed to generate certificate', err);
+        this.generatingCert.set(false);
       }
     });
+  }
+
+  private downloadGeneratedCert(res: IGenerateCertResponse): void {
+    const files: { name: string; content: string }[] = [
+      { name: 'fullchain.pem', content: atob(res.fullchain) },
+      { name: 'privkey.pem', content: atob(res.key) },
+    ];
+
+    for (const file of files) {
+      const blob = new Blob([file.content], { type: 'application/x-pem-file' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${res.fqdn}-${file.name}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   }
 
   provisionPve(): void {
