@@ -9,7 +9,11 @@
     "workbench.colorCustomizations": {
     // Hintergrund des Editors
     "activityBar.background": "#e5ee2f",
-    "activityBar.foreground": "#130d03",},
+    "activityBar.foreground": "#130d03",
+    "titleBar.activeBackground": "#e5ee2f",
+    "titleBar.activeForeground": "#130d03"
+    },
+    "window.title": "${activeEditorShort} - oci-lxc-deployer [YELLOW]",
 
     "claudeCode.allowDangerouslySkipPermissions": true,
     "terminal.integrated.env.osx": {
