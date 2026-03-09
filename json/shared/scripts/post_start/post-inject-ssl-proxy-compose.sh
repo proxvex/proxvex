@@ -50,10 +50,14 @@ if [ -z "$COMPOSE_PROJECT" ]; then
 fi
 
 COMPOSE_DIR="/opt/docker-compose/${COMPOSE_PROJECT}"
-COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 
-if [ ! -f "$COMPOSE_FILE" ]; then
-  echo "Error: Compose file not found: $COMPOSE_FILE" >&2
+# Support both .yaml and .yml extensions
+if [ -f "${COMPOSE_DIR}/docker-compose.yaml" ]; then
+  COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yaml"
+elif [ -f "${COMPOSE_DIR}/docker-compose.yml" ]; then
+  COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
+else
+  echo "Error: Compose file not found in: $COMPOSE_DIR" >&2
   exit 1
 fi
 
@@ -114,6 +118,16 @@ echo "Removing external HTTP port mapping for port ${HTTP_PORT}..." >&2
 sed -i "s|.*\"${HTTP_PORT}:${HTTP_PORT}\".*||;s|.*'${HTTP_PORT}:${HTTP_PORT}'.*||;s|.*- ${HTTP_PORT}:${HTTP_PORT}.*||" "$COMPOSE_FILE"
 # Clean up empty lines left by sed
 sed -i '/^$/d' "$COMPOSE_FILE"
+# Remove orphaned 'ports:' key with no entries (next line is a different key or less indented)
+# Use awk to detect ports: followed by a non-list-item line
+awk '
+  /^\s+ports:\s*$/ { hold=$0; next }
+  hold {
+    if ($0 ~ /^\s+-/) { print hold; hold="" }
+    else { hold="" }
+  }
+  { print }
+' "$COMPOSE_FILE" > "${COMPOSE_FILE}.tmp" && mv "${COMPOSE_FILE}.tmp" "$COMPOSE_FILE"
 
 # --- Write nginx SSL config ---
 NGINX_CONF="${COMPOSE_DIR}/nginx-ssl.conf"

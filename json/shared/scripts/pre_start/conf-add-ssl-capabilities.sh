@@ -30,8 +30,8 @@ if [ "$SSL_MODE" != "proxy" ]; then
   exit 0
 fi
 
-# Docker containers already have all capabilities (lxc.cap.drop = )
-if grep -q "^lxc.cap.drop\s*=" "$CONFIG_FILE"; then
+# Docker containers already have all capabilities (lxc.cap.drop: )
+if grep -q "^lxc\.cap\.drop" "$CONFIG_FILE"; then
   echo "Docker container detected (lxc.cap.drop =), capabilities already present" >&2
   printf '[{"id": "ssl_capabilities_set", "value": "true"}]\n'
   exit 0

@@ -25,6 +25,7 @@
 # - cert_write_ca_pub(), cert_write_ca()
 # - cert_check_validity(), cert_check_fqdn_match(), cert_output_result()
 
+VM_ID="{{ vm_id }}"
 CA_KEY_B64="{{ ca_key_b64 }}"
 CA_CERT_B64="{{ ca_cert_b64 }}"
 SHARED_VOLPATH="{{ shared_volpath }}"
@@ -36,6 +37,7 @@ UID_VAL="{{ uid }}"
 GID_VAL="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
+CERT_DIR_OVERRIDE="{{ cert_dir_override }}"
 
 [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
 [ "$NEEDS_SERVER_CERT" = "NOT_DEFINED" ] && NEEDS_SERVER_CERT="true"
@@ -45,21 +47,38 @@ MAPPED_GID="{{ mapped_gid }}"
 FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
 echo "Generating certificates for FQDN: ${FQDN}" >&2
 
-# Calculate effective UID/GID (prefer mapped values)
+# Calculate effective UID/GID (prefer mapped values, then detect unprivileged offset)
 EFFECTIVE_UID="${UID_VAL}"
 EFFECTIVE_GID="${GID_VAL}"
 if [ -n "$MAPPED_UID" ] && [ "$MAPPED_UID" != "NOT_DEFINED" ]; then
   EFFECTIVE_UID="$MAPPED_UID"
+elif [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
+  # Detect unprivileged container and apply standard UID offset
+  PCT_CFG=$(pct config "$VM_ID" 2>/dev/null || true)
+  if echo "$PCT_CFG" | grep -qE '^unprivileged:\s*1'; then
+    EFFECTIVE_UID=$((100000 + UID_VAL))
+  fi
 fi
 if [ -n "$MAPPED_GID" ] && [ "$MAPPED_GID" != "NOT_DEFINED" ]; then
   EFFECTIVE_GID="$MAPPED_GID"
+elif [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
+  PCT_CFG=$(pct config "$VM_ID" 2>/dev/null || true)
+  if echo "$PCT_CFG" | grep -qE '^unprivileged:\s*1'; then
+    EFFECTIVE_GID=$((100000 + GID_VAL))
+  fi
 fi
+echo "cert-gen: effective_uid=$EFFECTIVE_UID effective_gid=$EFFECTIVE_GID" >&2
 
 # Sanitize hostname for directory name
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
-# Cert directory: <shared_volpath>/volumes/<hostname>/certs/
-CERT_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/certs"
+# Cert directory: override or <shared_volpath>/volumes/<hostname>/certs/
+if [ -n "$CERT_DIR_OVERRIDE" ] && [ "$CERT_DIR_OVERRIDE" != "NOT_DEFINED" ]; then
+  CERT_DIR="$CERT_DIR_OVERRIDE"
+  echo "Using cert_dir_override: ${CERT_DIR}" >&2
+else
+  CERT_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/certs"
+fi
 mkdir -p "$CERT_DIR"
 
 GENERATED=false

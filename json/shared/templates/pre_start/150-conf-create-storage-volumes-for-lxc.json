@@ -98,7 +98,8 @@
       "script": "conf-create-storage-volumes-for-lxc.sh",
       "outputs": [
         "volumes_attached",
-        "shared_volpath"
+        "shared_volpath",
+        "cert_dir_override"
       ]
     }
   ]

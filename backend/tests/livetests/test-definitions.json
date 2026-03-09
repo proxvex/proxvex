@@ -97,5 +97,57 @@
         }
       }
     ]
+  },
+  "postgrest": {
+    "description": "PostgREST API server with Postgres dependency (no SSL)",
+    "steps": [
+      {
+        "application": "postgres",
+        "task": "installation",
+        "wait_seconds": 30,
+        "verify": {
+          "container_running": true,
+          "lxc_log_no_errors": true
+        }
+      },
+      {
+        "application": "postgrest",
+        "task": "installation",
+        "wait_seconds": 30,
+        "verify": {
+          "container_running": true,
+          "notes_managed": true,
+          "services_up": true,
+          "docker_log_no_errors": true
+        }
+      }
+    ]
+  },
+  "postgrest-ssl": {
+    "description": "PostgREST with SSL proxy (nginx) and Postgres",
+    "steps": [
+      {
+        "application": "postgres",
+        "task": "installation",
+        "wait_seconds": 30,
+        "verify": {
+          "container_running": true,
+          "lxc_log_no_errors": true
+        }
+      },
+      {
+        "application": "postgrest",
+        "task": "installation",
+        "addons": ["addon-ssl"],
+        "wait_seconds": 60,
+        "verify": {
+          "container_running": true,
+          "notes_managed": true,
+          "services_up": true,
+          "docker_log_no_errors": true,
+          "tls_connect": 3443
+        }
+      }
+    ]
   }
 }
