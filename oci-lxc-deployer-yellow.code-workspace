@@ -21,4 +21,36 @@
       "FRONTEND_PORT": "4401"
     }
   },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "start frontend",
+        "type": "shell",
+        "command": "pnpm start",
+        "options": { "cwd": "${workspaceFolder:frontend}" },
+        "isBackground": true,
+        "problemMatcher": []
+      }
+    ]
+  },
+  "launch": {
+    "configurations": [
+      {
+        "name": "ng serve",
+        "type": "chrome",
+        "request": "launch",
+        "preLaunchTask": "start frontend",
+        "url": "http://localhost:4401/",
+        "webRoot": "${workspaceFolder:frontend}",
+        "sourceMapPathOverrides": {
+          "webpack:/*": "${webRoot}/*",
+          "/./*": "${webRoot}/*",
+          "/src/*": "${webRoot}/src/*",
+          "/*": "*",
+          "/./~/*": "${webRoot}/node_modules/*"
+        }
+      }
+    ]
+  }
 }
