@@ -47,10 +47,12 @@ load_config() {
     # Export instance name
     export E2E_INSTANCE="$instance"
 
-    # Load instance-specific settings (PVE_HOST can be overridden via env var)
+    # Load instance-specific settings
+    # config.json supports ${VAR:-default} syntax in string values
     local config_pve_host
     config_pve_host=$(jq -r ".instances[\"$instance\"].pveHost" "$CONFIG_FILE")
-    export PVE_HOST="${PVE_HOST:-$config_pve_host}"
+    config_pve_host=$(eval echo "$config_pve_host")
+    export PVE_HOST="$config_pve_host"
     export TEST_VMID=$(jq -r ".instances[\"$instance\"].vmId" "$CONFIG_FILE")
     export VM_NAME=$(jq -r ".instances[\"$instance\"].vmName" "$CONFIG_FILE")
     export PORT_OFFSET=$(jq -r ".instances[\"$instance\"].portOffset" "$CONFIG_FILE")

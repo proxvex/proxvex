@@ -20,10 +20,11 @@ SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+
 COMPOSE_PROJECT="$SAFE_HOST"
 ENV_FILE="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/compose/${COMPOSE_PROJECT}/.env"
 
+# Create .env file and parent directories if they don't exist yet (fresh install)
 if [ ! -f "$ENV_FILE" ]; then
-  echo ".env file not found at $ENV_FILE (fresh install, will be set on first compose upload)" >&2
-  echo '[{"id":"ssl_app_enabled","value":"false"}]'
-  exit 0
+  mkdir -p "$(dirname "$ENV_FILE")"
+  touch "$ENV_FILE"
+  echo "Created .env file at $ENV_FILE (fresh install)" >&2
 fi
 
 # Remove existing TLS-related entries (idempotent)
