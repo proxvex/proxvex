@@ -8,8 +8,12 @@
  "settings": {
     "workbench.colorCustomizations": {
     // Hintergrund des Editors
-    "activityBar.background": "#a4e158",
-    "activityBar.foreground": "#130d03",},
+    "activityBar.background": "#e5ee2f",
+    "activityBar.foreground": "#130d03",
+    "titleBar.activeBackground": "#e5ee2f",
+    "titleBar.activeForeground": "#130d03"
+    },
+    "window.title": "${activeEditorShort} - oci-lxc-deployer [YELLOW]",
 
     "claudeCode.allowDangerouslySkipPermissions": true,
     "terminal.integrated.env.osx": {
@@ -17,4 +21,36 @@
       "FRONTEND_PORT": "4401"
     }
   },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "start frontend",
+        "type": "shell",
+        "command": "pnpm start",
+        "options": { "cwd": "${workspaceFolder:frontend}" },
+        "isBackground": true,
+        "problemMatcher": []
+      }
+    ]
+  },
+  "launch": {
+    "configurations": [
+      {
+        "name": "ng serve",
+        "type": "chrome",
+        "request": "launch",
+        "preLaunchTask": "start frontend",
+        "url": "http://localhost:4401/",
+        "webRoot": "${workspaceFolder:frontend}",
+        "sourceMapPathOverrides": {
+          "webpack:/*": "${webRoot}/*",
+          "/./*": "${webRoot}/*",
+          "/src/*": "${webRoot}/src/*",
+          "/*": "*",
+          "/./~/*": "${webRoot}/node_modules/*"
+        }
+      }
+    ]
+  }
 }
