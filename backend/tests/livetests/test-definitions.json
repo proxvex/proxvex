@@ -76,9 +76,11 @@
         "application": "postgres",
         "task": "installation",
         "addons": ["addon-ssl"],
+        "wait_seconds": 30,
         "verify": {
           "container_running": true,
-          "lxc_log_no_errors": true
+          "lxc_log_no_errors": true,
+          "pg_ssl_on": true
         }
       },
       {

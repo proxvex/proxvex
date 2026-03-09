@@ -6,8 +6,9 @@
  * application-level functionality including dependencies and docker services.
  *
  * Features:
- * - Dependency-aware parallel execution (independent tests run concurrently)
- * - Stack-based deployment with timestamp-named stacks
+ * - Pre-assigned VM IDs (200+) to avoid parallel conflicts
+ * - Per-test stacks using first step's VM ID as stack name
+ * - Dependency-aware parallel execution (all tests run concurrently)
  * - Comprehensive verification suite (container, notes, services, TLS, SSL)
  *
  * Usage:
@@ -23,6 +24,10 @@ import { execSync, spawn } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+// ── Constants ──
+
+const VM_ID_START = 200;
 
 // ── Types ──
 
@@ -59,11 +64,23 @@ interface E2EConfig {
   };
 }
 
+/** Pre-planned step with assigned VM ID and stack */
+interface PlannedStep {
+  vmId: number;
+  hostname: string;
+  stackName: string;
+  application: string;
+  task: string;
+  addons?: string[];
+  wait_seconds?: number;
+  verify?: Record<string, boolean | number>;
+  hasStacktype: boolean;
+}
+
 interface StepResult {
   vmId: number;
   hostname: string;
   application: string;
-  ip?: string;
 }
 
 interface TestResult {
@@ -73,6 +90,15 @@ interface TestResult {
   failed: number;
   steps: StepResult[];
   errors: string[];
+}
+
+/** Pre-planned test with all steps assigned */
+interface PlannedTest {
+  name: string;
+  definition: TestDefinition;
+  steps: PlannedStep[];
+  stackName: string;
+  stacktype?: string;
 }
 
 // ── Colors ──
@@ -155,9 +181,9 @@ function nestedSsh(
 
 // ── API helpers ──
 
-async function apiFetch<T>(baseUrl: string, path: string): Promise<T | null> {
+async function apiFetch<T>(baseUrl: string, apiPath: string): Promise<T | null> {
   try {
-    const resp = await fetch(`${baseUrl}${path}`, {
+    const resp = await fetch(`${baseUrl}${apiPath}`, {
       signal: AbortSignal.timeout(10000),
     });
     if (!resp.ok) return null;
@@ -168,7 +194,6 @@ async function apiFetch<T>(baseUrl: string, path: string): Promise<T | null> {
 }
 
 async function discoverApiUrl(httpUrl: string, httpsUrl: string): Promise<string> {
-  // Try HTTPS first, then HTTP
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
   try {
@@ -225,11 +250,6 @@ function runCli(
       resolve({ output, exitCode: code ?? 1 });
     });
   });
-}
-
-function extractVmId(output: string): number | null {
-  const match = output.match(/"(?:vm_id|vmId)"\s*:\s*"?(\d+)"?/);
-  return match ? parseInt(match[1]!, 10) : null;
 }
 
 // ── Verifications ──
@@ -325,7 +345,6 @@ class Verifier {
       `curl -sk --connect-timeout 5 https://${ip}:${port}/`,
       20000,
     );
-    // Any response (even empty) means TLS handshake succeeded
     this.assert(result !== "", `[${vmId}] TLS connection successful on port ${port}`);
   }
 
@@ -336,6 +355,14 @@ class Verifier {
     this.assert(sslStatus === "on", `[${vmId}] Postgres SSL is enabled (SHOW ssl = ${sslStatus})`);
   }
 
+  /** Check that the client connection to postgres is using SSL */
+  dbSslConnection(vmId: number) {
+    const sslInUse = this.ssh(
+      `pct exec ${vmId} -- psql -U postgres -tA -c "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid();"`,
+    ).trim();
+    this.assert(sslInUse === "t", `[${vmId}] DB connection uses SSL (pg_stat_ssl = ${sslInUse})`);
+  }
+
   runAll(vmId: number, hostname: string, verify: Record<string, boolean | number>) {
     if (verify.container_running) this.containerRunning(vmId);
     if (verify.notes_managed) this.notesManaged(vmId);
@@ -344,6 +371,7 @@ class Verifier {
     if (verify.docker_log_no_errors) this.dockerLogNoErrors(vmId);
     if (typeof verify.tls_connect === "number") this.tlsConnect(vmId, verify.tls_connect);
     if (verify.pg_ssl_on) this.pgSslOn(vmId);
+    if (verify.db_ssl_connection) this.dbSslConnection(vmId);
   }
 }
 
@@ -375,20 +403,57 @@ async function waitForServices(
   logWarn(`Docker services not fully ready after ${maxWait}s`);
 }
 
+// ── Planning: Pre-assign VM IDs and stack names ──
+
+function planTests(
+  testsToRun: Map<string, TestDefinition>,
+  appStacktypes: Map<string, string>,
+): PlannedTest[] {
+  const planned: PlannedTest[] = [];
+  let nextVmId = VM_ID_START;
+
+  for (const [name, def] of testsToRun) {
+    const firstVmId = nextVmId;
+    const stackName = String(firstVmId);
+    let stacktype: string | undefined;
+
+    const steps: PlannedStep[] = def.steps.map((step) => {
+      const vmId = nextVmId++;
+      const appStacktype = appStacktypes.get(step.application);
+      const hasStacktype = !!appStacktype;
+      if (appStacktype) stacktype = appStacktype;
+
+      return {
+        vmId,
+        hostname: `${step.application}-${stackName}`,
+        stackName,
+        application: step.application,
+        task: step.task || "installation",
+        addons: step.addons,
+        wait_seconds: step.wait_seconds,
+        verify: step.verify,
+        hasStacktype,
+      };
+    });
+
+    planned.push({ name, definition: def, steps, stackName, stacktype });
+  }
+
+  return planned;
+}
+
 // ── Execute a single test ──
 
 async function executeTest(
-  testName: string,
-  testDef: TestDefinition,
+  plan: PlannedTest,
   config: ReturnType<typeof loadConfig>,
   apiUrl: string,
   veHost: string,
   projectRoot: string,
-  stackName: string,
 ): Promise<TestResult> {
   const result: TestResult = {
-    name: testName,
-    description: testDef.description,
+    name: plan.name,
+    description: plan.definition.description,
     passed: 0,
     failed: 0,
     steps: [],
@@ -399,32 +464,26 @@ async function executeTest(
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
   try {
-    for (let i = 0; i < testDef.steps.length; i++) {
-      const step = testDef.steps[i]!;
-      const task = step.task || "installation";
-      const hostname = `${step.application}-${stackName}`;
+    for (let i = 0; i < plan.steps.length; i++) {
+      const step = plan.steps[i]!;
 
       logStep(
-        `${testName} ${i + 1}/${testDef.steps.length}`,
-        `${step.application} (${task})`,
+        `${plan.name} ${i + 1}/${plan.steps.length}`,
+        `${step.application} (${step.task}) [VM ${step.vmId}]`,
       );
 
       // Create params file
       const paramsFile = path.join(tmpDir, `params-${i}.json`);
       const params: Record<string, unknown> = {
         params: [
-          { name: "hostname", value: hostname },
+          { name: "hostname", value: step.hostname },
           { name: "bridge", value: config.bridge },
+          { name: "vm_id", value: step.vmId },
         ],
       };
 
-      // Resolve stack for apps with stacktype
-      const apps = await apiFetch<Array<{ id: string; stacktype?: string }>>(
-        apiUrl, "/api/applications",
-      );
-      const appInfo = apps?.find((a) => a.id === step.application);
-      if (appInfo?.stacktype) {
-        params.stackId = stackName;
+      if (step.hasStacktype) {
+        params.stackId = step.stackName;
       }
 
       writeFileSync(paramsFile, JSON.stringify(params));
@@ -434,44 +493,34 @@ async function executeTest(
       }
 
       // Run CLI
-      logInfo(`Running: ${step.application} ${task}...`);
+      logInfo(`Running: ${step.application} ${step.task}...`);
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
-        step.application, task, paramsFile, step.addons,
+        step.application, step.task, paramsFile, step.addons,
       );
 
       if (cliResult.exitCode !== 0) {
-        const errMsg = `Step failed: ${step.application} ${task}`;
+        const errMsg = `Step failed: ${step.application} ${step.task}`;
         logFail(errMsg);
         result.errors.push(errMsg);
         result.failed++;
-        // Show last 20 lines of output
         const lastLines = cliResult.output.split("\n").slice(-20).join("\n");
         if (lastLines) console.log(lastLines);
-        break; // Stop this test on failure
-      }
-
-      const vmId = extractVmId(cliResult.output);
-      if (!vmId) {
-        const errMsg = `Could not extract VM_ID from output`;
-        logFail(errMsg);
-        result.errors.push(errMsg);
-        result.failed++;
         break;
       }
 
-      logOk(`Container created: VM_ID=${vmId}`);
-      result.steps.push({ vmId, hostname, application: step.application });
+      logOk(`Container created: VM_ID=${step.vmId}, hostname=${step.hostname}`);
+      result.steps.push({ vmId: step.vmId, hostname: step.hostname, application: step.application });
 
       // Wait for services if needed
       if (step.wait_seconds && step.wait_seconds > 0) {
-        await waitForServices(config.pveHost, config.portPveSsh, vmId, step.wait_seconds);
+        await waitForServices(config.pveHost, config.portPveSsh, step.vmId, step.wait_seconds);
       }
 
       // Run verifications
       if (step.verify) {
         logInfo("Verifying...");
-        verifier.runAll(vmId, hostname, step.verify);
+        verifier.runAll(step.vmId, step.hostname, step.verify);
       }
     }
   } finally {
@@ -494,7 +543,6 @@ function cleanupVms(
   const allVms = results.flatMap((r) => r.steps.map((s) => s.vmId));
   if (allVms.length === 0) return;
 
-  // Cleanup in reverse order
   for (const vmId of allVms.reverse()) {
     if (keepVm) {
       logWarn(`KEEP_VM set - VM ${vmId} not destroyed`);
@@ -507,23 +555,6 @@ function cleanupVms(
       );
     }
   }
-}
-
-// ── Dependency analysis ──
-
-/**
- * Group tests by independence for parallel execution.
- * Tests are independent if they don't share applications across steps.
- * Tests within a group can run in parallel; groups run sequentially.
- *
- * Actually simpler: all tests are independent because they use separate
- * stack names. Within a test, steps are sequential.
- * So all tests can run in parallel.
- */
-function analyzeParallelGroups(tests: Map<string, TestDefinition>): string[][] {
-  // All tests are independent (each gets its own stack).
-  // Return a single group with all tests for maximum parallelism.
-  return [[...tests.keys()]];
 }
 
 // ── Main ──
@@ -593,7 +624,6 @@ async function main() {
     if (def) {
       testsToRun.set(testArg, def);
     } else {
-      // Ad-hoc test
       logInfo(`No test definition for '${testArg}', using as application name`);
       testsToRun.set(testArg, {
         description: `Ad-hoc test: ${testArg}`,
@@ -608,36 +638,78 @@ async function main() {
 
   logOk(`${testsToRun.size} test(s) to run`);
 
-  // Create timestamp-based stack name
-  const stackName = `t${Math.floor(Date.now() / 1000)}`;
-  logInfo(`Stack name: ${stackName}`);
-
-  // Ensure stack exists for stacktype apps
-  const stacktypesNeeded = new Set<string>();
+  // Fetch application stacktypes
+  const appStacktypes = new Map<string, string>();
   const apps = await apiFetch<Array<{ id: string; stacktype?: string }>>(apiUrl, "/api/applications");
   if (apps) {
-    for (const [, def] of testsToRun) {
-      for (const step of def.steps) {
-        const app = apps.find((a) => a.id === step.application);
-        if (app?.stacktype) stacktypesNeeded.add(app.stacktype);
-      }
+    for (const app of apps) {
+      if (app.stacktype) appStacktypes.set(app.id, app.stacktype);
     }
   }
 
-  // Pre-create stacks
-  for (const stacktype of stacktypesNeeded) {
+  // Plan all tests: assign VM IDs and stack names
+  const plannedTests = planTests(testsToRun, appStacktypes);
+
+  // Show plan
+  console.log("");
+  logInfo("Execution plan:");
+  for (const test of plannedTests) {
+    const vmIds = test.steps.map((s) => s.vmId).join(", ");
+    console.log(`  ${test.name}: VMs [${vmIds}], stack=${test.stackName}`);
+  }
+  console.log("");
+
+  // Pre-test cleanup: destroy stale VMs, volumes, and stacks from previous runs
+  const allPlannedVmIds = plannedTests.flatMap((t) => t.steps.map((s) => s.vmId));
+  const allPlannedHostnames = plannedTests.flatMap((t) => t.steps.map((s) => s.hostname));
+  const allPlannedStacks = [...new Set(plannedTests.map((t) => t.stackName))];
+
+  // Destroy existing VMs with planned IDs
+  for (const vmId of allPlannedVmIds) {
+    const status = nestedSsh(config.pveHost, config.portPveSsh,
+      `pct status ${vmId} 2>/dev/null && echo exists || true`, 10000);
+    if (status.includes("exists")) {
+      logInfo(`Cleaning up stale VM ${vmId}...`);
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        30000);
+    }
+  }
+
+  // Remove shared volume directories for planned hostnames
+  for (const hostname of allPlannedHostnames) {
+    nestedSsh(config.pveHost, config.portPveSsh,
+      `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
+      15000);
+  }
+
+  // Delete stale stacks via API
+  for (const stackName of allPlannedStacks) {
     try {
-      const resp = await fetch(`${apiUrl}/api/stacks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: stackName, stacktype, entries: [] }),
-        signal: AbortSignal.timeout(10000),
+      await fetch(`${apiUrl}/api/stack/${stackName}`, {
+        method: "DELETE", signal: AbortSignal.timeout(5000),
       });
-      if (resp.ok) {
-        logOk(`Stack '${stackName}' created for type '${stacktype}'`);
+    } catch { /* ignore */ }
+  }
+
+  // Pre-create stacks
+  const createdStacks = new Set<string>();
+  for (const test of plannedTests) {
+    if (test.stacktype && !createdStacks.has(test.stackName)) {
+      try {
+        const resp = await fetch(`${apiUrl}/api/stacks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: test.stackName, stacktype: test.stacktype, entries: [] }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (resp.ok) {
+          logOk(`Stack '${test.stackName}' created (type: ${test.stacktype})`);
+          createdStacks.add(test.stackName);
+        }
+      } catch {
+        // Stack may already exist
       }
-    } catch {
-      // Stack may already exist
     }
   }
 
@@ -645,40 +717,30 @@ async function main() {
   const allResults: TestResult[] = [];
   const keepVm = !!process.env.KEEP_VM;
 
-  const groups = analyzeParallelGroups(testsToRun);
-
-  for (const group of groups) {
-    if (group.length === 1) {
-      // Single test, run directly
-      const name = group[0]!;
-      const result = await executeTest(
-        name, testsToRun.get(name)!,
-        config, apiUrl, veHost, projectRoot, stackName,
-      );
-      allResults.push(result);
-    } else {
-      // Multiple tests, run in parallel
-      logInfo(`Running ${group.length} tests in parallel: ${group.join(", ")}`);
-      const promises = group.map((name) =>
-        executeTest(
-          name, testsToRun.get(name)!,
-          config, apiUrl, veHost, projectRoot, stackName,
-        ),
-      );
-      const results = await Promise.allSettled(promises);
-      for (const [i, result] of results.entries()) {
-        if (result.status === "fulfilled") {
-          allResults.push(result.value);
-        } else {
-          allResults.push({
-            name: group[i]!,
-            description: "",
-            passed: 0,
-            failed: 1,
-            steps: [],
-            errors: [String(result.reason)],
-          });
-        }
+  if (plannedTests.length === 1) {
+    const result = await executeTest(
+      plannedTests[0]!, config, apiUrl, veHost, projectRoot,
+    );
+    allResults.push(result);
+  } else {
+    // All tests run in parallel (each has unique VM IDs and stack)
+    logInfo(`Running ${plannedTests.length} tests in parallel`);
+    const promises = plannedTests.map((test) =>
+      executeTest(test, config, apiUrl, veHost, projectRoot),
+    );
+    const results = await Promise.allSettled(promises);
+    for (const [i, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        allResults.push(result.value);
+      } else {
+        allResults.push({
+          name: plannedTests[i]!.name,
+          description: "",
+          passed: 0,
+          failed: 1,
+          steps: [],
+          errors: [String(result.reason)],
+        });
       }
     }
   }
