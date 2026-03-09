@@ -8,7 +8,7 @@
  "settings": {
     "workbench.colorCustomizations": {
     // Hintergrund des Editors
-    "activityBar.background": "#a4e158",
+    "activityBar.background": "#e5ee2f",
     "activityBar.foreground": "#130d03",},
 
     "claudeCode.allowDangerouslySkipPermissions": true,
