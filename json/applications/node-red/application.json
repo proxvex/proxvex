@@ -62,5 +62,6 @@
     "development",
     "authentication"
   ],
+  "supported_addons": ["addon-oidc"],
   "stacktype": "oidc"
 }
