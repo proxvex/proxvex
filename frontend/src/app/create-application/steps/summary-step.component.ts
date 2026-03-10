@@ -1,7 +1,6 @@
-import { Component, EventEmitter, Output, inject, signal } from '@angular/core';
+import { Component, EventEmitter, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
-import { FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -9,8 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { VeConfigurationService } from '../../ve-configuration.service';
-import { IFrameworkApplicationDataBody, IParameterClassification, IParameterValue, IUploadFile, ParameterTarget } from '../../../shared/types';
-import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
+import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, ParameterTarget } from '../../../shared/types';
 
 @Component({
   selector: 'app-summary-step',
@@ -25,12 +23,22 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
   ],
   template: `
     <div class="summary-step">
-      <h2>Review Your Configuration</h2>
+
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- SECTION 1: Saved in Application                                    -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <div class="section-header section-app">
+        <mat-icon>save</mat-icon>
+        <div>
+          <h2>Saved in Application</h2>
+          <p>This configuration is saved permanently and used for every installation.</p>
+        </div>
+      </div>
 
       <!-- Application Properties -->
       <mat-card>
         <mat-card-header>
-          <mat-card-title>Application Properties</mat-card-title>
+          <mat-card-title>Properties</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <dl class="summary-list">
@@ -42,26 +50,6 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
 
             <dt>Description:</dt>
             <dd>{{ state.appPropertiesForm.get('description')?.value }}</dd>
-
-            @if (state.appPropertiesForm.get('url')?.value) {
-              <dt>URL:</dt>
-              <dd>{{ state.appPropertiesForm.get('url')?.value }}</dd>
-            }
-
-            @if (state.appPropertiesForm.get('documentation')?.value) {
-              <dt>Documentation:</dt>
-              <dd>{{ state.appPropertiesForm.get('documentation')?.value }}</dd>
-            }
-
-            @if (state.appPropertiesForm.get('source')?.value) {
-              <dt>Source:</dt>
-              <dd>{{ state.appPropertiesForm.get('source')?.value }}</dd>
-            }
-
-            @if (state.appPropertiesForm.get('vendor')?.value) {
-              <dt>Vendor:</dt>
-              <dd>{{ state.appPropertiesForm.get('vendor')?.value }}</dd>
-            }
 
             <dt>Framework:</dt>
             <dd>{{ state.selectedFramework()?.name }}</dd>
@@ -75,68 +63,55 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
               <dt>Stacktype:</dt>
               <dd>{{ state.selectedStacktype() }}</dd>
             }
+
+            @if (state.appPropertiesForm.get('url')?.value) {
+              <dt>URL:</dt>
+              <dd>{{ state.appPropertiesForm.get('url')?.value }}</dd>
+            }
+
+            @if (state.appPropertiesForm.get('vendor')?.value) {
+              <dt>Vendor:</dt>
+              <dd>{{ state.appPropertiesForm.get('vendor')?.value }}</dd>
+            }
           </dl>
         </mat-card-content>
       </mat-card>
 
-      <!-- Parameter Classifications -->
-      @if (classifiedParams().length > 0) {
+      <!-- Fixed Parameters -->
+      @if (valueParams().length > 0) {
         <mat-card>
           <mat-card-header>
-            <mat-card-title>Parameter Storage</mat-card-title>
+            <mat-card-title>Fixed Parameters</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            @if (valueParams().length > 0) {
-              <div class="classification-section">
-                <h4>Fixed Values (in application.json)</h4>
-                <ul class="param-list">
-                  @for (p of valueParams(); track p.id) {
-                    <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
-                  }
-                </ul>
-              </div>
-            }
-            @if (defaultParams().length > 0) {
-              <div class="classification-section">
-                <h4>Defaults (editable at install time)</h4>
-                <ul class="param-list">
-                  @for (p of defaultParams(); track p.id) {
-                    <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
-                  }
-                </ul>
-              </div>
-            }
-            @if (installOnlyParams().length > 0) {
-              <div class="classification-section">
-                <h4>Install Parameters (not stored)</h4>
-                <ul class="param-list">
-                  @for (p of installOnlyParams(); track p.id) {
-                    <li>{{ p.name }}</li>
-                  }
-                </ul>
-              </div>
-            }
-          </mat-card-content>
-        </mat-card>
-      }
-
-      <!-- Selected Addons -->
-      @if (state.selectedAddons().length > 0) {
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>Selected Addons</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
+            <p class="section-hint">These values cannot be changed during installation.</p>
             <ul class="param-list">
-              @for (addonId of state.selectedAddons(); track addonId) {
-                <li>{{ getAddonName(addonId) }}</li>
+              @for (p of valueParams(); track p.id) {
+                <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
               }
             </ul>
           </mat-card-content>
         </mat-card>
       }
 
-      <!-- Upload Files -->
+      <!-- Editable Parameters (defaults) -->
+      @if (defaultParams().length > 0) {
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Editable Parameters</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <p class="section-hint">Pre-filled with these values, but can be changed during installation.</p>
+            <ul class="param-list">
+              @for (p of defaultParams(); track p.id) {
+                <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Upload File Slots -->
       @if (state.getUploadFiles().length > 0) {
         <mat-card data-testid="summary-upload-files">
           <mat-card-header>
@@ -146,9 +121,35 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
             <ul class="upload-files-list">
               @for (file of state.getUploadFiles(); track file.destination; let i = $index) {
                 <li [attr.data-testid]="'summary-upload-file-' + i">
-                  <strong class="upload-filename">{{ getUploadFileLabel(file) }}</strong> → {{ file.destination }}
+                  <strong>{{ getUploadFileLabel(file) }}</strong> → {{ file.destination }}
                   @if (file.required) { <span class="required-badge">Required</span> }
                 </li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- SECTION 2: Installation Only                                       -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      @if (installOnlyParams().length > 0) {
+        <div class="section-header section-install">
+          <mat-icon>play_circle</mat-icon>
+          <div>
+            <h2>Installation Only</h2>
+            <p>Used for this installation but not saved in the application. Must be entered again for future installations.</p>
+          </div>
+        </div>
+
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Parameters</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="param-list">
+              @for (p of installOnlyParams(); track p.id) {
+                <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
               }
             </ul>
           </mat-card-content>
@@ -159,7 +160,7 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
       @if (state.createError()) {
         <mat-card class="error-card">
           <mat-card-header>
-            <mat-card-title>Error Creating Application</mat-card-title>
+            <mat-card-title>Error</mat-card-title>
           </mat-card-header>
           <mat-card-content>
             <p class="error-message">{{ state.createError() }}</p>
@@ -178,10 +179,51 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
       padding: 1rem 0;
     }
 
+    /* Section headers */
+    .section-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .section-header mat-icon {
+      margin-top: 2px;
+      font-size: 24px;
+      width: 24px;
+      height: 24px;
+    }
+
+    .section-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .section-header p {
+      margin: 0.25rem 0 0;
+      font-size: 0.8rem;
+    }
+
+    .section-app {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      color: #2e7d32;
+    }
+
+    .section-install {
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      color: #e65100;
+      margin-top: 1.5rem;
+    }
+
+    /* Summary list */
     .summary-list {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 0.5rem 1rem;
+      gap: 0.4rem 1rem;
     }
 
     .summary-list dt {
@@ -196,6 +238,14 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
       margin-bottom: 1rem;
     }
 
+    .section-hint {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      color: rgba(0, 0, 0, 0.5);
+      font-style: italic;
+    }
+
+    /* Error */
     .error-card {
       border: 1px solid #f44336;
     }
@@ -204,20 +254,7 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
       color: #f44336;
     }
 
-    .classification-section {
-      margin-bottom: 1rem;
-    }
-
-    .classification-section:last-child {
-      margin-bottom: 0;
-    }
-
-    .classification-section h4 {
-      margin: 0 0 0.5rem;
-      font-size: 0.9rem;
-      color: #555;
-    }
-
+    /* Param lists */
     .param-list {
       list-style: none;
       padding: 0;
@@ -229,6 +266,7 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
       padding: 0.25rem 0;
     }
 
+    /* Upload files */
     .upload-files-list {
       list-style: none;
       padding: 0;
@@ -238,7 +276,7 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
     }
 
     .upload-files-list li {
-      padding: 0.5rem 0;
+      padding: 0.4rem 0;
       border-bottom: 1px solid #eee;
     }
 
@@ -259,10 +297,9 @@ import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
 export class SummaryStepComponent {
   readonly state = inject(CreateApplicationStateService);
   private configService = inject(VeConfigurationService);
-  private router = inject(Router);
 
   @Output() navigateToStep = new EventEmitter<number>();
-  @Output() applicationCreated = new EventEmitter<void>();
+  @Output() applicationSaved = new EventEmitter<string>();
 
   /** Get the display label for an upload file. */
   getUploadFileLabel(file: IUploadFile): string {
@@ -273,23 +310,19 @@ export class SummaryStepComponent {
     return lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
   }
 
-  getAddonName(addonId: string): string {
-    return this.state.availableAddons().find(a => a.id === addonId)?.name ?? addonId;
-  }
-
   // ─────────────────────────────────────────────────────────────────────────────
   // Classification display helpers
   // ─────────────────────────────────────────────────────────────────────────────
 
   classifiedParams() {
     return this.state.installParameters().filter(p =>
-      this.state.parameterClassifications().has(p.id)
+      !p.advanced && this.state.parameterClassifications().has(p.id)
     );
   }
 
   private filterByTarget(target: ParameterTarget) {
     return this.state.installParameters().filter(p =>
-      this.state.parameterClassifications().get(p.id) === target
+      !p.advanced && this.state.parameterClassifications().get(p.id) === target
     );
   }
 
@@ -308,62 +341,6 @@ export class SummaryStepComponent {
   // Application creation
   // ─────────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Saves the application and then installs it.
-   */
-  async saveAndInstall(): Promise<void> {
-    const applicationId = await this.saveApplicationOnly();
-    if (!applicationId) return;
-
-    if (!this.state.installFormManager) {
-      this.state.createError.set('Install form not initialized');
-      return;
-    }
-
-    this.state.installFormManager.install(applicationId).subscribe({
-      next: () => {
-        this.state.creating.set(false);
-      },
-      error: (err: { error?: { error?: string }; message?: string }) => {
-        this.state.creating.set(false);
-        this.state.createError.set(err?.error?.error || err?.message || 'Installation failed');
-      }
-    });
-  }
-
-  /**
-   * Saves the application without installing.
-   */
-  private saveApplicationOnly(): Promise<string | null> {
-    return new Promise((resolve) => {
-      const body = this.buildCreateApplicationBody();
-      if (!body) {
-        resolve(null);
-        return;
-      }
-
-      this.state.creating.set(true);
-      this.state.createError.set(null);
-      this.state.createErrorStep.set(null);
-
-      this.configService.createApplicationFromFramework(body).subscribe({
-        next: (res) => {
-          if (res.success) {
-            resolve(body.applicationId);
-          } else {
-            this.state.createError.set('Failed to save application');
-            this.state.creating.set(false);
-            resolve(null);
-          }
-        },
-        error: (err: { error?: { error?: string }; message?: string }) => {
-          this.state.createError.set(err?.error?.error || err?.message || 'Failed to save application');
-          this.state.creating.set(false);
-          resolve(null);
-        }
-      });
-    });
-  }
 
   /**
    * Builds the request body for creating/updating an application.
@@ -417,9 +394,6 @@ export class SummaryStepComponent {
     };
   }
 
-  get isInstallFormValid(): boolean {
-    return this.state.isInstallFormValid;
-  }
 
   createApplication(): void {
     const body = this.buildCreateApplicationBody();
@@ -429,14 +403,11 @@ export class SummaryStepComponent {
     this.state.createError.set(null);
     this.state.createErrorStep.set(null);
 
-    const actionText = this.state.editMode() ? 'updated' : 'created';
     this.configService.createApplicationFromFramework(body).subscribe({
       next: (res) => {
         this.state.creating.set(false);
         if (res.success) {
-          alert(`Application "${body.name}" ${actionText} successfully!`);
-          this.applicationCreated.emit();
-          this.router.navigate(['/applications']);
+          this.applicationSaved.emit(body.applicationId);
         } else {
           this.state.createError.set(`Failed to ${this.state.editMode() ? 'update' : 'create'} application.`);
         }

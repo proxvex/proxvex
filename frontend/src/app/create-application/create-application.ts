@@ -9,11 +9,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { debounceTime, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
 
-import { IFrameworkName, IParameter, IPostFrameworkFromImageResponse } from '../../shared/types';
+import { IApplicationWeb, IFrameworkName, IParameter, IPostFrameworkFromImageResponse } from '../../shared/types';
+import { VeConfigurationDialog, VeConfigurationDialogData } from '../ve-configuration-dialog/ve-configuration-dialog';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { CacheService } from '../shared/services/cache.service';
 import { DockerComposeService } from '../shared/services/docker-compose.service';
@@ -40,6 +42,7 @@ import { SummaryStepComponent } from './steps/summary-step.component';
     MatIconModule,
     MatButtonToggleModule,
     MatChipsModule,
+    MatDialogModule,
     AppPropertiesStepComponent,
     FrameworkStepComponent,
     ParametersStepComponent,
@@ -60,6 +63,7 @@ export class CreateApplication implements OnInit, OnDestroy {
   private errorHandler = inject(ErrorHandlerService);
   private cacheService = inject(CacheService);
   private composeService = inject(DockerComposeService);
+  private dialog = inject(MatDialog);
 
   // State Service - holds all shared state
   readonly state = inject(CreateApplicationStateService);
@@ -370,8 +374,24 @@ export class CreateApplication implements OnInit, OnDestroy {
     this.summaryStep?.createApplication();
   }
 
-  saveAndInstall(): void {
-    this.summaryStep?.saveAndInstall();
+  onApplicationSaved(applicationId: string): void {
+    // Build a minimal IApplicationWeb to open the install dialog
+    const app: IApplicationWeb = {
+      id: applicationId,
+      name: this.state.appPropertiesForm.get('name')?.value ?? applicationId,
+      description: this.state.appPropertiesForm.get('description')?.value ?? '',
+      source: 'local',
+      framework: this.state.selectedFramework()?.id,
+      tags: this.state.selectedTags(),
+      stacktype: this.state.selectedStacktype() ?? undefined,
+    };
+
+    // Navigate to applications list first
+    this.router.navigate(['/applications']).then(() => {
+      // Open install dialog
+      const dialogData: VeConfigurationDialogData = { app, task: 'installation' };
+      this.dialog.open(VeConfigurationDialog, { data: dialogData });
+    });
   }
 
   onNavigateToStep(stepIndex: number): void {

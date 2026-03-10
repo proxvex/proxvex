@@ -18,6 +18,7 @@ export interface IUploadFile {
   required?: boolean;
   advanced?: boolean;
   certtype?: CertType;
+  help?: string;                // Optional: Markdown help text or documentation URL shown during installation
 }
 
 export interface IApplicationBase {

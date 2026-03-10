@@ -27,8 +27,9 @@
 }
 
 .param-field {
-  width: 200pt;
-  min-width: 200pt;
+  flex: 1 1 200px;
+  min-width: 200px;
+  max-width: 100%;
   margin-bottom: 1rem;
 
   // Multiline fields get full width
@@ -56,11 +57,12 @@
 }
 
 .param-toggle {
-  width: 200pt;
-  min-width: 200pt;
+  flex: 1 1 200px;
+  min-width: 200px;
+  max-width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: 1rem;
 }
 
@@ -296,23 +298,32 @@
   .classification-controls {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
     padding-top: 0.75rem;
-    min-width: 130px;
     flex-shrink: 0;
   }
+}
 
-  .classification-select {
-    font-size: 0.8rem;
-    padding: 2px 4px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: #fff;
-    cursor: pointer;
+// Button toggle styling for classification
+:host ::ng-deep .classification-toggle {
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid #ccc;
+  overflow: hidden;
 
-    &:hover {
-      border-color: #999;
+  .mat-button-toggle {
+    height: 28px;
+
+    .mat-button-toggle-label-content {
+      padding: 0 10px;
+      line-height: 28px;
+      font-size: 0.75rem;
+      font-weight: 500;
     }
+  }
+
+  .mat-button-toggle-checked {
+    background: #1976d2;
+    color: #fff;
   }
 }
 

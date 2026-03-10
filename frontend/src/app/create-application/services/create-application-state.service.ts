@@ -1110,6 +1110,11 @@ export class CreateApplicationStateService {
         this.installParameters.set(res.unresolvedParameters);
         this.frameworkProperties.set(res.frameworkProperties ?? []);
 
+        // Set up form BEFORE setting grouped parameters to avoid
+        // formControlName errors (controls must exist before template renders)
+        this.setupInstallForm(res.unresolvedParameters);
+        this.initDefaultClassifications(res.unresolvedParameters, res.frameworkProperties ?? []);
+
         // Sort and group: framework properties first, then required, then rest
         const sorted = this.sortInstallParameters(res.unresolvedParameters, res.frameworkProperties ?? []);
         this.installParametersGrouped.set(this.groupByTemplate(sorted));
@@ -1121,8 +1126,6 @@ export class CreateApplicationStateService {
           );
         }));
 
-        this.setupInstallForm(res.unresolvedParameters);
-        this.initDefaultClassifications(res.unresolvedParameters, res.frameworkProperties ?? []);
         this.loadInstallStacks();
         this.loadingInstallParameters.set(false);
       },
@@ -1189,9 +1192,12 @@ export class CreateApplicationStateService {
     this.installFormManager.enableHostnameTracking();
   }
 
-  /** Getter for template - returns form from manager or empty FormGroup */
+  /** Stable empty form used when installFormManager is not yet initialized */
+  private _emptyInstallForm = this.fb.group({});
+
+  /** Getter for template - returns form from manager or stable empty FormGroup */
   get installForm(): FormGroup {
-    return this.installFormManager?.form ?? this.fb.group({});
+    return this.installFormManager?.form ?? this._emptyInstallForm;
   }
 
   get isInstallFormValid(): boolean {

@@ -677,6 +677,16 @@ upload_pre_start_file \\
 upload_output_result "${outputId}"
 `;
       this.persistence.writeScript(scriptName, scriptContent, false, appDir);
+
+      // Write markdown help file if help text is provided
+      if (uploadFile.help && uploadFile.help.trim()) {
+        const mdFileName = `${templateName}.md`;
+        const mdContent = `## ${fileLabel}\n\n${uploadFile.help.trim()}\n`;
+        const templatesDir = path.join(appDir, "templates");
+        fs.mkdirSync(templatesDir, { recursive: true });
+        fs.writeFileSync(path.join(templatesDir, mdFileName), mdContent);
+      }
+
       uploadTemplateNames.push(`${templateName}.json`);
     }
 

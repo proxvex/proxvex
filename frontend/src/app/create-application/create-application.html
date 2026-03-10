@@ -59,12 +59,13 @@
     <mat-step label="Summary">
       <app-summary-step
         (navigateToStep)="onNavigateToStep($event)"
+        (applicationSaved)="onApplicationSaved($event)"
       ></app-summary-step>
       <div class="step-actions">
         <button mat-button matStepperPrevious data-testid="prev-step-btn">Back</button>
 
-        <!-- Button 1: Save Application only -->
         <button mat-raised-button
+                color="primary"
                 (click)="createApplication()"
                 [disabled]="creating()"
                 data-testid="save-application-btn">
@@ -72,19 +73,6 @@
             {{ editMode() ? 'Updating...' : 'Saving...' }}
           } @else {
             {{ editMode() ? 'Update Application' : 'Save Application' }}
-          }
-        </button>
-
-        <!-- Button 2: Save & Install -->
-        <button mat-raised-button
-                color="primary"
-                (click)="saveAndInstall()"
-                [disabled]="creating() || !summaryStep?.isInstallFormValid"
-                data-testid="save-and-install-btn">
-          @if (creating()) {
-            Installing...
-          } @else {
-            Save & Install
           }
         </button>
       </div>

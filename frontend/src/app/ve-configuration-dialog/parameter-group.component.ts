@@ -10,6 +10,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
@@ -34,6 +35,7 @@ import { StackSelectorComponent } from '../shared/components/stack-selector/stac
     MatIconModule,
     MatButtonModule,
     MatExpansionModule,
+    MatButtonToggleModule,
     MatCardModule,
     StackSelectorComponent
   ],
@@ -549,17 +551,7 @@ export class ParameterGroupComponent implements OnInit {
     return this.parameterClassifications.get(paramId) ?? 'install';
   }
 
-  isClassifiedInApp(paramId: string): boolean {
-    const target = this.getClassification(paramId);
-    return target === 'value' || target === 'default';
-  }
-
-  onClassificationCheckboxChange(paramId: string, checked: boolean): void {
-    const target: ParameterTarget = checked ? 'value' : 'install';
-    this.classificationChanged.emit({ paramId, target });
-  }
-
-  onClassificationDropdownChange(paramId: string, target: ParameterTarget): void {
+  onClassificationChange(paramId: string, target: ParameterTarget): void {
     this.classificationChanged.emit({ paramId, target });
   }
 }

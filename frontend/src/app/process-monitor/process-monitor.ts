@@ -65,7 +65,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   startPolling() {
     // Fetch immediately, then poll every 5 seconds
     this.fetchMessages();
-    this.pollInterval = setInterval(() => this.fetchMessages(), 5000);
+    this.pollInterval = window.setInterval(() => this.fetchMessages(), 5000);
   }
 
   private resumePolling() {
@@ -113,7 +113,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   private startRedirect(url: string): void {
     this.redirectUrl = url;
     this.redirectCountdown = 10;
-    this.countdownInterval = setInterval(() => {
+    this.countdownInterval = window.setInterval(() => {
       this.zone.run(() => {
         this.redirectCountdown--;
         if (this.redirectCountdown <= 0 && this.countdownInterval) {
