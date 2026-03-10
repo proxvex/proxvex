@@ -4,34 +4,27 @@
 		<div class="group-fields">
 			@for (param of params; track param) {
 				@if (isVisible(param)) {
-					<!-- Classification wrapper: full-width row with param + classification toggle -->
+					<!-- Classification wrapper: full-width row with param + classification controls -->
 					@if (showClassification) {
 						<div class="classification-row">
 							<div class="classification-param">
 								<ng-container [ngTemplateOutlet]="paramField" [ngTemplateOutletContext]="{ $implicit: param }"></ng-container>
 							</div>
 							<div class="classification-controls">
-								<mat-button-toggle-group
-									[value]="getClassification(param.id)"
-									(change)="onClassificationChange(param.id, $event.value)"
-									class="classification-toggle"
-									hideSingleSelectionIndicator>
-									<mat-button-toggle value="value"
-										matTooltip="Fixed value — cannot be changed during installation"
-										matTooltipPosition="above">
-										Fixed
-									</mat-button-toggle>
-									<mat-button-toggle value="default"
-										matTooltip="Pre-filled value — can be changed during installation"
-										matTooltipPosition="above">
-										Editable
-									</mat-button-toggle>
-									<mat-button-toggle value="install"
-										matTooltip="Not saved — must be entered at every installation"
-										matTooltipPosition="above">
-										Ask
-									</mat-button-toggle>
-								</mat-button-toggle-group>
+								<mat-checkbox
+									[checked]="isClassifiedInApp(param.id)"
+									(change)="onClassificationCheckboxChange(param.id, $event.checked)"
+									matTooltip="Store in application.json"
+									matTooltipPosition="above">
+								</mat-checkbox>
+								@if (isClassifiedInApp(param.id)) {
+									<select class="classification-select"
+										[value]="getClassification(param.id)"
+										(change)="onClassificationDropdownChange(param.id, $any($event.target).value)">
+										<option value="value">Value</option>
+										<option value="default">Default</option>
+									</select>
+								}
 							</div>
 						</div>
 					} @else {
@@ -109,7 +102,6 @@
 
 <!-- Template for parameter field (reused in both classification and non-classification modes) -->
 <ng-template #paramField let-param>
-	<ng-container [formGroup]="form">
 	@switch (param.type) {
 		@case ('boolean') {
 			<div class="param-field param-toggle">
@@ -191,5 +183,4 @@
 			</div>
 		}
 	}
-	</ng-container>
 </ng-template>
