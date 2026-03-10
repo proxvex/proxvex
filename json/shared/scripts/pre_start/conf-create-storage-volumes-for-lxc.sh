@@ -421,6 +421,7 @@ STORAGE_TYPE=$(get_storage_type)
 SAFE_HOST=$(sanitize_name "$HOSTNAME")
 SHARED_OWNER_VMID="${SHARED_OWNER_VMID:-999999}"
 SHARED_NAME_KEY="oci-lxc-deployer-volumes"
+CERT_DIR_OVERRIDE=""
 
 log "storage-volumes: vm_id=$VMID host=$HOSTNAME storage=$VOLUME_STORAGE type=$STORAGE_TYPE"
 
@@ -491,11 +492,56 @@ while IFS= read -r line <&3; do
     chown "$EFFECTIVE_UID:$EFFECTIVE_GID" "$SUBDIR" 2>/dev/null || true
   fi
 
-  # Skip mount attachment if this mount target already exists (don't remove user-created mounts)
+  # If mount target already exists, check if it needs fixing.
+  # On ZFS, PVE mounts the whole dataset instead of a subdirectory, so we
+  # create a dedicated ZFS dataset whose root IS the volume directory.
   if [ "$ATTACH_TO_CT" -eq 1 ]; then
     case " $EXISTING_TARGETS " in
       *" $VOLUME_PATH "*)
-        log "Skipping mount for $VOLUME_PATH - already exists (permissions updated)"
+        EXISTING_MP=$(pct config "$VMID" 2>/dev/null | grep -aE "^mp[0-9]+:.*mp=${VOLUME_PATH}(,|$)" | head -n1 || true)
+        EXISTING_HOST_PATH=$(echo "$EXISTING_MP" | sed -E 's/^mp[0-9]+:\s*([^,]+).*/\1/')
+        EXISTING_MP_KEY=$(echo "$EXISTING_MP" | cut -d: -f1)
+
+        if [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" != "$SUBDIR" ] && [ -n "$EXISTING_MP_KEY" ] && [ "$STORAGE_TYPE" = "zfspool" ]; then
+          # ZFS: Create a dedicated dataset so PVE mounts the dataset root
+          DEDICATED_VOLNAME="subvol-${VMID}-${SAFE_HOST}-${SAFE_KEY}"
+          DEDICATED_VOLID=$(get_existing_volid "${SAFE_HOST}-${SAFE_KEY}" "$STORAGE_TYPE")
+          if [ -z "$DEDICATED_VOLID" ]; then
+            log "Creating dedicated ZFS dataset: ${DEDICATED_VOLNAME}"
+            DEDICATED_VOLID=$(alloc_volume "$DEDICATED_VOLNAME" "$VOLUME_SIZE" "$VMID" || true)
+          fi
+
+          if [ -n "$DEDICATED_VOLID" ]; then
+            DEDICATED_VOLNAME_REAL="${DEDICATED_VOLID#*:}"
+            DEDICATED_PATH=$(resolve_volume_path "$DEDICATED_VOLID" "$DEDICATED_VOLNAME_REAL" "$STORAGE_TYPE" || true)
+            if [ -n "$DEDICATED_PATH" ]; then
+              log "Replacing ${EXISTING_MP_KEY}: ${EXISTING_HOST_PATH} -> ${DEDICATED_PATH}"
+              if [ -n "$PERM" ]; then
+                chmod "$PERM" "$DEDICATED_PATH" 2>/dev/null || true
+              fi
+              if [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
+                chown "$EFFECTIVE_UID:$EFFECTIVE_GID" "$DEDICATED_PATH" 2>/dev/null || true
+              fi
+              if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
+                pct stop "$VMID" >&2 || true
+                NEEDS_STOP=1
+              fi
+              OPTS="mp=$VOLUME_PATH"
+              pct set "$VMID" -${EXISTING_MP_KEY} "${DEDICATED_PATH},${OPTS}" >&2
+              # Tell cert generation to use the dataset root directly
+              CERT_DIR_OVERRIDE="$DEDICATED_PATH"
+              log "Mount updated to dedicated ZFS dataset: ${DEDICATED_PATH}"
+            else
+              log "Warning: Could not resolve dedicated ZFS dataset path"
+            fi
+          else
+            log "Warning: Could not create dedicated ZFS dataset"
+          fi
+        elif [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" = "$SUBDIR" ]; then
+          log "Skipping mount for $VOLUME_PATH - already exists with correct path"
+        else
+          log "Skipping mount for $VOLUME_PATH - already exists"
+        fi
         continue
         ;;
     esac
@@ -536,7 +582,7 @@ if [ "$ATTACH_TO_CT" -eq 1 ]; then
   if [ "$WAS_RUNNING" -eq 1 ]; then
     pct start "$VMID" >/dev/null 2>&1 || true
   fi
-  printf '[{"id":"volumes_attached","value":"true"},{"id":"shared_volpath","value":"%s"}]\n' "$SHARED_VOLPATH"
+  printf '[{"id":"volumes_attached","value":"true"},{"id":"shared_volpath","value":"%s"},{"id":"cert_dir_override","value":"%s"}]\n' "$SHARED_VOLPATH" "$CERT_DIR_OVERRIDE"
 else
   printf '[{"id":"volumes_attached","value":"false"},{"id":"shared_volpath","value":"%s"}]\n' "$SHARED_VOLPATH"
 fi

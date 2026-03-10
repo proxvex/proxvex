@@ -32,6 +32,7 @@ DEPLOYER_INSTANCE_RE = re.compile(r"(?:oci-lxc-deployer):deployer-instance", re.
 USERNAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):username\s+(.+?)\s*-->", re.IGNORECASE)
 UID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):uid\s+(.+?)\s*-->", re.IGNORECASE)
 GID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):gid\s+(.+?)\s*-->", re.IGNORECASE)
+STACK_NAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):stack-name\s+(.+?)\s*-->", re.IGNORECASE)
 
 # --- Regex patterns for LXC config parsing ---
 
@@ -101,6 +102,9 @@ class LxcConfig:
     uid: str | None = None
     gid: str | None = None
 
+    # Stack info from notes (for dependency discovery)
+    stack_name: str | None = None
+
     # LXC config entries
     id_mappings: list[IdMapping] = field(default_factory=list)
     mount_points: list[MountPoint] = field(default_factory=list)
@@ -139,6 +143,8 @@ class LxcConfig:
             result["uid"] = self.uid
         if self.gid:
             result["gid"] = self.gid
+        if self.stack_name:
+            result["stack_name"] = self.stack_name
         if self.memory is not None:
             result["memory"] = self.memory
         if self.cores is not None:
@@ -307,6 +313,12 @@ def parse_lxc_config(conf_text: str) -> LxcConfig:
     config.gid = (
         _extract_from_patterns(decoded, [GID_MARKER_RE]) or
         _extract_from_patterns(normalized, [GID_MARKER_RE])
+    )
+
+    # Parse stack name from notes
+    config.stack_name = (
+        _extract_from_patterns(decoded, [STACK_NAME_MARKER_RE]) or
+        _extract_from_patterns(normalized, [STACK_NAME_MARKER_RE])
     )
 
     # Parse LXC config entries (from raw/normalized, not decoded)

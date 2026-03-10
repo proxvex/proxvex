@@ -84,6 +84,13 @@
       "type": "string",
       "advanced": true,
       "description": "GID for volume permissions (stored for addon reconfiguration)"
+    },
+    {
+      "id": "stack_name",
+      "name": "Stack Name",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: Stack name/id for dependency discovery"
     }
   ],
   "commands": [

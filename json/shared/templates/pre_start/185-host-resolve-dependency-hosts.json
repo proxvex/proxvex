@@ -1,0 +1,30 @@
+{
+  "execute_on": "ve",
+  "name": "Resolve Dependency Hosts",
+  "skip_if_all_missing": ["app_dependencies"],
+  "description": "Resolves hostnames of dependency containers by scanning LXC configs.\n\nFor each dependency declared in application.json, finds the container with matching application_id and stack_name, verifies it is running, and outputs <APP_ID>_HOST with the hostname.\n\nFails if any dependency is not found or not running.",
+  "parameters": [
+    {
+      "id": "stack_name",
+      "name": "Stack Name",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: Stack name/id for dependency discovery"
+    },
+    {
+      "id": "app_dependencies",
+      "name": "Application Dependencies",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: JSON array of application dependencies"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Resolve Dependency Hosts",
+      "script": "host-resolve-dependency-hosts.py",
+      "library": "lxc_config_parser_lib.py",
+      "outputs": ["POSTGRES_HOST"]
+    }
+  ]
+}

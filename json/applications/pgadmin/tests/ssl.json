@@ -1,0 +1,6 @@
+{
+  "params": [
+    { "name": "envs", "append": "PGADMIN_DEFAULT_EMAIL", "value": "admin@test.local" },
+    { "name": "envs", "append": "PGADMIN_DEFAULT_PASSWORD", "value": "testpass123" }
+  ]
+}

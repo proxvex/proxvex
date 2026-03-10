@@ -152,7 +152,7 @@ export class VariableResolver {
       try {
         const decoded = Buffer.from(value, "base64").toString("utf-8");
         if (!/{{\s*[^}\s]+\s*}}/.test(decoded)) continue;
-        const resolved = this.replaceVars(decoded);
+        const resolved = this.replaceVarsPreserveUnresolved(decoded);
         if (resolved !== decoded) {
           inputs[key] = Buffer.from(resolved).toString("base64");
         }
@@ -166,7 +166,7 @@ export class VariableResolver {
         try {
           const decoded = Buffer.from(value, "base64").toString("utf-8");
           if (!/{{\s*[^}\s]+\s*}}/.test(decoded)) continue;
-          const resolved = this.replaceVars(decoded);
+          const resolved = this.replaceVarsPreserveUnresolved(decoded);
           if (resolved !== decoded) {
             outputs.set(key, Buffer.from(resolved).toString("base64"));
           }
@@ -175,6 +175,27 @@ export class VariableResolver {
         }
       }
     }
+  }
+
+  /**
+   * Like replaceVars but preserves unresolved variables as {{ var }} instead of
+   * replacing with NOT_DEFINED. Used by resolveBase64Inputs so that variables
+   * from later script outputs (e.g., POSTGRES_HOST from script 185) remain as
+   * placeholders until the producing script has run.
+   */
+  private replaceVarsPreserveUnresolved(str: string): string {
+    const result = str.replace(/{{\s*([^}\s]+)\s*}}/g, (match: string, v: string) => {
+      const listResult = this.resolveListVariable(v, {});
+      if (listResult !== null) return listResult;
+      if (this.outputs.has(v)) return String(this.outputs.get(v));
+      if (this.inputs[v] !== undefined) return String(this.inputs[v]);
+      if (this.defaults.has(v)) return String(this.defaults.get(v));
+      return match; // Preserve {{ var }} for later resolution
+    });
+    if (result !== str && /{{\s*[^}\s]+\s*}}/.test(result)) {
+      return this.replaceVarsPreserveUnresolved(result);
+    }
+    return result;
   }
 
   replaceVarsWithContext(str: string, ctx: Record<string, any>): string {

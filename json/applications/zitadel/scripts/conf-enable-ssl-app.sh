@@ -4,37 +4,35 @@
 # Overrides the shared no-op script.
 # Runs on PVE host during pre_start phase.
 #
-# Sets ZITADEL_TLS_MODE=enabled and ZITADEL_EXTERNALSECURE=true
-# in the docker-compose .env file so Zitadel starts with TLS.
-# The compose file references these via ${ZITADEL_TLS_MODE:-disabled}.
+# 1. Outputs env_file (base64-encoded .env) so template 320 writes it
+#    into the container at /opt/docker-compose/<project>/.env
+#    The compose file uses ${VAR:-default} Docker env substitution.
+#
+# 2. Fixes cert file permissions for the Zitadel docker user (non-root).
+#    The cert directory is created with 0700/root ownership for the LXC
+#    container, but Zitadel runs as non-root inside docker.
+#    We make the certs world-readable so the docker user can access them.
 set -eu
 
 SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 
-# Sanitize hostname for volume path
+# Build .env content and base64-encode it for the env_file output
+ENV_CONTENT="ZITADEL_TLS_MODE=enabled
+ZITADEL_EXTERNALSECURE=true
+POSTGRES_SSL_MODE=require"
+
+ENV_FILE_B64=$(printf '%s\n' "$ENV_CONTENT" | base64 | tr -d '\n')
+
+# Fix cert permissions for non-root docker user
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+CERT_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/certs"
 
-# The compose volume is at compose/  within the volumes directory.
-# Inside it, the project dir uses the hostname as project name.
-COMPOSE_PROJECT="$SAFE_HOST"
-ENV_FILE="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/compose/${COMPOSE_PROJECT}/.env"
-
-if [ ! -f "$ENV_FILE" ]; then
-  echo ".env file not found at $ENV_FILE (fresh install, will be set on first compose upload)" >&2
-  echo '[{"id":"ssl_app_enabled","value":"false"}]'
-  exit 0
+if [ -d "$CERT_DIR" ]; then
+  chmod 0755 "$CERT_DIR" 2>/dev/null || true
+  chmod 0644 "$CERT_DIR"/*.pem 2>/dev/null || true
+  echo "Cert permissions relaxed for non-root docker user" >&2
 fi
 
-# Remove existing TLS-related entries (idempotent)
-sed -i '/^ZITADEL_TLS_MODE=/d' "$ENV_FILE"
-sed -i '/^ZITADEL_EXTERNALSECURE=/d' "$ENV_FILE"
-
-# Append TLS configuration
-cat >> "$ENV_FILE" <<EOF
-ZITADEL_TLS_MODE=enabled
-ZITADEL_EXTERNALSECURE=true
-EOF
-
-echo "SSL enabled: ZITADEL_TLS_MODE=enabled, ZITADEL_EXTERNALSECURE=true" >&2
-echo '[{"id":"ssl_app_enabled","value":"true"}]'
+echo "SSL enabled: ZITADEL_TLS_MODE=enabled, ZITADEL_EXTERNALSECURE=true, POSTGRES_SSL_MODE=require" >&2
+echo "[{\"id\":\"ssl_app_enabled\",\"value\":\"true\"},{\"id\":\"env_file\",\"value\":\"$ENV_FILE_B64\"}]"

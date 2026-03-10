@@ -3,7 +3,7 @@
   "instances": {
     "local-test": {
       "description": "Local development testing",
-      "pveHost": "ubuntupve",
+      "pveHost": "${PVE_HOST:-ubuntupve}",
       "vmId": 9000,
       "vmName": "pve-e2e-local",
       "portOffset": 0,
@@ -14,7 +14,7 @@
     },
     "github-action": {
       "description": "GitHub Actions CI testing",
-      "pveHost": "ubuntupve",
+      "pveHost": "${PVE_HOST:-ubuntupve}",
       "vmId": 9001,
       "vmName": "pve-e2e-ci",
       "portOffset": 1000,

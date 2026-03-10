@@ -1,7 +1,12 @@
-[
-  { "name": "POSTGRES_PASSWORD" },
-  { "name": "API_LOGIN_PASSWORD" },
-  { "name": "JWT_SECRET", "length": 64 },
-  { "name": "ZITADEL_MASTERKEY", "length": 32 },
-  { "name": "PGADMIN_DEFAULT_PASSWORD" }
-]
+{
+  "variables": [
+    { "name": "POSTGRES_PASSWORD" },
+    { "name": "API_LOGIN_PASSWORD" },
+    { "name": "JWT_SECRET", "length": 64 },
+    { "name": "ZITADEL_MASTERKEY", "length": 32 },
+    { "name": "PGADMIN_DEFAULT_PASSWORD" }
+  ],
+  "dependencies": [
+    { "application": "postgres" }
+  ]
+}

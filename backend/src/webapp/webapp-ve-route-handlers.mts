@@ -165,7 +165,7 @@ export class WebAppVeRouteHandlers {
       // Prepare initialInputs for loadApplication (for skip_if_all_missing checks)
       // Must use body.params (all parameters), not paramsToUse (changedParams only),
       // because skip_if_all_missing needs to see all provided parameters, not just changed ones.
-      const initialInputs = body.params
+      const initialInputs: Array<{ id: string; value: string | number | boolean }> = body.params
         .filter(
           (p) => p.value !== null && p.value !== undefined && p.value !== "",
         )
@@ -173,6 +173,24 @@ export class WebAppVeRouteHandlers {
           id: p.name,
           value: p.value,
         }));
+
+      // Pre-inject backend-generated values so skip_if_all_missing can see them
+      // during template loading (before defaults are set post-load).
+      const stackId = body.stackId;
+      if (stackId) {
+        initialInputs.push({ id: "stack_name", value: stackId });
+      }
+
+      // Read application config to check for dependencies
+      try {
+        const appConfig = this.pm.getRepositories().getApplication(application);
+        const appDeps = (appConfig as any)?.dependencies;
+        if (Array.isArray(appDeps) && appDeps.length > 0) {
+          initialInputs.push({ id: "app_dependencies", value: JSON.stringify(appDeps) });
+        }
+      } catch {
+        // Ignore - getApplication may fail for some apps
+      }
 
       const loaded = await templateProcessor.loadApplication(
         application,
@@ -214,14 +232,22 @@ export class WebAppVeRouteHandlers {
       const defaults = this.parameterProcessor.buildDefaults(loaded.parameters);
 
       // Load stack entries if stackId is provided
-      const stackId = body.stackId;
       if (stackId) {
         const stack = storageContext.getStack(stackId);
-        if (stack && stack.entries) {
-          for (const entry of stack.entries) {
-            defaults.set(entry.name, entry.value);
+        if (stack) {
+          defaults.set("stack_name", stackId);
+          if (stack.entries) {
+            for (const entry of stack.entries) {
+              defaults.set(entry.name, entry.value);
+            }
           }
         }
+      }
+
+      // Inject application dependencies for dependency-host-discovery script
+      const appDependencies = (loaded.application as any)?.dependencies;
+      if (Array.isArray(appDependencies) && appDependencies.length > 0) {
+        defaults.set("app_dependencies", JSON.stringify(appDependencies));
       }
 
       // Built-in context variables (available to scripts as {{ application_id }}, etc.)

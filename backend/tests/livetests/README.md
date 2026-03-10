@@ -1,100 +1,85 @@
 # Live Integration Tests
 
-Diese Tests erstellen echte Container auf einem Proxmox VE Host und verifizieren die Funktionalität.
+These tests create real containers on a Proxmox VE host via `oci-lxc-cli` and verify functionality.
 
-## Voraussetzungen
+## Prerequisites
 
-1. **SSH-Zugang zum PVE-Host**
+1. **Nested VM with Deployer** running (via `e2e/step1` + `e2e/step2`)
+2. **Project is built** (incl. CLI): `cd $PROJECT_ROOT && pnpm run build`
+3. **Deployer API** is reachable (checked automatically)
 
-   ```bash
-   ssh pve1.cluster  # Muss ohne Passwort funktionieren
-   ```
+## Configuration
 
-2. **Backend ist gebaut**
-   ```bash
-   cd backend && npm run build
-   ```
+Tests use the central `e2e/config.json` for all settings (PVE host, ports, etc.).
 
-Das Script erstellt automatisch die benötigten Konfigurationsdateien (storagecontext.json, secret.txt) im temporären Testverzeichnis.
-
-## Verwendung
+## Usage
 
 ```bash
-# Standard-Test mit alpine-packages auf pve1.cluster
-./run-live-test.sh pve1.cluster
+# Run all tests
+npx tsx backend/tests/livetests/src/live-test-runner.mts local-test --all
 
-# Spezifische Applikation testen
-./run-live-test.sh pve1.cluster node-red installation
-./run-live-test.sh pve1.cluster docker-compose installation
+# Run specific app (all scenarios + dependencies)
+npx tsx backend/tests/livetests/src/live-test-runner.mts local-test postgres
 
-# Anderer PVE-Host
-./run-live-test.sh pve2.cluster
+# Run specific scenario (+ dependencies)
+npx tsx backend/tests/livetests/src/live-test-runner.mts local-test zitadel/ssl
 
-# Container nach Test behalten (für Debugging)
-KEEP_VM=1 ./run-live-test.sh pve1.cluster
+# Keep containers for debugging
+KEEP_VM=1 npx tsx backend/tests/livetests/src/live-test-runner.mts local-test zitadel/ssl
 ```
 
-### Argumente
+### Arguments
 
-1. `pve_host` - SSH-Hostname des Proxmox VE Hosts (optional, default: pve1.cluster)
-2. `application` - Name der zu testenden Applikation (optional, default: alpine-packages)
-3. `task` - Task-Typ (optional, default: installation)
+1. `instance` - Instance name from `e2e/config.json` (optional, uses default)
+2. `test-name` - `<app>`, `<app>/<scenario>`, or `--all`
 
-## Was wird getestet?
+## Test Definitions
 
-1. **Container-Erstellung**
-   - Container wird erfolgreich erstellt
-   - VM_ID wird korrekt zurückgegeben
+Tests are defined per application in `json/applications/<app>/tests/test.json`.
+Each scenario tests exactly one application. Dependencies are declared via `depends_on`.
 
-2. **Notes-Generierung**
-   - `<!-- lxc-manager:managed -->` Marker
-   - `<!-- lxc-manager:log-url ... -->` für Log-Viewer
-   - `<!-- lxc-manager:icon-url ... -->` für Icons
-   - `## Links` Abschnitt mit klickbaren Links
-
-3. **Container-Status**
-   - Container läuft
-   - Hat Netzwerkverbindung (optional)
-
-## Erweiterung
-
-Das Script kann um weitere Tests erweitert werden:
-
-```bash
-# Port-Test
-test_port() {
-    local port=$1
-    if ssh "$PVE_HOST" "pct exec $VM_ID -- nc -z localhost $port 2>/dev/null"; then
-        log_ok "Port $port is listening"
-    else
-        log_fail "Port $port not listening"
-    fi
-}
-
-# HTTP-Test
-test_http() {
-    local port=$1
-    local path=${2:-/}
-    if ssh "$PVE_HOST" "pct exec $VM_ID -- wget -q -O- http://localhost:$port$path" | grep -q .; then
-        log_ok "HTTP $port$path responds"
-    else
-        log_fail "HTTP $port$path not responding"
-    fi
+```json
+{
+  "ssl": {
+    "description": "Zitadel with SSL and Postgres with SSL",
+    "depends_on": ["postgres/ssl"],
+    "addons": ["addon-ssl"],
+    "wait_seconds": 60,
+    "verify": { "container_running": true, "services_up": true, "tls_connect": 8080 }
+  }
 }
 ```
+
+### Params files
+
+Optional `<scenario>.json` alongside `test.json` provides app-specific parameters:
+
+```json
+{
+  "params": [
+    { "name": "envs", "append": "PGADMIN_DEFAULT_EMAIL", "value": "admin@test.local" },
+    { "name": "upload_config", "value": "file:config.conf" }
+  ]
+}
+```
+
+- **Set mode**: `{ "name": "key", "value": "val" }` — sets or overrides a parameter
+- **Append mode**: `{ "name": "envs", "append": "VAR", "value": "val" }` — appends to multiline variable
+- **File upload**: `"value": "file:relative-path"` — resolves relative to tests dir
+
+### Verify Options
+
+| Option | Description |
+|--------|-------------|
+| `container_running` | LXC container status is "running" |
+| `notes_managed` | Notes contain `oci-lxc-deployer:managed` marker |
+| `services_up` | All docker services show "Up" status |
+| `lxc_log_no_errors` | No ERROR lines in LXC console log |
+| `docker_log_no_errors` | No ERROR lines in docker container logs |
+| `tls_connect` | TLS connection succeeds on given port |
+| `pg_ssl_on` | Postgres SSL is enabled |
+| `db_ssl_connection` | Client connection uses SSL |
 
 ## Cleanup
 
-Container werden automatisch nach dem Test gelöscht, es sei denn `KEEP_VM=1` ist gesetzt.
-
-Manuelles Cleanup:
-
-```bash
-ssh pve1.cluster 'pct stop <vmid>; pct destroy <vmid>'
-```
-
-Alle Test-Container löschen:
-
-```bash
-ssh pve1.cluster 'for vm in $(pct list | grep "test-" | awk "{print \$1}"); do pct stop $vm 2>/dev/null; pct destroy $vm; done'
-```
+Containers are automatically destroyed after the test, unless `KEEP_VM=1` is set.

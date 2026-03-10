@@ -229,8 +229,16 @@ export class PersistenceManager {
     return files.map((file) => {
       const name = path.basename(file, ".json");
       const content = fs.readFileSync(path.join(stacktypesDir, file), "utf-8");
-      const entries = JSON.parse(content) as { name: string }[];
-      return { name, entries };
+      const parsed = JSON.parse(content);
+      // Support both formats: array (legacy) and object with variables+dependencies
+      if (Array.isArray(parsed)) {
+        return { name, entries: parsed as { name: string }[] };
+      }
+      return {
+        name,
+        entries: (parsed.variables ?? []) as { name: string }[],
+        dependencies: parsed.dependencies,
+      };
     });
   }
 

@@ -6,13 +6,6 @@
     { "path": "backend" }
   ],
   "settings": {
-    "workbench.colorCustomizations": {
-    // Hintergrund des Editors
-    "activityBar.background": "#71e971",
-    "activityBar.foreground": "#130d03",
-    "titleBar.activeBackground": "#71e971",
-    "titleBar.activeForeground": "#130d03"
-    },
     "window.title": "${activeEditorShort} - oci-lxc-deployer [GREEN]",
 
     "claudeCode.allowDangerouslySkipPermissions": true,

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import express from "express";
+import fs from "node:fs";
+import path from "node:path";
 import { ApiUri } from "@src/types.mjs";
 import {
   createWebAppTestSetup,
@@ -254,6 +256,81 @@ describe("Stack API", () => {
       const res = await request(app).get(ApiUri.Stacktypes);
       expect(res.status).toBe(200);
       expect(res.body.stacktypes).toEqual([]);
+    });
+
+    it("loads legacy array format stacktype", async () => {
+      const stacktypesDir = path.join(setup.env.jsonDir, "stacktypes");
+      fs.mkdirSync(stacktypesDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(stacktypesDir, "legacy.json"),
+        JSON.stringify([
+          { name: "SECRET_A" },
+          { name: "SECRET_B", length: 64 },
+        ]),
+      );
+
+      const res = await request(app).get(ApiUri.Stacktypes);
+      expect(res.status).toBe(200);
+      const st = res.body.stacktypes.find(
+        (s: { name: string }) => s.name === "legacy",
+      );
+      expect(st).toBeDefined();
+      expect(st.entries).toHaveLength(2);
+      expect(st.entries[0].name).toBe("SECRET_A");
+      expect(st.dependencies).toBeUndefined();
+    });
+
+    it("loads object format stacktype with dependencies", async () => {
+      const stacktypesDir = path.join(setup.env.jsonDir, "stacktypes");
+      fs.mkdirSync(stacktypesDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(stacktypesDir, "dbstack.json"),
+        JSON.stringify({
+          variables: [
+            { name: "DB_PASSWORD" },
+            { name: "API_KEY", length: 48 },
+          ],
+          dependencies: [{ application: "postgres" }],
+        }),
+      );
+
+      const res = await request(app).get(ApiUri.Stacktypes);
+      expect(res.status).toBe(200);
+      const st = res.body.stacktypes.find(
+        (s: { name: string }) => s.name === "dbstack",
+      );
+      expect(st).toBeDefined();
+      expect(st.entries).toHaveLength(2);
+      expect(st.entries[0].name).toBe("DB_PASSWORD");
+      expect(st.dependencies).toHaveLength(1);
+      expect(st.dependencies[0].application).toBe("postgres");
+    });
+
+    it("auto-generates secrets for object format stacktype", async () => {
+      const stacktypesDir = path.join(setup.env.jsonDir, "stacktypes");
+      fs.mkdirSync(stacktypesDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(stacktypesDir, "withsecrets.json"),
+        JSON.stringify({
+          variables: [{ name: "AUTO_SECRET" }, { name: "MANUAL", external: true }],
+          dependencies: [{ application: "mydb", task: "installation" }],
+        }),
+      );
+
+      // Create a stack using this stacktype
+      const res = await request(app).post(ApiUri.Stacks).send({
+        name: "test-stack",
+        stacktype: "withsecrets",
+        entries: [],
+      });
+      expect(res.status).toBe(200);
+
+      // Verify auto-generated secret
+      const stack = setup.ctx.getStack("test-stack");
+      expect(stack).not.toBeNull();
+      const autoSecret = stack!.entries.find((e) => e.name === "AUTO_SECRET");
+      expect(autoSecret).toBeDefined();
+      expect(String(autoSecret!.value).length).toBe(32); // default length
     });
   });
 });
