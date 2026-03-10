@@ -1,5 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { RouterOutlet, RouterLink, Router } from '@angular/router';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -7,7 +7,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { VeConfigurationService } from './ve-configuration.service';
-import { take } from 'rxjs/operators';
+import { take, filter } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 import { CacheService } from './shared/services/cache.service';
 import { ISsh } from '../shared/types';
 
@@ -17,17 +18,29 @@ import { ISsh } from '../shared/types';
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
-export class App implements OnInit {
+export class App implements OnInit, OnDestroy {
   private cfg = inject(VeConfigurationService);
   private router = inject(Router);
   private cacheService = inject(CacheService);
-  
+  private routerSub?: Subscription;
+  private previousUrl = '';
+
   sshConfigs: ISsh[] = [];
   currentHost = '';
-  
+
   ngOnInit(): void {
     // Preload cache in background for faster UI loading
     this.cacheService.preloadAll();
+
+    // Reload SSH configs when navigating away from /ssh-config
+    this.routerSub = this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd)
+    ).subscribe(e => {
+      if (this.previousUrl.startsWith('/ssh-config') && !e.urlAfterRedirects.startsWith('/ssh-config')) {
+        this.loadSshConfigs();
+      }
+      this.previousUrl = e.urlAfterRedirects;
+    });
 
     // Single call to fetch SSH configs (sets VE context key via service tap)
     this.cfg.getSshConfigs().pipe(take(1)).subscribe({
@@ -116,6 +129,10 @@ export class App implements OnInit {
     }
   }
   
+  ngOnDestroy(): void {
+    this.routerSub?.unsubscribe();
+  }
+
   getHostDisplay(ssh: ISsh): string {
     if (ssh.port && ssh.port !== 22) {
       return `${ssh.host}:${ssh.port}`;

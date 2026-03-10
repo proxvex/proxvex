@@ -1,18 +1,6 @@
 [
   {
-    "name": "vm_id",
-    "value": "{{ vm_id }}"
-  },
-  {
-    "name": "oci_image",
-    "value": ""
-  },
-  {
-    "name": "hostname",
-    "value": ""
-  },
-  {
-    "name": "volume_storage",
-    "value": ""
+    "name": "upload_settings_js_content",
+    "value": "file:settings.js"
   }
 ]
