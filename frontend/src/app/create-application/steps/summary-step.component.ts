@@ -62,9 +62,9 @@ import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, P
               <dd>{{ state.selectedTags().join(', ') }}</dd>
             }
 
-            @if (state.selectedStacktypes().length > 0) {
-              <dt>Stacktypes:</dt>
-              <dd>{{ state.selectedStacktypes().join(', ') }}</dd>
+            @if (state.selectedStacktype()) {
+              <dt>Stacktype:</dt>
+              <dd>{{ state.selectedStacktype() }}</dd>
             }
 
             @if (state.appPropertiesForm.get('url')?.value) {
@@ -454,7 +454,7 @@ export class SummaryStepComponent {
         iconContent: iconContent,
       }),
       ...(this.state.selectedTags().length > 0 && { tags: this.state.selectedTags() }),
-      ...(this.state.selectedStacktypes().length > 0 && { stacktype: this.state.selectedStacktypes().length === 1 ? this.state.selectedStacktypes()[0] : this.state.selectedStacktypes() }),
+      ...(this.state.selectedStacktype() && { stacktype: this.state.selectedStacktype() ?? undefined }),
       parameterValues,
       ...(classifications.length > 0 && { parameterClassifications: classifications }),
       ...(this.state.getUploadFiles().length > 0 && { uploadfiles: this.state.getUploadFiles() }),

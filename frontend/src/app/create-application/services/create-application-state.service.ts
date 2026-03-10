@@ -66,7 +66,7 @@ export class CreateApplicationStateService {
 
   // Stacktypes
   stacktypes = signal<IStacktypeEntry[]>([]);
-  selectedStacktypes = signal<string[]>([]);
+  selectedStacktype = signal<string | null>(null);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Docker Compose specific
@@ -290,7 +290,7 @@ export class CreateApplicationStateService {
     this.selectedTags.set([]);
 
     // Stacktypes
-    this.selectedStacktypes.set([]);
+    this.selectedStacktype.set(null);
 
     // Docker Compose
     this.parsedComposeData.set(null);
@@ -1200,7 +1200,7 @@ export class CreateApplicationStateService {
       source: this.appPropertiesForm.get('source')?.value || undefined,
       vendor: this.appPropertiesForm.get('vendor')?.value || undefined,
       tags: this.selectedTags().length > 0 ? this.selectedTags() : undefined,
-      stacktype: this.selectedStacktypes().length > 0 ? (this.selectedStacktypes().length === 1 ? this.selectedStacktypes()[0] : this.selectedStacktypes()) : undefined,
+      stacktype: this.selectedStacktype() ?? undefined,
       parameterValues: this.collectParameterValues(),
       uploadfiles: this.getUploadFiles().length > 0 ? this.getUploadFiles() : undefined,
     };
@@ -1330,31 +1330,15 @@ export class CreateApplicationStateService {
   }
 
   private loadInstallStacks(): void {
-    const stacktypes = this.selectedStacktypes();
-    if (stacktypes.length === 0) {
+    const stacktype = this.selectedStacktype();
+    if (!stacktype) {
       this.availableStacks.set([]);
       return;
     }
-    // Load stacks for all selected stacktypes and merge results
-    const allStacks: IStack[] = [];
-    let remaining = stacktypes.length;
-    for (const st of stacktypes) {
-      this.configService.getStacks(st).subscribe({
-        next: (res) => {
-          for (const stack of res.stacks) {
-            if (!allStacks.some(s => s.id === stack.id)) {
-              allStacks.push(stack);
-            }
-          }
-          remaining--;
-          if (remaining === 0) this.availableStacks.set(allStacks);
-        },
-        error: () => {
-          remaining--;
-          if (remaining === 0) this.availableStacks.set(allStacks);
-        }
-      });
-    }
+    this.configService.getStacks(stacktype).subscribe({
+      next: (res) => this.availableStacks.set(res.stacks),
+      error: () => this.availableStacks.set([])
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
