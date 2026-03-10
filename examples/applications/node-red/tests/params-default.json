@@ -1,0 +1,18 @@
+[
+  {
+    "name": "vm_id",
+    "value": "{{ vm_id }}"
+  },
+  {
+    "name": "oci_image",
+    "value": ""
+  },
+  {
+    "name": "hostname",
+    "value": ""
+  },
+  {
+    "name": "volume_storage",
+    "value": ""
+  }
+]
