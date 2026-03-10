@@ -278,6 +278,44 @@
   margin-bottom: 0.5rem;
 }
 
+// Classification row (create-application mode)
+.classification-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 100%;
+  flex-basis: 100%;
+  margin-bottom: 0.25rem;
+
+  .classification-param {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .classification-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding-top: 0.75rem;
+    min-width: 130px;
+    flex-shrink: 0;
+  }
+
+  .classification-select {
+    font-size: 0.8rem;
+    padding: 2px 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+
+    &:hover {
+      border-color: #999;
+    }
+  }
+}
+
 // Old secret-env-upload still used for backwards compat
 .secret-env-upload {
   width: 100%;

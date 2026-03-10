@@ -4,17 +4,13 @@ import { Router } from '@angular/router';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { VeConfigurationService } from '../../ve-configuration.service';
-import { IParameter, IParameterValue, IFrameworkApplicationDataBody, IStack, IUploadFile, IAddonWithParameters } from '../../../shared/types';
-import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter-group.component';
+import { IFrameworkApplicationDataBody, IParameterClassification, IParameterValue, IUploadFile, ParameterTarget } from '../../../shared/types';
 import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
-import { StackSelectorComponent } from '../../shared/components/stack-selector/stack-selector.component';
-import { AddonSectionComponent } from '../../shared/components/addon-section/addon-section.component';
 
 @Component({
   selector: 'app-summary-step',
@@ -24,166 +20,140 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
     ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
-    MatTabsModule,
     MatProgressSpinnerModule,
-    MatIconModule,
-    ParameterGroupComponent,
-    StackSelectorComponent,
-    AddonSectionComponent
+    MatIconModule
   ],
   template: `
     <div class="summary-step">
       <h2>Review Your Configuration</h2>
 
-      <mat-tab-group [(selectedIndex)]="selectedTabIndex">
-        <!-- Tab 1: Install Parameters (Main focus) -->
-        <mat-tab label="Install Parameters">
-          <div class="tab-content">
-            @if (loading) {
-              <div class="loading-container">
-                <mat-spinner diameter="32"></mat-spinner>
-                <span>Loading install parameters...</span>
-              </div>
-            } @else if (error) {
-              <div class="error-container">
-                <mat-icon>error</mat-icon>
-                <span>{{ error }}</span>
-                <button mat-button color="primary" (click)="loadInstallParameters()">Retry</button>
-              </div>
-            } @else if (installParameters.length === 0 && availableAddons.length === 0) {
-              <div class="info-container">
-                <mat-icon>info</mat-icon>
-                <span>No additional parameters required for installation.</span>
-              </div>
-            } @else {
-              <p class="preview-note">Configure install parameters (will be used during installation):</p>
+      <!-- Application Properties -->
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>Application Properties</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <dl class="summary-list">
+            <dt>Name:</dt>
+            <dd>{{ state.appPropertiesForm.get('name')?.value }}</dd>
 
-              @if (hasAdvancedParams()) {
-                <div class="advanced-toggle">
-                  <button mat-button (click)="toggleAdvanced()">
-                    {{ showAdvanced ? 'Hide' : 'Show' }} Advanced Parameters
-                  </button>
-                </div>
-              }
+            <dt>Application ID:</dt>
+            <dd>{{ state.appPropertiesForm.get('applicationId')?.value }}</dd>
 
-              <!-- Stack selector for applications with stacktype -->
-              @if (state.selectedStacktype() && availableStacks.length > 0) {
-                <div class="secrets-selector">
-                  <app-stack-selector
-                    [availableStacks]="availableStacks"
-                    [selectedStack]="selectedStack"
-                    [label]="'Secrets'"
-                    [showCreateButton]="false"
-                    [showManageLink]="true"
-                    [showEntryCount]="false"
-                    [showDefaultHint]="true"
-                    (stackSelected)="onStackSelected($event)"
-                  ></app-stack-selector>
-                </div>
-              }
+            <dt>Description:</dt>
+            <dd>{{ state.appPropertiesForm.get('description')?.value }}</dd>
 
-              @for (groupName of groupNames; track groupName) {
-                <app-parameter-group
-                  [groupName]="groupName"
-                  [groupedParameters]="installParametersGrouped"
-                  [form]="previewForm"
-                  [showAdvanced]="showAdvanced"
-                  [availableStacks]="availableStacks"
-                  (stackSelected)="onStackSelected($event)"
-                ></app-parameter-group>
-              }
-
-              @if (availableAddons.length > 0) {
-                <app-addon-section
-                  [availableAddons]="availableAddons"
-                  [selectedAddons]="selectedAddons()"
-                  [expandedAddons]="expandedAddons()"
-                  [form]="previewForm"
-                  [showAdvanced]="showAdvanced"
-                  [availableStacks]="availableStacks"
-                  (addonToggled)="onAddonToggle($event)"
-                  (addonExpandedChanged)="onAddonExpandedToggle($event)"
-                  (stackSelected)="onStackSelected($event)"
-                ></app-addon-section>
-              }
+            @if (state.appPropertiesForm.get('url')?.value) {
+              <dt>URL:</dt>
+              <dd>{{ state.appPropertiesForm.get('url')?.value }}</dd>
             }
-          </div>
-        </mat-tab>
 
-        <!-- Tab 2: Application Data -->
-        <mat-tab label="Application Data">
-          <div class="tab-content">
-            <mat-card>
-              <mat-card-header>
-                <mat-card-title>Application Properties</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                <dl class="summary-list">
-                  <dt>Name:</dt>
-                  <dd>{{ state.appPropertiesForm.get('name')?.value }}</dd>
-
-                  <dt>Application ID:</dt>
-                  <dd>{{ state.appPropertiesForm.get('applicationId')?.value }}</dd>
-
-                  <dt>Description:</dt>
-                  <dd>{{ state.appPropertiesForm.get('description')?.value }}</dd>
-
-                  @if (state.appPropertiesForm.get('url')?.value) {
-                    <dt>URL:</dt>
-                    <dd>{{ state.appPropertiesForm.get('url')?.value }}</dd>
-                  }
-
-                  @if (state.appPropertiesForm.get('documentation')?.value) {
-                    <dt>Documentation:</dt>
-                    <dd>{{ state.appPropertiesForm.get('documentation')?.value }}</dd>
-                  }
-
-                  @if (state.appPropertiesForm.get('source')?.value) {
-                    <dt>Source:</dt>
-                    <dd>{{ state.appPropertiesForm.get('source')?.value }}</dd>
-                  }
-
-                  @if (state.appPropertiesForm.get('vendor')?.value) {
-                    <dt>Vendor:</dt>
-                    <dd>{{ state.appPropertiesForm.get('vendor')?.value }}</dd>
-                  }
-
-                  <dt>Framework:</dt>
-                  <dd>{{ state.selectedFramework()?.name }}</dd>
-
-                  @if (state.selectedTags().length > 0) {
-                    <dt>Tags:</dt>
-                    <dd>{{ state.selectedTags().join(', ') }}</dd>
-                  }
-
-                  @if (state.selectedStacktype()) {
-                    <dt>Stacktype:</dt>
-                    <dd>{{ state.selectedStacktype() }}</dd>
-                  }
-                </dl>
-              </mat-card-content>
-            </mat-card>
-
-            @if (state.getUploadFiles().length > 0) {
-              <mat-card data-testid="summary-upload-files">
-                <mat-card-header>
-                  <mat-card-title>Upload Files</mat-card-title>
-                </mat-card-header>
-                <mat-card-content>
-                  <ul class="upload-files-list">
-                    @for (file of state.getUploadFiles(); track file.destination; let i = $index) {
-                      <li [attr.data-testid]="'summary-upload-file-' + i">
-                        <strong class="upload-filename">{{ getUploadFileLabel(file) }}</strong> → {{ file.destination }}
-                        @if (file.required) { <span class="required-badge">Required</span> }
-                      </li>
-                    }
-                  </ul>
-                </mat-card-content>
-              </mat-card>
+            @if (state.appPropertiesForm.get('documentation')?.value) {
+              <dt>Documentation:</dt>
+              <dd>{{ state.appPropertiesForm.get('documentation')?.value }}</dd>
             }
-          </div>
-        </mat-tab>
-      </mat-tab-group>
+
+            @if (state.appPropertiesForm.get('source')?.value) {
+              <dt>Source:</dt>
+              <dd>{{ state.appPropertiesForm.get('source')?.value }}</dd>
+            }
+
+            @if (state.appPropertiesForm.get('vendor')?.value) {
+              <dt>Vendor:</dt>
+              <dd>{{ state.appPropertiesForm.get('vendor')?.value }}</dd>
+            }
+
+            <dt>Framework:</dt>
+            <dd>{{ state.selectedFramework()?.name }}</dd>
+
+            @if (state.selectedTags().length > 0) {
+              <dt>Tags:</dt>
+              <dd>{{ state.selectedTags().join(', ') }}</dd>
+            }
+
+            @if (state.selectedStacktype()) {
+              <dt>Stacktype:</dt>
+              <dd>{{ state.selectedStacktype() }}</dd>
+            }
+          </dl>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Parameter Classifications -->
+      @if (classifiedParams().length > 0) {
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Parameter Storage</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            @if (valueParams().length > 0) {
+              <div class="classification-section">
+                <h4>Fixed Values (in application.json)</h4>
+                <ul class="param-list">
+                  @for (p of valueParams(); track p.id) {
+                    <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
+                  }
+                </ul>
+              </div>
+            }
+            @if (defaultParams().length > 0) {
+              <div class="classification-section">
+                <h4>Defaults (editable at install time)</h4>
+                <ul class="param-list">
+                  @for (p of defaultParams(); track p.id) {
+                    <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
+                  }
+                </ul>
+              </div>
+            }
+            @if (installOnlyParams().length > 0) {
+              <div class="classification-section">
+                <h4>Install Parameters (not stored)</h4>
+                <ul class="param-list">
+                  @for (p of installOnlyParams(); track p.id) {
+                    <li>{{ p.name }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Selected Addons -->
+      @if (state.selectedAddons().length > 0) {
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Selected Addons</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="param-list">
+              @for (addonId of state.selectedAddons(); track addonId) {
+                <li>{{ getAddonName(addonId) }}</li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Upload Files -->
+      @if (state.getUploadFiles().length > 0) {
+        <mat-card data-testid="summary-upload-files">
+          <mat-card-header>
+            <mat-card-title>Upload Files</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="upload-files-list">
+              @for (file of state.getUploadFiles(); track file.destination; let i = $index) {
+                <li [attr.data-testid]="'summary-upload-file-' + i">
+                  <strong class="upload-filename">{{ getUploadFileLabel(file) }}</strong> → {{ file.destination }}
+                  @if (file.required) { <span class="required-badge">Required</span> }
+                </li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
 
       <!-- Error Display -->
       @if (state.createError()) {
@@ -206,55 +176,6 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
   styles: [`
     .summary-step {
       padding: 1rem 0;
-    }
-
-    .tab-content {
-      padding: 1rem 0;
-    }
-
-    .loading-container {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 2rem;
-      color: var(--mdc-theme-text-secondary-on-background, rgba(0, 0, 0, 0.6));
-    }
-
-    .error-container {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      background: #ffebee;
-      border-radius: 4px;
-      color: #c62828;
-    }
-
-    .info-container {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      background: #e3f2fd;
-      border-radius: 4px;
-      color: #1565c0;
-    }
-
-    .preview-note {
-      color: var(--mdc-theme-text-secondary-on-background, rgba(0, 0, 0, 0.6));
-      margin-bottom: 1rem;
-      font-style: italic;
-    }
-
-    .advanced-toggle {
-      margin-bottom: 1rem;
-    }
-
-    .secrets-selector {
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      background: #f5f5f5;
-      border-radius: 8px;
     }
 
     .summary-list {
@@ -281,6 +202,31 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
 
     .error-message {
       color: #f44336;
+    }
+
+    .classification-section {
+      margin-bottom: 1rem;
+    }
+
+    .classification-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .classification-section h4 {
+      margin: 0 0 0.5rem;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    .param-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    .param-list li {
+      padding: 0.25rem 0;
     }
 
     .upload-files-list {
@@ -318,241 +264,65 @@ export class SummaryStepComponent {
   @Output() navigateToStep = new EventEmitter<number>();
   @Output() applicationCreated = new EventEmitter<void>();
 
-  // Install parameters preview state
-  installParameters: IParameter[] = [];
-  installParametersGrouped: Record<string, IParameter[]> = {};
-  private formManager: ParameterFormManager | null = null;
-  loading = false;
-  error: string | null = null;
-  showAdvanced = false;
-
-  // Stack support
-  availableStacks: IStack[] = [];
-  selectedStack: IStack | null = null;
-
-  // Addon support
-  availableAddons: IAddonWithParameters[] = [];
-  selectedAddons = signal<string[]>([]);
-  expandedAddons = signal<string[]>([]);
-
-  // Tab state
-  selectedTabIndex = 0;
-
-  // Cached empty form to avoid ExpressionChangedAfterItHasBeenCheckedError
-  private readonly emptyForm = new FormGroup({});
-
-  // Cached group names to avoid creating new arrays on each change detection
-  private cachedGroupNames: string[] = [];
-
-  /** Getter for template compatibility - returns form from manager or cached empty FormGroup */
-  get previewForm(): FormGroup {
-    return this.formManager?.form ?? this.emptyForm;
-  }
-
-  /** Getter for parent component to check form validity */
-  get isInstallFormValid(): boolean {
-    return this.formManager?.valid ?? false;
-  }
-
-  /**
-   * Get the display label for an upload file.
-   * Returns the explicit label if set, otherwise extracts the filename from destination.
-   */
+  /** Get the display label for an upload file. */
   getUploadFileLabel(file: IUploadFile): string {
-    if (file.label) {
-      return file.label;
-    }
-    // Extract filename from destination (format: "volume:path/to/file.ext")
+    if (file.label) return file.label;
     const colonIndex = file.destination.indexOf(':');
     const filePath = colonIndex >= 0 ? file.destination.slice(colonIndex + 1) : file.destination;
-    // Get basename
     const lastSlash = filePath.lastIndexOf('/');
     return lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
   }
 
-  // Called by parent when step becomes active
-  loadInstallParameters(): void {
-    this.loading = true;
-    this.error = null;
-
-    const body = this.buildPreviewRequestBody();
-    if (!body) {
-      this.loading = false;
-      this.error = 'Missing framework selection';
-      return;
-    }
-
-    this.configService.getPreviewUnresolvedParameters(body).subscribe({
-      next: (res) => {
-        this.installParameters = res.unresolvedParameters;
-        this.installParametersGrouped = this.groupByTemplate(res.unresolvedParameters);
-        this.cachedGroupNames = Object.keys(this.installParametersGrouped);
-        this.availableAddons = (res.addons ?? []).filter(addon => {
-          if (!addon.required_parameters?.length) return true;
-          return addon.required_parameters.every(paramId =>
-            res.unresolvedParameters.some(p => p.id === paramId),
-          );
-        });
-        this.setupEditableForm(res.unresolvedParameters);
-        this.loadStacks();
-        this.loading = false;
-      },
-      error: (err) => {
-        this.error = err?.error?.error || err?.message || 'Failed to load install parameters';
-        this.loading = false;
-      }
-    });
+  getAddonName(addonId: string): string {
+    return this.state.availableAddons().find(a => a.id === addonId)?.name ?? addonId;
   }
 
-  private collectParameterValues(): { id: string; value: IParameterValue }[] {
-    const parameterValues: { id: string; value: IParameterValue }[] = [];
-    for (const param of this.state.parameters()) {
-      let value = this.state.parameterForm.get(param.id)?.value;
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Classification display helpers
+  // ─────────────────────────────────────────────────────────────────────────────
 
-      // Extract base64 content if value has file metadata format
-      value = ParameterFormManager.extractBase64FromFileMetadata(value);
-
-      if (value !== null && value !== undefined && value !== '') {
-        parameterValues.push({ id: param.id, value });
-      }
-    }
-
-    // Ensure docker-compose essentials are not dropped
-    if (this.state.isDockerComposeFramework()) {
-      const ensuredIds = ['compose_file', 'env_file', 'volumes'] as const;
-      const existing = new Set(parameterValues.map(p => p.id));
-      for (const id of ensuredIds) {
-        if (existing.has(id)) continue;
-        const v = this.state.parameterForm.get(id)?.value;
-        if (v !== null && v !== undefined && String(v).trim() !== '') {
-          parameterValues.push({ id, value: v });
-        }
-      }
-    }
-
-    return parameterValues;
-  }
-
-  private buildPreviewRequestBody(): IFrameworkApplicationDataBody | null {
-    const selectedFramework = this.state.selectedFramework();
-    if (!selectedFramework) {
-      return null;
-    }
-
-    return {
-      frameworkId: selectedFramework.id,
-      name: this.state.appPropertiesForm.get('name')?.value || '',
-      description: this.state.appPropertiesForm.get('description')?.value || '',
-      url: this.state.appPropertiesForm.get('url')?.value || undefined,
-      documentation: this.state.appPropertiesForm.get('documentation')?.value || undefined,
-      source: this.state.appPropertiesForm.get('source')?.value || undefined,
-      vendor: this.state.appPropertiesForm.get('vendor')?.value || undefined,
-      tags: this.state.selectedTags().length > 0 ? this.state.selectedTags() : undefined,
-      stacktype: this.state.selectedStacktype() ?? undefined,
-      parameterValues: this.collectParameterValues(),
-      uploadfiles: this.state.getUploadFiles().length > 0 ? this.state.getUploadFiles() : undefined,
-    };
-  }
-
-  private groupByTemplate(params: IParameter[]): Record<string, IParameter[]> {
-    const grouped: Record<string, IParameter[]> = {};
-    for (const param of params) {
-      const group = param.templatename || 'General';
-      if (!grouped[group]) {
-        grouped[group] = [];
-      }
-      grouped[group].push(param);
-    }
-    // Sort: required first
-    for (const group in grouped) {
-      grouped[group] = grouped[group].slice().sort(
-        (a, b) => Number(!!b.required) - Number(!!a.required)
-      );
-    }
-    return grouped;
-  }
-
-  /** Sets up an editable form using ParameterFormManager */
-  private setupEditableForm(params: IParameter[]): void {
-    this.formManager = new ParameterFormManager(
-      params,
-      this.configService,
-      this.router
-    );
-    this.formManager.enableHostnameTracking();
-  }
-
-  /** Loads available stacks based on stacktype */
-  private loadStacks(): void {
-    const stacktype = this.state.selectedStacktype();
-    if (!stacktype) {
-      this.availableStacks = [];
-      return;
-    }
-
-    this.configService.getStacks(stacktype).subscribe({
-      next: (res) => this.availableStacks = res.stacks,
-      error: () => this.availableStacks = []
-    });
-  }
-
-  /** Handles addon toggle from addon-section */
-  onAddonToggle(event: { addonId: string; checked: boolean }): void {
-    const addon = this.availableAddons.find(a => a.id === event.addonId);
-
-    if (event.checked) {
-      this.selectedAddons.update(addons => [...addons, event.addonId]);
-      if (addon?.parameters && this.formManager) {
-        this.formManager.addAddonControls(addon.parameters);
-        // Auto-expand if addon has required parameters
-        if (addon.parameters.some(p => p.required)) {
-          this.expandedAddons.update(addons => [...addons, event.addonId]);
-        }
-      }
-    } else {
-      this.selectedAddons.update(addons => addons.filter(id => id !== event.addonId));
-      this.expandedAddons.update(addons => addons.filter(id => id !== event.addonId));
-      if (addon?.parameters && this.formManager) {
-        this.formManager.removeAddonControls(addon.parameters);
-      }
-    }
-    this.formManager?.setSelectedAddons(this.selectedAddons());
-  }
-
-  /** Handles addon expanded toggle from addon-section */
-  onAddonExpandedToggle(addonId: string): void {
-    this.expandedAddons.update(addons =>
-      addons.includes(addonId)
-        ? addons.filter(id => id !== addonId)
-        : [...addons, addonId]
+  classifiedParams() {
+    return this.state.installParameters().filter(p =>
+      this.state.parameterClassifications().has(p.id)
     );
   }
 
-  /** Handles stack selection from parameter-group */
-  onStackSelected(stack: IStack): void {
-    this.selectedStack = stack;
-    this.formManager?.setSelectedStack(stack);
+  private filterByTarget(target: ParameterTarget) {
+    return this.state.installParameters().filter(p =>
+      this.state.parameterClassifications().get(p.id) === target
+    );
   }
+
+  valueParams() { return this.filterByTarget('value'); }
+  defaultParams() { return this.filterByTarget('default'); }
+  installOnlyParams() { return this.filterByTarget('install'); }
+
+  getParamDisplayValue(paramId: string): string {
+    const value = this.state.installForm.get(paramId)?.value;
+    if (value === null || value === undefined || value === '') return '(empty)';
+    if (typeof value === 'string' && value.length > 80) return value.substring(0, 80) + '...';
+    return String(value);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Application creation
+  // ─────────────────────────────────────────────────────────────────────────────
 
   /**
    * Saves the application and then installs it.
-   * Called by parent component's "Save & Install" button.
    */
   async saveAndInstall(): Promise<void> {
-    // 1. First save the application
     const applicationId = await this.saveApplicationOnly();
     if (!applicationId) return;
 
-    // 2. Then install - ParameterFormManager handles everything including navigation
-    if (!this.formManager) {
+    if (!this.state.installFormManager) {
       this.state.createError.set('Install form not initialized');
       return;
     }
 
-    this.formManager.install(applicationId).subscribe({
+    this.state.installFormManager.install(applicationId).subscribe({
       next: () => {
         this.state.creating.set(false);
-        // Navigation to /monitor happens automatically in the manager
       },
       error: (err: { error?: { error?: string }; message?: string }) => {
         this.state.creating.set(false);
@@ -563,7 +333,6 @@ export class SummaryStepComponent {
 
   /**
    * Saves the application without installing.
-   * Returns the applicationId on success, null on failure.
    */
   private saveApplicationOnly(): Promise<string | null> {
     return new Promise((resolve) => {
@@ -598,7 +367,7 @@ export class SummaryStepComponent {
 
   /**
    * Builds the request body for creating/updating an application.
-   * Extracted from createApplication() for reuse.
+   * Uses parameterClassifications to include only value/default params.
    */
   private buildCreateApplicationBody(): IFrameworkApplicationDataBody & { applicationId: string; update?: boolean } | null {
     const selectedFramework = this.state.selectedFramework();
@@ -608,11 +377,20 @@ export class SummaryStepComponent {
 
     const selectedIconFile = this.state.selectedIconFile();
     const iconContent = this.state.iconContent();
-
-    // In edit mode, use editApplicationId
     const applicationId = this.state.editMode()
       ? this.state.editApplicationId()
       : this.state.appPropertiesForm.get('applicationId')?.value;
+
+    // Collect parameter values from framework step (Step 1/3 original params)
+    const parameterValues = this.state.collectParameterValues();
+
+    // Build classifications from the classification map
+    const classifications: IParameterClassification[] = [];
+    for (const [paramId, target] of this.state.parameterClassifications()) {
+      if (target !== 'install') {
+        classifications.push({ id: paramId, target });
+      }
+    }
 
     return {
       frameworkId: selectedFramework.id,
@@ -632,29 +410,20 @@ export class SummaryStepComponent {
       }),
       ...(this.state.selectedTags().length > 0 && { tags: this.state.selectedTags() }),
       ...(this.state.selectedStacktype() && { stacktype: this.state.selectedStacktype() ?? undefined }),
-      parameterValues: this.collectParameterValues(),
+      parameterValues,
+      ...(classifications.length > 0 && { parameterClassifications: classifications }),
       ...(this.state.getUploadFiles().length > 0 && { uploadfiles: this.state.getUploadFiles() }),
       ...(this.state.editMode() && { update: true }),
     };
   }
 
-  get groupNames(): string[] {
-    return this.cachedGroupNames;
-  }
-
-  hasAdvancedParams(): boolean {
-    return this.installParameters.some(p => p.advanced);
-  }
-
-  toggleAdvanced(): void {
-    this.showAdvanced = !this.showAdvanced;
+  get isInstallFormValid(): boolean {
+    return this.state.isInstallFormValid;
   }
 
   createApplication(): void {
     const body = this.buildCreateApplicationBody();
-    if (!body) {
-      return;
-    }
+    if (!body) return;
 
     this.state.creating.set(true);
     this.state.createError.set(null);
@@ -669,46 +438,31 @@ export class SummaryStepComponent {
           this.applicationCreated.emit();
           this.router.navigate(['/applications']);
         } else {
-          this.state.createError.set(`Failed to ${this.state.editMode() ? 'update' : 'create'} application. Please try again.`);
-          this.state.createErrorStep.set(null);
+          this.state.createError.set(`Failed to ${this.state.editMode() ? 'update' : 'create'} application.`);
         }
       },
       error: (err: { error?: { error?: string }; message?: string }) => {
         this.state.creating.set(false);
-
-        // Extract error message
         const errorMessage = err?.error?.error || err?.message || 'Failed to create application';
 
-        // Determine which step to navigate to based on error
         let targetStep: number | null = null;
-
-        // Check for specific error types
         if (errorMessage.includes('already exists') || errorMessage.includes('Application') && errorMessage.includes('exists')) {
-          // Application ID already exists - navigate to Step 2 (Application Properties)
-          targetStep = 1; // Step index is 0-based, Step 2 is index 1
+          targetStep = 1;
           this.state.createError.set(`Application ID "${body.applicationId}" already exists. Please choose a different ID.`);
         } else if (errorMessage.includes('applicationId') || errorMessage.includes('Missing applicationId')) {
-          // Application ID related error - navigate to Step 2
           targetStep = 1;
           this.state.createError.set(errorMessage);
         } else if (errorMessage.includes('name') || errorMessage.includes('Missing name')) {
-          // Name related error - navigate to Step 2
           targetStep = 1;
           this.state.createError.set(errorMessage);
         } else if (errorMessage.includes('parameter') || errorMessage.includes('Parameter')) {
-          // Parameter related error - navigate to Step 3 (Parameters)
-          targetStep = 2; // Step index is 0-based, Step 3 is index 2
+          targetStep = 2;
           this.state.createError.set(errorMessage);
         } else {
-          // Generic error - show in Step 4
           this.state.createError.set(errorMessage);
-          targetStep = null;
         }
 
         this.state.createErrorStep.set(targetStep);
-
-        // Don't automatically navigate - let the user decide when to navigate using the button
-        // The error will be displayed in Step 4, and the user can click "Go to Step X to Fix" if needed
       }
     });
   }

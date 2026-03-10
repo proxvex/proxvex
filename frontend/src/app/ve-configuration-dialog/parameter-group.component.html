@@ -4,162 +4,95 @@
 		<div class="group-fields">
 			@for (param of params; track param) {
 				@if (isVisible(param)) {
-					@switch (param.type) {
-						@case ('boolean') {
-						<div class="param-field param-toggle">
-						<mat-slide-toggle [formControlName]="param.id" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
-						{{ param.name }}
-						</mat-slide-toggle>
-						@if (hasExpandableHelp(param)) {
-							<button type="button" mat-icon-button class="help-toggle" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
-								<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
-							</button>
-						}
+					<!-- Classification wrapper: full-width row with param + classification controls -->
+					@if (showClassification) {
+						<div class="classification-row">
+							<div class="classification-param">
+								<ng-container [ngTemplateOutlet]="paramField" [ngTemplateOutletContext]="{ $implicit: param }"></ng-container>
+							</div>
+							<div class="classification-controls">
+								<mat-checkbox
+									[checked]="isClassifiedInApp(param.id)"
+									(change)="onClassificationCheckboxChange(param.id, $event.checked)"
+									matTooltip="Store in application.json"
+									matTooltipPosition="above">
+								</mat-checkbox>
+								@if (isClassifiedInApp(param.id)) {
+									<select class="classification-select"
+										[value]="getClassification(param.id)"
+										(change)="onClassificationDropdownChange(param.id, $any($event.target).value)">
+										<option value="value">Value</option>
+										<option value="default">Default</option>
+									</select>
+								}
+							</div>
 						</div>
-						@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
-							<div class="expandable-help" [innerHTML]="getMarkdownHelp(param)"></div>
-						}
-						}
-						@case ('enum') {
-						<mat-form-field appearance="outline" class="param-field">
-						<mat-label>{{ param.name }}</mat-label>
-						<mat-select [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
-						@for (option of param.enumValues; track option) {
-						<mat-option [value]="getEnumOptionValue(option)">{{ getEnumOptionLabel(option) }}</mat-option>
-						}
-						</mat-select>
-						@if (hasExpandableHelp(param)) {
-							<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
-								<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
-							</button>
-						}
-						</mat-form-field>
-						@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
-							<div class="expandable-help" [innerHTML]="getMarkdownHelp(param)"></div>
-						}
-						}
-						@case ('string') {
-						@if (param.upload) {
-						<div class="param-field">
-						<mat-form-field appearance="outline">
-						<mat-label>{{ param.name }}</mat-label>
-						<input type="file" #fileInput [id]="'file-' + param.id" (change)="onFileSelected($event, param.id)" style="display: none;" />
-						<input matInput [value]="getDisplayValue(param.id)" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" readonly (focus)="$event.target.blur()" />
-						<button mat-icon-button matSuffix type="button" (click)="fileInput.click()" [matTooltip]="'Select file'" matTooltipPosition="above">
-						<mat-icon>attach_file</mat-icon>
-						</button>
-						@if (hasExpandableHelp(param)) {
-							<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
-								<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
-							</button>
-						}
-						</mat-form-field>
-						@if (param['certtype'] && !getDisplayValue(param.id)) {
-							<span class="cert-auto-hint">Auto-generated if not uploaded</span>
-						}
-						@if (param.id === 'compose_file' && composeProperties()) {
-							<mat-card class="compose-properties-card">
-								<mat-card-header>
-									<mat-card-title>Extracted Compose Properties</mat-card-title>
-								</mat-card-header>
-								<mat-card-content>
-									@if (composeProperties()?.services) {
-										<div class="compose-property">
-											<strong>Services:</strong> {{ composeProperties()?.services }}
-										</div>
-									}
-									@if (composeProperties()?.ports) {
-										<div class="compose-property">
-											<strong>Port Mappings:</strong>
-											<pre>{{ composeProperties()?.ports }}</pre>
-										</div>
-									}
-									@if (composeProperties()?.images) {
-										<div class="compose-property">
-											<strong>Images:</strong>
-											<pre>{{ composeProperties()?.images }}</pre>
-										</div>
-									}
-									@if (composeProperties()?.networks) {
-										<div class="compose-property">
-											<strong>Networks:</strong> {{ composeProperties()?.networks }}
-										</div>
-									}
-								</mat-card-content>
-							</mat-card>
-						}
-						<!-- Stack selector for env_file: appears when env_file contains {{ }} markers AND stacks are available -->
-						@if (param.id === 'env_file' && envFileHasMarkers() && hasStacksAvailable()) {
-							<div class="param-field stack-or-env-upload">
-								<app-stack-selector
-									[availableStacks]="availableStacks"
-									[selectedStack]="selectedStack"
-									[detectedMarkers]="getEnvFileMarkers()"
-									[label]="'Select Environment Stack'"
-									[showCreateButton]="true"
-									[showEntryCount]="true"
-									(stackSelected)="onStackSelect($event)"
-									(createStackRequested)="onCreateStack()"
-								></app-stack-selector>
-							</div>
-						}
+					} @else {
+						<ng-container [ngTemplateOutlet]="paramField" [ngTemplateOutletContext]="{ $implicit: param }"></ng-container>
+					}
+					<!-- Expandable help (always outside classification wrapper) -->
+					@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
+						<div class="expandable-help" [class.expandable-help-fullwidth]="param.upload" [innerHTML]="getMarkdownHelp(param)"></div>
+					}
+					<!-- Post-field extras (compose properties, stack selectors) -->
+					@if (param.type === 'string' && param.upload && param.id === 'compose_file' && composeProperties()) {
+						<mat-card class="compose-properties-card">
+							<mat-card-header>
+								<mat-card-title>Extracted Compose Properties</mat-card-title>
+							</mat-card-header>
+							<mat-card-content>
+								@if (composeProperties()?.services) {
+									<div class="compose-property">
+										<strong>Services:</strong> {{ composeProperties()?.services }}
+									</div>
+								}
+								@if (composeProperties()?.ports) {
+									<div class="compose-property">
+										<strong>Port Mappings:</strong>
+										<pre>{{ composeProperties()?.ports }}</pre>
+									</div>
+								}
+								@if (composeProperties()?.images) {
+									<div class="compose-property">
+										<strong>Images:</strong>
+										<pre>{{ composeProperties()?.images }}</pre>
+									</div>
+								}
+								@if (composeProperties()?.networks) {
+									<div class="compose-property">
+										<strong>Networks:</strong> {{ composeProperties()?.networks }}
+									</div>
+								}
+							</mat-card-content>
+						</mat-card>
+					}
+					@if (param.type === 'string' && param.upload && param.id === 'env_file' && envFileHasMarkers() && hasStacksAvailable()) {
+						<div class="param-field stack-or-env-upload">
+							<app-stack-selector
+								[availableStacks]="availableStacks"
+								[selectedStack]="selectedStack"
+								[detectedMarkers]="getEnvFileMarkers()"
+								[label]="'Select Environment Stack'"
+								[showCreateButton]="true"
+								[showEntryCount]="true"
+								(stackSelected)="onStackSelect($event)"
+								(createStackRequested)="onCreateStack()"
+							></app-stack-selector>
 						</div>
-						@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
-							<div class="expandable-help expandable-help-fullwidth" [innerHTML]="getMarkdownHelp(param)"></div>
-						}
-						} @else {
-						<mat-form-field appearance="outline" class="param-field" [class.param-field-multiline]="param.multiline">
-						<mat-label>{{ param.name }}</mat-label>
-						@if (param.multiline) {
-						  <textarea matInput rows="5" [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above"></textarea>
-						} @else {
-						  <input matInput [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
-						}
-						@if (hasExpandableHelp(param)) {
-							<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
-								<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
-							</button>
-						}
-						</mat-form-field>
-						@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
-							<div class="expandable-help" [innerHTML]="getMarkdownHelp(param)"></div>
-						}
-						<!-- Stack selector for envs: appears when envs contains {{ }} markers AND stacks are available -->
-						@if (param.id === 'envs' && envsHasMarkers() && hasStacksAvailable()) {
-							<div class="param-field stack-or-env-upload">
-								<app-stack-selector
-									[availableStacks]="availableStacks"
-									[selectedStack]="selectedStack"
-									[detectedMarkers]="getEnvMarkers()"
-									[label]="'Select Environment Stack'"
-									[showCreateButton]="true"
-									[showEntryCount]="true"
-									(stackSelected)="onStackSelect($event)"
-									(createStackRequested)="onCreateStack()"
-								></app-stack-selector>
-							</div>
-						}
-						}
-						}
-						@case ('number') {
-						<mat-form-field appearance="outline" class="param-field">
-						<mat-label>{{ param.name }}</mat-label>
-						<input matInput type="number" [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
-						@if (hasExpandableHelp(param)) {
-							<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
-								<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
-							</button>
-						}
-						</mat-form-field>
-						@if (hasExpandableHelp(param) && isHelpExpanded(param.id)) {
-							<div class="expandable-help" [innerHTML]="getMarkdownHelp(param)"></div>
-						}
-						}
-						@default {
-							<div class="param-field unsupported-param">
-							Unsupported parameter type: {{ param.type }}
-							</div>
-						}
+					}
+					@if (param.type === 'string' && !param.upload && param.id === 'envs' && envsHasMarkers() && hasStacksAvailable()) {
+						<div class="param-field stack-or-env-upload">
+							<app-stack-selector
+								[availableStacks]="availableStacks"
+								[selectedStack]="selectedStack"
+								[detectedMarkers]="getEnvMarkers()"
+								[label]="'Select Environment Stack'"
+								[showCreateButton]="true"
+								[showEntryCount]="true"
+								(stackSelected)="onStackSelect($event)"
+								(createStackRequested)="onCreateStack()"
+							></app-stack-selector>
+						</div>
 					}
 				}
 			}
@@ -167,3 +100,87 @@
 	</div>
 }
 
+<!-- Template for parameter field (reused in both classification and non-classification modes) -->
+<ng-template #paramField let-param>
+	@switch (param.type) {
+		@case ('boolean') {
+			<div class="param-field param-toggle">
+				<mat-slide-toggle [formControlName]="param.id" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
+					{{ param.name }}
+				</mat-slide-toggle>
+				@if (hasExpandableHelp(param)) {
+					<button type="button" mat-icon-button class="help-toggle" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
+						<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
+					</button>
+				}
+			</div>
+		}
+		@case ('enum') {
+			<mat-form-field appearance="outline" class="param-field">
+				<mat-label>{{ param.name }}</mat-label>
+				<mat-select [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
+					@for (option of param.enumValues; track option) {
+						<mat-option [value]="getEnumOptionValue(option)">{{ getEnumOptionLabel(option) }}</mat-option>
+					}
+				</mat-select>
+				@if (hasExpandableHelp(param)) {
+					<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
+						<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
+					</button>
+				}
+			</mat-form-field>
+		}
+		@case ('string') {
+			@if (param.upload) {
+				<div class="param-field">
+					<mat-form-field appearance="outline">
+						<mat-label>{{ param.name }}</mat-label>
+						<input type="file" #fileInput [id]="'file-' + param.id" (change)="onFileSelected($event, param.id)" style="display: none;" />
+						<input matInput [value]="getDisplayValue(param.id)" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" readonly (focus)="$event.target.blur()" />
+						<button mat-icon-button matSuffix type="button" (click)="fileInput.click()" [matTooltip]="'Select file'" matTooltipPosition="above">
+							<mat-icon>attach_file</mat-icon>
+						</button>
+						@if (hasExpandableHelp(param)) {
+							<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
+								<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
+							</button>
+						}
+					</mat-form-field>
+					@if (param['certtype'] && !getDisplayValue(param.id)) {
+						<span class="cert-auto-hint">Auto-generated if not uploaded</span>
+					}
+				</div>
+			} @else {
+				<mat-form-field appearance="outline" class="param-field" [class.param-field-multiline]="param.multiline">
+					<mat-label>{{ param.name }}</mat-label>
+					@if (param.multiline) {
+						<textarea matInput rows="5" [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above"></textarea>
+					} @else {
+						<input matInput [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
+					}
+					@if (hasExpandableHelp(param)) {
+						<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
+							<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
+						</button>
+					}
+				</mat-form-field>
+			}
+		}
+		@case ('number') {
+			<mat-form-field appearance="outline" class="param-field">
+				<mat-label>{{ param.name }}</mat-label>
+				<input matInput type="number" [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
+				@if (hasExpandableHelp(param)) {
+					<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
+						<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
+					</button>
+				}
+			</mat-form-field>
+		}
+		@default {
+			<div class="param-field unsupported-param">
+				Unsupported parameter type: {{ param.type }}
+			</div>
+		}
+	}
+</ng-template>

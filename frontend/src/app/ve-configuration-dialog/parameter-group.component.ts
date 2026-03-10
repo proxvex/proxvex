@@ -1,5 +1,7 @@
 import { Component, Input, Output, EventEmitter, inject, signal, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -12,7 +14,7 @@ import { MatCardModule } from '@angular/material/card';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 import * as yaml from 'js-yaml';
-import { IParameter, IJsonError, IStack } from '../../shared/types';
+import { IParameter, IJsonError, IStack, ParameterTarget } from '../../shared/types';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
 import { DockerComposeService } from '../shared/services/docker-compose.service';
 import { StackSelectorComponent } from '../shared/components/stack-selector/stack-selector.component';
@@ -21,7 +23,9 @@ import { StackSelectorComponent } from '../shared/components/stack-selector/stac
   selector: 'app-parameter-group',
   standalone: true,
   imports: [
+    CommonModule,
     ReactiveFormsModule,
+    MatCheckboxModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -41,6 +45,11 @@ export class ParameterGroupComponent implements OnInit {
   @Input({ required: true }) groupedParameters!: Record<string, IParameter[]>;
   @Input({ required: true }) form!: FormGroup;
   @Input({ required: true }) showAdvanced!: boolean;
+
+  // Classification inputs/outputs (create-application only)
+  @Input() showClassification = false;
+  @Input() parameterClassifications = new Map<string, ParameterTarget>();
+  @Output() classificationChanged = new EventEmitter<{ paramId: string; target: ParameterTarget }>();
 
   // Stack selection inputs/outputs
   @Input() availableStacks: IStack[] = [];
@@ -532,6 +541,26 @@ export class ParameterGroupComponent implements OnInit {
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
+  }
+
+  // ==================== Classification helpers ====================
+
+  getClassification(paramId: string): ParameterTarget {
+    return this.parameterClassifications.get(paramId) ?? 'install';
+  }
+
+  isClassifiedInApp(paramId: string): boolean {
+    const target = this.getClassification(paramId);
+    return target === 'value' || target === 'default';
+  }
+
+  onClassificationCheckboxChange(paramId: string, checked: boolean): void {
+    const target: ParameterTarget = checked ? 'value' : 'install';
+    this.classificationChanged.emit({ paramId, target });
+  }
+
+  onClassificationDropdownChange(paramId: string, target: ParameterTarget): void {
+    this.classificationChanged.emit({ paramId, target });
   }
 }
 

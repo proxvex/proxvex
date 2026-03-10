@@ -1,8 +1,10 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 
-import { IFrameworkName, IParameter, IPostFrameworkFromImageResponse, IStacktypeEntry, ITagsConfig, IUploadFile } from '../../../shared/types';
+import { IAddonWithParameters, IFrameworkApplicationDataBody, IFrameworkPropertyInfo, IFrameworkName, IParameter, IParameterValue, IPostFrameworkFromImageResponse, IStack, IStacktypeEntry, ITagsConfig, IUploadFile, ParameterTarget } from '../../../shared/types';
+import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
 import { ComposeService, DockerComposeService, ParsedComposeData } from '../../shared/services/docker-compose.service';
 import { ErrorHandlerService } from '../../shared/services/error-handler.service';
 import { VeConfigurationService } from '../../ve-configuration.service';
@@ -15,6 +17,7 @@ import { VeConfigurationService } from '../../ve-configuration.service';
 export class CreateApplicationStateService {
   private fb = inject(FormBuilder);
   private configService = inject(VeConfigurationService);
+  private router = inject(Router);
   private composeService = inject(DockerComposeService);
   private errorHandler = inject(ErrorHandlerService);
 
@@ -94,6 +97,28 @@ export class CreateApplicationStateService {
 
   /** Pending values for controls that don't exist yet (set before parameters are loaded) */
   private pendingControlValues: Record<string, string> = {};
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Step 3 (new): Install Parameters + Classifications + Addons
+  // ─────────────────────────────────────────────────────────────────────────────
+  installParameters = signal<IParameter[]>([]);
+  installParametersGrouped = signal<Record<string, IParameter[]>>({});
+  installFormManager: ParameterFormManager | null = null;
+  loadingInstallParameters = signal(false);
+  installParametersError = signal<string | null>(null);
+
+  // Addon support
+  availableAddons = signal<IAddonWithParameters[]>([]);
+  selectedAddons = signal<string[]>([]);
+  expandedAddons = signal<string[]>([]);
+
+  // Stack support for install step
+  availableStacks = signal<IStack[]>([]);
+  selectedInstallStack: IStack | null = null;
+
+  // Classification: maps paramId → 'value' | 'default' | 'install'
+  parameterClassifications = signal<Map<string, ParameterTarget>>(new Map());
+  frameworkProperties = signal<IFrameworkPropertyInfo[]>([]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Step 4: Upload Files
@@ -239,6 +264,20 @@ export class CreateApplicationStateService {
     this.showAdvanced.set(false);
     this.loadingParameters.set(false);
     this.pendingControlValues = {};
+
+    // Step 3 (new): Install Parameters + Classifications + Addons
+    this.installParameters.set([]);
+    this.installParametersGrouped.set({});
+    this.installFormManager = null;
+    this.loadingInstallParameters.set(false);
+    this.installParametersError.set(null);
+    this.availableAddons.set([]);
+    this.selectedAddons.set([]);
+    this.expandedAddons.set([]);
+    this.availableStacks.set([]);
+    this.selectedInstallStack = null;
+    this.parameterClassifications.set(new Map());
+    this.frameworkProperties.set([]);
 
     // Step 4: Upload Files
     this._uploadFiles = [];
@@ -1045,5 +1084,217 @@ export class CreateApplicationStateService {
         this.updateEnvFileRequirement();
       }
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Install Parameters Loading (moved from summary-step)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Loads install parameters preview (unresolved parameters + addons).
+   * Called when entering Step 3.
+   */
+  loadInstallParameters(): void {
+    this.loadingInstallParameters.set(true);
+    this.installParametersError.set(null);
+
+    const body = this.buildPreviewRequestBody();
+    if (!body) {
+      this.loadingInstallParameters.set(false);
+      this.installParametersError.set('Missing framework selection');
+      return;
+    }
+
+    this.configService.getPreviewUnresolvedParameters(body).subscribe({
+      next: (res) => {
+        this.installParameters.set(res.unresolvedParameters);
+        this.frameworkProperties.set(res.frameworkProperties ?? []);
+
+        // Sort and group: framework properties first, then required, then rest
+        const sorted = this.sortInstallParameters(res.unresolvedParameters, res.frameworkProperties ?? []);
+        this.installParametersGrouped.set(this.groupByTemplate(sorted));
+
+        this.availableAddons.set((res.addons ?? []).filter(addon => {
+          if (!addon.required_parameters?.length) return true;
+          return addon.required_parameters.every(paramId =>
+            res.unresolvedParameters.some(p => p.id === paramId),
+          );
+        }));
+
+        this.setupInstallForm(res.unresolvedParameters);
+        this.initDefaultClassifications(res.unresolvedParameters, res.frameworkProperties ?? []);
+        this.loadInstallStacks();
+        this.loadingInstallParameters.set(false);
+      },
+      error: (err) => {
+        this.installParametersError.set(
+          err?.error?.error || err?.message || 'Failed to load install parameters'
+        );
+        this.loadingInstallParameters.set(false);
+      }
+    });
+  }
+
+  private buildPreviewRequestBody(): IFrameworkApplicationDataBody | null {
+    const selectedFramework = this.selectedFramework();
+    if (!selectedFramework) return null;
+
+    return {
+      frameworkId: selectedFramework.id,
+      name: this.appPropertiesForm.get('name')?.value || '',
+      description: this.appPropertiesForm.get('description')?.value || '',
+      url: this.appPropertiesForm.get('url')?.value || undefined,
+      documentation: this.appPropertiesForm.get('documentation')?.value || undefined,
+      source: this.appPropertiesForm.get('source')?.value || undefined,
+      vendor: this.appPropertiesForm.get('vendor')?.value || undefined,
+      tags: this.selectedTags().length > 0 ? this.selectedTags() : undefined,
+      stacktype: this.selectedStacktype() ?? undefined,
+      parameterValues: this.collectParameterValues(),
+      uploadfiles: this.getUploadFiles().length > 0 ? this.getUploadFiles() : undefined,
+    };
+  }
+
+  collectParameterValues(): { id: string; value: IParameterValue }[] {
+    const parameterValues: { id: string; value: IParameterValue }[] = [];
+    for (const param of this.parameters()) {
+      let value = this.parameterForm.get(param.id)?.value;
+      value = ParameterFormManager.extractBase64FromFileMetadata(value);
+      if (value !== null && value !== undefined && value !== '') {
+        parameterValues.push({ id: param.id, value });
+      }
+    }
+
+    // Ensure docker-compose essentials are not dropped
+    if (this.isDockerComposeFramework()) {
+      const ensuredIds = ['compose_file', 'env_file', 'volumes'] as const;
+      const existing = new Set(parameterValues.map(p => p.id));
+      for (const id of ensuredIds) {
+        if (existing.has(id)) continue;
+        const v = this.parameterForm.get(id)?.value;
+        if (v !== null && v !== undefined && String(v).trim() !== '') {
+          parameterValues.push({ id, value: v });
+        }
+      }
+    }
+
+    return parameterValues;
+  }
+
+  private setupInstallForm(params: IParameter[]): void {
+    this.installFormManager = new ParameterFormManager(
+      params,
+      this.configService,
+      this.router
+    );
+    this.installFormManager.enableHostnameTracking();
+  }
+
+  /** Getter for template - returns form from manager or empty FormGroup */
+  get installForm(): FormGroup {
+    return this.installFormManager?.form ?? this.fb.group({});
+  }
+
+  get isInstallFormValid(): boolean {
+    return this.installFormManager?.valid ?? false;
+  }
+
+  private sortInstallParameters(params: IParameter[], fwProps: IFrameworkPropertyInfo[]): IParameter[] {
+    const fwPropIds = new Set(fwProps.map(p => p.id));
+
+    const frameworkParams = params.filter(p => fwPropIds.has(p.id));
+    const requiredParams = params.filter(p => !fwPropIds.has(p.id) && p.required);
+    const otherParams = params.filter(p => !fwPropIds.has(p.id) && !p.required);
+
+    return [...frameworkParams, ...requiredParams, ...otherParams];
+  }
+
+  private groupByTemplate(params: IParameter[]): Record<string, IParameter[]> {
+    const grouped: Record<string, IParameter[]> = {};
+    for (const param of params) {
+      const group = param.templatename || 'General';
+      if (!grouped[group]) grouped[group] = [];
+      grouped[group].push(param);
+    }
+    return grouped;
+  }
+
+  /**
+   * Initializes default classifications based on framework properties.
+   */
+  private initDefaultClassifications(params: IParameter[], fwProps: IFrameworkPropertyInfo[]): void {
+    const classifications = new Map<string, ParameterTarget>();
+    const fwPropMap = new Map(fwProps.map(p => [p.id, p]));
+
+    for (const param of params) {
+      const fwProp = fwPropMap.get(param.id);
+      if (fwProp) {
+        // Framework property: isDefault=true → 'default', isDefault=false → 'value'
+        classifications.set(param.id, fwProp.isDefault ? 'default' : 'value');
+      } else {
+        // Not a framework property → install parameter
+        classifications.set(param.id, 'install');
+      }
+    }
+
+    this.parameterClassifications.set(classifications);
+  }
+
+  /**
+   * Updates a single parameter's classification.
+   */
+  updateClassification(paramId: string, target: ParameterTarget): void {
+    const classifications = new Map(this.parameterClassifications());
+    classifications.set(paramId, target);
+    this.parameterClassifications.set(classifications);
+  }
+
+  private loadInstallStacks(): void {
+    const stacktype = this.selectedStacktype();
+    if (!stacktype) {
+      this.availableStacks.set([]);
+      return;
+    }
+    this.configService.getStacks(stacktype).subscribe({
+      next: (res) => this.availableStacks.set(res.stacks),
+      error: () => this.availableStacks.set([])
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Addon management (moved from summary-step)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  onAddonToggle(event: { addonId: string; checked: boolean }): void {
+    const addon = this.availableAddons().find(a => a.id === event.addonId);
+
+    if (event.checked) {
+      this.selectedAddons.update(addons => [...addons, event.addonId]);
+      if (addon?.parameters && this.installFormManager) {
+        this.installFormManager.addAddonControls(addon.parameters);
+        if (addon.parameters.some(p => p.required)) {
+          this.expandedAddons.update(addons => [...addons, event.addonId]);
+        }
+      }
+    } else {
+      this.selectedAddons.update(addons => addons.filter(id => id !== event.addonId));
+      this.expandedAddons.update(addons => addons.filter(id => id !== event.addonId));
+      if (addon?.parameters && this.installFormManager) {
+        this.installFormManager.removeAddonControls(addon.parameters);
+      }
+    }
+    this.installFormManager?.setSelectedAddons(this.selectedAddons());
+  }
+
+  onAddonExpandedToggle(addonId: string): void {
+    this.expandedAddons.update(addons =>
+      addons.includes(addonId)
+        ? addons.filter(id => id !== addonId)
+        : [...addons, addonId]
+    );
+  }
+
+  onInstallStackSelected(stack: IStack): void {
+    this.selectedInstallStack = stack;
+    this.installFormManager?.setSelectedStack(stack);
   }
 }
