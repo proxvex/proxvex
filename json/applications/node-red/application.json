@@ -61,7 +61,11 @@
     "api",
     "development",
     "authentication"
+<<<<<<< HEAD
   ],
   "supported_addons": ["addon-oidc"],
   "stacktype": "oidc"
+=======
+  ]
+>>>>>>> 9b90fef (download files for live test runner)
 }
