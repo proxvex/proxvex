@@ -1,6 +1,8 @@
 {
   "default": {
-    "description": "Eclipse Mosquitto MQTT Broker with SSL",
+    "description": "Node-RED with SSL (OCI-image with certs volume)",
+    "addons": ["addon-ssl"],
+    "wait_seconds": 30,
     "verify": {
       "container_running": true,
       "notes_managed": true,

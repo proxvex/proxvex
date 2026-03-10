@@ -38,19 +38,43 @@ fi
 # Try to start the container
 echo "Attempting to start container $VMID..." >&2
 if ! pct start "$VMID" >/dev/null 2>&1; then
-  # Capture the original error message
   START_ERROR=$(pct start "$VMID" 2>&1)
-  echo "Failed to start container $VMID" >&2
   echo "" >&2
-  echo "=== Original error message ===" >&2
+  echo "=== Container $VMID failed to start ===" >&2
   echo "$START_ERROR" >&2
   echo "" >&2
-  echo "=== Diagnostic information ===" >&2
-  echo "Container status:" >&2
-  pct status "$VMID" >&2
-  echo "" >&2
-  echo "Container configuration:" >&2
+  echo "=== Container configuration ===" >&2
   pct config "$VMID" >&2 || echo "Could not read container configuration" >&2
+  exit 1
+fi
+
+# Brief wait, then check if container is still running.
+# Some containers start successfully but crash immediately
+# (e.g. missing config files, bad environment variables).
+sleep 3
+POST_STATUS=$(pct status "$VMID" 2>/dev/null | grep -o "status: [a-z]*" | cut -d' ' -f2 || echo "unknown")
+
+if [ "$POST_STATUS" != "running" ]; then
+  echo "" >&2
+  echo "=== Container $VMID started but exited immediately ===" >&2
+  echo "The application inside the container crashed on startup." >&2
+  echo "Check the log below for details (e.g. missing files, invalid configuration)." >&2
+
+  # Show console log — this contains the application's error output
+  LOG_PATH=$(pct config "$VMID" 2>/dev/null | grep "^lxc.console.logfile:" | awk '{print $2}')
+  if [ -n "$LOG_PATH" ] && [ -f "$LOG_PATH" ]; then
+    echo "" >&2
+    echo "=== Application log (last 30 lines) ===" >&2
+    tail -30 "$LOG_PATH" >&2
+  fi
+
+  # Show log viewer URL from notes if available
+  LOG_URL=$(pct config "$VMID" 2>/dev/null | grep -o 'oci-lxc-deployer[:%]3[Aa]log-url [^ ]*' | head -1 | sed 's/.*log-url //')
+  if [ -n "$LOG_URL" ]; then
+    echo "" >&2
+    echo "Full log: $LOG_URL" >&2
+  fi
+
   exit 1
 fi
 

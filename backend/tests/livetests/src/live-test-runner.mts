@@ -137,19 +137,35 @@ export function discoverTests(projectRoot: string): Map<string, ResolvedScenario
 
   for (const dir of readdirSync(appsDir, { withFileTypes: true })) {
     if (!dir.isDirectory()) continue;
-    const testFile = path.join(appsDir, dir.name, "tests", "test.json");
-    if (!existsSync(testFile)) continue;
+    const testDir = path.join(appsDir, dir.name, "tests");
+    const testFile = path.join(testDir, "test.json");
 
-    const scenarios: Record<string, TestScenario> = JSON.parse(
-      readFileSync(testFile, "utf-8"),
-    );
-    for (const [name, def] of Object.entries(scenarios)) {
-      const id = `${dir.name}/${name}`;
+    if (existsSync(testFile)) {
+      // Explicit test definitions
+      const scenarios: Record<string, TestScenario> = JSON.parse(
+        readFileSync(testFile, "utf-8"),
+      );
+      for (const [name, def] of Object.entries(scenarios)) {
+        const id = `${dir.name}/${name}`;
+        all.set(id, {
+          ...def,
+          id,
+          application: dir.name,
+          appTestDir: testDir,
+        });
+      }
+    } else if (existsSync(path.join(testDir, "default.json"))) {
+      // Implicit default scenario from params file (e.g. unzipped from frontend download)
+      const paramsContent: { selectedAddons?: string[] } = JSON.parse(
+        readFileSync(path.join(testDir, "default.json"), "utf-8"),
+      );
+      const id = `${dir.name}/default`;
       all.set(id, {
-        ...def,
+        description: `${dir.name} (auto-discovered from default.json)`,
+        ...(paramsContent.selectedAddons?.length ? { addons: paramsContent.selectedAddons } : {}),
         id,
         application: dir.name,
-        appTestDir: path.join(appsDir, dir.name, "tests"),
+        appTestDir: testDir,
       });
     }
   }
@@ -230,22 +246,30 @@ export function selectScenarios(
   return matches;
 }
 
+/** Result of building params from a scenario params file */
+export interface BuildParamsResult {
+  params: { name: string; value: string }[];
+  selectedAddons?: string[];
+  stackId?: string;
+}
+
 /**
- * Build CLI params array for a scenario.
+ * Build CLI params for a scenario.
  * Merges base params with scenario-specific params from <scenario>.json.
+ * Also extracts selectedAddons and stackId from the params file.
  * Supports set mode, append mode (for multiline vars like envs), and file: resolution.
  */
 export function buildParams(
   scenario: ResolvedScenario,
   baseParams: { name: string; value: string }[],
   templateVars: Record<string, string>,
-): { name: string; value: string }[] {
+): BuildParamsResult {
   const params = baseParams.map((p) => ({ ...p }));
 
   const scenarioName = scenario.id.split("/")[1]!;
   const paramsPath = path.join(scenario.appTestDir, `${scenarioName}.json`);
 
-  if (!existsSync(paramsPath)) return params;
+  if (!existsSync(paramsPath)) return { params };
 
   let content = readFileSync(paramsPath, "utf-8");
 
@@ -257,9 +281,10 @@ export function buildParams(
     );
   }
 
-  const extra: { params: ParamEntry[] } = JSON.parse(content);
+  const extra: { params?: ParamEntry[]; selectedAddons?: string[]; stackId?: string } =
+    JSON.parse(content);
 
-  for (const p of extra.params) {
+  for (const p of extra.params ?? []) {
     if (p.append) {
       // Append mode: extend multiline variable (e.g. envs)
       const existing = params.find((b) => b.name === p.name);
@@ -274,10 +299,14 @@ export function buildParams(
     } else {
       // Set mode: override or add
       let value = p.value ?? "";
-      // Resolve file: paths relative to tests dir
+      // Resolve file: paths relative to uploads/ in tests dir
       if (value.startsWith("file:")) {
         const relPath = value.slice(5);
-        value = `file:${path.join(scenario.appTestDir, relPath)}`;
+        const uploadsDir = path.join(scenario.appTestDir, "uploads");
+        const resolved = existsSync(path.join(uploadsDir, relPath))
+          ? path.join(uploadsDir, relPath)
+          : path.join(scenario.appTestDir, relPath);
+        value = `file:${resolved}`;
       }
       const existing = params.find((b) => b.name === p.name);
       if (existing) {
@@ -288,7 +317,11 @@ export function buildParams(
     }
   }
 
-  return params;
+  return {
+    params,
+    ...(extra.selectedAddons ? { selectedAddons: extra.selectedAddons } : {}),
+    ...(extra.stackId ? { stackId: extra.stackId } : {}),
+  };
 }
 
 // ── Configuration ──
@@ -656,29 +689,40 @@ async function executeScenarios(
         stack_name: step.stackName,
       };
 
-      const params = buildParams(scenario, baseParams, templateVars);
+      const buildResult = buildParams(scenario, baseParams, templateVars);
+
+      // Merge addons from test.json and params file
+      const allAddons = [
+        ...(scenario.addons ?? []),
+        ...(buildResult.selectedAddons ?? []),
+      ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
 
       // Write params file
       const paramsFile = path.join(tmpDir, `params-${i}.json`);
       const paramsObj: Record<string, unknown> = {
-        params: params.map((p) => ({ name: p.name, value: p.value })),
+        params: buildResult.params.map((p) => ({ name: p.name, value: p.value })),
       };
 
-      if (step.hasStacktype) {
+      if (allAddons.length > 0) {
+        paramsObj.selectedAddons = allAddons;
+      }
+      if (buildResult.stackId) {
+        paramsObj.stackId = buildResult.stackId;
+      } else if (step.hasStacktype) {
         paramsObj.stackId = step.stackName;
       }
 
       writeFileSync(paramsFile, JSON.stringify(paramsObj));
 
-      if (scenario.addons?.length) {
-        logInfo(`Addons: ${scenario.addons.join(", ")}`);
+      if (allAddons.length > 0) {
+        logInfo(`Addons: ${allAddons.join(", ")}`);
       }
 
       // Run CLI
       logInfo(`Running: ${scenario.application} ${task}...`);
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
-        scenario.application, task, paramsFile, scenario.addons,
+        scenario.application, task, paramsFile, allAddons,
       );
 
       if (cliResult.exitCode !== 0) {

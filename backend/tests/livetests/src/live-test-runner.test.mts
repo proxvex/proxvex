@@ -30,7 +30,7 @@ function writeParamsJson(
   fixtureRoot: string,
   appName: string,
   scenarioName: string,
-  params: { params: unknown[] },
+  params: { params: unknown[]; selectedAddons?: string[] },
 ) {
   const dir = path.join(fixtureRoot, "json/applications", appName, "tests");
   mkdirSync(dir, { recursive: true });
@@ -298,11 +298,10 @@ describe("buildParams", () => {
 
   it("base params always present when no params file exists", () => {
     const scenario = makeScenario("myapp", "default");
-    // Don't create a params file
     mkdirSync(scenario.appTestDir, { recursive: true });
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
-    expect(result).toEqual(defaultBase);
+    expect(result.params).toEqual(defaultBase);
   });
 
   it("set mode: adds new param", () => {
@@ -312,7 +311,7 @@ describe("buildParams", () => {
     });
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
-    expect(result).toContainEqual({ name: "custom_param", value: "custom_value" });
+    expect(result.params).toContainEqual({ name: "custom_param", value: "custom_value" });
   });
 
   it("set mode: overrides existing param", () => {
@@ -322,7 +321,7 @@ describe("buildParams", () => {
     });
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
-    expect(result.find((p) => p.name === "hostname")!.value).toBe("overridden");
+    expect(result.params.find((p) => p.name === "hostname")!.value).toBe("overridden");
   });
 
   it("append mode: builds multiline value", () => {
@@ -335,7 +334,7 @@ describe("buildParams", () => {
     });
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
-    const envs = result.find((p) => p.name === "envs")!;
+    const envs = result.params.find((p) => p.name === "envs")!;
     expect(envs.value).toBe(
       "PGADMIN_DEFAULT_EMAIL=admin@test.local\nPGADMIN_DEFAULT_PASSWORD=testpass123",
     );
@@ -355,11 +354,28 @@ describe("buildParams", () => {
     ];
 
     const result = buildParams(scenario, base, defaultVars);
-    const envs = result.find((p) => p.name === "envs")!;
+    const envs = result.params.find((p) => p.name === "envs")!;
     expect(envs.value).toBe("EXISTING=old\nNEW_VAR=new_value");
   });
 
-  it("file: prefix resolves to absolute path relative to tests dir", () => {
+  it("file: prefix resolves to uploads/ subdirectory", () => {
+    const scenario = makeScenario("mosquitto", "default");
+    writeParamsJson(fixtureRoot, "mosquitto", "default", {
+      params: [{ name: "upload_config", value: "file:mosquitto.conf" }],
+    });
+    // Create file in uploads/ subdirectory
+    const uploadsDir = path.join(scenario.appTestDir, "uploads");
+    mkdirSync(uploadsDir, { recursive: true });
+    writeFileSync(path.join(uploadsDir, "mosquitto.conf"), "listener 1883");
+
+    const result = buildParams(scenario, [...defaultBase], defaultVars);
+    const upload = result.params.find((p) => p.name === "upload_config")!;
+    expect(upload.value).toBe(
+      `file:${path.join(uploadsDir, "mosquitto.conf")}`,
+    );
+  });
+
+  it("file: prefix falls back to tests dir if not in uploads/", () => {
     const scenario = makeScenario("mosquitto", "default");
     writeParamsJson(fixtureRoot, "mosquitto", "default", {
       params: [{ name: "upload_config", value: "file:mosquitto.conf" }],
@@ -367,10 +383,21 @@ describe("buildParams", () => {
     writeTestFile(fixtureRoot, "mosquitto", "mosquitto.conf", "listener 1883");
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
-    const upload = result.find((p) => p.name === "upload_config")!;
+    const upload = result.params.find((p) => p.name === "upload_config")!;
     expect(upload.value).toBe(
       `file:${path.join(scenario.appTestDir, "mosquitto.conf")}`,
     );
+  });
+
+  it("selectedAddons extracted from params file", () => {
+    const scenario = makeScenario("mosquitto", "default");
+    writeParamsJson(fixtureRoot, "mosquitto", "default", {
+      params: [],
+      selectedAddons: ["addon-ssl"],
+    });
+
+    const result = buildParams(scenario, [...defaultBase], defaultVars);
+    expect(result.selectedAddons).toEqual(["addon-ssl"]);
   });
 
   it("template variable substitution works", () => {
@@ -380,6 +407,6 @@ describe("buildParams", () => {
     });
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
-    expect(result.find((p) => p.name === "custom")!.value).toBe("host-200-test-host");
+    expect(result.params.find((p) => p.name === "custom")!.value).toBe("host-200-test-host");
   });
 });

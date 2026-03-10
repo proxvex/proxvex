@@ -18,6 +18,7 @@ export interface IUploadFile {
     required?: boolean;
     advanced?: boolean;
     certtype?: CertType;
+    help?: string;
 }
 export interface IApplicationBase {
     name: string;
@@ -124,6 +125,11 @@ export interface IParameter {
     template?: string;
     if?: string;
 }
+export type ParameterTarget = 'value' | 'default' | 'install';
+export interface IParameterClassification {
+    id: string;
+    target: ParameterTarget;
+}
 export interface IParameterOverride {
     id: string;
     name?: string;
@@ -202,9 +208,14 @@ export interface ITagsConfig {
     internal: string[];
 }
 export type ITagsConfigResponse = ITagsConfig;
+export interface IFrameworkPropertyInfo {
+    id: string;
+    isDefault: boolean;
+}
 export interface IUnresolvedParametersResponse {
     unresolvedParameters: IParameter[];
     addons?: IAddonWithParameters[];
+    frameworkProperties?: IFrameworkPropertyInfo[];
 }
 export interface IEnumValuesEntry {
     id: string;
@@ -376,6 +387,7 @@ export interface IFrameworkApplicationDataBody {
         id: string;
         value: string | number | boolean;
     }[];
+    parameterClassifications?: IParameterClassification[];
     uploadfiles?: IUploadFile[];
 }
 export interface IPostFrameworkCreateApplicationBody extends IFrameworkApplicationDataBody {

@@ -494,13 +494,6 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   async downloadInstallationFiles(): Promise<void> {
     const { changedParams } = this.formManager.extractParamsWithChanges();
 
-    if (this.selectedAddons().length > 0) {
-      changedParams.push({ name: 'addons', value: this.selectedAddons().join(',') });
-    }
-    if (this.selectedStack) {
-      changedParams.push({ name: 'stack', value: this.selectedStack.id });
-    }
-
     // Collect uploaded files from form values (format: "file:filename:content:base64")
     const uploadFiles: { name: string; bytes: Uint8Array }[] = [];
     const uploadParams = this.unresolvedParameters.filter(p => p.upload);
@@ -528,11 +521,21 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       }
     }
 
+    // Build output matching the API body format:
+    // { "params": [...], "selectedAddons": [...], "stackId": "..." }
+    const output: Record<string, unknown> = { params: changedParams };
+    if (this.selectedAddons().length > 0) {
+      output['selectedAddons'] = this.selectedAddons();
+    }
+    if (this.selectedStack) {
+      output['stackId'] = this.selectedStack.id;
+    }
+
     const zip = new JSZip();
-    zip.file('params.json', JSON.stringify(changedParams, null, 2));
+    zip.file('default.json', JSON.stringify(output, null, 2));
 
     for (const file of uploadFiles) {
-      zip.file(file.name, file.bytes);
+      zip.file(`uploads/${file.name}`, file.bytes);
     }
 
     const blob = await zip.generateAsync({ type: 'blob' });

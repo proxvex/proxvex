@@ -1,8 +1,8 @@
 const fs = require('fs');
 module.exports = {
     https: {
-        key: fs.readFileSync('/certs/server.key'),
-        cert: fs.readFileSync('/certs/server.crt')
+        key: fs.readFileSync('/certs/privkey.pem'),
+        cert: fs.readFileSync('/certs/fullchain.pem')
     },
     uiPort: 1880,
     requireHttps: true
