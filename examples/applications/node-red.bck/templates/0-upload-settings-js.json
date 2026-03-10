@@ -1,0 +1,83 @@
+{
+  "name": "Upload settings.js",
+  "description": "Uploads settings.js to data:settings.js",
+  "execute_on": "ve",
+  "skip_if_all_missing": [
+    "upload_settings_js_content"
+  ],
+  "parameters": [
+    {
+      "id": "upload_settings_js_content",
+      "name": "settings.js",
+      "type": "string",
+      "upload": true,
+      "required": false,
+      "advanced": false,
+      "description": "Configuration file: settings.js"
+    },
+    {
+      "id": "upload_settings_js_destination",
+      "name": "Destination Path",
+      "type": "string",
+      "default": "data:settings.js",
+      "advanced": true,
+      "description": "Target path: {volume_key}:{filename}"
+    },
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "advanced": true,
+      "description": "Path to the shared volume mount point"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    },
+    {
+      "id": "uid",
+      "name": "UID",
+      "type": "string",
+      "default": "0",
+      "advanced": true,
+      "description": "User ID for file ownership"
+    },
+    {
+      "id": "gid",
+      "name": "GID",
+      "type": "string",
+      "default": "0",
+      "advanced": true,
+      "description": "Group ID for file ownership"
+    },
+    {
+      "id": "mapped_uid",
+      "name": "Mapped UID",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Mapped user ID for unprivileged containers"
+    },
+    {
+      "id": "mapped_gid",
+      "name": "Mapped GID",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Mapped group ID for unprivileged containers"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Upload settings.js",
+      "script": "0-upload-settings-js.sh",
+      "library": "upload-file-common.sh",
+      "outputs": [
+        "upload_settings_js_uploaded"
+      ]
+    }
+  ]
+}

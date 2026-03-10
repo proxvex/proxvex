@@ -551,17 +551,7 @@ export class ParameterGroupComponent implements OnInit {
     return this.parameterClassifications.get(paramId) ?? 'install';
   }
 
-  isClassifiedInApp(paramId: string): boolean {
-    const target = this.getClassification(paramId);
-    return target === 'value' || target === 'default';
-  }
-
-  onClassificationCheckboxChange(paramId: string, checked: boolean): void {
-    const target: ParameterTarget = checked ? 'value' : 'install';
-    this.classificationChanged.emit({ paramId, target });
-  }
-
-  onClassificationDropdownChange(paramId: string, target: ParameterTarget): void {
+  onClassificationChange(paramId: string, target: ParameterTarget): void {
     this.classificationChanged.emit({ paramId, target });
   }
 }

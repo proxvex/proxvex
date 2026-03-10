@@ -9,7 +9,6 @@ import { ParameterTarget } from '../../../shared/types';
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter-group.component';
 import { StackSelectorComponent } from '../../shared/components/stack-selector/stack-selector.component';
-import { AddonSectionComponent } from '../../shared/components/addon-section/addon-section.component';
 
 @Component({
   selector: 'app-parameters-step',
@@ -21,8 +20,7 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
     MatIconModule,
     MatProgressSpinnerModule,
     ParameterGroupComponent,
-    StackSelectorComponent,
-    AddonSectionComponent
+    StackSelectorComponent
   ],
   template: `
     <div class="step-content">
@@ -37,13 +35,20 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
           <span>{{ state.installParametersError() }}</span>
           <button mat-button color="primary" (click)="state.loadInstallParameters()">Retry</button>
         </div>
-      } @else if (state.installParameters().length === 0 && state.availableAddons().length === 0) {
+      } @else if (state.installParameters().length === 0) {
         <div class="info-container">
           <mat-icon>info</mat-icon>
           <span>No additional parameters required for installation.</span>
         </div>
       } @else {
-        <p class="preview-note">Configure parameters and choose how they are stored in the application:</p>
+        <div class="classification-legend">
+          <p class="legend-title">Choose how each parameter is handled in the application:</p>
+          <div class="legend-items">
+            <span class="legend-item"><strong>Fixed</strong> — Value is saved and cannot be changed during installation</span>
+            <span class="legend-item"><strong>Editable</strong> — Value is pre-filled but can be changed during installation</span>
+            <span class="legend-item"><strong>Ask</strong> — User must enter this value at every installation</span>
+          </div>
+        </div>
 
         @if (hasAdvancedParams()) {
           <div class="advanced-toggle">
@@ -83,19 +88,6 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
           ></app-parameter-group>
         }
 
-        @if (state.availableAddons().length > 0) {
-          <app-addon-section
-            [availableAddons]="state.availableAddons()"
-            [selectedAddons]="state.selectedAddons()"
-            [expandedAddons]="state.expandedAddons()"
-            [form]="state.installForm"
-            [showAdvanced]="state.showAdvanced()"
-            [availableStacks]="state.availableStacks()"
-            (addonToggled)="state.onAddonToggle($event)"
-            (addonExpandedChanged)="state.onAddonExpandedToggle($event)"
-            (stackSelected)="state.onInstallStackSelected($event)"
-          ></app-addon-section>
-        }
       }
     </div>
   `,
@@ -136,10 +128,30 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
       color: #1565c0;
     }
 
-    .preview-note {
-      color: var(--mdc-theme-text-secondary-on-background, rgba(0, 0, 0, 0.6));
-      margin-bottom: 1rem;
-      font-style: italic;
+    .classification-legend {
+      margin-bottom: 1.5rem;
+      padding: 0.75rem 1rem;
+      background: #e8eaf6;
+      border-radius: 8px;
+      border-left: 4px solid #3f51b5;
+
+      .legend-title {
+        margin: 0 0 0.5rem 0;
+        font-weight: 500;
+        color: #283593;
+        font-size: 0.9rem;
+      }
+
+      .legend-items {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 1.5rem;
+      }
+
+      .legend-item {
+        font-size: 0.8rem;
+        color: #37474f;
+      }
     }
 
     .secrets-selector {

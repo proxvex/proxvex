@@ -1,0 +1,83 @@
+{
+  "name": "Upload server.key",
+  "description": "Uploads server.key to certs:server.key",
+  "execute_on": "ve",
+  "skip_if_all_missing": [
+    "upload_server_key_content"
+  ],
+  "parameters": [
+    {
+      "id": "upload_server_key_content",
+      "name": "server.key",
+      "type": "string",
+      "upload": true,
+      "required": false,
+      "advanced": false,
+      "description": "Configuration file: server.key"
+    },
+    {
+      "id": "upload_server_key_destination",
+      "name": "Destination Path",
+      "type": "string",
+      "default": "certs:server.key",
+      "advanced": true,
+      "description": "Target path: {volume_key}:{filename}"
+    },
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "advanced": true,
+      "description": "Path to the shared volume mount point"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    },
+    {
+      "id": "uid",
+      "name": "UID",
+      "type": "string",
+      "default": "0",
+      "advanced": true,
+      "description": "User ID for file ownership"
+    },
+    {
+      "id": "gid",
+      "name": "GID",
+      "type": "string",
+      "default": "0",
+      "advanced": true,
+      "description": "Group ID for file ownership"
+    },
+    {
+      "id": "mapped_uid",
+      "name": "Mapped UID",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Mapped user ID for unprivileged containers"
+    },
+    {
+      "id": "mapped_gid",
+      "name": "Mapped GID",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Mapped group ID for unprivileged containers"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Upload server.key",
+      "script": "2-upload-server-key.sh",
+      "library": "upload-file-common.sh",
+      "outputs": [
+        "upload_server_key_uploaded"
+      ]
+    }
+  ]
+}
