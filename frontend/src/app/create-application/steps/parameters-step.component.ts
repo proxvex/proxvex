@@ -8,6 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ParameterTarget } from '../../../shared/types';
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter-group.component';
+import { StackSelectorComponent } from '../../shared/components/stack-selector/stack-selector.component';
 import { AddonSectionComponent } from '../../shared/components/addon-section/addon-section.component';
 
 @Component({
@@ -20,7 +21,8 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
     MatIconModule,
     MatProgressSpinnerModule,
     ParameterGroupComponent,
-    AddonSectionComponent,
+    StackSelectorComponent,
+    AddonSectionComponent
   ],
   template: `
     <div class="step-content">
@@ -35,7 +37,7 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
           <span>{{ state.installParametersError() }}</span>
           <button mat-button color="primary" (click)="state.loadInstallParameters()">Retry</button>
         </div>
-      } @else if (state.installParameters().length === 0 && state.availableAddons().length === 0) {
+      } @else if (state.installParameters().length === 0) {
         <div class="info-container">
           <mat-icon>info</mat-icon>
           <span>No additional parameters required for installation.</span>
@@ -88,19 +90,6 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
           ></app-parameter-group>
         }
 
-        @if (state.availableAddons().length > 0) {
-          <app-addon-section
-            [availableAddons]="state.availableAddons()"
-            [selectedAddons]="state.selectedAddons()"
-            [expandedAddons]="state.expandedAddons()"
-            [form]="state.installForm"
-            [showAdvanced]="state.showAdvanced()"
-            [availableStacks]="state.availableStacks()"
-            (addonToggled)="state.onAddonToggle($event)"
-            (addonExpandedChanged)="state.onAddonExpandedToggle($event)"
-            (stackSelected)="state.onInstallStackSelected($event)"
-          ></app-addon-section>
-        }
       }
     </div>
   `,

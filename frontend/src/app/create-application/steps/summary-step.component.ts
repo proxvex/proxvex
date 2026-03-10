@@ -8,8 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { VeConfigurationService } from '../../ve-configuration.service';
-import { IFrameworkApplicationDataBody, IParameterClassification, IParameterValue, IUploadFile, ParameterTarget } from '../../../shared/types';
-import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
+import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, ParameterTarget } from '../../../shared/types';
 
 @Component({
   selector: 'app-summary-step',
