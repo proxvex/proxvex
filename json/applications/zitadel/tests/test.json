@@ -1,0 +1,26 @@
+{
+  "default": {
+    "description": "Zitadel with Postgres dependency (no SSL)",
+    "depends_on": ["postgres/default"],
+    "wait_seconds": 60,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "services_up": true,
+      "docker_log_no_errors": true
+    }
+  },
+  "ssl": {
+    "description": "Zitadel with SSL and Postgres with SSL",
+    "depends_on": ["postgres/ssl"],
+    "addons": ["addon-ssl"],
+    "wait_seconds": 60,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "services_up": true,
+      "docker_log_no_errors": true,
+      "tls_connect": 8080
+    }
+  }
+}

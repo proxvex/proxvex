@@ -1,0 +1,22 @@
+{
+  "default": {
+    "description": "Postgres database installation",
+    "wait_seconds": 30,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "lxc_log_no_errors": true
+    }
+  },
+  "ssl": {
+    "description": "Postgres with SSL addon",
+    "addons": ["addon-ssl"],
+    "wait_seconds": 30,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "lxc_log_no_errors": true,
+      "pg_ssl_on": true
+    }
+  }
+}

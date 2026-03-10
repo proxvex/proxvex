@@ -5,23 +5,34 @@
  * Creates real containers on a Proxmox host via the CLI tool and verifies
  * application-level functionality including dependencies and docker services.
  *
+ * Test definitions live in json/applications/<app>/tests/test.json.
+ * Each scenario tests one application. Dependencies are declared via depends_on.
+ *
  * Features:
  * - Pre-assigned VM IDs (200+) to avoid parallel conflicts
- * - Per-test stacks using first step's VM ID as stack name
- * - Dependency-aware parallel execution (all tests run concurrently)
+ * - Dependency-aware execution with topological sort
+ * - Per-scenario params with set, append, and file: modes
  * - Comprehensive verification suite (container, notes, services, TLS, SSL)
  *
  * Usage:
  *   tsx live-test-runner.mts [instance] [test-name|--all]
  *
  * Examples:
- *   tsx live-test-runner.mts github-action postgres
+ *   tsx live-test-runner.mts github-action postgres/ssl
+ *   tsx live-test-runner.mts github-action zitadel        # runs all zitadel/* + deps
  *   tsx live-test-runner.mts github-action --all
- *   KEEP_VM=1 tsx live-test-runner.mts github-action zitadel
+ *   KEEP_VM=1 tsx live-test-runner.mts github-action zitadel/ssl
  */
 
 import { execSync, spawn } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -31,17 +42,45 @@ const VM_ID_START = 200;
 
 // ── Types ──
 
-interface TestStep {
-  application: string;
+/** One scenario from <app>/tests/test.json */
+export interface TestScenario {
+  description: string;
+  depends_on?: string[];
   task?: string;
   addons?: string[];
   wait_seconds?: number;
   verify?: Record<string, boolean | number>;
 }
 
-interface TestDefinition {
+/** Discovered scenario with resolved identity */
+export interface ResolvedScenario extends TestScenario {
+  id: string;
+  application: string;
+  appTestDir: string;
+}
+
+/** Planned scenario ready for execution */
+interface PlannedScenario {
+  vmId: number;
+  hostname: string;
+  stackName: string;
+  scenario: ResolvedScenario;
+  hasStacktype: boolean;
+}
+
+interface StepResult {
+  vmId: number;
+  hostname: string;
+  application: string;
+}
+
+interface TestResult {
+  name: string;
   description: string;
-  steps: TestStep[];
+  passed: number;
+  failed: number;
+  steps: StepResult[];
+  errors: string[];
 }
 
 interface E2EConfig {
@@ -64,41 +103,11 @@ interface E2EConfig {
   };
 }
 
-/** Pre-planned step with assigned VM ID and stack */
-interface PlannedStep {
-  vmId: number;
-  hostname: string;
-  stackName: string;
-  application: string;
-  task: string;
-  addons?: string[];
-  wait_seconds?: number;
-  verify?: Record<string, boolean | number>;
-  hasStacktype: boolean;
-}
-
-interface StepResult {
-  vmId: number;
-  hostname: string;
-  application: string;
-}
-
-interface TestResult {
+/** Param entry in a scenario params file */
+export interface ParamEntry {
   name: string;
-  description: string;
-  passed: number;
-  failed: number;
-  steps: StepResult[];
-  errors: string[];
-}
-
-/** Pre-planned test with all steps assigned */
-interface PlannedTest {
-  name: string;
-  definition: TestDefinition;
-  steps: PlannedStep[];
-  stackName: string;
-  stacktype?: string;
+  value?: string;
+  append?: string;
 }
 
 // ── Colors ──
@@ -115,6 +124,171 @@ function logWarn(msg: string) { console.log(`${YELLOW}!${NC} ${msg}`); }
 function logInfo(msg: string) { console.log(`\u2192 ${msg}`); }
 function logStep(step: string, desc: string) {
   console.log(`\n${BLUE}\u2500\u2500 ${step}: ${desc} \u2500\u2500${NC}`);
+}
+
+// ── Pure functions (exported for unit testing) ──
+
+/**
+ * Discover all test scenarios from json/applications/<app>/tests/test.json.
+ */
+export function discoverTests(projectRoot: string): Map<string, ResolvedScenario> {
+  const appsDir = path.join(projectRoot, "json/applications");
+  const all = new Map<string, ResolvedScenario>();
+
+  for (const dir of readdirSync(appsDir, { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
+    const testFile = path.join(appsDir, dir.name, "tests", "test.json");
+    if (!existsSync(testFile)) continue;
+
+    const scenarios: Record<string, TestScenario> = JSON.parse(
+      readFileSync(testFile, "utf-8"),
+    );
+    for (const [name, def] of Object.entries(scenarios)) {
+      const id = `${dir.name}/${name}`;
+      all.set(id, {
+        ...def,
+        id,
+        application: dir.name,
+        appTestDir: path.join(appsDir, dir.name, "tests"),
+      });
+    }
+  }
+
+  return all;
+}
+
+/**
+ * Collect selected scenarios and all their transitive dependencies.
+ * Returns topologically sorted (dependencies first).
+ * Detects circular dependencies.
+ */
+export function collectWithDeps(
+  selected: string[],
+  all: Map<string, ResolvedScenario>,
+): ResolvedScenario[] {
+  const visited = new Set<string>();
+  const visiting = new Set<string>(); // for cycle detection
+  const ordered: ResolvedScenario[] = [];
+
+  function visit(id: string, chain: string[]) {
+    if (visited.has(id)) return;
+    if (visiting.has(id)) {
+      throw new Error(`Circular dependency detected: ${[...chain, id].join(" → ")}`);
+    }
+
+    visiting.add(id);
+    const s = all.get(id);
+    if (!s) throw new Error(`Unknown test scenario: ${id}`);
+
+    for (const dep of s.depends_on ?? []) {
+      visit(dep, [...chain, id]);
+    }
+
+    visiting.delete(id);
+    visited.add(id);
+    ordered.push(s);
+  }
+
+  for (const id of selected) {
+    visit(id, []);
+  }
+
+  return ordered;
+}
+
+/**
+ * Select scenarios based on CLI argument.
+ * - "app" → all scenarios under app/*
+ * - "app/scenario" → exact match
+ * - "--all" → everything
+ * Returns selected scenario IDs (without deps — call collectWithDeps after).
+ */
+export function selectScenarios(
+  testArg: string,
+  all: Map<string, ResolvedScenario>,
+): string[] {
+  if (testArg === "--all") {
+    return [...all.keys()];
+  }
+
+  // Exact match: "app/scenario"
+  if (testArg.includes("/")) {
+    if (!all.has(testArg)) {
+      throw new Error(`Unknown test scenario: '${testArg}'`);
+    }
+    return [testArg];
+  }
+
+  // App-level match: "app" → all scenarios under app/*
+  const matches = [...all.keys()].filter((id) => id.startsWith(`${testArg}/`));
+  if (matches.length === 0) {
+    throw new Error(
+      `No test scenarios found for '${testArg}'. ` +
+      `Expected json/applications/${testArg}/tests/test.json`,
+    );
+  }
+  return matches;
+}
+
+/**
+ * Build CLI params array for a scenario.
+ * Merges base params with scenario-specific params from <scenario>.json.
+ * Supports set mode, append mode (for multiline vars like envs), and file: resolution.
+ */
+export function buildParams(
+  scenario: ResolvedScenario,
+  baseParams: { name: string; value: string }[],
+  templateVars: Record<string, string>,
+): { name: string; value: string }[] {
+  const params = baseParams.map((p) => ({ ...p }));
+
+  const scenarioName = scenario.id.split("/")[1]!;
+  const paramsPath = path.join(scenario.appTestDir, `${scenarioName}.json`);
+
+  if (!existsSync(paramsPath)) return params;
+
+  let content = readFileSync(paramsPath, "utf-8");
+
+  // Substitute template variables
+  for (const [key, val] of Object.entries(templateVars)) {
+    content = content.replace(
+      new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
+      val,
+    );
+  }
+
+  const extra: { params: ParamEntry[] } = JSON.parse(content);
+
+  for (const p of extra.params) {
+    if (p.append) {
+      // Append mode: extend multiline variable (e.g. envs)
+      const existing = params.find((b) => b.name === p.name);
+      const line = `${p.append}=${p.value ?? ""}`;
+      if (existing) {
+        existing.value = existing.value
+          ? `${existing.value}\n${line}`
+          : line;
+      } else {
+        params.push({ name: p.name, value: line });
+      }
+    } else {
+      // Set mode: override or add
+      let value = p.value ?? "";
+      // Resolve file: paths relative to tests dir
+      if (value.startsWith("file:")) {
+        const relPath = value.slice(5);
+        value = `file:${path.join(scenario.appTestDir, relPath)}`;
+      }
+      const existing = params.find((b) => b.name === p.name);
+      if (existing) {
+        existing.value = value;
+      } else {
+        params.push({ name: p.name, value });
+      }
+    }
+  }
+
+  return params;
 }
 
 // ── Configuration ──
@@ -355,7 +529,6 @@ class Verifier {
     this.assert(sslStatus === "on", `[${vmId}] Postgres SSL is enabled (SHOW ssl = ${sslStatus})`);
   }
 
-  /** Check that the client connection to postgres is using SSL */
   dbSslConnection(vmId: number) {
     const sslInUse = this.ssh(
       `pct exec ${vmId} -- psql -U postgres -tA -c "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid();"`,
@@ -403,57 +576,53 @@ async function waitForServices(
   logWarn(`Docker services not fully ready after ${maxWait}s`);
 }
 
-// ── Planning: Pre-assign VM IDs and stack names ──
+// ── Planning: assign VM IDs and stack names ──
 
-function planTests(
-  testsToRun: Map<string, TestDefinition>,
+function planScenarios(
+  scenarios: ResolvedScenario[],
   appStacktypes: Map<string, string>,
-): PlannedTest[] {
-  const planned: PlannedTest[] = [];
+): PlannedScenario[] {
   let nextVmId = VM_ID_START;
+  // Group by stacktype: scenarios sharing a stacktype share a stack
+  const stackByType = new Map<string, string>();
 
-  for (const [name, def] of testsToRun) {
-    const firstVmId = nextVmId;
-    const stackName = String(firstVmId);
-    let stacktype: string | undefined;
+  return scenarios.map((scenario) => {
+    const vmId = nextVmId++;
+    const appStacktype = appStacktypes.get(scenario.application);
+    const hasStacktype = !!appStacktype;
 
-    const steps: PlannedStep[] = def.steps.map((step) => {
-      const vmId = nextVmId++;
-      const appStacktype = appStacktypes.get(step.application);
-      const hasStacktype = !!appStacktype;
-      if (appStacktype) stacktype = appStacktype;
+    let stackName: string;
+    if (appStacktype) {
+      if (!stackByType.has(appStacktype)) {
+        stackByType.set(appStacktype, String(VM_ID_START));
+      }
+      stackName = stackByType.get(appStacktype)!;
+    } else {
+      stackName = String(vmId);
+    }
 
-      return {
-        vmId,
-        hostname: `${step.application}-${stackName}`,
-        stackName,
-        application: step.application,
-        task: step.task || "installation",
-        addons: step.addons,
-        wait_seconds: step.wait_seconds,
-        verify: step.verify,
-        hasStacktype,
-      };
-    });
-
-    planned.push({ name, definition: def, steps, stackName, stacktype });
-  }
-
-  return planned;
+    return {
+      vmId,
+      hostname: `${scenario.application}-${stackName}`,
+      stackName,
+      scenario,
+      hasStacktype,
+    };
+  });
 }
 
-// ── Execute a single test ──
+// ── Execute all planned scenarios sequentially ──
 
-async function executeTest(
-  plan: PlannedTest,
+async function executeScenarios(
+  planned: PlannedScenario[],
   config: ReturnType<typeof loadConfig>,
   apiUrl: string,
   veHost: string,
   projectRoot: string,
 ): Promise<TestResult> {
   const result: TestResult = {
-    name: plan.name,
-    description: plan.definition.description,
+    name: planned.map((p) => p.scenario.id).join(", "),
+    description: planned.map((p) => p.scenario.description).join("; "),
     passed: 0,
     failed: 0,
     steps: [],
@@ -464,43 +633,56 @@ async function executeTest(
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
   try {
-    for (let i = 0; i < plan.steps.length; i++) {
-      const step = plan.steps[i]!;
+    for (let i = 0; i < planned.length; i++) {
+      const step = planned[i]!;
+      const scenario = step.scenario;
+      const task = scenario.task || "installation";
 
       logStep(
-        `${plan.name} ${i + 1}/${plan.steps.length}`,
-        `${step.application} (${step.task}) [VM ${step.vmId}]`,
+        `${i + 1}/${planned.length}`,
+        `${scenario.id} (${task}) [VM ${step.vmId}]`,
       );
 
-      // Create params file
+      // Build params
+      const baseParams = [
+        { name: "hostname", value: step.hostname },
+        { name: "bridge", value: config.bridge },
+        { name: "vm_id", value: String(step.vmId) },
+      ];
+
+      const templateVars: Record<string, string> = {
+        vm_id: String(step.vmId),
+        hostname: step.hostname,
+        stack_name: step.stackName,
+      };
+
+      const params = buildParams(scenario, baseParams, templateVars);
+
+      // Write params file
       const paramsFile = path.join(tmpDir, `params-${i}.json`);
-      const params: Record<string, unknown> = {
-        params: [
-          { name: "hostname", value: step.hostname },
-          { name: "bridge", value: config.bridge },
-          { name: "vm_id", value: step.vmId },
-        ],
+      const paramsObj: Record<string, unknown> = {
+        params: params.map((p) => ({ name: p.name, value: p.value })),
       };
 
       if (step.hasStacktype) {
-        params.stackId = step.stackName;
+        paramsObj.stackId = step.stackName;
       }
 
-      writeFileSync(paramsFile, JSON.stringify(params));
+      writeFileSync(paramsFile, JSON.stringify(paramsObj));
 
-      if (step.addons?.length) {
-        logInfo(`Addons: ${step.addons.join(", ")}`);
+      if (scenario.addons?.length) {
+        logInfo(`Addons: ${scenario.addons.join(", ")}`);
       }
 
       // Run CLI
-      logInfo(`Running: ${step.application} ${step.task}...`);
+      logInfo(`Running: ${scenario.application} ${task}...`);
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
-        step.application, step.task, paramsFile, step.addons,
+        scenario.application, task, paramsFile, scenario.addons,
       );
 
       if (cliResult.exitCode !== 0) {
-        const errMsg = `Step failed: ${step.application} ${step.task}`;
+        const errMsg = `Scenario failed: ${scenario.id} (${task})`;
         logFail(errMsg);
         result.errors.push(errMsg);
         result.failed++;
@@ -510,17 +692,17 @@ async function executeTest(
       }
 
       logOk(`Container created: VM_ID=${step.vmId}, hostname=${step.hostname}`);
-      result.steps.push({ vmId: step.vmId, hostname: step.hostname, application: step.application });
+      result.steps.push({ vmId: step.vmId, hostname: step.hostname, application: scenario.application });
 
       // Wait for services if needed
-      if (step.wait_seconds && step.wait_seconds > 0) {
-        await waitForServices(config.pveHost, config.portPveSsh, step.vmId, step.wait_seconds);
+      if (scenario.wait_seconds && scenario.wait_seconds > 0) {
+        await waitForServices(config.pveHost, config.portPveSsh, step.vmId, scenario.wait_seconds);
       }
 
       // Run verifications
-      if (step.verify) {
+      if (scenario.verify) {
         logInfo("Verifying...");
-        verifier.runAll(step.vmId, step.hostname, step.verify);
+        verifier.runAll(step.vmId, step.hostname, scenario.verify);
       }
     }
   } finally {
@@ -562,22 +744,17 @@ function cleanupVms(
 async function main() {
   const args = process.argv.slice(2);
   const instance = args[0] || undefined;
-  const testArg = args[1] || "eclipse-mosquitto";
-  const runAll = testArg === "--all";
+  const testArg = args[1] || "--all";
 
   const config = loadConfig(instance);
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
-  const testDefsPath = path.join(import.meta.dirname, "../test-definitions.json");
-  const allTestDefs: Record<string, TestDefinition> = JSON.parse(
-    readFileSync(testDefsPath, "utf-8"),
-  );
 
   console.log("========================================");
   console.log(" OCI LXC Deployer - Live Integration Test");
   console.log("========================================");
   console.log("");
   console.log(`Instance:  ${config.instance}`);
-  console.log(`Test:      ${runAll ? "--all" : testArg}`);
+  console.log(`Test:      ${testArg}`);
   console.log(`Deployer:  ${config.deployerUrl} (HTTPS: ${config.deployerHttpsUrl})`);
   console.log(`PVE Host:  ${config.pveHost}`);
   console.log("");
@@ -613,30 +790,28 @@ async function main() {
   }
   logOk(`VE host discovered: ${veHost}`);
 
-  // Select tests
-  const testsToRun = new Map<string, TestDefinition>();
-  if (runAll) {
-    for (const [name, def] of Object.entries(allTestDefs)) {
-      testsToRun.set(name, def);
-    }
-  } else {
-    const def = allTestDefs[testArg];
-    if (def) {
-      testsToRun.set(testArg, def);
-    } else {
-      logInfo(`No test definition for '${testArg}', using as application name`);
-      testsToRun.set(testArg, {
-        description: `Ad-hoc test: ${testArg}`,
-        steps: [{
-          application: testArg,
-          task: "installation",
-          verify: { container_running: true, notes_managed: true, lxc_log_no_errors: true },
-        }],
-      });
-    }
+  // Discover tests
+  const allTests = discoverTests(projectRoot);
+  logOk(`Discovered ${allTests.size} test scenario(s)`);
+
+  // Select and resolve dependencies
+  let selectedIds: string[];
+  try {
+    selectedIds = selectScenarios(testArg, allTests);
+  } catch (err: any) {
+    logFail(err.message);
+    process.exit(1);
   }
 
-  logOk(`${testsToRun.size} test(s) to run`);
+  let scenariosToRun: ResolvedScenario[];
+  try {
+    scenariosToRun = collectWithDeps(selectedIds, allTests);
+  } catch (err: any) {
+    logFail(err.message);
+    process.exit(1);
+  }
+
+  logOk(`${scenariosToRun.length} scenario(s) to run (including dependencies)`);
 
   // Fetch application stacktypes
   const appStacktypes = new Map<string, string>();
@@ -647,24 +822,22 @@ async function main() {
     }
   }
 
-  // Plan all tests: assign VM IDs and stack names
-  const plannedTests = planTests(testsToRun, appStacktypes);
+  // Plan: assign VM IDs and stack names
+  const planned = planScenarios(scenariosToRun, appStacktypes);
 
   // Show plan
   console.log("");
   logInfo("Execution plan:");
-  for (const test of plannedTests) {
-    const vmIds = test.steps.map((s) => s.vmId).join(", ");
-    console.log(`  ${test.name}: VMs [${vmIds}], stack=${test.stackName}`);
+  for (const p of planned) {
+    console.log(`  ${p.scenario.id}: VM ${p.vmId}, stack=${p.stackName}`);
   }
   console.log("");
 
-  // Pre-test cleanup: destroy stale VMs, volumes, and stacks from previous runs
-  const allPlannedVmIds = plannedTests.flatMap((t) => t.steps.map((s) => s.vmId));
-  const allPlannedHostnames = plannedTests.flatMap((t) => t.steps.map((s) => s.hostname));
-  const allPlannedStacks = [...new Set(plannedTests.map((t) => t.stackName))];
+  // Pre-test cleanup: destroy stale VMs, volumes, and stacks
+  const allPlannedVmIds = planned.map((p) => p.vmId);
+  const allPlannedHostnames = planned.map((p) => p.hostname);
+  const allPlannedStacks = [...new Set(planned.map((p) => p.stackName))];
 
-  // Destroy existing VMs with planned IDs
   for (const vmId of allPlannedVmIds) {
     const status = nestedSsh(config.pveHost, config.portPveSsh,
       `pct status ${vmId} 2>/dev/null && echo exists || true`, 10000);
@@ -676,14 +849,12 @@ async function main() {
     }
   }
 
-  // Remove shared volume directories for planned hostnames
   for (const hostname of allPlannedHostnames) {
     nestedSsh(config.pveHost, config.portPveSsh,
       `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
       15000);
   }
 
-  // Delete stale stacks via API
   for (const stackName of allPlannedStacks) {
     try {
       await fetch(`${apiUrl}/api/stack/${stackName}`, {
@@ -694,18 +865,19 @@ async function main() {
 
   // Pre-create stacks
   const createdStacks = new Set<string>();
-  for (const test of plannedTests) {
-    if (test.stacktype && !createdStacks.has(test.stackName)) {
+  for (const p of planned) {
+    const stacktype = appStacktypes.get(p.scenario.application);
+    if (stacktype && !createdStacks.has(p.stackName)) {
       try {
         const resp = await fetch(`${apiUrl}/api/stacks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: test.stackName, stacktype: test.stacktype, entries: [] }),
+          body: JSON.stringify({ name: p.stackName, stacktype, entries: [] }),
           signal: AbortSignal.timeout(10000),
         });
         if (resp.ok) {
-          logOk(`Stack '${test.stackName}' created (type: ${test.stacktype})`);
-          createdStacks.add(test.stackName);
+          logOk(`Stack '${p.stackName}' created (type: ${stacktype})`);
+          createdStacks.add(p.stackName);
         }
       } catch {
         // Stack may already exist
@@ -713,37 +885,10 @@ async function main() {
     }
   }
 
-  // Execute tests
-  const allResults: TestResult[] = [];
+  // Execute scenarios sequentially (topologically sorted)
   const keepVm = !!process.env.KEEP_VM;
-
-  if (plannedTests.length === 1) {
-    const result = await executeTest(
-      plannedTests[0]!, config, apiUrl, veHost, projectRoot,
-    );
-    allResults.push(result);
-  } else {
-    // All tests run in parallel (each has unique VM IDs and stack)
-    logInfo(`Running ${plannedTests.length} tests in parallel`);
-    const promises = plannedTests.map((test) =>
-      executeTest(test, config, apiUrl, veHost, projectRoot),
-    );
-    const results = await Promise.allSettled(promises);
-    for (const [i, result] of results.entries()) {
-      if (result.status === "fulfilled") {
-        allResults.push(result.value);
-      } else {
-        allResults.push({
-          name: plannedTests[i]!.name,
-          description: "",
-          passed: 0,
-          failed: 1,
-          steps: [],
-          errors: [String(result.reason)],
-        });
-      }
-    }
-  }
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot);
+  const allResults = [result];
 
   // Cleanup
   cleanupVms(allResults, config.pveHost, config.portPveSsh, keepVm);
@@ -760,10 +905,10 @@ async function main() {
   console.log("");
   console.log(`Instance:     ${config.instance}`);
 
-  for (const result of allResults) {
-    const status = result.failed > 0 ? `${RED}FAILED${NC}` : `${GREEN}PASSED${NC}`;
-    console.log(`  ${result.name}: ${status} (${result.passed} passed, ${result.failed} failed)`);
-    for (const err of result.errors) {
+  for (const r of allResults) {
+    const status = r.failed > 0 ? `${RED}FAILED${NC}` : `${GREEN}PASSED${NC}`;
+    console.log(`  ${r.name}: ${status} (${r.passed} passed, ${r.failed} failed)`);
+    for (const err of r.errors) {
       console.log(`    ${RED}> ${err}${NC}`);
     }
   }

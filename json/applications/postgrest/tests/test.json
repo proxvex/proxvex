@@ -1,0 +1,26 @@
+{
+  "default": {
+    "description": "PostgREST API server with Postgres dependency (no SSL)",
+    "depends_on": ["postgres/default"],
+    "wait_seconds": 30,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "services_up": true,
+      "docker_log_no_errors": true
+    }
+  },
+  "ssl": {
+    "description": "PostgREST with SSL proxy (nginx) and Postgres",
+    "depends_on": ["postgres/default"],
+    "addons": ["addon-ssl"],
+    "wait_seconds": 60,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "services_up": true,
+      "docker_log_no_errors": true,
+      "tls_connect": 3443
+    }
+  }
+}

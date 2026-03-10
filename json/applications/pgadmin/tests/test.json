@@ -1,0 +1,12 @@
+{
+  "ssl": {
+    "description": "pgAdmin with SSL proxy (OCI-image + nginx reverse proxy)",
+    "addons": ["addon-ssl"],
+    "wait_seconds": 30,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "tls_connect": 5443
+    }
+  }
+}

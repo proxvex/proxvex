@@ -15,39 +15,57 @@ Tests use the central `e2e/config.json` for all settings (PVE host, ports, etc.)
 ## Usage
 
 ```bash
-# Default test (alpine-packages)
-./run-live-test.sh github-action
+# Run all tests
+npx tsx backend/tests/livetests/src/live-test-runner.mts local-test --all
 
-# Specific test definition
-./run-live-test.sh github-action zitadel-ssl
+# Run specific app (all scenarios + dependencies)
+npx tsx backend/tests/livetests/src/live-test-runner.mts local-test postgres
+
+# Run specific scenario (+ dependencies)
+npx tsx backend/tests/livetests/src/live-test-runner.mts local-test zitadel/ssl
 
 # Keep containers for debugging
-KEEP_VM=1 ./run-live-test.sh github-action zitadel
+KEEP_VM=1 npx tsx backend/tests/livetests/src/live-test-runner.mts local-test zitadel/ssl
 ```
 
 ### Arguments
 
 1. `instance` - Instance name from `e2e/config.json` (optional, uses default)
-2. `test-name` - Test name from `test-definitions.json` or application name (default: alpine-packages)
+2. `test-name` - `<app>`, `<app>/<scenario>`, or `--all`
 
 ## Test Definitions
 
-Tests are defined in `test-definitions.json`. Each test has sequential steps:
+Tests are defined per application in `json/applications/<app>/tests/test.json`.
+Each scenario tests exactly one application. Dependencies are declared via `depends_on`.
 
 ```json
 {
-  "zitadel-ssl": {
-    "description": "Zitadel with SSL and Postgres",
-    "steps": [
-      { "application": "postgres", "task": "installation", "addons": ["addon-ssl"],
-        "verify": { "container_running": true, "lxc_log_no_errors": true } },
-      { "application": "zitadel", "task": "installation", "addons": ["addon-ssl"],
-        "wait_seconds": 60,
-        "verify": { "container_running": true, "services_up": true, "tls_connect": 8080 } }
-    ]
+  "ssl": {
+    "description": "Zitadel with SSL and Postgres with SSL",
+    "depends_on": ["postgres/ssl"],
+    "addons": ["addon-ssl"],
+    "wait_seconds": 60,
+    "verify": { "container_running": true, "services_up": true, "tls_connect": 8080 }
   }
 }
 ```
+
+### Params files
+
+Optional `<scenario>.json` alongside `test.json` provides app-specific parameters:
+
+```json
+{
+  "params": [
+    { "name": "envs", "append": "PGADMIN_DEFAULT_EMAIL", "value": "admin@test.local" },
+    { "name": "upload_config", "value": "file:config.conf" }
+  ]
+}
+```
+
+- **Set mode**: `{ "name": "key", "value": "val" }` — sets or overrides a parameter
+- **Append mode**: `{ "name": "envs", "append": "VAR", "value": "val" }` — appends to multiline variable
+- **File upload**: `"value": "file:relative-path"` — resolves relative to tests dir
 
 ### Verify Options
 
@@ -59,6 +77,8 @@ Tests are defined in `test-definitions.json`. Each test has sequential steps:
 | `lxc_log_no_errors` | No ERROR lines in LXC console log |
 | `docker_log_no_errors` | No ERROR lines in docker container logs |
 | `tls_connect` | TLS connection succeeds on given port |
+| `pg_ssl_on` | Postgres SSL is enabled |
+| `db_ssl_connection` | Client connection uses SSL |
 
 ## Cleanup
 

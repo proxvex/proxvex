@@ -1,0 +1,10 @@
+{
+  "default": {
+    "description": "Eclipse Mosquitto MQTT Broker (simple oci-image test)",
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "lxc_log_no_errors": true
+    }
+  }
+}
