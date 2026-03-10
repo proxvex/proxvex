@@ -8,6 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ParameterTarget } from '../../../shared/types';
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter-group.component';
+import { AddonSectionComponent } from '../../shared/components/addon-section/addon-section.component';
 
 @Component({
   selector: 'app-parameters-step',
@@ -19,6 +20,7 @@ import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter
     MatIconModule,
     MatProgressSpinnerModule,
     ParameterGroupComponent,
+    AddonSectionComponent,
   ],
   template: `
     <div class="step-content">
@@ -33,7 +35,7 @@ import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter
           <span>{{ state.installParametersError() }}</span>
           <button mat-button color="primary" (click)="state.loadInstallParameters()">Retry</button>
         </div>
-      } @else if (state.installParameters().length === 0) {
+      } @else if (state.installParameters().length === 0 && state.availableAddons().length === 0) {
         <div class="info-container">
           <mat-icon>info</mat-icon>
           <span>No additional parameters required for installation.</span>
@@ -86,6 +88,19 @@ import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter
           ></app-parameter-group>
         }
 
+        @if (state.availableAddons().length > 0) {
+          <app-addon-section
+            [availableAddons]="state.availableAddons()"
+            [selectedAddons]="state.selectedAddons()"
+            [expandedAddons]="state.expandedAddons()"
+            [form]="state.installForm"
+            [showAdvanced]="state.showAdvanced()"
+            [availableStacks]="state.availableStacks()"
+            (addonToggled)="state.onAddonToggle($event)"
+            (addonExpandedChanged)="state.onAddonExpandedToggle($event)"
+            (stackSelected)="state.onInstallStackSelected($event)"
+          ></app-addon-section>
+        }
       }
     </div>
   `,

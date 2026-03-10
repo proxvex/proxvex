@@ -8,7 +8,8 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { VeConfigurationService } from '../../ve-configuration.service';
-import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, ParameterTarget } from '../../../shared/types';
+import { IFrameworkApplicationDataBody, IParameterClassification, IParameterValue, IUploadFile, ParameterTarget } from '../../../shared/types';
+import { ParameterFormManager } from '../../shared/utils/parameter-form.utils';
 
 @Component({
   selector: 'app-summary-step',
@@ -23,8 +24,6 @@ import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, P
   ],
   template: `
     <div class="summary-step">
-<<<<<<< HEAD
-=======
 
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- SECTION 1: Saved in Application                                    -->
@@ -36,7 +35,6 @@ import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, P
           <p>This configuration is saved permanently and used for every installation.</p>
         </div>
       </div>
->>>>>>> a738729 (feat: refactored create application and ve-configuration-dialog)
 
       <!-- Application Properties -->
       <mat-card>
@@ -113,6 +111,22 @@ import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, P
             <ul class="param-list">
               @for (p of defaultParams(); track p.id) {
                 <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Selected Addons -->
+      @if (state.selectedAddons().length > 0) {
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Selected Addons</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="param-list">
+              @for (addonId of state.selectedAddons(); track addonId) {
+                <li>{{ getAddonName(addonId) }}</li>
               }
             </ul>
           </mat-card-content>
@@ -318,6 +332,10 @@ export class SummaryStepComponent {
     return lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
   }
 
+  getAddonName(addonId: string): string {
+    return this.state.availableAddons().find(a => a.id === addonId)?.name ?? addonId;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Classification display helpers
   // ─────────────────────────────────────────────────────────────────────────────
@@ -349,7 +367,6 @@ export class SummaryStepComponent {
   // Application creation
   // ─────────────────────────────────────────────────────────────────────────────
 
-<<<<<<< HEAD
   /**
    * Saves the application and then installs it.
    */
@@ -407,8 +424,6 @@ export class SummaryStepComponent {
       });
     });
   }
-=======
->>>>>>> a738729 (feat: refactored create application and ve-configuration-dialog)
 
   /**
    * Builds the request body for creating/updating an application.
@@ -459,12 +474,8 @@ export class SummaryStepComponent {
         iconContent: iconContent,
       }),
       ...(this.state.selectedTags().length > 0 && { tags: this.state.selectedTags() }),
-<<<<<<< HEAD
       ...(this.state.selectedStacktype() && { stacktype: this.state.selectedStacktype() ?? undefined }),
-=======
-      ...(this.state.selectedStacktypes().length > 0 && { stacktype: this.state.selectedStacktypes().length === 1 ? this.state.selectedStacktypes()[0] : this.state.selectedStacktypes() }),
       ...(this.state.selectedSupportedAddons().length > 0 && { supported_addons: this.state.selectedSupportedAddons() }),
->>>>>>> 40267ab (feat: Dependency resolution in application and addon)
       parameterValues,
       ...(classifications.length > 0 && { parameterClassifications: classifications }),
       ...(this.state.getUploadFiles().length > 0 && { uploadfiles: this.state.getUploadFiles() }),
@@ -472,6 +483,9 @@ export class SummaryStepComponent {
     };
   }
 
+  get isInstallFormValid(): boolean {
+    return this.state.isInstallFormValid;
+  }
 
   createApplication(): void {
     const body = this.buildCreateApplicationBody();
