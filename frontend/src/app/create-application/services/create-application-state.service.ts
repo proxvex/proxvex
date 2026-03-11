@@ -1255,7 +1255,6 @@ export class CreateApplicationStateService {
       parameterValues.push(sslProp);
     }
 
-
     return parameterValues;
   }
 

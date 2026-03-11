@@ -88,7 +88,9 @@ interface UploadFileRow {
                     <mat-label>Label</mat-label>
                     <input matInput [(ngModel)]="file.label" [name]="'label' + idx"
                            placeholder="Display name (optional)" (blur)="onRowChange()"
+                           maxlength="23"
                            [attr.data-testid]="'label-input-' + idx" />
+                    <mat-hint align="end">{{ file.label.length }}/23</mat-hint>
                   </mat-form-field>
                 </div>
                 <div class="file-options-row">
@@ -153,8 +155,10 @@ interface UploadFileRow {
                     <mat-label>Label</mat-label>
                     <input matInput [(ngModel)]="newFile.label" name="newLabel"
                            placeholder="Display name (optional)"
+                           maxlength="23"
                            (keyup.enter)="confirmAdd()" (keyup.escape)="cancelAdd()"
                            data-testid="new-label-input" />
+                    <mat-hint align="end">{{ newFile.label.length }}/23</mat-hint>
                   </mat-form-field>
                 </div>
                 <div class="file-options-row">
@@ -345,11 +349,10 @@ export class UploadFilesStepComponent {
   /** Extract volume prefixes from volumes parameter or compose properties.
    *  Priority: installForm (user-editable in Step 3) > parameterForm > composeProperties (initial parse). */
   get volumePrefixes(): string[] {
-    const composeProps = this.state.composeProperties();
     const volumesValue =
       this.state.installForm.get('volumes')?.value
       || this.state.parameterForm.get('volumes')?.value
-      || composeProps?.volumes;
+      || this.state.composeProperties()?.volumes;
     if (!volumesValue || typeof volumesValue !== 'string') {
       return [];
     }
@@ -406,7 +409,6 @@ export class UploadFilesStepComponent {
       this.confirmAdd();
     }
   }
-
 
   cancelAdd(): void {
     this.isAddingNew = false;
