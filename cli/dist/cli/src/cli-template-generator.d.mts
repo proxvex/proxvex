@@ -6,6 +6,6 @@ export declare class CliTemplateGenerator {
         parameters: IParameter[];
         addons: IAddonWithParameters[];
         stacks: IStack[];
-        stacktype?: string;
+        stacktype?: string | string[];
     }): object;
 }

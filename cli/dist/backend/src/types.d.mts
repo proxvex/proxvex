@@ -30,7 +30,7 @@ export interface IApplicationBase {
     documentation?: string;
     source?: string;
     vendor?: string;
-    stacktype?: string;
+    stacktype?: string | string[];
     uploadfiles?: IUploadFile[];
     errors?: string[];
     /** User-configurable parameters defined directly in application.json (new approach) */
@@ -51,7 +51,7 @@ export interface IApplicationWeb {
     source: "local" | "json";
     framework?: string | undefined;
     extends?: string | undefined;
-    stacktype?: string | undefined;
+    stacktype?: string | string[] | undefined;
     errors?: IJsonError[];
 }
 export type TaskType = "installation" | "backup" | "restore" | "uninstall" | "update" | "upgrade" | "copy-upgrade" | "copy-rollback" | "addon-reconfigure" | "webui" | "addon";
@@ -384,7 +384,7 @@ export interface IFrameworkApplicationDataBody {
     icon?: string;
     iconContent?: string;
     tags?: string[];
-    stacktype?: string;
+    stacktype?: string | string[];
     parameterValues: {
         id: string;
         value: string | number | boolean;
@@ -440,7 +440,7 @@ export interface IApplicationFrameworkDataResponse {
     icon?: string;
     iconContent?: string;
     tags?: string[];
-    stacktype?: string;
+    stacktype?: string | string[];
     parameterValues: {
         id: string;
         value: string | number | boolean;
@@ -517,6 +517,15 @@ export interface IAddonWithParameters extends IAddon {
 export interface ICompatibleAddonsResponse {
     addons: IAddonWithParameters[];
 }
+/**
+ * Normalize stacktype to an array for uniform handling.
+ * Supports both string ("postgres") and array (["postgres", "oidc"]) formats.
+ */
+export declare function normalizeStacktype(stacktype: string | string[] | undefined): string[];
+/**
+ * Check if an application's stacktype matches a given stacktype string.
+ */
+export declare function stacktypeMatches(appStacktype: string | string[] | undefined, targetStacktype: string): boolean;
 export interface IStacktypeVariable {
     name: string;
     external?: boolean;
@@ -538,7 +547,7 @@ export interface IStackEntry {
 export interface IStack {
     id: string;
     name: string;
-    stacktype: string;
+    stacktype: string | string[];
     entries: IStackEntry[];
 }
 export interface IStacktypesResponse {

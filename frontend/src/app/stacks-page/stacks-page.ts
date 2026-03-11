@@ -188,13 +188,14 @@ export class StacksPage implements OnInit {
   startEdit(stack: IStack): void {
     this.isCreating.set(false);
     this.editingStack.set(stack);
+    const primaryType = Array.isArray(stack.stacktype) ? stack.stacktype[0] : stack.stacktype;
     this.stackForm.patchValue({
       name: stack.name,
-      stacktype: stack.stacktype
+      stacktype: primaryType
     });
 
     // Load stacktype definition for metadata
-    const stacktype = this.stacktypes().find(st => st.name === stack.stacktype);
+    const stacktype = this.stacktypes().find(st => st.name === primaryType);
     const variableMap = new Map(stacktype?.entries.map(v => [v.name, v]) ?? []);
 
     // Sort entries: external first, then auto-generate

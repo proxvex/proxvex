@@ -264,16 +264,17 @@ export class RemoteCli {
     parameterDefs: IParameter[],
     addons: IAddonWithParameters[],
     stacks: IStack[],
-    stacktype?: string,
+    stacktype?: string | string[],
   ): Promise<void> {
     const generator = new CliTemplateGenerator();
+    const primaryStacktype = Array.isArray(stacktype) ? stacktype[0] : stacktype;
     const template = generator.generate({
       application: this.options.application!,
       task: this.options.task!,
       parameters: parameterDefs,
       addons,
       stacks,
-      ...(stacktype ? { stacktype } : {}),
+      ...(primaryStacktype ? { stacktype: primaryStacktype } : {}),
     });
 
     const json = JSON.stringify(template, null, 2) + "\n";

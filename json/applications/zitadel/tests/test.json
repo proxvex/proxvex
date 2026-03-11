@@ -2,25 +2,29 @@
   "default": {
     "description": "Zitadel with Postgres dependency (no SSL)",
     "depends_on": ["postgres/default"],
-    "wait_seconds": 60,
+    "cli_timeout": 900,
+    "wait_seconds": 90,
     "verify": {
       "container_running": true,
       "notes_managed": true,
       "services_up": true,
-      "docker_log_no_errors": true
+      "docker_log_no_errors": true,
+      "file_exists": "/bootstrap/login-client.pat"
     }
   },
   "ssl": {
     "description": "Zitadel with SSL and Postgres with SSL",
     "depends_on": ["postgres/ssl"],
     "addons": ["addon-ssl"],
-    "wait_seconds": 60,
+    "cli_timeout": 900,
+    "wait_seconds": 90,
     "verify": {
       "container_running": true,
       "notes_managed": true,
       "services_up": true,
       "docker_log_no_errors": true,
-      "tls_connect": 8080
+      "tls_connect": 8443,
+      "file_exists": "/bootstrap/login-client.pat"
     }
   }
 }

@@ -610,7 +610,7 @@ export interface IStackEntry {
 export interface IStack {
   id: string;
   name: string;
-  stacktype: string;
+  stacktype: string | string[];
   entries: IStackEntry[];
 }
 

@@ -213,7 +213,8 @@ export class CreateApplication implements OnInit, OnDestroy {
 
               // Fill stacktype if present
               if (data.stacktype) {
-                this.state.selectedStacktype.set(data.stacktype);
+                const st = Array.isArray(data.stacktype) ? data.stacktype[0] : data.stacktype;
+                this.state.selectedStacktype.set(st);
               }
 
               // Fill parameter values

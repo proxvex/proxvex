@@ -53,17 +53,19 @@ export class WebAppStack {
       }
 
       // Auto-generate secrets for variables without 'external' flag
+      // Supports both single stacktype ("postgres") and array (["postgres", "oidc"])
       const pm = this.pm;
-      const stacktypes = pm.getStacktypes();
-      const stacktypeDef = stacktypes.find((st) => st.name === body.stacktype);
+      const allStacktypes = pm.getStacktypes();
+      const requestedTypes = Array.isArray(body.stacktype) ? body.stacktype : [body.stacktype];
 
-      if (stacktypeDef) {
+      for (const typeName of requestedTypes) {
+        const stacktypeDef = allStacktypes.find((st) => st.name === typeName);
+        if (!stacktypeDef) continue;
+
         for (const variable of stacktypeDef.entries) {
           if (!variable.external) {
-            // Check if value already provided by user
             const existing = body.entries.find((e) => e.name === variable.name);
             if (!existing || !existing.value) {
-              // Generate secret
               const generated = generateSecret(variable.length ?? 32);
               if (existing) {
                 existing.value = generated;

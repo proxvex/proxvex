@@ -48,4 +48,19 @@ export var ApiUri;
     ApiUri["LoggerLevel"] = "/api/logger/level/:level";
     ApiUri["LoggerDebugComponents"] = "/api/logger/debug-components";
 })(ApiUri || (ApiUri = {}));
+/**
+ * Normalize stacktype to an array for uniform handling.
+ * Supports both string ("postgres") and array (["postgres", "oidc"]) formats.
+ */
+export function normalizeStacktype(stacktype) {
+    if (!stacktype)
+        return [];
+    return Array.isArray(stacktype) ? stacktype : [stacktype];
+}
+/**
+ * Check if an application's stacktype matches a given stacktype string.
+ */
+export function stacktypeMatches(appStacktype, targetStacktype) {
+    return normalizeStacktype(appStacktype).includes(targetStacktype);
+}
 //# sourceMappingURL=types.mjs.map

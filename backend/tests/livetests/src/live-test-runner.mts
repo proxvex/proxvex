@@ -49,7 +49,8 @@ export interface TestScenario {
   task?: string;
   addons?: string[];
   wait_seconds?: number;
-  verify?: Record<string, boolean | number>;
+  cli_timeout?: number;
+  verify?: Record<string, boolean | number | string>;
 }
 
 /** Discovered scenario with resolved identity */
@@ -424,6 +425,7 @@ function runCli(
   veHost: string,
   paramsFile: string,
   addons?: string[],
+  cliTimeout = 600,
 ): Promise<{ output: string; exitCode: number }> {
   return new Promise((resolve) => {
     const cliPath = path.join(projectRoot, "cli/dist/cli/src/oci-lxc-cli.mjs");
@@ -432,7 +434,7 @@ function runCli(
       "--server", apiUrl,
       "--ve", veHost,
       "--insecure",
-      "--timeout", "600",
+      "--timeout", String(cliTimeout),
       "--quiet",
     ];
 
@@ -466,6 +468,8 @@ class Verifier {
   constructor(
     private pveHost: string,
     private sshPort: number,
+    private apiUrl: string,
+    private veHost: string,
   ) {}
 
   private ssh(cmd: string, timeout = 15000): string {
@@ -479,6 +483,19 @@ class Verifier {
     } else {
       logFail(message);
       this.failed++;
+    }
+  }
+
+  private async fetchDockerLogs(vmId: number, lines = 100): Promise<string | null> {
+    const veContextKey = `ve_${this.veHost}`;
+    const url = `${this.apiUrl}/api/${veContextKey}/ve/logs/${vmId}/docker?lines=${lines}`;
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (!resp.ok) return null;
+      const data = await resp.json() as { success: boolean; content?: string; error?: string };
+      return data.success ? (data.content ?? null) : null;
+    } catch {
+      return null;
     }
   }
 
@@ -524,16 +541,29 @@ class Verifier {
     }
   }
 
-  dockerLogNoErrors(vmId: number) {
-    const errors = this.ssh(
-      `pct exec ${vmId} -- sh -c 'for cid in $(docker ps -q); do docker logs $cid 2>&1; done | grep -i error | head -10'`,
-    );
-    if (!errors) {
+  async dockerLogNoErrors(vmId: number) {
+    const content = await this.fetchDockerLogs(vmId, 200);
+    if (content === null) {
+      logWarn(`[${vmId}] Could not fetch docker logs via API`);
+      return;
+    }
+    const errorLines = content.split("\n").filter((l) => /error/i.test(l));
+    if (errorLines.length === 0) {
       logOk(`[${vmId}] Docker logs clean (no errors)`);
       this.passed++;
     } else {
       logWarn(`[${vmId}] Docker logs contain errors:`);
-      errors.split("\n").slice(0, 5).forEach((l) => console.log(`  ${l}`));
+      errorLines.slice(0, 10).forEach((l) => console.log(`  ${l}`));
+    }
+  }
+
+  async dumpDockerLogs(vmId: number) {
+    logWarn(`[${vmId}] Dumping docker logs (last 50 lines)...`);
+    const content = await this.fetchDockerLogs(vmId, 50);
+    if (content) {
+      console.log(content);
+    } else {
+      logWarn(`[${vmId}] Could not fetch docker logs via API`);
     }
   }
 
@@ -567,15 +597,30 @@ class Verifier {
     this.assert(sslInUse === "t", `[${vmId}] DB connection uses SSL (pg_stat_ssl = ${sslInUse})`);
   }
 
-  runAll(vmId: number, hostname: string, verify: Record<string, boolean | number>) {
+  fileExists(vmId: number, filePath: string) {
+    const result = this.ssh(
+      `pct exec ${vmId} -- test -f ${filePath} && echo exists || echo missing`,
+    ).trim();
+    this.assert(result === "exists", `[${vmId}] File exists: ${filePath}`);
+  }
+
+  async runAll(vmId: number, hostname: string, verify: Record<string, boolean | number | string>) {
+    const failedBefore = this.failed;
+
     if (verify.container_running) this.containerRunning(vmId);
     if (verify.notes_managed) this.notesManaged(vmId);
     if (verify.services_up) this.servicesUp(vmId);
     if (verify.lxc_log_no_errors) this.lxcLogNoErrors(vmId, hostname);
-    if (verify.docker_log_no_errors) this.dockerLogNoErrors(vmId);
+    if (verify.docker_log_no_errors) await this.dockerLogNoErrors(vmId);
     if (typeof verify.tls_connect === "number") this.tlsConnect(vmId, verify.tls_connect);
     if (verify.pg_ssl_on) this.pgSslOn(vmId);
     if (verify.db_ssl_connection) this.dbSslConnection(vmId);
+    if (typeof verify.file_exists === "string") this.fileExists(vmId, verify.file_exists);
+
+    // Dump docker logs if any verification failed
+    if (this.failed > failedBefore) {
+      await this.dumpDockerLogs(vmId);
+    }
   }
 }
 
@@ -670,7 +715,7 @@ async function executeScenarios(
     errors: [],
   };
 
-  const verifier = new Verifier(config.pveHost, config.portPveSsh);
+  const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
   try {
@@ -732,7 +777,7 @@ async function executeScenarios(
       logInfo(`Running: ${scenario.application} ${task}...`);
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
-        paramsFile, allAddons,
+        paramsFile, allAddons, scenario.cli_timeout,
       );
 
       if (cliResult.exitCode !== 0) {
@@ -756,7 +801,7 @@ async function executeScenarios(
       // Run verifications
       if (scenario.verify) {
         logInfo("Verifying...");
-        verifier.runAll(step.vmId, step.hostname, scenario.verify);
+        await verifier.runAll(step.vmId, step.hostname, scenario.verify);
       }
     }
   } finally {
@@ -917,26 +962,41 @@ async function main() {
     } catch { /* ignore */ }
   }
 
-  // Pre-create stacks
-  const createdStacks = new Set<string>();
+  // Pre-create stacks: collect ALL stacktypes across all apps sharing a stack,
+  // then create once — the server generates secrets for all stacktype variables
+  const stackAllTypes = new Map<string, Set<string>>();
   for (const p of planned) {
     const rawStacktype = appStacktypes.get(p.scenario.application);
-    const primaryStacktype = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype[0] : rawStacktype) : undefined;
-    if (primaryStacktype && !createdStacks.has(p.stackName)) {
-      try {
-        const resp = await fetch(`${apiUrl}/api/stacks`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: p.stackName, stacktype: primaryStacktype, entries: [] }),
-          signal: AbortSignal.timeout(10000),
-        });
-        if (resp.ok) {
-          logOk(`Stack '${p.stackName}' created (type: ${primaryStacktype})`);
-          createdStacks.add(p.stackName);
-        }
-      } catch {
-        // Stack may already exist
+    const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
+    if (stacktypes.length === 0) continue;
+
+    if (!stackAllTypes.has(p.stackName)) {
+      stackAllTypes.set(p.stackName, new Set(stacktypes));
+    } else {
+      for (const st of stacktypes) {
+        stackAllTypes.get(p.stackName)!.add(st);
       }
+    }
+  }
+
+  for (const [stackName, allTypes] of stackAllTypes) {
+    const typesArray = [...allTypes];
+    try {
+      const resp = await fetch(`${apiUrl}/api/stacks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: stackName,
+          stacktype: typesArray.length === 1 ? typesArray[0] : typesArray,
+          entries: [],
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (resp.ok) {
+        logOk(`Stack '${stackName}' created (type: ${typesArray.join("+")})`);
+      }
+    } catch {
+      // Stack may already exist
     }
   }
 

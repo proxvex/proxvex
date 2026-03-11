@@ -57,8 +57,15 @@ export class RemoteCli {
             const app = apps.find((a) => a.name === application || a.id === application);
             appStacktype = app?.stacktype;
             if (appStacktype) {
-                const stacksResp = await this.client.getStacks(appStacktype);
-                stacks = stacksResp.stacks;
+                const stacktypes = Array.isArray(appStacktype) ? appStacktype : [appStacktype];
+                for (const st of stacktypes) {
+                    const stacksResp = await this.client.getStacks(st);
+                    for (const stack of stacksResp.stacks) {
+                        if (!stacks.some(s => s.id === stack.id)) {
+                            stacks.push(stack);
+                        }
+                    }
+                }
             }
         }
         catch {
@@ -173,13 +180,14 @@ export class RemoteCli {
     }
     async generateTemplate(parameterDefs, addons, stacks, stacktype) {
         const generator = new CliTemplateGenerator();
+        const primaryStacktype = Array.isArray(stacktype) ? stacktype[0] : stacktype;
         const template = generator.generate({
             application: this.options.application,
             task: this.options.task,
             parameters: parameterDefs,
             addons,
             stacks,
-            ...(stacktype ? { stacktype } : {}),
+            ...(primaryStacktype ? { stacktype: primaryStacktype } : {}),
         });
         const json = JSON.stringify(template, null, 2) + "\n";
         if (this.options.templateOutput) {
@@ -193,6 +201,10 @@ export class RemoteCli {
     async resolveStack(requestedStackId, appStacktype, existingStacks) {
         if (!appStacktype)
             return requestedStackId;
+        // Use the first stacktype for auto-creation
+        const primaryStacktype = Array.isArray(appStacktype) ? appStacktype[0] : appStacktype;
+        if (!primaryStacktype)
+            return requestedStackId;
         if (requestedStackId) {
             // Check if the requested stack exists
             const exists = existingStacks.some((s) => s.id === requestedStackId || s.name === requestedStackId);
@@ -200,11 +212,11 @@ export class RemoteCli {
                 return requestedStackId;
             // Auto-create the requested stack
             if (!this.options.quiet) {
-                process.stderr.write(`Stack '${requestedStackId}' not found. Creating stack '${requestedStackId}' (type: ${appStacktype})...\n`);
+                process.stderr.write(`Stack '${requestedStackId}' not found. Creating stack '${requestedStackId}' (type: ${primaryStacktype})...\n`);
             }
             await this.client.postCreateStack({
                 name: requestedStackId,
-                stacktype: appStacktype,
+                stacktype: primaryStacktype,
             });
             return requestedStackId;
         }
@@ -220,11 +232,11 @@ export class RemoteCli {
         // No stacks exist — create "default"
         const defaultName = "default";
         if (!this.options.quiet) {
-            process.stderr.write(`No stacks found. Creating stack '${defaultName}' (type: ${appStacktype})...\n`);
+            process.stderr.write(`No stacks found. Creating stack '${defaultName}' (type: ${primaryStacktype})...\n`);
         }
         await this.client.postCreateStack({
             name: defaultName,
-            stacktype: appStacktype,
+            stacktype: primaryStacktype,
         });
         return defaultName;
     }
