@@ -31,7 +31,7 @@ export interface IApplicationBase {
   documentation?: string;
   source?: string;
   vendor?: string;
-  stacktype?: string;
+  stacktype?: string | string[];
   uploadfiles?: IUploadFile[];
   errors?: string[];
   /** User-configurable parameters defined directly in application.json (new approach) */
@@ -52,7 +52,7 @@ export interface IApplicationWeb {
   source: "local" | "json";
   framework?: string | undefined;
   extends?: string | undefined;
-  stacktype?: string | undefined;
+  stacktype?: string | string[] | undefined;
   errors?: IJsonError[];
 }
 export type TaskType =
@@ -408,7 +408,7 @@ export interface IFrameworkApplicationDataBody {
   icon?: string;
   iconContent?: string;
   tags?: string[];
-  stacktype?: string;
+  stacktype?: string | string[];
   parameterValues: { id: string; value: string | number | boolean }[];
   parameterClassifications?: IParameterClassification[];
   uploadfiles?: IUploadFile[];
@@ -471,7 +471,7 @@ export interface IApplicationFrameworkDataResponse {
   icon?: string;
   iconContent?: string;
   tags?: string[];
-  stacktype?: string;
+  stacktype?: string | string[];
   parameterValues: { id: string; value: string | number | boolean }[];
 }
 
@@ -555,6 +555,27 @@ export interface IAddonWithParameters extends IAddon {
 
 export interface ICompatibleAddonsResponse {
   addons: IAddonWithParameters[];
+}
+
+/**
+ * Normalize stacktype to an array for uniform handling.
+ * Supports both string ("postgres") and array (["postgres", "oidc"]) formats.
+ */
+export function normalizeStacktype(
+  stacktype: string | string[] | undefined,
+): string[] {
+  if (!stacktype) return [];
+  return Array.isArray(stacktype) ? stacktype : [stacktype];
+}
+
+/**
+ * Check if an application's stacktype matches a given stacktype string.
+ */
+export function stacktypeMatches(
+  appStacktype: string | string[] | undefined,
+  targetStacktype: string,
+): boolean {
+  return normalizeStacktype(appStacktype).includes(targetStacktype);
 }
 
 // Stacktype variable definition (items in stacktype json files)

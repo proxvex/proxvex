@@ -61,5 +61,6 @@
     "api",
     "development",
     "authentication"
-  ]
+  ],
+  "stacktype": "oidc"
 }

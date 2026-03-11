@@ -84,9 +84,8 @@ import { ITagsConfig } from '../../../shared/types';
         <div class="tags-stack-row">
           @if (state.stacktypes().length > 0) {
             <mat-form-field appearance="outline" class="field-stacktype">
-              <mat-label>Stacktype</mat-label>
-              <mat-select [value]="state.selectedStacktype()" (selectionChange)="onStacktypeChange($event.value)">
-                <mat-option [value]="null">-- None --</mat-option>
+              <mat-label>Stacktypes</mat-label>
+              <mat-select [value]="state.selectedStacktypes()" (selectionChange)="onStacktypeChange($event.value)" multiple>
                 @for (st of state.stacktypes(); track st.name) {
                   <mat-option [value]="st.name">{{ st.name }}</mat-option>
                 }
@@ -294,8 +293,8 @@ export class AppPropertiesStepComponent implements OnInit, OnDestroy {
     this.state.toggleTag(tagId);
   }
 
-  onStacktypeChange(stacktype: string | null): void {
-    this.state.selectedStacktype.set(stacktype);
+  onStacktypeChange(stacktypes: string[]): void {
+    this.state.selectedStacktypes.set(stacktypes);
   }
 
   /**

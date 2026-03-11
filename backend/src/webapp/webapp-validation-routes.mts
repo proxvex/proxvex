@@ -2,7 +2,7 @@ import type { Application } from "express";
 import express from "express";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { ParameterValidator } from "../parameter-validator.mjs";
-import type { TaskType } from "../types.mjs";
+import { type TaskType, normalizeStacktype } from "../types.mjs";
 import { VEConfigurationError } from "../backend-types.mjs";
 import { validateAllJson, ValidationError } from "../validateAllJson.mjs";
 
@@ -83,8 +83,9 @@ export function registerValidationRoutes(app: Application): void {
         const availableAddons = addonService.getCompatibleAddonsWithParameters(appObj);
 
         // Load stacks if app has stacktype
-        const availableStacks = appObj.stacktype
-          ? contextManager.listStacks(appObj.stacktype)
+        const stacktypes = normalizeStacktype(appObj.stacktype);
+        const availableStacks = stacktypes.length > 0
+          ? stacktypes.flatMap((st) => contextManager.listStacks(st))
           : [];
 
         // Build application parameter/property ID set for addon requirements check

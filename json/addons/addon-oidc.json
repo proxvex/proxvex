@@ -1,0 +1,48 @@
+{
+  "name": "OIDC Authentication",
+  "description": "Enable OpenID Connect authentication via Zitadel. Automatically creates an OIDC client in Zitadel and provides credentials as template variables.",
+  "tags": ["security", "authentication"],
+
+  "compatible_with": ["tag:authentication"],
+
+  "parameters": [
+    {
+      "id": "oidc_app_name",
+      "name": "OIDC Application Name",
+      "type": "string",
+      "required": false,
+      "description": "Name of the OIDC application in Zitadel (defaults to hostname)"
+    },
+    {
+      "id": "oidc_callback_path",
+      "name": "Callback Path",
+      "type": "string",
+      "required": false,
+      "default": "/auth/strategy/callback",
+      "advanced": true,
+      "description": "OIDC callback path appended to the application URL"
+    }
+  ],
+
+  "properties": [],
+
+  "installation": {
+    "post_start": [
+      "350-post-setup-oidc-client.json"
+    ]
+  },
+
+  "reconfigure": {
+    "post_start": [
+      "350-post-setup-oidc-client.json"
+    ]
+  },
+
+  "disable": {
+    "pre_start": [
+      "162-conf-disable-oidc-app.json"
+    ]
+  },
+
+  "notes_key": "oidc"
+}

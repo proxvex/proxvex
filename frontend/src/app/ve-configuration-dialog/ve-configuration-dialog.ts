@@ -67,9 +67,10 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   // Stack selection state
   availableStacks = signal<IStack[]>([]);
   filteredStacks = computed(() => {
-    const stacktype = this.data.app.stacktype;
-    if (!stacktype) return [];
-    return this.availableStacks().filter(s => s.stacktype === stacktype);
+    const appStacktype = this.data.app.stacktype;
+    if (!appStacktype) return [];
+    const stacktypes = Array.isArray(appStacktype) ? appStacktype : [appStacktype];
+    return this.availableStacks().filter(s => stacktypes.includes(s.stacktype));
   });
   availableStacktypes = signal<IStacktypeEntry[]>([]);
   stacksLoading = signal(false);
