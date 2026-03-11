@@ -1,0 +1,11 @@
+{
+  "params": [
+    {
+      "name": "upload_nginx_configuration_fil_content",
+      "value": "file:nginx.docker-compose.yml"
+    }
+  ],
+  "selectedAddons": [
+    "addon-ssl"
+  ]
+}

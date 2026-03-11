@@ -86,13 +86,18 @@ export class RemoteCli {
                 paramsInput.params.push({ name: def.id, value: def.default });
             }
         }
-        // 7. Process file uploads
-        const processedParams = this.processFileUploads(paramsInput.params);
+        // 7. Process file uploads (resolve relative to uploads/ next to params file)
+        const paramsDir = this.options.parametersFile
+            ? path.dirname(path.isAbsolute(this.options.parametersFile)
+                ? this.options.parametersFile
+                : path.join(process.cwd(), this.options.parametersFile))
+            : process.cwd();
+        const processedParams = this.processFileUploads(paramsInput.params, paramsDir);
         // 7b. Auto-resolve stack if app has stacktype
         const resolvedStackId = await this.resolveStack(paramsInput.stackId, appStacktype, stacks);
         // 7c. Merge addons from CLI flags with addons from parameters file
         const selectedAddons = [
-            ...(paramsInput.addons ?? []),
+            ...(paramsInput.selectedAddons ?? []),
             ...(this.options.enableAddons ?? []),
         ];
         const disabledAddons = this.options.disableAddons ?? [];
@@ -230,17 +235,20 @@ export class RemoteCli {
         }));
         return {
             params,
-            addons: parsed.addons,
+            selectedAddons: parsed.selectedAddons,
             stackId: parsed.stackId,
         };
     }
-    processFileUploads(params) {
+    processFileUploads(params, paramsDir) {
         return params.map((p) => {
             if (typeof p.value === "string" && p.value.startsWith("file:")) {
                 const filePath = p.value.slice(5);
+                const uploadsDir = path.join(paramsDir, "uploads");
                 const absPath = path.isAbsolute(filePath)
                     ? filePath
-                    : path.join(process.cwd(), filePath);
+                    : existsSync(path.join(uploadsDir, filePath))
+                        ? path.join(uploadsDir, filePath)
+                        : path.join(paramsDir, filePath);
                 if (!existsSync(absPath)) {
                     throw new CliError(`File not found for parameter '${p.name}': ${absPath}`, 1);
                 }

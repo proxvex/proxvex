@@ -224,7 +224,7 @@ export function registerFrameworkRoutes(
         pm.getPersistence(),
       );
 
-      const unresolvedParameters =
+      const result =
         await frameworkLoader.getPreviewUnresolvedParameters(
           body,
           "installation" as TaskType,
@@ -236,7 +236,8 @@ export function registerFrameworkRoutes(
       const addons = addonService.getAllAddonsWithParameters();
 
       returnResponse<IUnresolvedParametersResponse>(res, {
-        unresolvedParameters,
+        unresolvedParameters: result.unresolvedParameters,
+        frameworkProperties: result.frameworkProperties,
         addons,
       });
     }),

@@ -93,7 +93,7 @@ describe("FrameworkLoader.createApplicationFromFramework with uploadfiles", () =
     ) as any;
 
     expect(templateContent.name).toBe("Upload config.json");
-    expect(templateContent.description).toBe("Uploads config.json to config:config.json");
+    expect(templateContent.description).toBe("Upload config-json");
     expect(templateContent.execute_on).toBe("ve");
     expect(templateContent.skip_if_all_missing).toContain("upload_config_json_content");
 

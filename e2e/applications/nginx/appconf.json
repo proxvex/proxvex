@@ -1,0 +1,27 @@
+{
+    "name": "nginx",
+    "description": "Nginx reverse proxy for PostgREST and Zitadel.",
+    "tags": ["proxy", "network"],
+    "tasktype": "postgres",
+    "framework": "docker-compose",
+    "dependsOn": ["postgrest", "zitadel"],
+    "installParams": {
+        "bridge": "vmbr1"
+    },
+    "validation": {
+        "containers": [
+            { "image": "nginxinc/nginx-unprivileged", "state": "running" }
+        ],
+        "ports": [
+            { "port": 80, "protocol": "tcp", "service": "nginx-http" },
+            { "port": 443, "protocol": "tcp", "service": "nginx-https" }
+        ],
+        "commands": [
+            {
+                "command": "curl -sf http://localhost/healthz",
+                "expectedExitCode": 0,
+                "description": "Nginx HTTP health check"
+            }
+        ]
+    }
+}

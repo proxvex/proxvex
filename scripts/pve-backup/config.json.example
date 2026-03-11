@@ -1,0 +1,37 @@
+{
+  "default": "pve1",
+  "hosts": {
+    "pve1": {
+      "description": "Production PVE host",
+      "fqdn": "pve1.cluster",
+      "address": "192.168.4.21/24",
+      "gateway": "192.168.4.1",
+      "dns": "192.168.1.1",
+      "bridge": "vmbr0",
+      "bridgePorts": "eno1",
+      "disk": "sda",
+      "filesystem": "zfs"
+    },
+    "pve2": {
+      "description": "Standby/Upgrade PVE host",
+      "fqdn": "pve2.cluster",
+      "address": "192.168.4.22/24",
+      "gateway": "192.168.4.1",
+      "dns": "192.168.1.1",
+      "bridge": "vmbr0",
+      "bridgePorts": "eno1",
+      "disk": "sda",
+      "filesystem": "zfs"
+    }
+  },
+  "defaults": {
+    "backupHost": "ubuntupve",
+    "wolUrl": "http://wol:5000/api/wake/ubuntupve",
+    "backupPool": "macbackup",
+    "zfsPool": "rpool",
+    "keyboard": "de",
+    "country": "de",
+    "timezone": "Europe/Berlin",
+    "mailto": "admin@localhost"
+  }
+}

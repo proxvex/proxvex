@@ -31,20 +31,9 @@
 				</div>
 			</div>
 		}
+
+		<!-- Parameter groups (vertical stack, required groups first) -->
 		<div class="group-container">
-			<app-addon-section
-				[availableAddons]="availableAddons"
-				[selectedAddons]="selectedAddons()"
-				[expandedAddons]="expandedAddons()"
-				[form]="form"
-				[showAdvanced]="showAdvanced()"
-				[availableStacks]="availableStacks()"
-				[isLoading]="addonsLoading()"
-				(addonToggled)="toggleAddon($event.addonId, $event.checked)"
-				(addonExpandedChanged)="toggleAddonExpandedById($event)"
-				(stackSelected)="onStackSelected($event)"
-				(createStackRequested)="onCreateStackRequested()"
-			></app-addon-section>
 			@if (data.app.stacktype && filteredStacks().length > 0) {
 				<div class="secrets-selector">
 					<app-stack-selector
@@ -71,29 +60,53 @@
 				/>
 			}
 		</div>
-		<div class="trace-action">
-			<button mat-stroked-button type="button" (click)="openTemplateTrace()">Template trace</button>
-		</div>
+
+		<!-- Addons (below parameters, less prominent) -->
+		<app-addon-section
+			[availableAddons]="availableAddons"
+			[selectedAddons]="selectedAddons()"
+			[expandedAddons]="expandedAddons()"
+			[form]="form"
+			[showAdvanced]="showAdvanced()"
+			[availableStacks]="availableStacks()"
+			[isLoading]="addonsLoading()"
+			(addonToggled)="toggleAddon($event.addonId, $event.checked)"
+			(addonExpandedChanged)="toggleAddonExpandedById($event)"
+			(stackSelected)="onStackSelected($event)"
+			(createStackRequested)="onCreateStackRequested()"
+		></app-addon-section>
+
+		<!-- Advanced toggle + Template trace -->
+		<div class="secondary-actions">
 			@if (hasAdvancedParams()) {
 				<div class="advanced-toggle" (click)="toggleAdvanced()" (keyup.enter)="toggleAdvanced()" (keyup.space)="toggleAdvanced()" tabindex="0" role="button" [attr.aria-expanded]="showAdvanced()">
 					<span class="toggle-icon">{{ showAdvanced() ? '▼' : '▶' }}</span>
 					<span class="toggle-text">{{ showAdvanced() ? 'Hide' : 'Show' }} Advanced Options</span>
 				</div>
 			}
-			<ng-content select="[slot=actions]"></ng-content>
-			@if (!customActions) {
-				@if (hasError()) {
-					<div class="dialog-actions">
-						<button mat-stroked-button color="primary" type="button" (click)="close()">Close</button>
-					</div>
-				} @else {
-					<div class="dialog-actions">
-						<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
-						<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="form.invalid || loading()">Install</button>
-					</div>
-				}
+			<button mat-stroked-button type="button" class="trace-btn" (click)="openTemplateTrace()">Template trace</button>
+		</div>
+
+		<!-- Action buttons -->
+		<ng-content select="[slot=actions]"></ng-content>
+		@if (!customActions) {
+			@if (hasError()) {
+				<div class="dialog-actions">
+					<button mat-stroked-button color="primary" type="button" (click)="close()">Close</button>
+				</div>
+			} @else {
+				<div class="dialog-actions">
+					<button mat-stroked-button type="button" class="download-btn" (click)="downloadInstallationFiles()" [disabled]="loading()" matTooltip="Download parameters and files for CLI usage">
+						<mat-icon>download</mat-icon>
+						Download
+					</button>
+					<span class="action-spacer"></span>
+					<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
+					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="form.invalid || loading()">Install</button>
+				</div>
 			}
 		}
+	}
 	@if (loading()) {
 		<div>Loading parameters ...</div>
 	}

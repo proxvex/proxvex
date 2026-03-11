@@ -41,6 +41,8 @@ export var ApiUri;
     ApiUri["CertificatePveStatus"] = "/api/:veContext/ve/certificates/pve";
     ApiUri["CertificatePveProvision"] = "/api/:veContext/ve/certificates/pve/provision";
     ApiUri["CertificateDomainSuffix"] = "/api/:veContext/ve/certificates/domain-suffix";
+    ApiUri["CertificateCaDownload"] = "/api/:veContext/ve/certificates/ca/download";
+    ApiUri["CertificateGenerate"] = "/api/:veContext/ve/certificates/generate";
     // Logger endpoints
     ApiUri["LoggerConfig"] = "/api/logger/config";
     ApiUri["LoggerLevel"] = "/api/logger/level/:level";
