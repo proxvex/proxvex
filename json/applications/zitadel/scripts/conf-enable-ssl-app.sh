@@ -20,6 +20,14 @@ TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
 printf '%s' "$COMPOSE_B64" | base64 -d > "$TMPFILE"
 
+# Idempotency: skip if already SSL-transformed
+if grep -q 'entrypoints.websecure.address' "$TMPFILE"; then
+  echo "SSL already applied, skipping transformation" >&2
+  COMPOSE_SSL_B64=$(base64 < "$TMPFILE" | tr -d '\n')
+  echo "[{\"id\":\"ssl_app_enabled\",\"value\":\"true\"},{\"id\":\"compose_file\",\"value\":\"$COMPOSE_SSL_B64\"}]"
+  exit 0
+fi
+
 # 1. Switch traefik config reference: only in the service section (source: line)
 sed -i 's/source: traefik-dynamic-http$/source: traefik-dynamic-https/' "$TMPFILE"
 

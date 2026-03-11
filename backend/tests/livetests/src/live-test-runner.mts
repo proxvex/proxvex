@@ -27,6 +27,7 @@
 import { execSync, spawn } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -73,6 +74,8 @@ interface StepResult {
   vmId: number;
   hostname: string;
   application: string;
+  cliOutput?: string;
+  scenarioId?: string;
 }
 
 interface TestResult {
@@ -659,8 +662,11 @@ function planScenarios(
   appStacktypes: Map<string, string | string[]>,
 ): PlannedScenario[] {
   let nextVmId = VM_ID_START;
-  // Group by stacktype: scenarios sharing a stacktype share a stack
-  const stackByType = new Map<string, string>();
+  // Group by stacktype + variant: scenarios sharing a stacktype AND variant share a stack.
+  // This ensures e.g. postgres/ssl and zitadel/ssl get a different stack than
+  // postgres/default and zitadel/default, so the dependency resolver finds the
+  // correct postgres container for each variant.
+  const stackByTypeVariant = new Map<string, string>();
 
   return scenarios.map((scenario) => {
     const vmId = nextVmId++;
@@ -668,19 +674,23 @@ function planScenarios(
     const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
     const hasStacktype = stacktypes.length > 0;
 
+    // Extract variant from scenario id (e.g., "ssl" from "zitadel/ssl")
+    const variant = scenario.id.split("/")[1] ?? "default";
+
     let stackName: string;
     if (hasStacktype) {
-      // Find the first stacktype that already has a stack assigned, or use the first one
-      const existingType = stacktypes.find(st => stackByType.has(st));
+      // Key includes variant so different test variants get separate stacks
+      const variantKey = (type: string) => `${type}:${variant}`;
+      const existingType = stacktypes.find(st => stackByTypeVariant.has(variantKey(st)));
       const primaryType = existingType ?? stacktypes[0]!;
-      if (!stackByType.has(primaryType)) {
-        stackByType.set(primaryType, String(VM_ID_START));
+      if (!stackByTypeVariant.has(variantKey(primaryType))) {
+        stackByTypeVariant.set(variantKey(primaryType), String(vmId));
       }
-      stackName = stackByType.get(primaryType)!;
+      stackName = stackByTypeVariant.get(variantKey(primaryType))!;
       // Register all stacktypes to point to the same stack
       for (const st of stacktypes) {
-        if (!stackByType.has(st)) {
-          stackByType.set(st, stackName);
+        if (!stackByTypeVariant.has(variantKey(st))) {
+          stackByTypeVariant.set(variantKey(st), stackName);
         }
       }
     } else {
@@ -785,13 +795,22 @@ async function executeScenarios(
         logFail(errMsg);
         result.errors.push(errMsg);
         result.failed++;
+        result.steps.push({
+          vmId: step.vmId, hostname: step.hostname,
+          application: scenario.application, scenarioId: scenario.id,
+          cliOutput: cliResult.output,
+        });
         const lastLines = cliResult.output.split("\n").slice(-20).join("\n");
         if (lastLines) console.log(lastLines);
         break;
       }
 
       logOk(`Container created: VM_ID=${step.vmId}, hostname=${step.hostname}`);
-      result.steps.push({ vmId: step.vmId, hostname: step.hostname, application: scenario.application });
+      result.steps.push({
+        vmId: step.vmId, hostname: step.hostname,
+        application: scenario.application, scenarioId: scenario.id,
+        cliOutput: cliResult.output,
+      });
 
       // Wait for services if needed
       if (scenario.wait_seconds && scenario.wait_seconds > 0) {
