@@ -31,6 +31,14 @@
     {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable display name for the stacktype"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of the stacktype's purpose"
+        },
         "variables": {
           "type": "array",
           "items": { "$ref": "#/definitions/variable" }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, OnDestroy } from '@angular/core';
 import { FormGroup, FormControl, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -14,6 +14,8 @@ import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
 import { IStack, IStackEntry, IStacktypeEntry } from '../../shared/types';
 import { KeyValueTableComponent, KeyValuePair } from '../shared/components/key-value-table.component';
+import { ActivatedRoute } from '@angular/router';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-stacks-page',
@@ -36,9 +38,11 @@ import { KeyValueTableComponent, KeyValuePair } from '../shared/components/key-v
   templateUrl: './stacks-page.html',
   styleUrl: './stacks-page.scss'
 })
-export class StacksPage implements OnInit {
+export class StacksPage implements OnInit, OnDestroy {
   private configService = inject(VeConfigurationService);
   private errorHandler = inject(ErrorHandlerService);
+  private route = inject(ActivatedRoute);
+  private routeSub?: Subscription;
 
   loading = signal(false);
   stacktypes = signal<IStacktypeEntry[]>([]);
@@ -75,17 +79,29 @@ export class StacksPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.routeSub = this.route.queryParamMap.subscribe(params => {
+      this._requestedStacktype = params.get('stacktype') ?? undefined;
+    });
     this.loadStacktypes();
   }
+
+  ngOnDestroy(): void {
+    this.routeSub?.unsubscribe();
+  }
+
+  /** Stacktype requested via ?stacktype= query parameter */
+  private _requestedStacktype?: string;
 
   loadStacktypes(): void {
     this.loading.set(true);
     this.configService.getStacktypes().subscribe({
       next: (res) => {
         this.stacktypes.set(res.stacktypes);
-        // Auto-select first stacktype
         if (res.stacktypes.length > 0) {
-          this.selectedStacktype.set(res.stacktypes[0].name);
+          // Pre-select stacktype from query parameter if valid, otherwise first
+          const requested = this._requestedStacktype;
+          const match = requested ? res.stacktypes.find(st => st.name === requested) : undefined;
+          this.selectedStacktype.set(match ? match.name : res.stacktypes[0].name);
           this.loadStacks();
         } else {
           this.loading.set(false);

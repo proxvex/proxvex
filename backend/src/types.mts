@@ -595,7 +595,9 @@ export interface IStacktypeDependency {
 
 // Stacktype entry (aggregated from json/stacktypes/*.json)
 export interface IStacktypeEntry {
-  name: string; // derived from filename
+  name: string; // derived from filename (e.g. "postgres", "oidc")
+  displayName?: string; // human-readable name from JSON "name" field
+  description?: string;
   entries: IStacktypeVariable[];
   dependencies?: IStacktypeDependency[];
 }

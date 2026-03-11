@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, Input, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, Input } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
 
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
@@ -90,6 +90,53 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   private presetValues = this.data.presetValues ?? {};
   existingMountPoints: { source: string; target: string }[] = this.data.existingMountPoints ?? [];
   private installedAddons: string[] = this.data.installedAddons ?? [];
+
+  form: FormGroup;
+  unresolvedParameters: IParameter[] = [];
+  groupedParameters: Record<string, IParameter[]> = {};
+  loading = signal(true);
+  hasError = signal(false);
+  showAdvanced = signal(false);
+  availableAddons: IAddonWithParameters[] = [];
+  selectedAddons = signal<string[]>([]);
+  expandedAddons = signal<string[]>([]);
+  addonsLoading = signal(false);
+
+  // Stack selection state
+  availableStacks: IStack[] = [];
+  /** Stacktypes required by this application (from application.json) */
+  appStacktypes: string[] = [];
+  availableStacktypes: IStacktypeEntry[] = [];
+  stacksLoading = false;
+  /** Selected stack per stacktype */
+  selectedStacks = new Map<string, IStack>();
+  /** Stacktypes that the app requires but have no stacks available */
+  missingStacktypes: string[] = [];
+  /** Backwards-compatible single selected stack (first one) */
+  get selectedStack(): IStack | null {
+    return this.selectedStacks.size > 0 ? this.selectedStacks.values().next().value ?? null : null;
+  }
+  caConfigured = signal(false);
+
+  /** For each stacktype, the stacks that match it */
+  getStacksForType(type: string): IStack[] {
+    const toArray = (st: string | string[]) => Array.isArray(st) ? st : [st];
+    return this.availableStacks.filter(s => toArray(s.stacktype).includes(type));
+  }
+
+  /** All stacks matching any of the app's stacktypes (deduplicated) */
+  get filteredStacks(): IStack[] {
+    const all: IStack[] = [];
+    for (const type of this.appStacktypes) {
+      for (const s of this.getStacksForType(type)) {
+        if (!all.some(existing => existing.id === s.id)) all.push(s);
+      }
+    }
+    return all;
+  }
+  private formManager!: ParameterFormManager;
+  private enumRefreshAttempted = false;
+  private visibilityHandler = () => this.onVisibilityChange();
   constructor(  ) {
     this.form = this.fb.group({});
   }
@@ -301,45 +348,73 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   private loadStacks(): void {
-    this.stacksLoading.set(true);
+    this.stacksLoading = true;
     // Load stacktypes first, then load all stacks
     this.configService.getStacktypes().subscribe({
       next: (res) => {
-        this.availableStacktypes.set(res.stacktypes);
+        this.availableStacktypes = res.stacktypes;
         // Load all stacks (no filter - show all available)
         this.configService.getStacks().subscribe({
           next: (stacksRes) => {
-            this.availableStacks.set(stacksRes.stacks);
-            this.stacksLoading.set(false);
-            // Auto-select if only one stack matches
-            const filtered = this.filteredStacks();
-            if (filtered.length === 1) {
-              this.onStackSelected(filtered[0]);
+            this.availableStacks = stacksRes.stacks;
+            this.stacksLoading = false;
+            // Set app stacktypes now that stacks are available
+            const st = this.data.app.stacktype;
+            this.appStacktypes = !st ? [] : Array.isArray(st) ? st : [st];
+            // Check for missing stacks per required stacktype
+            this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
+            // Auto-select per stacktype if only one stack matches
+            for (const type of this.appStacktypes) {
+              const typeStacks = this.getStacksForType(type);
+              if (typeStacks.length === 1) {
+                this.onStackSelected(typeStacks[0], type);
+              }
             }
           },
           error: () => {
             // Don't show error for stacks - they're optional
-            this.stacksLoading.set(false);
+            this.stacksLoading = false;
           }
         });
       },
       error: () => {
         // Don't show error for stacktypes - they're optional
-        this.stacksLoading.set(false);
+        this.stacksLoading = false;
       }
     });
   }
 
-  onStackSelected(stack: IStack): void {
-    this.selectedStack = stack;
+  onStackSelected(stack: IStack, stacktype?: string): void {
+    if (stacktype) {
+      this.selectedStacks.set(stacktype, stack);
+    } else {
+      // Legacy: set for all app stacktypes
+      this.selectedStacks.clear();
+      for (const st of this.appStacktypes) {
+        this.selectedStacks.set(st, stack);
+      }
+    }
     this.formManager.setSelectedStack(stack);
   }
 
   onStackSelectChange(stackId: string): void {
-    const stack = this.filteredStacks().find(s => s.id === stackId);
+    const stack = this.filteredStacks.find(s => s.id === stackId);
     if (stack) {
       this.onStackSelected(stack);
     }
+  }
+
+  getSelectedStackForType(stacktype: string): IStack | null {
+    return this.selectedStacks.get(stacktype) ?? null;
+  }
+
+  getStacktypeLabel(stacktype: string): string {
+    const entry = this.availableStacktypes.find(e => e.name === stacktype);
+    return entry?.displayName ?? stacktype;
+  }
+
+  get missingStacktypeLabels(): string {
+    return this.missingStacktypes.map(t => this.getStacktypeLabel(t)).join(', ');
   }
 
   onCreateStackRequested(): void {
@@ -349,7 +424,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     const suggestedEntries = [...new Set([...envMarkers, ...envFileMarkers])];
 
     const dialogData: CreateStackDialogData = {
-      stacktypes: this.availableStacktypes(),
+      stacktypes: this.availableStacktypes,
       suggestedEntries
     };
 
@@ -361,7 +436,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     dialogRef.afterClosed().subscribe((result: CreateStackDialogResult | undefined) => {
       if (result?.stack) {
         // Add to available stacks and apply it
-        this.availableStacks.update(stacks => [...stacks, result.stack]);
+        this.availableStacks = [...this.availableStacks, result.stack];
         this.onStackSelected(result.stack);
       }
     });
@@ -646,21 +721,26 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   private reloadStacks(): void {
-    const previousSelectedId = this.selectedStack?.id;
+    const previousSelections = new Map(this.selectedStacks);
     this.configService.getStacks().subscribe({
       next: (res) => {
-        this.availableStacks.set(res.stacks);
-        // Re-select previously selected stack or auto-select if only one
-        const filtered = this.filteredStacks();
-        if (previousSelectedId) {
-          const found = filtered.find(s => s.id === previousSelectedId);
-          if (found) {
-            this.selectedStack = found;
-          } else if (filtered.length === 1) {
-            this.selectedStack = filtered[0];
+        this.availableStacks = res.stacks;
+        this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
+        // Re-select previously selected stacks per stacktype
+        this.selectedStacks.clear();
+        for (const type of this.appStacktypes) {
+          const typeStacks = this.getStacksForType(type);
+          const prevStack = previousSelections.get(type);
+          if (prevStack) {
+            const found = typeStacks.find(s => s.id === prevStack.id);
+            if (found) {
+              this.selectedStacks.set(type, found);
+            } else if (typeStacks.length === 1) {
+              this.selectedStacks.set(type, typeStacks[0]);
+            }
+          } else if (typeStacks.length === 1) {
+            this.selectedStacks.set(type, typeStacks[0]);
           }
-        } else if (filtered.length === 1) {
-          this.selectedStack = filtered[0];
         }
       }
     });

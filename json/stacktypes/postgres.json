@@ -1,4 +1,6 @@
 {
+  "name": "PostgreSQL",
+  "description": "Database passwords and API secrets for PostgreSQL-based applications",
   "variables": [
     { "name": "POSTGRES_PASSWORD" },
     { "name": "API_LOGIN_PASSWORD" },

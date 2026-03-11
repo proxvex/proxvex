@@ -537,6 +537,8 @@ export interface IStacktypeDependency {
 }
 export interface IStacktypeEntry {
     name: string;
+    displayName?: string;
+    description?: string;
     entries: IStacktypeVariable[];
     dependencies?: IStacktypeDependency[];
 }
