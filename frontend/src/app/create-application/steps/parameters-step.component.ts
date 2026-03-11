@@ -8,7 +8,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ParameterTarget } from '../../../shared/types';
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter-group.component';
-import { StackSelectorComponent } from '../../shared/components/stack-selector/stack-selector.component';
 
 @Component({
   selector: 'app-parameters-step',
@@ -20,7 +19,6 @@ import { StackSelectorComponent } from '../../shared/components/stack-selector/s
     MatIconModule,
     MatProgressSpinnerModule,
     ParameterGroupComponent,
-    StackSelectorComponent
   ],
   template: `
     <div class="step-content">
@@ -154,12 +152,6 @@ import { StackSelectorComponent } from '../../shared/components/stack-selector/s
       }
     }
 
-    .secrets-selector {
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      background: #f5f5f5;
-      border-radius: 8px;
-    }
   `]
 })
 export class ParametersStepComponent {

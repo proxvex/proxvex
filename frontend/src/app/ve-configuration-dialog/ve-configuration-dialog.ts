@@ -394,7 +394,9 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         this.selectedStacks.set(st, stack);
       }
     }
-    this.formManager.setSelectedStack(stack);
+    // First selected stack is used for install (stackId in API call)
+    this.formManager.setSelectedStack(this.selectedStacks.values().next().value ?? null);
+    this.formManager.updateHostnameFromStacks(this.selectedStacks);
   }
 
   onStackSelectChange(stackId: string): void {
@@ -566,11 +568,15 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.dialogRef.close();
   }
 
-  async downloadInstallationFiles(): Promise<void> {
+  /** Extract params and upload files from the current form state */
+  private collectInstallationData(): {
+    params: { name: string; value: string | number | boolean }[];
+    uploads: { name: string; content: string }[];
+    addons?: string[];
+    stackId?: string;
+  } {
     const { changedParams } = this.formManager.extractParamsWithChanges();
-
-    // Collect uploaded files from form values (format: "file:filename:content:base64")
-    const uploadFiles: { name: string; bytes: Uint8Array }[] = [];
+    const uploads: { name: string; content: string }[] = [];
     const uploadParams = this.unresolvedParameters.filter(p => p.upload);
 
     for (const param of uploadParams) {
@@ -581,13 +587,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       const base64 = ParameterFormManager.extractBase64FromFileMetadata(rawValue);
       if (!fileName || typeof base64 !== 'string') continue;
 
-      // Decode base64 to Uint8Array
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      uploadFiles.push({ name: fileName, bytes });
+      uploads.push({ name: fileName, content: base64 });
 
       // In params, replace base64 content with file reference
       const paramEntry = changedParams.find(p => p.name === param.id);
@@ -596,21 +596,39 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       }
     }
 
-    // Build output matching the API body format:
-    // { "params": [...], "selectedAddons": [...], "stackId": "..." }
-    const output: Record<string, unknown> = { params: changedParams };
+    const result: {
+      params: { name: string; value: string | number | boolean }[];
+      uploads: { name: string; content: string }[];
+      addons?: string[];
+      stackId?: string;
+    } = { params: changedParams, uploads };
+
     if (this.selectedAddons().length > 0) {
-      output['selectedAddons'] = this.selectedAddons();
+      result.addons = this.selectedAddons();
     }
     if (this.selectedStack) {
-      output['stackId'] = this.selectedStack.id;
+      result.stackId = this.selectedStack.id;
     }
+    return result;
+  }
+
+  async downloadInstallationFiles(): Promise<void> {
+    const data = this.collectInstallationData();
+
+    const output: Record<string, unknown> = { params: data.params };
+    if (data.addons) output['selectedAddons'] = data.addons;
+    if (data.stackId) output['stackId'] = data.stackId;
 
     const zip = new JSZip();
     zip.file('default.json', JSON.stringify(output, null, 2));
 
-    for (const file of uploadFiles) {
-      zip.file(`uploads/${file.name}`, file.bytes);
+    for (const file of data.uploads) {
+      const binary = atob(file.content);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      zip.file(`uploads/${file.name}`, bytes);
     }
 
     const blob = await zip.generateAsync({ type: 'blob' });
@@ -620,6 +638,18 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     a.download = `${this.data.app.id}-installation.zip`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  saveAsTestData(): void {
+    const data = this.collectInstallationData();
+    this.configService.saveTestData(this.data.app.id, data).subscribe({
+      next: (res) => {
+        window.alert(`Test data saved to ${res.testsDir}`);
+      },
+      error: (err: unknown) => {
+        this.errorHandler.handleError('Failed to save test data', err);
+      }
+    });
   }
 
   toggleAdvanced(): void {

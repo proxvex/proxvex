@@ -244,6 +244,69 @@ export class PersistenceManager {
     });
   }
 
+  /**
+   * Saves test data (params + uploads) for an application into json/applications/<id>/tests/
+   * Only works for applications whose source directory is inside jsonPath.
+   */
+  saveApplicationTestData(
+    applicationId: string,
+    params: { name: string; value: string | number | boolean }[],
+    uploads: { name: string; content: string }[],
+    addons?: string[],
+    stackId?: string,
+  ): { testsDir: string } {
+    const appService = this.applicationService;
+    const localAppNames = appService.getLocalAppNames();
+
+    // Determine the app directory (local or json)
+    let appDir: string | undefined;
+    if (localAppNames.has(applicationId)) {
+      appDir = localAppNames.get(applicationId)!;
+    } else {
+      // Check in jsonPath
+      const jsonAppDir = path.join(this.pathes.jsonPath, "applications", applicationId);
+      if (fs.existsSync(jsonAppDir)) {
+        appDir = jsonAppDir;
+      }
+    }
+
+    if (!appDir) {
+      throw new Error(`Application ${applicationId} not found`);
+    }
+
+    const testsDir = path.join(appDir, "tests");
+    fs.mkdirSync(testsDir, { recursive: true });
+
+    // Build default.json
+    const output: Record<string, unknown> = { params };
+    if (addons && addons.length > 0) {
+      output.selectedAddons = addons;
+    }
+    if (stackId) {
+      output.stackId = stackId;
+    }
+
+    fs.writeFileSync(
+      path.join(testsDir, "default.json"),
+      JSON.stringify(output, null, 2) + "\n",
+      "utf-8",
+    );
+
+    // Write upload files
+    if (uploads.length > 0) {
+      const uploadsDir = path.join(testsDir, "uploads");
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      for (const file of uploads) {
+        fs.writeFileSync(
+          path.join(uploadsDir, file.name),
+          Buffer.from(file.content, "base64"),
+        );
+      }
+    }
+
+    return { testsDir };
+  }
+
   // Alias für Rückwärtskompatibilität (kann später entfernt werden)
   getStorageContext(): ContextManager {
     return this.contextManager;

@@ -98,18 +98,34 @@ export class ParameterFormManager {
     });
   }
 
-  /** Setzt ausgewählten Stack und aktualisiert Hostname */
+  /** Setzt ausgewählten Stack (für install) ohne Hostname-Update */
   setSelectedStack(stack: IStack | null): void {
     this.selectedStack = stack;
+  }
 
-    // Auto-update hostname wenn Stack ausgewählt (nicht "default")
-    // Nur wenn hostname NICHT manuell geändert wurde
-    if (!this.hostnameManuallyChanged && stack && stack.name.toLowerCase() !== 'default') {
-      const hostnameControl = this.form.get('hostname');
-      const baseHostname = this.initialValues.get('hostname');
-      if (hostnameControl && baseHostname) {
-        hostnameControl.setValue(`${baseHostname}-${stack.id}`);
+  /**
+   * Updates hostname based on all selected stacks across stacktypes.
+   * Concatenates non-default stack names as suffix: hostname-stack1-stack2
+   */
+  updateHostnameFromStacks(selectedStacks: Map<string, IStack>): void {
+    if (this.hostnameManuallyChanged) return;
+
+    const hostnameControl = this.form.get('hostname');
+    const baseHostname = this.initialValues.get('hostname');
+    if (!hostnameControl || !baseHostname) return;
+
+    // Collect unique non-default stack names
+    const suffixes: string[] = [];
+    for (const stack of selectedStacks.values()) {
+      if (stack.name.toLowerCase() !== 'default' && !suffixes.includes(stack.name)) {
+        suffixes.push(stack.name);
       }
+    }
+
+    if (suffixes.length > 0) {
+      hostnameControl.setValue(`${baseHostname}-${suffixes.join('-')}`);
+    } else {
+      hostnameControl.setValue(baseHostname);
     }
   }
 

@@ -116,6 +116,12 @@
 						<mat-icon>download</mat-icon>
 						Download
 					</button>
+					@if (data.app.source === 'local') {
+						<button mat-stroked-button type="button" (click)="saveAsTestData()" [disabled]="loading()" matTooltip="Save parameters as test data in applications/{{ data.app.id }}/tests/">
+							<mat-icon>science</mat-icon>
+							Save as Test
+						</button>
+					}
 					<span class="action-spacer"></span>
 					<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
 					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="form.invalid || loading()">Install</button>

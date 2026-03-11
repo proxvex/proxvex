@@ -191,6 +191,7 @@ export enum ApiUri {
   FrameworkCreateApplication = "/api/framework-create-application",
   FrameworkFromImage = "/api/framework-from-image",
   ApplicationFrameworkData = "/api/application/:applicationId/framework-data",
+  ApplicationTestData = "/api/application/:applicationId/test-data",
 
   VeCopyUpgrade = "/api/:veContext/ve/copy-upgrade/:application",
 

@@ -284,6 +284,36 @@ export function registerApplicationRoutes(
     }
   });
 
+  app.post(
+    ApiUri.ApplicationTestData,
+    express.json(),
+    (req, res) => {
+      try {
+        const applicationId = req.params.applicationId;
+        if (!applicationId) {
+          return res.status(400).json({ error: "Missing applicationId" });
+        }
+
+        const { params, uploads, addons, stackId } = req.body ?? {};
+        if (!Array.isArray(params)) {
+          return res.status(400).json({ error: "params must be an array" });
+        }
+
+        const result = pm.saveApplicationTestData(
+          applicationId,
+          params,
+          uploads ?? [],
+          addons,
+          stackId,
+        );
+
+        res.json({ success: true, testsDir: result.testsDir });
+      } catch (err: any) {
+        sendErrorResponse(res, err);
+      }
+    },
+  );
+
   app.get(ApiUri.CompatibleAddons, (req, res) => {
     try {
       const applicationId = req.params.application;
