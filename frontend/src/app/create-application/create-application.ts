@@ -426,6 +426,26 @@ export class CreateApplication implements OnInit, OnDestroy {
     this.summaryStep?.saveAndInstall();
   }
 
+  onApplicationSaved(applicationId: string): void {
+    // Build a minimal IApplicationWeb to open the install dialog
+    const app: IApplicationWeb = {
+      id: applicationId,
+      name: this.state.appPropertiesForm.get('name')?.value ?? applicationId,
+      description: this.state.appPropertiesForm.get('description')?.value ?? '',
+      source: 'local',
+      framework: this.state.selectedFramework()?.id,
+      tags: this.state.selectedTags(),
+      stacktype: this.state.selectedStacktypes().length > 0 ? (this.state.selectedStacktypes().length === 1 ? this.state.selectedStacktypes()[0] : this.state.selectedStacktypes()) : undefined,
+    };
+
+    // Navigate to applications list first
+    this.router.navigate(['/applications']).then(() => {
+      // Open install dialog
+      const dialogData: VeConfigurationDialogData = { app, task: 'installation' };
+      this.dialog.open(VeConfigurationDialog, { data: dialogData });
+    });
+  }
+
   onNavigateToStep(stepIndex: number): void {
     if (this.stepper) {
       this.stepper.selectedIndex = stepIndex;
