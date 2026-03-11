@@ -29,7 +29,10 @@
       "type": "string"
     },
     "stacktype": {
-      "type": "string"
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
     },
     "dependencies": {
       "type": "array",

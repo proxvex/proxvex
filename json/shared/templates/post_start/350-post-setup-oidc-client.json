@@ -1,0 +1,67 @@
+{
+  "name": "Setup OIDC Client",
+  "description": "Create or retrieve an OIDC client application in Zitadel. Outputs oidc_issuer_url, oidc_client_id, and oidc_client_secret as template variables.",
+  "execute_on": "ve",
+  "parameters": [
+    {
+      "id": "ZITADEL_HOST",
+      "name": "Zitadel Host",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of the Zitadel instance (resolved via dependency)"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of the application container"
+    },
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "advanced": true,
+      "description": "Path to the shared volume mount point on PVE host"
+    },
+    {
+      "id": "oidc_app_name",
+      "name": "OIDC Application Name",
+      "type": "string",
+      "required": false,
+      "description": "Name of the OIDC application in Zitadel (defaults to hostname)"
+    },
+    {
+      "id": "oidc_callback_path",
+      "name": "Callback Path",
+      "type": "string",
+      "required": false,
+      "default": "/auth/strategy/callback",
+      "advanced": true,
+      "description": "OIDC callback path"
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Domain suffix for constructing URLs"
+    },
+    {
+      "id": "OIDC_PROJECT_NAME",
+      "name": "OIDC Project Name",
+      "type": "string",
+      "required": true,
+      "description": "Name of the Zitadel project (from oidc stack variable)"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Setup OIDC Client",
+      "script": "post-setup-oidc-client.sh",
+      "outputs": ["oidc_issuer_url", "oidc_client_id", "oidc_client_secret"]
+    }
+  ]
+}

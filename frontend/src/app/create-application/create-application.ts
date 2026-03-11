@@ -213,7 +213,8 @@ export class CreateApplication implements OnInit, OnDestroy {
 
               // Fill stacktype if present
               if (data.stacktype) {
-                this.state.selectedStacktype.set(data.stacktype);
+                const stacktypes = Array.isArray(data.stacktype) ? data.stacktype : [data.stacktype];
+                this.state.selectedStacktypes.set(stacktypes);
               }
 
               // Fill parameter values
@@ -405,7 +406,7 @@ export class CreateApplication implements OnInit, OnDestroy {
       source: 'local',
       framework: this.state.selectedFramework()?.id,
       tags: this.state.selectedTags(),
-      stacktype: this.state.selectedStacktype() ?? undefined,
+      stacktype: this.state.selectedStacktypes().length > 0 ? (this.state.selectedStacktypes().length === 1 ? this.state.selectedStacktypes()[0] : this.state.selectedStacktypes()) : undefined,
     };
 
     // Navigate to applications list first

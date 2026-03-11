@@ -11,7 +11,7 @@ export class CliTemplateGenerator {
     parameters: IParameter[];
     addons: IAddonWithParameters[];
     stacks: IStack[];
-    stacktype?: string;
+    stacktype?: string | string[];
   }): object {
     const params = input.parameters.map((p) => {
       const entry: Record<string, unknown> = {
@@ -50,9 +50,10 @@ export class CliTemplateGenerator {
       availableStacks,
     };
 
-    if (input.stacktype && input.stacks.length === 0) {
+    const stacktypeLabel = input.stacktype ? (Array.isArray(input.stacktype) ? input.stacktype.join(', ') : input.stacktype) : undefined;
+    if (stacktypeLabel && input.stacks.length === 0) {
       result.$stackComment =
-        `This application requires a '${input.stacktype}' stack for shared secrets (e.g. database passwords). ` +
+        `This application requires a '${stacktypeLabel}' stack for shared secrets (e.g. database passwords). ` +
         `No stacks exist yet — one will be created automatically with generated secrets. ` +
         `Leave stackId empty to use 'default', or set a custom name (e.g. 'production') to create a named stack.`;
     }
