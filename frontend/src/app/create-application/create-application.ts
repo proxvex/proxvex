@@ -9,11 +9,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { debounceTime, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
 
-import { IFrameworkName, IParameter, IPostFrameworkFromImageResponse } from '../../shared/types';
+import { IApplicationWeb, IFrameworkName, IParameter, IPostFrameworkFromImageResponse } from '../../shared/types';
+import { VeConfigurationDialog, VeConfigurationDialogData } from '../ve-configuration-dialog/ve-configuration-dialog';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { CacheService } from '../shared/services/cache.service';
 import { DockerComposeService } from '../shared/services/docker-compose.service';
@@ -22,6 +24,7 @@ import { CreateApplicationStateService } from './services/create-application-sta
 import { AppPropertiesStepComponent } from './steps/app-properties-step.component';
 import { FrameworkStepComponent } from './steps/framework-step.component';
 import { ParametersStepComponent } from './steps/parameters-step.component';
+import { SslStepComponent } from './steps/ssl-step.component';
 import { UploadFilesStepComponent } from './steps/upload-files-step.component';
 import { SummaryStepComponent } from './steps/summary-step.component';
 
@@ -40,9 +43,11 @@ import { SummaryStepComponent } from './steps/summary-step.component';
     MatIconModule,
     MatButtonToggleModule,
     MatChipsModule,
+    MatDialogModule,
     AppPropertiesStepComponent,
     FrameworkStepComponent,
     ParametersStepComponent,
+    SslStepComponent,
     UploadFilesStepComponent,
     SummaryStepComponent
   ],
@@ -52,6 +57,7 @@ import { SummaryStepComponent } from './steps/summary-step.component';
 export class CreateApplication implements OnInit, OnDestroy {
   @ViewChild('stepper') stepper!: MatStepper;
   @ViewChild(SummaryStepComponent) summaryStep: SummaryStepComponent | undefined;
+  @ViewChild(UploadFilesStepComponent) uploadFilesStep: UploadFilesStepComponent | undefined;
 
   // Inject services
   private configService = inject(VeConfigurationService);
@@ -60,6 +66,7 @@ export class CreateApplication implements OnInit, OnDestroy {
   private errorHandler = inject(ErrorHandlerService);
   private cacheService = inject(CacheService);
   private composeService = inject(DockerComposeService);
+  private dialog = inject(MatDialog);
 
   // State Service - holds all shared state
   readonly state = inject(CreateApplicationStateService);
@@ -235,6 +242,20 @@ export class CreateApplication implements OnInit, OnDestroy {
                     this.ociInstallMode.set('compose');
                   }
                 }
+
+                // Restore SSL properties
+                if (pv.id === 'ssl.mode' && typeof pv.value === 'string') {
+                  this.state.sslMode.set(pv.value as 'proxy' | 'native' | 'certs');
+                }
+                if (pv.id === 'ssl.needs_server_cert') {
+                  this.state.sslNeedsServerCert.set(String(pv.value) === 'true');
+                }
+                if (pv.id === 'ssl.needs_ca_cert') {
+                  this.state.sslNeedsCaCert.set(String(pv.value) === 'true');
+                }
+                if (pv.id === 'ssl.addon_volumes' && typeof pv.value === 'string') {
+                  this.state.sslAddonVolumes.set(pv.value);
+                }
               }
 
               this.loadingEditData.set(false);
@@ -342,12 +363,16 @@ export class CreateApplication implements OnInit, OnDestroy {
       }
     }
 
-    // When entering Step 5 (Summary), load install parameters preview
-    // Use setTimeout to ensure the component is fully rendered
-    if (event.selectedIndex === 4) {
+    // When entering Step 3 (Configure Parameters), load install parameters preview
+    if (event.selectedIndex === 2 && event.previouslySelectedIndex < 2) {
       setTimeout(() => {
-        this.summaryStep?.loadInstallParameters();
+        this.state.loadInstallParameters();
       }, 0);
+    }
+
+    // When leaving Step 5 (Upload Files), auto-confirm any pending new file entry
+    if (event.previouslySelectedIndex === 4) {
+      this.uploadFilesStep?.autoConfirmPendingAdd();
     }
   }
 
@@ -371,8 +396,24 @@ export class CreateApplication implements OnInit, OnDestroy {
     this.summaryStep?.createApplication();
   }
 
-  saveAndInstall(): void {
-    this.summaryStep?.saveAndInstall();
+  onApplicationSaved(applicationId: string): void {
+    // Build a minimal IApplicationWeb to open the install dialog
+    const app: IApplicationWeb = {
+      id: applicationId,
+      name: this.state.appPropertiesForm.get('name')?.value ?? applicationId,
+      description: this.state.appPropertiesForm.get('description')?.value ?? '',
+      source: 'local',
+      framework: this.state.selectedFramework()?.id,
+      tags: this.state.selectedTags(),
+      stacktype: this.state.selectedStacktype() ?? undefined,
+    };
+
+    // Navigate to applications list first
+    this.router.navigate(['/applications']).then(() => {
+      // Open install dialog
+      const dialogData: VeConfigurationDialogData = { app, task: 'installation' };
+      this.dialog.open(VeConfigurationDialog, { data: dialogData });
+    });
   }
 
   onNavigateToStep(stepIndex: number): void {

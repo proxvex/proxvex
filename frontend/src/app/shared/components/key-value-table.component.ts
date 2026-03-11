@@ -40,6 +40,23 @@ export interface KeyValuePair {
   ],
   template: `
     <div class="key-value-table" [style.--grid-columns]="getGridColumns()">
+      <!-- Column headers -->
+      @if (items.length > 0 || isAddingNew) {
+        <div class="grid-row header-row">
+          @if (showRadio) {
+            <div class="col radio"></div>
+          }
+          <div class="col key header-label">{{ keyPlaceholder || 'Key' }}</div>
+          <div class="col value header-label">{{ valuePlaceholder || 'Value' }}</div>
+          @for (col of booleanColumns; track col.field) {
+            <div class="col boolean-col header-label" [matTooltip]="col.tooltip || ''">{{ col.label }}</div>
+          }
+          @if (!readonly) {
+            <div class="col actions"></div>
+          }
+        </div>
+      }
+
       @if (items.length > 0) {
         @for (item of items; track $index; let idx = $index) {
           <div class="grid-row" [attr.data-testid]="'key-value-row-' + idx">
@@ -309,6 +326,19 @@ export interface KeyValuePair {
 
     .checkbox-label {
       font-size: 12px;
+    }
+
+    .header-row {
+      margin-bottom: 0;
+    }
+
+    .header-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: rgba(0, 0, 0, 0.54);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding-bottom: 0.25rem;
     }
 
     .add-trigger {

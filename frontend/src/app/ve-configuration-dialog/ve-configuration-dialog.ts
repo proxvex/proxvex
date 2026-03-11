@@ -19,6 +19,7 @@ import { StackSelectorComponent } from '../shared/components/stack-selector/stac
 import { AddonSectionComponent } from '../shared/components/addon-section/addon-section.component';
 import { CertificateManagementDialog } from '../certificate-management/certificate-management-dialog';
 import { Router } from '@angular/router';
+import JSZip from 'jszip';
 
 /**
  * Data passed to the VeConfigurationDialog.
@@ -137,6 +138,23 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         for (const group in this.groupedParameters) {
           this.groupedParameters[group] = this.groupedParameters[group].slice().sort((a, b) => Number(!!b.required) - Number(!!a.required));
         }
+
+        // Reorder groups: groups with unfilled required (non-advanced) params first
+        const sorted: Record<string, IParameter[]> = {};
+        const groupKeys = Object.keys(this.groupedParameters);
+        groupKeys.sort((a, b) => {
+          const aScore = this.groupedParameters[a].some(p =>
+            p.required && !p.advanced && (p.default === undefined || p.default === null || p.default === '')
+          ) ? 1 : 0;
+          const bScore = this.groupedParameters[b].some(p =>
+            p.required && !p.advanced && (p.default === undefined || p.default === null || p.default === '')
+          ) ? 1 : 0;
+          return bScore - aScore;
+        });
+        for (const key of groupKeys) {
+          sorted[key] = this.groupedParameters[key];
+        }
+        this.groupedParameters = sorted;
 
         this.form.markAllAsTouched();
         this.loading.set(false);
@@ -471,6 +489,62 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
 
   close(): void {
     this.dialogRef.close();
+  }
+
+  async downloadInstallationFiles(): Promise<void> {
+    const { changedParams } = this.formManager.extractParamsWithChanges();
+
+    // Collect uploaded files from form values (format: "file:filename:content:base64")
+    const uploadFiles: { name: string; bytes: Uint8Array }[] = [];
+    const uploadParams = this.unresolvedParameters.filter(p => p.upload);
+
+    for (const param of uploadParams) {
+      const rawValue = this.form.get(param.id)?.value;
+      if (!rawValue || typeof rawValue !== 'string') continue;
+
+      const fileName = ParameterFormManager.extractFilenameFromFileMetadata(rawValue);
+      const base64 = ParameterFormManager.extractBase64FromFileMetadata(rawValue);
+      if (!fileName || typeof base64 !== 'string') continue;
+
+      // Decode base64 to Uint8Array
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      uploadFiles.push({ name: fileName, bytes });
+
+      // In params, replace base64 content with file reference
+      const paramEntry = changedParams.find(p => p.name === param.id);
+      if (paramEntry) {
+        paramEntry.value = `file:${fileName}`;
+      }
+    }
+
+    // Build output matching the API body format:
+    // { "params": [...], "selectedAddons": [...], "stackId": "..." }
+    const output: Record<string, unknown> = { params: changedParams };
+    if (this.selectedAddons().length > 0) {
+      output['selectedAddons'] = this.selectedAddons();
+    }
+    if (this.selectedStack) {
+      output['stackId'] = this.selectedStack.id;
+    }
+
+    const zip = new JSZip();
+    zip.file('default.json', JSON.stringify(output, null, 2));
+
+    for (const file of uploadFiles) {
+      zip.file(`uploads/${file.name}`, file.bytes);
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${this.data.app.id}-installation.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   toggleAdvanced(): void {

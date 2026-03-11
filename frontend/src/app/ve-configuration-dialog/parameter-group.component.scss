@@ -27,8 +27,9 @@
 }
 
 .param-field {
-  width: 200pt;
-  min-width: 200pt;
+  flex: 1 1 200px;
+  min-width: 200px;
+  max-width: 100%;
   margin-bottom: 1rem;
 
   // Multiline fields get full width
@@ -56,11 +57,12 @@
 }
 
 .param-toggle {
-  width: 200pt;
-  min-width: 200pt;
+  flex: 1 1 200px;
+  min-width: 200px;
+  max-width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: 1rem;
 }
 
@@ -276,6 +278,53 @@
   font-style: italic;
   margin-top: -0.5rem;
   margin-bottom: 0.5rem;
+}
+
+// Classification row (create-application mode)
+.classification-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 100%;
+  flex-basis: 100%;
+  margin-bottom: 0.25rem;
+
+  .classification-param {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .classification-controls {
+    display: flex;
+    align-items: center;
+    padding-top: 0.75rem;
+    flex-shrink: 0;
+  }
+}
+
+// Button toggle styling for classification
+:host ::ng-deep .classification-toggle {
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid #ccc;
+  overflow: hidden;
+
+  .mat-button-toggle {
+    height: 28px;
+
+    .mat-button-toggle-label-content {
+      padding: 0 10px;
+      line-height: 28px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+  }
+
+  .mat-button-toggle-checked {
+    background: #1976d2;
+    color: #fff;
+  }
 }
 
 // Old secret-env-upload still used for backwards compat

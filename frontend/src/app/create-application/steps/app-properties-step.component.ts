@@ -4,6 +4,8 @@ import { ReactiveFormsModule, AsyncValidatorFn, AbstractControl, ValidationError
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatIconModule } from '@angular/material/icon';
 import { Observable, Subject, of } from 'rxjs';
 import { map, catchError, takeUntil } from 'rxjs/operators';
 
@@ -23,96 +25,117 @@ import { ITagsConfig } from '../../../shared/types';
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatExpansionModule,
+    MatIconModule,
     IconUploadComponent,
     TagsSelectorComponent
   ],
   template: `
     <div class="step-content">
       <form [formGroup]="appPropertiesForm">
-        <!-- Name, ID, Description -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Application Name</mat-label>
-          <input matInput formControlName="name" data-testid="app-name-input" required />
-          @if (appPropertiesForm.get('name')?.hasError('required') && appPropertiesForm.get('name')?.touched) {
-            <mat-error>Application name is required</mat-error>
-          }
-        </mat-form-field>
+        <!-- Identity row: Icon left, Name + ID right -->
+        <div class="identity-row">
+          <app-icon-upload
+            [iconPreview]="state.iconPreview()"
+            (iconSelected)="onIconSelected($event)"
+            (iconRemoved)="onIconRemoved()"
+          ></app-icon-upload>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Application ID</mat-label>
-          <input matInput formControlName="applicationId" data-testid="app-id-input" required (input)="onApplicationIdInput($event)" />
-          <mat-hint>Lowercase letters, numbers, and hyphens only</mat-hint>
-          @if (appPropertiesForm.get('applicationId')?.hasError('required') && appPropertiesForm.get('applicationId')?.touched) {
-            <mat-error>Application ID is required</mat-error>
-          }
-          @if (appPropertiesForm.get('applicationId')?.hasError('pattern') && appPropertiesForm.get('applicationId')?.touched) {
-            <mat-error>Only lowercase letters, numbers, and hyphens are allowed</mat-error>
-          }
-          @if (appPropertiesForm.get('applicationId')?.hasError('applicationIdTaken') && appPropertiesForm.get('applicationId')?.touched) {
-            <mat-error>Application ID already exists</mat-error>
-          }
-          @if (appPropertiesForm.get('applicationId')?.pending) {
-            <mat-hint align="end">Checking availability...</mat-hint>
-          }
-        </mat-form-field>
+          <div class="identity-fields">
+            <div class="name-id-row">
+              <mat-form-field appearance="outline" class="field-name">
+                <mat-label>Application Name</mat-label>
+                <input matInput formControlName="name" data-testid="app-name-input" required />
+                @if (appPropertiesForm.get('name')?.hasError('required') && appPropertiesForm.get('name')?.touched) {
+                  <mat-error>Required</mat-error>
+                }
+              </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Description</mat-label>
-          <textarea matInput formControlName="description" data-testid="app-description-input" required rows="3"></textarea>
-          @if (appPropertiesForm.get('description')?.hasError('required') && appPropertiesForm.get('description')?.touched) {
-            <mat-error>Description is required</mat-error>
-          }
-        </mat-form-field>
+              <mat-form-field appearance="outline" class="field-id">
+                <mat-label>Application ID</mat-label>
+                <input matInput formControlName="applicationId" data-testid="app-id-input" required (input)="onApplicationIdInput($event)" />
+                <mat-hint>a-z, 0-9, hyphens</mat-hint>
+                @if (appPropertiesForm.get('applicationId')?.hasError('required') && appPropertiesForm.get('applicationId')?.touched) {
+                  <mat-error>Required</mat-error>
+                }
+                @if (appPropertiesForm.get('applicationId')?.hasError('pattern') && appPropertiesForm.get('applicationId')?.touched) {
+                  <mat-error>Only a-z, 0-9, hyphens</mat-error>
+                }
+                @if (appPropertiesForm.get('applicationId')?.hasError('applicationIdTaken') && appPropertiesForm.get('applicationId')?.touched) {
+                  <mat-error>ID already exists</mat-error>
+                }
+                @if (appPropertiesForm.get('applicationId')?.pending) {
+                  <mat-hint align="end">Checking...</mat-hint>
+                }
+              </mat-form-field>
+            </div>
 
-        <!-- Optional metadata fields -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>URL</mat-label>
-          <input matInput formControlName="url" />
-          <mat-hint>Optional: Link to more information</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Documentation URL</mat-label>
-          <input matInput formControlName="documentation" />
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Source URL</mat-label>
-          <input matInput formControlName="source" />
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Vendor</mat-label>
-          <input matInput formControlName="vendor" />
-        </mat-form-field>
-
-        <!-- Stacktype Selection -->
-        @if (state.stacktypes().length > 0) {
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Stacktype</mat-label>
-            <mat-select [value]="state.selectedStacktype()" (selectionChange)="onStacktypeChange($event.value)">
-              <mat-option [value]="null">-- No Stacktype --</mat-option>
-              @for (st of state.stacktypes(); track st.name) {
-                <mat-option [value]="st.name">{{ st.name }}</mat-option>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Description</mat-label>
+              <textarea matInput formControlName="description" data-testid="app-description-input" required rows="2"></textarea>
+              @if (appPropertiesForm.get('description')?.hasError('required') && appPropertiesForm.get('description')?.touched) {
+                <mat-error>Required</mat-error>
               }
-            </mat-select>
-            <mat-hint>Optional: Link to a stack for shared environment variables</mat-hint>
-          </mat-form-field>
-        }
+            </mat-form-field>
+          </div>
+        </div>
 
-        <!-- Tags Selection -->
-        <app-tags-selector
-          [tagsConfig]="tagsConfig"
-          [selectedTags]="state.selectedTags()"
-          (tagToggled)="onTagToggle($event)"
-        ></app-tags-selector>
+        <!-- Stacktype + Tags side by side -->
+        <div class="tags-stack-row">
+          @if (state.stacktypes().length > 0) {
+            <mat-form-field appearance="outline" class="field-stacktype">
+              <mat-label>Stacktype</mat-label>
+              <mat-select [value]="state.selectedStacktype()" (selectionChange)="onStacktypeChange($event.value)">
+                <mat-option [value]="null">-- None --</mat-option>
+                @for (st of state.stacktypes(); track st.name) {
+                  <mat-option [value]="st.name">{{ st.name }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Shared environment variables</mat-hint>
+            </mat-form-field>
+          }
 
-        <!-- Icon Upload -->
-        <app-icon-upload
-          [iconPreview]="state.iconPreview()"
-          (iconSelected)="onIconSelected($event)"
-          (iconRemoved)="onIconRemoved()"
-        ></app-icon-upload>
+          <div class="tags-wrapper">
+            <app-tags-selector
+              [tagsConfig]="tagsConfig"
+              [selectedTags]="state.selectedTags()"
+              (tagToggled)="onTagToggle($event)"
+            ></app-tags-selector>
+          </div>
+        </div>
+
+        <!-- Optional metadata: collapsed -->
+        <mat-expansion-panel class="metadata-panel">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              <mat-icon>link</mat-icon>
+              Additional Metadata
+            </mat-panel-title>
+            <mat-panel-description>URL, Documentation, Source, Vendor</mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <div class="metadata-grid">
+            <mat-form-field appearance="outline">
+              <mat-label>URL</mat-label>
+              <input matInput formControlName="url" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Documentation URL</mat-label>
+              <input matInput formControlName="documentation" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Source URL</mat-label>
+              <input matInput formControlName="source" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Vendor</mat-label>
+              <input matInput formControlName="vendor" />
+            </mat-form-field>
+          </div>
+        </mat-expansion-panel>
       </form>
     </div>
   `,
@@ -125,8 +148,65 @@ import { ITagsConfig } from '../../../shared/types';
       width: 100%;
     }
 
-    mat-form-field {
+    /* Identity row: icon left, fields right */
+    .identity-row {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
       margin-bottom: 0.5rem;
+    }
+
+    .identity-fields {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .name-id-row {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .field-name {
+      flex: 1;
+    }
+
+    .field-id {
+      flex: 1;
+    }
+
+    /* Tags + Stacktype row */
+    .tags-stack-row {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+
+    .field-stacktype {
+      width: 220px;
+      flex-shrink: 0;
+    }
+
+    .tags-wrapper {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Collapsed metadata */
+    .metadata-panel {
+      margin-top: 0.5rem;
+    }
+
+    .metadata-panel mat-icon {
+      margin-right: 0.5rem;
+      font-size: 20px;
+      color: rgba(0, 0, 0, 0.54);
+    }
+
+    .metadata-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 1rem;
     }
   `]
 })

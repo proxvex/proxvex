@@ -18,6 +18,7 @@ export interface IUploadFile {
   required?: boolean;
   advanced?: boolean;
   certtype?: CertType;
+  help?: string;                // Optional: Markdown help text or documentation URL shown during installation
 }
 
 export interface IApplicationBase {
@@ -138,6 +139,13 @@ export interface IParameter {
   if?: string;
 }
 
+export type ParameterTarget = 'value' | 'default' | 'install';
+
+export interface IParameterClassification {
+  id: string;
+  target: ParameterTarget;
+}
+
 export interface IParameterOverride {
   id: string;
   name?: string;
@@ -233,9 +241,15 @@ export interface ITagsConfig {
 export type ITagsConfigResponse = ITagsConfig;
 
 // Response interfaces for all backend endpoints (frontend mirror)
+export interface IFrameworkPropertyInfo {
+  id: string;
+  isDefault: boolean;
+}
+
 export interface IUnresolvedParametersResponse {
   unresolvedParameters: IParameter[];
   addons?: IAddonWithParameters[];
+  frameworkProperties?: IFrameworkPropertyInfo[];
 }
 export interface IEnumValuesEntry {
   id: string;
@@ -396,6 +410,7 @@ export interface IFrameworkApplicationDataBody {
   tags?: string[];
   stacktype?: string;
   parameterValues: { id: string; value: string | number | boolean }[];
+  parameterClassifications?: IParameterClassification[];
   uploadfiles?: IUploadFile[];
 }
 

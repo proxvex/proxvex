@@ -44,7 +44,18 @@
       </div>
     </mat-step>
 
-    <!-- Step 4: Upload Files -->
+    <!-- Step 4: SSL Configuration -->
+    <mat-step [editable]="true" [optional]="true">
+      <ng-template matStepLabel>SSL / HTTPS</ng-template>
+      <app-ssl-step></app-ssl-step>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious data-testid="prev-step-btn">Back</button>
+        <button mat-button (click)="cancel()">Cancel</button>
+        <button mat-raised-button color="primary" matStepperNext data-testid="next-step-btn">Next</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 5: Upload Files -->
     <mat-step [editable]="true" [optional]="true">
       <ng-template matStepLabel>Upload Files</ng-template>
       <app-upload-files-step></app-upload-files-step>
@@ -55,16 +66,17 @@
       </div>
     </mat-step>
 
-    <!-- Step 5: Summary -->
+    <!-- Step 6: Summary -->
     <mat-step label="Summary">
       <app-summary-step
         (navigateToStep)="onNavigateToStep($event)"
+        (applicationSaved)="onApplicationSaved($event)"
       ></app-summary-step>
       <div class="step-actions">
         <button mat-button matStepperPrevious data-testid="prev-step-btn">Back</button>
 
-        <!-- Button 1: Save Application only -->
         <button mat-raised-button
+                color="primary"
                 (click)="createApplication()"
                 [disabled]="creating()"
                 data-testid="save-application-btn">
@@ -72,19 +84,6 @@
             {{ editMode() ? 'Updating...' : 'Saving...' }}
           } @else {
             {{ editMode() ? 'Update Application' : 'Save Application' }}
-          }
-        </button>
-
-        <!-- Button 2: Save & Install -->
-        <button mat-raised-button
-                color="primary"
-                (click)="saveAndInstall()"
-                [disabled]="creating() || !summaryStep?.isInstallFormValid"
-                data-testid="save-and-install-btn">
-          @if (creating()) {
-            Installing...
-          } @else {
-            Save & Install
           }
         </button>
       </div>

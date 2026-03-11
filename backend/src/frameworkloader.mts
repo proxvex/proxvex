@@ -8,12 +8,14 @@ import {
 } from "./backend-types.mjs";
 import {
   IFramework,
+  IFrameworkPropertyInfo,
   TaskType,
   IParameter,
   IParameterValue,
   IPostFrameworkCreateApplicationBody,
   IFrameworkApplicationDataBody,
   IUploadFile,
+  ParameterTarget,
 } from "./types.mjs";
 import { StorageContext } from "./storagecontext.mjs";
 import { ContextManager } from "./context-manager.mjs";
@@ -166,11 +168,20 @@ export class FrameworkLoader {
       paramValuesMap.set(pv.id, pv.value);
     }
 
+    // Build explicit classifications map if provided by frontend
+    const explicitClassifications = new Map<string, ParameterTarget>();
+    if (request.parameterClassifications) {
+      for (const c of request.parameterClassifications) {
+        explicitClassifications.set(c.id, c.target);
+      }
+    }
+
     const { parameters, properties } = this.classifyFrameworkProperties(
       framework,
       allParameters,
       paramValuesMap,
       request.applicationId,
+      explicitClassifications,
     );
 
     this.applyComposeAndEnvHandling(
@@ -281,6 +292,7 @@ export class FrameworkLoader {
     allParameters: IParameter[],
     paramValuesMap: Map<string, string | number | boolean>,
     applicationId: string,
+    explicitClassifications?: Map<string, ParameterTarget>,
   ): {
     parameters: IParameter[];
     properties: Array<{ id: string; value: string | number | boolean }>;
@@ -298,11 +310,27 @@ export class FrameworkLoader {
       const paramDef = allParameters.find((p) => p.id === propId);
       const paramValue = paramValuesMap.get(propId);
 
-      const shouldAddAsParameter =
-        isDefault ||
-        (framework.id === "docker-compose" &&
-          propId === "hostname" &&
-          paramDef);
+      // Use explicit classification if provided, otherwise fall back to framework defaults
+      const explicit = explicitClassifications?.get(propId);
+      let shouldAddAsParameter: boolean;
+
+      if (explicit) {
+        // Frontend explicitly classified this parameter
+        shouldAddAsParameter = explicit === "default";
+        // If explicit === 'value', it goes to properties
+        // If explicit === 'install', it doesn't go to either
+      } else {
+        shouldAddAsParameter =
+          isDefault ||
+          (framework.id === "docker-compose" &&
+            propId === "hostname" &&
+            !!paramDef);
+      }
+
+      if (explicit === "install") {
+        // Skip - don't store in application.json
+        continue;
+      }
 
       if (shouldAddAsParameter && paramDef) {
         const param: IParameter = { ...paramDef };
@@ -344,8 +372,21 @@ export class FrameworkLoader {
     ]);
     for (const [paramId, paramValue] of paramValuesMap) {
       if (processedIds.has(paramId)) continue;
+
+      // Check explicit classification for non-framework params
+      const explicit = explicitClassifications?.get(paramId);
+      if (explicit === "install") continue; // Skip install-only params
+
       const paramDef = allParameters.find((p) => p.id === paramId);
-      if (paramDef && String(paramValue) !== String(paramDef.default)) {
+
+      if (explicit === "value" && paramValue !== undefined) {
+        // Explicitly classified as value
+        properties.push({ id: paramId, value: paramValue });
+      } else if (explicit === "default" && paramDef) {
+        // Explicitly classified as default
+        parameters.push({ ...paramDef, default: paramValue });
+      } else if (paramDef && String(paramValue) !== String(paramDef.default)) {
+        // Legacy behavior: non-framework params with changed values become defaults
         parameters.push({ ...paramDef, default: paramValue });
       }
     }
@@ -523,9 +564,10 @@ export class FrameworkLoader {
         uploadFile.content ??
         (paramValuesMap.get(contentParamId) as string | undefined);
 
+      const truncatedLabel = fileLabel.length > 23 ? fileLabel.slice(0, 23) : fileLabel;
       const uploadTemplate = {
-        name: `Upload ${fileLabel}`,
-        description: `Uploads ${fileLabel} to ${uploadFile.destination}`,
+        name: `Upload ${truncatedLabel}`,
+        description: `Upload ${sanitized}`,
         execute_on: "ve",
         skip_if_all_missing: [contentParamId],
         parameters: [
@@ -597,7 +639,7 @@ export class FrameworkLoader {
         ],
         commands: [
           {
-            name: `Upload ${fileLabel}`,
+            name: `Upload ${truncatedLabel}`,
             script: scriptName,
             library: "upload-file-common.sh",
             outputs: [outputId],
@@ -631,6 +673,16 @@ upload_pre_start_file \\
 upload_output_result "${outputId}"
 `;
       this.persistence.writeScript(scriptName, scriptContent, false, appDir);
+
+      // Write markdown help file if help text is provided
+      if (uploadFile.help && uploadFile.help.trim()) {
+        const mdFileName = `${templateName}.md`;
+        const mdContent = `## ${fileLabel}\n\n${uploadFile.help.trim()}\n`;
+        const templatesDir = path.join(appDir, "templates");
+        fs.mkdirSync(templatesDir, { recursive: true });
+        fs.writeFileSync(path.join(templatesDir, mdFileName), mdContent);
+      }
+
       uploadTemplateNames.push(`${templateName}.json`);
     }
 
@@ -702,7 +754,7 @@ upload_output_result "${outputId}"
     request: IFrameworkApplicationDataBody,
     task: TaskType,
     veContext: IVEContext,
-  ): Promise<IParameter[]> {
+  ): Promise<{ unresolvedParameters: IParameter[]; frameworkProperties: IFrameworkPropertyInfo[] }> {
     const { framework } = await this.prepareApplicationParameters(request);
 
     // Build a map of parameterValues for later use as defaults
@@ -801,7 +853,16 @@ upload_output_result "${outputId}"
       }
     }
 
-    return unresolvedParams;
+    // Build framework properties info for the frontend
+    const frameworkProperties: IFrameworkPropertyInfo[] = framework.properties.map(
+      (prop) => {
+        const propId = typeof prop === "string" ? prop : prop.id;
+        const isDefault = typeof prop === "object" && prop.default === true;
+        return { id: propId, isDefault };
+      },
+    );
+
+    return { unresolvedParameters: unresolvedParams, frameworkProperties };
   }
 
   /**
@@ -871,4 +932,5 @@ upload_output_result "${outputId}"
       throw new JsonError(error?.message || String(error));
     }
   }
+
 }

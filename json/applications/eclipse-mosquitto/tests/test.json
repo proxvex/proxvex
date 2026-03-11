@@ -1,6 +1,6 @@
 {
   "default": {
-    "description": "Eclipse Mosquitto MQTT Broker (simple oci-image test)",
+    "description": "Eclipse Mosquitto MQTT Broker with SSL",
     "verify": {
       "container_running": true,
       "notes_managed": true,

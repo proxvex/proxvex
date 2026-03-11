@@ -60,7 +60,7 @@ describe("FrameworkLoader.getPreviewUnresolvedParameters", () => {
       ],
     };
 
-    const unresolvedParams = await loader.getPreviewUnresolvedParameters(
+    const { unresolvedParameters: unresolvedParams } = await loader.getPreviewUnresolvedParameters(
       request,
       "installation",
       veContext,
@@ -92,7 +92,7 @@ describe("FrameworkLoader.getPreviewUnresolvedParameters", () => {
       ],
     };
 
-    const unresolvedParams = await loader.getPreviewUnresolvedParameters(
+    const { unresolvedParameters: unresolvedParams } = await loader.getPreviewUnresolvedParameters(
       request,
       "installation",
       veContext,
@@ -121,7 +121,7 @@ describe("FrameworkLoader.getPreviewUnresolvedParameters", () => {
       parameterValues: [], // No values provided
     };
 
-    const unresolvedParams = await loader.getPreviewUnresolvedParameters(
+    const { unresolvedParameters: unresolvedParams } = await loader.getPreviewUnresolvedParameters(
       request,
       "installation",
       veContext,
@@ -164,7 +164,7 @@ describe("FrameworkLoader.getPreviewUnresolvedParameters", () => {
       ],
     };
 
-    const unresolvedParams = await loader.getPreviewUnresolvedParameters(
+    const { unresolvedParameters: unresolvedParams } = await loader.getPreviewUnresolvedParameters(
       request,
       "installation",
       veContext,
@@ -202,7 +202,7 @@ describe("FrameworkLoader.getPreviewUnresolvedParameters", () => {
       ],
     };
 
-    const unresolvedParams = await loader.getPreviewUnresolvedParameters(
+    const { unresolvedParameters: unresolvedParams } = await loader.getPreviewUnresolvedParameters(
       request,
       "installation",
       veContext,
