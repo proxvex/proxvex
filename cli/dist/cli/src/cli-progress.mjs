@@ -33,7 +33,7 @@ export class CliProgress {
             // Process new messages
             for (let i = this.seenMessages; i < messages.length; i++) {
                 const msg = messages[i];
-                this.renderMessage(msg, i, messages.length);
+                this.renderMessage(msg, i);
                 if (msg.finished) {
                     const success = msg.exitCode === 0;
                     if (!success) {
@@ -54,18 +54,16 @@ export class CliProgress {
         }
         throw new TimeoutError(`Execution timed out after ${this.options.timeout}s`);
     }
-    renderMessage(msg, index, total) {
+    renderMessage(msg, index) {
         if (this.options.json) {
             process.stdout.write(JSON.stringify(msg) + "\n");
             return;
         }
-        if (this.options.quiet)
-            return;
-        // Skip partial streaming messages for standard output
+        // Skip partial streaming messages
         if (msg.partial)
             return;
         const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
-        const step = `[${index + 1}/${total}]`;
+        const step = `[${index + 1}]`;
         const status = msg.exitCode === 0
             ? "OK"
             : msg.finished
@@ -75,6 +73,16 @@ export class CliProgress {
         const name = msg.command;
         process.stderr.write(`[${time}] ${step} ${name} ${"."
             .repeat(Math.max(1, 40 - name.length))} ${status}${extra}\n`);
+        // In quiet mode: show step headers (above) but skip logs — except on failure
+        if (this.options.quiet) {
+            if (msg.exitCode !== 0 && msg.stderr) {
+                for (const line of msg.stderr.split("\n")) {
+                    if (line)
+                        process.stderr.write(`    ${line}\n`);
+                }
+            }
+            return;
+        }
         if (this.options.verbose && msg.stderr) {
             for (const line of msg.stderr.split("\n")) {
                 if (line)

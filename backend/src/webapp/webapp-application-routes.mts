@@ -9,6 +9,7 @@ import {
   ITagsConfigResponse,
   IApplicationFrameworkDataResponse,
   ICompatibleAddonsResponse,
+  ITestScenariosResponse,
 } from "@src/types.mjs";
 import { ContextManager } from "../context-manager.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
@@ -313,6 +314,15 @@ export function registerApplicationRoutes(
       }
     },
   );
+
+  app.get(ApiUri.TestScenarios, (_req, res) => {
+    try {
+      const scenarios = pm.getTestScenarios();
+      returnResponse<ITestScenariosResponse>(res, { scenarios });
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
 
   app.get(ApiUri.CompatibleAddons, (req, res) => {
     try {

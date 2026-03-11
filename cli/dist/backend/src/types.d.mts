@@ -173,6 +173,8 @@ export declare enum ApiUri {
     FrameworkCreateApplication = "/api/framework-create-application",
     FrameworkFromImage = "/api/framework-from-image",
     ApplicationFrameworkData = "/api/application/:applicationId/framework-data",
+    ApplicationTestData = "/api/application/:applicationId/test-data",
+    TestScenarios = "/api/test-scenarios",
     VeCopyUpgrade = "/api/:veContext/ve/copy-upgrade/:application",
     CompatibleAddons = "/api/addons/compatible/:application",
     AddonInstall = "/api/:veContext/addons/install/:addonId",
@@ -286,6 +288,32 @@ export interface IPostVeConfigurationResponse {
     vmInstallKey?: string;
 }
 export type IApplicationsResponse = IApplicationWeb[];
+export interface ITestScenarioResponse {
+    id: string;
+    application: string;
+    description: string;
+    depends_on?: string[];
+    task?: string;
+    addons?: string[];
+    wait_seconds?: number;
+    cli_timeout?: number;
+    verify?: Record<string, boolean | number | string>;
+    params?: {
+        name: string;
+        value?: string;
+        append?: string;
+    }[];
+    selectedAddons?: string[];
+    stackId?: string;
+    uploads?: {
+        name: string;
+        content: string;
+    }[];
+    cleanup?: Record<string, string>;
+}
+export interface ITestScenariosResponse {
+    scenarios: ITestScenarioResponse[];
+}
 export interface ISingleExecuteMessagesResponse {
     application: string;
     task: string;

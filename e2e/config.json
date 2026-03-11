@@ -1,6 +1,18 @@
 {
   "default": "local-test",
   "instances": {
+    "dev": {
+      "description": "Local development (deployer runs on localhost)",
+      "pveHost": "${PVE_HOST:-ubuntupve}",
+      "vmId": 9000,
+      "vmName": "pve-e2e-dev",
+      "portOffset": 0,
+      "subnet": "10.99.1",
+      "bridge": "vmbr1",
+      "filesystem": "zfs",
+      "deployerHost": "localhost",
+      "deployerPort": "${DEPLOYER_PORT}"
+    },
     "local-test": {
       "description": "Local development testing",
       "pveHost": "${PVE_HOST:-ubuntupve}",

@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { JsonValidator } from "../jsonvalidator.mjs";
 import { IConfiguredPathes } from "../backend-types.mjs";
-import { ITagsConfig, IStacktypeEntry } from "../types.mjs";
+import { ITagsConfig, IStacktypeEntry, ITestScenarioResponse } from "../types.mjs";
 import { FileSystemPersistence } from "./filesystem-persistence.mjs";
 import {
   IApplicationPersistence,
@@ -305,6 +305,101 @@ export class PersistenceManager {
     }
 
     return { testsDir };
+  }
+
+  /**
+   * Discovers all test scenarios across all applications (json + local).
+   * Returns scenario definitions with their params and upload file lists.
+   */
+  getTestScenarios(): ITestScenarioResponse[] {
+    const appService = this.applicationService;
+    const allApps = appService.getAllAppNames();
+    const scenarios: ITestScenarioResponse[] = [];
+
+    for (const [appId, appDir] of allApps) {
+      const testDir = path.join(appDir, "tests");
+      const testFile = path.join(testDir, "test.json");
+
+      if (fs.existsSync(testFile)) {
+        // Explicit test definitions from test.json
+        const defs: Record<string, {
+          description: string;
+          depends_on?: string[];
+          task?: string;
+          addons?: string[];
+          wait_seconds?: number;
+          cli_timeout?: number;
+          verify?: Record<string, boolean | number | string>;
+        }> = JSON.parse(fs.readFileSync(testFile, "utf-8"));
+
+        for (const [name, def] of Object.entries(defs)) {
+          const scenario: ITestScenarioResponse = {
+            id: `${appId}/${name}`,
+            application: appId,
+            ...def,
+          };
+
+          // Read scenario params file if it exists
+          const paramsFile = path.join(testDir, `${name}.json`);
+          if (fs.existsSync(paramsFile)) {
+            const paramsContent = JSON.parse(fs.readFileSync(paramsFile, "utf-8"));
+            if (paramsContent.params) scenario.params = paramsContent.params;
+            if (paramsContent.selectedAddons) scenario.selectedAddons = paramsContent.selectedAddons;
+            if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
+          }
+
+          // Read upload files as base64
+          const uploadsDir = path.join(testDir, "uploads");
+          if (fs.existsSync(uploadsDir)) {
+            const files = fs.readdirSync(uploadsDir).filter(
+              f => fs.statSync(path.join(uploadsDir, f)).isFile(),
+            );
+            if (files.length > 0) {
+              scenario.uploads = files.map(f => ({
+                name: f,
+                content: fs.readFileSync(path.join(uploadsDir, f)).toString("base64"),
+              }));
+            }
+          }
+
+          scenarios.push(scenario);
+        }
+      } else {
+        // Implicit default scenario from default.json (e.g. saved from frontend)
+        const defaultFile = path.join(testDir, "default.json");
+        if (fs.existsSync(defaultFile)) {
+          const paramsContent = JSON.parse(fs.readFileSync(defaultFile, "utf-8"));
+          const scenario: ITestScenarioResponse = {
+            id: `${appId}/default`,
+            application: appId,
+            description: `${appId} (auto-discovered from default.json)`,
+          };
+          if (paramsContent.params) scenario.params = paramsContent.params;
+          if (paramsContent.selectedAddons) {
+            scenario.selectedAddons = paramsContent.selectedAddons;
+            scenario.addons = paramsContent.selectedAddons;
+          }
+          if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
+
+          const uploadsDir = path.join(testDir, "uploads");
+          if (fs.existsSync(uploadsDir)) {
+            const files = fs.readdirSync(uploadsDir).filter(
+              f => fs.statSync(path.join(uploadsDir, f)).isFile(),
+            );
+            if (files.length > 0) {
+              scenario.uploads = files.map(f => ({
+                name: f,
+                content: fs.readFileSync(path.join(uploadsDir, f)).toString("base64"),
+              }));
+            }
+          }
+
+          scenarios.push(scenario);
+        }
+      }
+    }
+
+    return scenarios;
   }
 
   // Alias für Rückwärtskompatibilität (kann später entfernt werden)

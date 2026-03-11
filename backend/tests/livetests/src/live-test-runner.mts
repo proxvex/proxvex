@@ -30,7 +30,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -52,13 +51,18 @@ export interface TestScenario {
   wait_seconds?: number;
   cli_timeout?: number;
   verify?: Record<string, boolean | number | string>;
+  cleanup?: Record<string, string>;
 }
 
 /** Discovered scenario with resolved identity */
 export interface ResolvedScenario extends TestScenario {
   id: string;
   application: string;
-  appTestDir: string;
+  /** Params from scenario params file (delivered by API) */
+  params?: ParamEntry[];
+  selectedAddons?: string[];
+  stackId?: string;
+  uploads?: { name: string; content: string }[];
 }
 
 /** Planned scenario ready for execution */
@@ -68,6 +72,8 @@ interface PlannedScenario {
   stackName: string;
   scenario: ResolvedScenario;
   hasStacktype: boolean;
+  isDependency: boolean;
+  skipExecution: boolean;
 }
 
 interface StepResult {
@@ -97,6 +103,8 @@ interface E2EConfig {
     subnet: string;
     bridge: string;
     filesystem?: string;
+    deployerHost?: string;
+    deployerPort?: string;
   }>;
   defaults: Record<string, unknown>;
   ports: {
@@ -133,47 +141,22 @@ function logStep(step: string, desc: string) {
 // ── Pure functions (exported for unit testing) ──
 
 /**
- * Discover all test scenarios from json/applications/<app>/tests/test.json.
+ * Fetch all test scenarios from the deployer API.
+ * Replaces the old filesystem-based discoverTests().
  */
-export function discoverTests(projectRoot: string): Map<string, ResolvedScenario> {
-  const appsDir = path.join(projectRoot, "json/applications");
-  const all = new Map<string, ResolvedScenario>();
-
-  for (const dir of readdirSync(appsDir, { withFileTypes: true })) {
-    if (!dir.isDirectory()) continue;
-    const testDir = path.join(appsDir, dir.name, "tests");
-    const testFile = path.join(testDir, "test.json");
-
-    if (existsSync(testFile)) {
-      // Explicit test definitions
-      const scenarios: Record<string, TestScenario> = JSON.parse(
-        readFileSync(testFile, "utf-8"),
-      );
-      for (const [name, def] of Object.entries(scenarios)) {
-        const id = `${dir.name}/${name}`;
-        all.set(id, {
-          ...def,
-          id,
-          application: dir.name,
-          appTestDir: testDir,
-        });
-      }
-    } else if (existsSync(path.join(testDir, "default.json"))) {
-      // Implicit default scenario from params file (e.g. unzipped from frontend download)
-      const paramsContent: { selectedAddons?: string[] } = JSON.parse(
-        readFileSync(path.join(testDir, "default.json"), "utf-8"),
-      );
-      const id = `${dir.name}/default`;
-      all.set(id, {
-        description: `${dir.name} (auto-discovered from default.json)`,
-        ...(paramsContent.selectedAddons?.length ? { addons: paramsContent.selectedAddons } : {}),
-        id,
-        application: dir.name,
-        appTestDir: testDir,
-      });
-    }
+export async function fetchTestScenarios(apiUrl: string): Promise<Map<string, ResolvedScenario>> {
+  const resp = await fetch(`${apiUrl}/api/test-scenarios`, {
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch test scenarios: ${resp.status} ${resp.statusText}`);
   }
+  const data = await resp.json() as { scenarios: Array<ResolvedScenario & { params?: ParamEntry[] }> };
 
+  const all = new Map<string, ResolvedScenario>();
+  for (const s of data.scenarios) {
+    all.set(s.id, s);
+  }
   return all;
 }
 
@@ -259,40 +242,60 @@ export interface BuildParamsResult {
 
 /**
  * Build CLI params for a scenario.
- * Merges base params with scenario-specific params from <scenario>.json.
- * Also extracts selectedAddons and stackId from the params file.
- * Supports set mode, append mode (for multiline vars like envs), and file: resolution.
+ * Merges base params with scenario params from the API response.
+ * Also extracts selectedAddons and stackId.
+ * Supports set mode and append mode (for multiline vars like envs).
+ * Resolves file: references using upload data from the API (written to tmpDir).
  */
 export function buildParams(
   scenario: ResolvedScenario,
   baseParams: { name: string; value: string }[],
   templateVars: Record<string, string>,
+  tmpDir?: string,
 ): BuildParamsResult {
   const params = baseParams.map((p) => ({ ...p }));
 
-  const scenarioName = scenario.id.split("/")[1]!;
-  const paramsPath = path.join(scenario.appTestDir, `${scenarioName}.json`);
-
-  if (!existsSync(paramsPath)) return { params };
-
-  let content = readFileSync(paramsPath, "utf-8");
-
-  // Substitute template variables
-  for (const [key, val] of Object.entries(templateVars)) {
-    content = content.replace(
-      new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
-      val,
-    );
+  if (!scenario.params || scenario.params.length === 0) {
+    return {
+      params,
+      ...(scenario.selectedAddons ? { selectedAddons: scenario.selectedAddons } : {}),
+      ...(scenario.stackId ? { stackId: scenario.stackId } : {}),
+    };
   }
 
-  const extra: { params?: ParamEntry[]; selectedAddons?: string[]; stackId?: string } =
-    JSON.parse(content);
+  // Write upload files to tmpDir so file: references can be resolved
+  const uploadMap = new Map<string, string>();
+  if (tmpDir && scenario.uploads) {
+    const uploadsDir = path.join(tmpDir, "uploads");
+    mkdirSync(uploadsDir, { recursive: true });
+    for (const upload of scenario.uploads) {
+      const filePath = path.join(uploadsDir, upload.name);
+      writeFileSync(filePath, Buffer.from(upload.content, "base64"));
+      uploadMap.set(upload.name, filePath);
+    }
+  }
 
-  for (const p of extra.params ?? []) {
+  for (const p of scenario.params) {
+    // Substitute template variables in values
+    let value = p.value ?? "";
+    for (const [key, val] of Object.entries(templateVars)) {
+      value = value.replace(
+        new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
+        val,
+      );
+    }
+
     if (p.append) {
+      let appendVal = p.append;
+      for (const [key, val] of Object.entries(templateVars)) {
+        appendVal = appendVal.replace(
+          new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
+          val,
+        );
+      }
       // Append mode: extend multiline variable (e.g. envs)
       const existing = params.find((b) => b.name === p.name);
-      const line = `${p.append}=${p.value ?? ""}`;
+      const line = `${appendVal}=${value}`;
       if (existing) {
         existing.value = existing.value
           ? `${existing.value}\n${line}`
@@ -302,15 +305,13 @@ export function buildParams(
       }
     } else {
       // Set mode: override or add
-      let value = p.value ?? "";
-      // Resolve file: paths relative to uploads/ in tests dir
+      // Resolve file: references using uploads from API
       if (value.startsWith("file:")) {
-        const relPath = value.slice(5);
-        const uploadsDir = path.join(scenario.appTestDir, "uploads");
-        const resolved = existsSync(path.join(uploadsDir, relPath))
-          ? path.join(uploadsDir, relPath)
-          : path.join(scenario.appTestDir, relPath);
-        value = `file:${resolved}`;
+        const fileName = value.slice(5);
+        const localPath = uploadMap.get(fileName);
+        if (localPath) {
+          value = `file:${localPath}`;
+        }
       }
       const existing = params.find((b) => b.name === p.name);
       if (existing) {
@@ -323,8 +324,8 @@ export function buildParams(
 
   return {
     params,
-    ...(extra.selectedAddons ? { selectedAddons: extra.selectedAddons } : {}),
-    ...(extra.stackId ? { stackId: extra.stackId } : {}),
+    ...(scenario.selectedAddons ? { selectedAddons: scenario.selectedAddons } : {}),
+    ...(scenario.stackId ? { stackId: scenario.stackId } : {}),
   };
 }
 
@@ -349,22 +350,38 @@ function loadConfig(instanceName?: string): {
     process.exit(1);
   }
 
-  // Resolve ${VAR:-default} in pveHost
-  const pveHost = inst.pveHost.replace(/\$\{(\w+):-(\w+)\}/g, (_, varName, defaultVal) =>
-    process.env[varName] || defaultVal,
-  );
+  // Resolve ${VAR:-default} and ${VAR} in config values
+  const resolveEnv = (val: string) =>
+    val
+      .replace(/\$\{(\w+):-(\w+)\}/g, (_, varName, defaultVal) => process.env[varName] || defaultVal)
+      .replace(/\$\{(\w+)\}/g, (_, varName) => process.env[varName] || "");
+
+  const pveHost = resolveEnv(inst.pveHost);
 
   const offset = inst.portOffset;
   const portPveSsh = config.ports.pveSsh + offset;
-  const portDeployer = config.ports.deployer + offset;
-  const portDeployerHttps = config.ports.deployerHttps + offset;
+
+  // Allow explicit deployer host/port override (for dev environments)
+  let deployerUrl: string;
+  let deployerHttpsUrl: string;
+  if (inst.deployerHost && inst.deployerPort) {
+    const deployerHost = resolveEnv(inst.deployerHost);
+    const deployerPort = resolveEnv(inst.deployerPort);
+    deployerUrl = `http://${deployerHost}:${deployerPort}`;
+    deployerHttpsUrl = `https://${deployerHost}:${deployerPort}`;
+  } else {
+    const portDeployer = config.ports.deployer + offset;
+    const portDeployerHttps = config.ports.deployerHttps + offset;
+    deployerUrl = `http://${pveHost}:${portDeployer}`;
+    deployerHttpsUrl = `https://${pveHost}:${portDeployerHttps}`;
+  }
 
   return {
     instance,
     pveHost,
     portPveSsh,
-    deployerUrl: `http://${pveHost}:${portDeployer}`,
-    deployerHttpsUrl: `https://${pveHost}:${portDeployerHttps}`,
+    deployerUrl,
+    deployerHttpsUrl,
     bridge: inst.bridge || "vmbr0",
   };
 }
@@ -431,9 +448,12 @@ function runCli(
   cliTimeout = 600,
 ): Promise<{ output: string; exitCode: number }> {
   return new Promise((resolve) => {
-    const cliPath = path.join(projectRoot, "cli/dist/cli/src/oci-lxc-cli.mjs");
-    const args = [
-      cliPath, "remote",
+    // Auto-detect dev mode: if TypeScript source exists, use tsx
+    const tsSource = path.join(projectRoot, "cli/src/oci-lxc-cli.mts");
+    const devMode = existsSync(tsSource);
+
+    const cliArgs = [
+      "remote",
       "--server", apiUrl,
       "--ve", veHost,
       "--insecure",
@@ -442,19 +462,28 @@ function runCli(
     ];
 
     if (addons && addons.length > 0) {
-      args.push("--enable-addons", addons.join(","));
+      cliArgs.push("--enable-addons", addons.join(","));
     }
 
-    args.push(paramsFile);
+    cliArgs.push(paramsFile);
+
+    let cmd: string;
+    let args: string[];
+    if (devMode) {
+      cmd = "npx";
+      args = ["tsx", tsSource, ...cliArgs];
+    } else {
+      cmd = "node";
+      args = [path.join(projectRoot, "cli/dist/cli/src/oci-lxc-cli.mjs"), ...cliArgs];
+    }
 
     let output = "";
-    const proc = spawn("node", args, {
-      stdio: ["pipe", "pipe", "pipe"],
+    const proc = spawn(cmd, args, {
+      stdio: ["pipe", "pipe", "inherit"],
       env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: "0" },
     });
 
     proc.stdout.on("data", (data: Buffer) => { output += data.toString(); });
-    proc.stderr.on("data", (data: Buffer) => { output += data.toString(); });
 
     proc.on("close", (code) => {
       resolve({ output, exitCode: code ?? 1 });
@@ -703,6 +732,8 @@ function planScenarios(
       stackName,
       scenario,
       hasStacktype,
+      isDependency: false,
+      skipExecution: false,
     };
   });
 }
@@ -739,6 +770,16 @@ async function executeScenarios(
         `${scenario.id} (${task}) [VM ${step.vmId}]`,
       );
 
+      // Skip dependencies that are already running
+      if (step.skipExecution) {
+        logOk(`Skipping ${scenario.id} (already running)`);
+        result.steps.push({
+          vmId: step.vmId, hostname: step.hostname,
+          application: scenario.application, scenarioId: scenario.id,
+        });
+        continue;
+      }
+
       // Build params
       const baseParams = [
         { name: "hostname", value: step.hostname },
@@ -752,7 +793,7 @@ async function executeScenarios(
         stack_name: step.stackName,
       };
 
-      const buildResult = buildParams(scenario, baseParams, templateVars);
+      const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
 
       // Merge addons from test.json and params file
       const allAddons = [
@@ -800,8 +841,6 @@ async function executeScenarios(
           application: scenario.application, scenarioId: scenario.id,
           cliOutput: cliResult.output,
         });
-        const lastLines = cliResult.output.split("\n").slice(-20).join("\n");
-        if (lastLines) console.log(lastLines);
         break;
       }
 
@@ -926,22 +965,22 @@ function collectDiagnostics(
 // ── Cleanup ──
 
 function cleanupVms(
-  results: TestResult[],
+  planned: PlannedScenario[],
   pveHost: string,
   sshPort: number,
   keepVm: boolean,
 ) {
-  const allVms = results.flatMap((r) => r.steps.map((s) => s.vmId));
-  if (allVms.length === 0) return;
-
-  for (const vmId of allVms.reverse()) {
-    if (keepVm) {
-      logWarn(`KEEP_VM set - VM ${vmId} not destroyed`);
-      console.log(`  ssh -p ${sshPort} root@${pveHost} 'pct stop ${vmId}; pct destroy ${vmId}'`);
+  for (const p of [...planned].reverse()) {
+    if (p.isDependency) {
+      logWarn(`Keeping dependency VM ${p.vmId} (${p.scenario.id})`);
+      console.log(`  ssh -p ${sshPort} root@${pveHost} 'pct stop ${p.vmId}; pct destroy ${p.vmId}'`);
+    } else if (keepVm) {
+      logWarn(`KEEP_VM set - VM ${p.vmId} not destroyed`);
+      console.log(`  ssh -p ${sshPort} root@${pveHost} 'pct stop ${p.vmId}; pct destroy ${p.vmId}'`);
     } else {
-      logInfo(`Cleaning up VM ${vmId}...`);
+      logInfo(`Cleaning up VM ${p.vmId}...`);
       nestedSsh(pveHost, sshPort,
-        `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
         30000,
       );
     }
@@ -971,12 +1010,14 @@ async function main() {
   // Prerequisites
   logInfo("Checking prerequisites...");
 
+  const tsSource = path.join(projectRoot, "cli/src/oci-lxc-cli.mts");
   const cliPath = path.join(projectRoot, "cli/dist/cli/src/oci-lxc-cli.mjs");
-  try {
-    readFileSync(cliPath);
+  if (existsSync(tsSource)) {
+    logOk("CLI TypeScript source found (dev mode — using tsx)");
+  } else if (existsSync(cliPath)) {
     logOk("CLI is built");
-  } catch {
-    logFail(`CLI not built. Run: cd ${projectRoot} && pnpm run build`);
+  } else {
+    logFail(`CLI not found. Run: cd ${projectRoot} && pnpm run build`);
     process.exit(1);
   }
 
@@ -999,8 +1040,8 @@ async function main() {
   }
   logOk(`VE host discovered: ${veHost}`);
 
-  // Discover tests
-  const allTests = discoverTests(projectRoot);
+  // Discover tests via API
+  const allTests = await fetchTestScenarios(apiUrl);
   logOk(`Discovered ${allTests.size} test scenario(s)`);
 
   // Select and resolve dependencies
@@ -1034,42 +1075,70 @@ async function main() {
   // Plan: assign VM IDs and stack names
   const planned = planScenarios(scenariosToRun, appStacktypes);
 
+  // Mark dependencies vs explicitly selected targets
+  const selectedIdSet = new Set(selectedIds);
+  for (const p of planned) {
+    p.isDependency = !selectedIdSet.has(p.scenario.id);
+  }
+
   // Show plan
   console.log("");
   logInfo("Execution plan:");
   for (const p of planned) {
-    console.log(`  ${p.scenario.id}: VM ${p.vmId}, stack=${p.stackName}`);
+    const tag = p.isDependency ? " (dep)" : "";
+    console.log(`  ${p.scenario.id}: VM ${p.vmId}, stack=${p.stackName}${tag}`);
   }
   console.log("");
 
-  // Pre-test cleanup: destroy stale VMs, volumes, and stacks
-  const allPlannedVmIds = planned.map((p) => p.vmId);
-  const allPlannedHostnames = planned.map((p) => p.hostname);
-  const allPlannedStacks = [...new Set(planned.map((p) => p.stackName))];
-
-  for (const vmId of allPlannedVmIds) {
+  // Pre-test cleanup: smart handling of dependencies vs targets
+  for (const p of planned) {
     const status = nestedSsh(config.pveHost, config.portPveSsh,
-      `pct status ${vmId} 2>/dev/null && echo exists || true`, 10000);
-    if (status.includes("exists")) {
-      logInfo(`Cleaning up stale VM ${vmId}...`);
+      `pct status ${p.vmId} 2>/dev/null || true`, 10000);
+
+    if (p.isDependency && status.includes("running")) {
+      logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
+      p.skipExecution = true;
+    } else if (status.includes("status:")) {
+      // VM exists (running or stopped) but is a target or stopped dep → destroy
+      logInfo(`Destroying stale VM ${p.vmId}...`);
       nestedSsh(config.pveHost, config.portPveSsh,
-        `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
         30000);
+    }
+
+    // Clean volumes only for targets (not for reused dependencies)
+    if (!p.skipExecution) {
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(p.hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
+        15000);
     }
   }
 
-  for (const hostname of allPlannedHostnames) {
-    nestedSsh(config.pveHost, config.portPveSsh,
-      `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
-      15000);
+  // Run cleanup SQL on reused dependency VMs (e.g. DROP DATABASE for target apps)
+  for (const p of planned) {
+    if (p.isDependency || !p.scenario.cleanup) continue;
+    for (const [depApp, sql] of Object.entries(p.scenario.cleanup)) {
+      const depVm = planned.find(d => d.scenario.application === depApp && d.skipExecution);
+      if (depVm) {
+        logInfo(`Cleanup SQL on ${depApp} (VM ${depVm.vmId}): ${sql}`);
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `pct exec ${depVm.vmId} -- psql -U postgres -c ${JSON.stringify(sql)}`,
+          15000);
+      }
+    }
   }
 
-  for (const stackName of allPlannedStacks) {
-    try {
-      await fetch(`${apiUrl}/api/stack/${stackName}`, {
-        method: "DELETE", signal: AbortSignal.timeout(5000),
-      });
-    } catch { /* ignore */ }
+  // Only delete stacks if no dependencies are being reused
+  const hasReusedDeps = planned.some(p => p.skipExecution);
+  if (!hasReusedDeps) {
+    const allPlannedStacks = [...new Set(planned.map((p) => p.stackName))];
+    for (const stackName of allPlannedStacks) {
+      try {
+        await fetch(`${apiUrl}/api/stack/${stackName}`, {
+          method: "DELETE", signal: AbortSignal.timeout(5000),
+        });
+      } catch { /* ignore */ }
+    }
   }
 
   // Pre-create stacks: collect ALL stacktypes across all apps sharing a stack,
@@ -1122,7 +1191,7 @@ async function main() {
   }
 
   // Cleanup
-  cleanupVms(allResults, config.pveHost, config.portPveSsh, keepVm);
+  cleanupVms(planned, config.pveHost, config.portPveSsh, keepVm);
 
   // Summary
   const totalPassed = allResults.reduce((s, r) => s + r.passed, 0);

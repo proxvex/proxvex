@@ -2,6 +2,9 @@
   "default": {
     "description": "Zitadel with Postgres dependency (no SSL)",
     "depends_on": ["postgres/default"],
+    "cleanup": {
+      "postgres": "DROP DATABASE IF EXISTS zitadel; DROP USER IF EXISTS zitadel;"
+    },
     "cli_timeout": 900,
     "wait_seconds": 90,
     "verify": {
@@ -15,6 +18,9 @@
   "ssl": {
     "description": "Zitadel with SSL and Postgres with SSL",
     "depends_on": ["postgres/ssl"],
+    "cleanup": {
+      "postgres": "DROP DATABASE IF EXISTS zitadel; DROP USER IF EXISTS zitadel;"
+    },
     "addons": ["addon-ssl"],
     "cli_timeout": 900,
     "wait_seconds": 90,
