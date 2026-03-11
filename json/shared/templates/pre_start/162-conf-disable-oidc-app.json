@@ -1,0 +1,28 @@
+{
+  "name": "Disable OIDC App Configuration",
+  "description": "Application-specific OIDC cleanup when the OIDC addon is disabled. The default shared script is a no-op. Applications can override conf-disable-oidc-app.sh in their own scripts/ directory.",
+  "execute_on": "ve",
+  "parameters": [
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "advanced": true,
+      "description": "Path to the shared volume mount point"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Disable OIDC App Configuration",
+      "script": "conf-disable-oidc-app.sh",
+      "outputs": ["oidc_app_disabled"]
+    }
+  ]
+}

@@ -59,7 +59,7 @@ import { StackSelectorComponent } from '../../shared/components/stack-selector/s
         }
 
         <!-- Stack selector for applications with stacktype -->
-        @if (state.selectedStacktype() && state.availableStacks().length > 0) {
+        @if (state.selectedStacktypes().length > 0 && state.availableStacks().length > 0) {
           <div class="secrets-selector">
             <app-stack-selector
               [availableStacks]="state.availableStacks()"

@@ -613,7 +613,7 @@ async function waitForServices(
 
 function planScenarios(
   scenarios: ResolvedScenario[],
-  appStacktypes: Map<string, string>,
+  appStacktypes: Map<string, string | string[]>,
 ): PlannedScenario[] {
   let nextVmId = VM_ID_START;
   // Group by stacktype: scenarios sharing a stacktype share a stack
@@ -621,15 +621,25 @@ function planScenarios(
 
   return scenarios.map((scenario) => {
     const vmId = nextVmId++;
-    const appStacktype = appStacktypes.get(scenario.application);
-    const hasStacktype = !!appStacktype;
+    const rawStacktype = appStacktypes.get(scenario.application);
+    const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
+    const hasStacktype = stacktypes.length > 0;
 
     let stackName: string;
-    if (appStacktype) {
-      if (!stackByType.has(appStacktype)) {
-        stackByType.set(appStacktype, String(VM_ID_START));
+    if (hasStacktype) {
+      // Find the first stacktype that already has a stack assigned, or use the first one
+      const existingType = stacktypes.find(st => stackByType.has(st));
+      const primaryType = existingType ?? stacktypes[0]!;
+      if (!stackByType.has(primaryType)) {
+        stackByType.set(primaryType, String(VM_ID_START));
       }
-      stackName = stackByType.get(appStacktype)!;
+      stackName = stackByType.get(primaryType)!;
+      // Register all stacktypes to point to the same stack
+      for (const st of stacktypes) {
+        if (!stackByType.has(st)) {
+          stackByType.set(st, stackName);
+        }
+      }
     } else {
       stackName = String(vmId);
     }
@@ -858,8 +868,8 @@ async function main() {
   logOk(`${scenariosToRun.length} scenario(s) to run (including dependencies)`);
 
   // Fetch application stacktypes
-  const appStacktypes = new Map<string, string>();
-  const apps = await apiFetch<Array<{ id: string; stacktype?: string }>>(apiUrl, "/api/applications");
+  const appStacktypes = new Map<string, string | string[]>();
+  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[] }>>(apiUrl, "/api/applications");
   if (apps) {
     for (const app of apps) {
       if (app.stacktype) appStacktypes.set(app.id, app.stacktype);
@@ -910,17 +920,18 @@ async function main() {
   // Pre-create stacks
   const createdStacks = new Set<string>();
   for (const p of planned) {
-    const stacktype = appStacktypes.get(p.scenario.application);
-    if (stacktype && !createdStacks.has(p.stackName)) {
+    const rawStacktype = appStacktypes.get(p.scenario.application);
+    const primaryStacktype = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype[0] : rawStacktype) : undefined;
+    if (primaryStacktype && !createdStacks.has(p.stackName)) {
       try {
         const resp = await fetch(`${apiUrl}/api/stacks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: p.stackName, stacktype, entries: [] }),
+          body: JSON.stringify({ name: p.stackName, stacktype: primaryStacktype, entries: [] }),
           signal: AbortSignal.timeout(10000),
         });
         if (resp.ok) {
-          logOk(`Stack '${p.stackName}' created (type: ${stacktype})`);
+          logOk(`Stack '${p.stackName}' created (type: ${primaryStacktype})`);
           createdStacks.add(p.stackName);
         }
       } catch {

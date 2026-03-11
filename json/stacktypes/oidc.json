@@ -1,0 +1,8 @@
+{
+  "variables": [
+    { "name": "OIDC_PROJECT_NAME", "external": true }
+  ],
+  "dependencies": [
+    { "application": "zitadel" }
+  ]
+}

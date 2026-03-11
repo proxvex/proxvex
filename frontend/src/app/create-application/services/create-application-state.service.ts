@@ -66,7 +66,7 @@ export class CreateApplicationStateService {
 
   // Stacktypes
   stacktypes = signal<IStacktypeEntry[]>([]);
-  selectedStacktype = signal<string | null>(null);
+  selectedStacktypes = signal<string[]>([]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Docker Compose specific
@@ -290,7 +290,7 @@ export class CreateApplicationStateService {
     this.selectedTags.set([]);
 
     // Stacktypes
-    this.selectedStacktype.set(null);
+    this.selectedStacktypes.set([]);
 
     // Docker Compose
     this.parsedComposeData.set(null);
@@ -1200,7 +1200,7 @@ export class CreateApplicationStateService {
       source: this.appPropertiesForm.get('source')?.value || undefined,
       vendor: this.appPropertiesForm.get('vendor')?.value || undefined,
       tags: this.selectedTags().length > 0 ? this.selectedTags() : undefined,
-      stacktype: this.selectedStacktype() ?? undefined,
+      stacktype: this.selectedStacktypes().length > 0 ? (this.selectedStacktypes().length === 1 ? this.selectedStacktypes()[0] : this.selectedStacktypes()) : undefined,
       parameterValues: this.collectParameterValues(),
       uploadfiles: this.getUploadFiles().length > 0 ? this.getUploadFiles() : undefined,
     };
@@ -1330,15 +1330,31 @@ export class CreateApplicationStateService {
   }
 
   private loadInstallStacks(): void {
-    const stacktype = this.selectedStacktype();
-    if (!stacktype) {
+    const stacktypes = this.selectedStacktypes();
+    if (stacktypes.length === 0) {
       this.availableStacks.set([]);
       return;
     }
-    this.configService.getStacks(stacktype).subscribe({
-      next: (res) => this.availableStacks.set(res.stacks),
-      error: () => this.availableStacks.set([])
-    });
+    // Load stacks for all selected stacktypes and merge results
+    const allStacks: IStack[] = [];
+    let remaining = stacktypes.length;
+    for (const st of stacktypes) {
+      this.configService.getStacks(st).subscribe({
+        next: (res) => {
+          for (const stack of res.stacks) {
+            if (!allStacks.some(s => s.id === stack.id)) {
+              allStacks.push(stack);
+            }
+          }
+          remaining--;
+          if (remaining === 0) this.availableStacks.set(allStacks);
+        },
+        error: () => {
+          remaining--;
+          if (remaining === 0) this.availableStacks.set(allStacks);
+        }
+      });
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
