@@ -104,7 +104,7 @@ export class CliApiClient {
   ): Promise<IUnresolvedParametersResponse> {
     return this.request(
       "GET",
-      `/api/${veCtx}/unresolved-parameters/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
+      `/api/${veCtx}/unresolved-parameters/${encodeURIComponent(app)}?task=${encodeURIComponent(task)}`,
     );
   }
 
@@ -112,12 +112,11 @@ export class CliApiClient {
     veCtx: string,
     app: string,
     task: string,
-    body: IPostEnumValuesBody,
   ): Promise<IEnumValuesResponse> {
     return this.request(
       "POST",
-      `/api/${veCtx}/enum-values/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
-      body,
+      `/api/${veCtx}/enum-values/${encodeURIComponent(app)}`,
+      { task } as IPostEnumValuesBody,
     );
   }
 
@@ -152,8 +151,8 @@ export class CliApiClient {
   ): Promise<ValidationResult> {
     return this.request(
       "POST",
-      `/api/${veCtx}/validate-parameters/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
-      body,
+      `/api/${veCtx}/validate-parameters/${encodeURIComponent(app)}`,
+      { task, ...body },
     );
   }
 
@@ -161,12 +160,12 @@ export class CliApiClient {
     veCtx: string,
     app: string,
     task: string,
-    body: IPostVeConfigurationBody,
+    body: Omit<IPostVeConfigurationBody, "task">,
   ): Promise<IPostVeConfigurationResponse> {
     return this.request(
       "POST",
-      `/api/${veCtx}/ve-configuration/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
-      body,
+      `/api/${veCtx}/ve-configuration/${encodeURIComponent(app)}`,
+      { task, ...body } as IPostVeConfigurationBody,
     );
   }
 

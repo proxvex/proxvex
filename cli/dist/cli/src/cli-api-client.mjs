@@ -62,10 +62,10 @@ export class CliApiClient {
         return this.request("GET", "/api/applications");
     }
     async getUnresolvedParameters(veCtx, app, task) {
-        return this.request("GET", `/api/${veCtx}/unresolved-parameters/${encodeURIComponent(app)}/${encodeURIComponent(task)}`);
+        return this.request("GET", `/api/${veCtx}/unresolved-parameters/${encodeURIComponent(app)}?task=${encodeURIComponent(task)}`);
     }
-    async postEnumValues(veCtx, app, task, body) {
-        return this.request("POST", `/api/${veCtx}/enum-values/${encodeURIComponent(app)}/${encodeURIComponent(task)}`, body);
+    async postEnumValues(veCtx, app, task) {
+        return this.request("POST", `/api/${veCtx}/enum-values/${encodeURIComponent(app)}`, { task });
     }
     async getCompatibleAddons(app) {
         return this.request("GET", `/api/addons/compatible/${encodeURIComponent(app)}`);
@@ -80,10 +80,10 @@ export class CliApiClient {
         return this.request("GET", `/api/stacks${query}`);
     }
     async postValidateParameters(veCtx, app, task, body) {
-        return this.request("POST", `/api/${veCtx}/validate-parameters/${encodeURIComponent(app)}/${encodeURIComponent(task)}`, body);
+        return this.request("POST", `/api/${veCtx}/validate-parameters/${encodeURIComponent(app)}`, { task, ...body });
     }
     async postVeConfiguration(veCtx, app, task, body) {
-        return this.request("POST", `/api/${veCtx}/ve-configuration/${encodeURIComponent(app)}/${encodeURIComponent(task)}`, body);
+        return this.request("POST", `/api/${veCtx}/ve-configuration/${encodeURIComponent(app)}`, { task, ...body });
     }
     async postCreateStack(body) {
         return this.request("POST", "/api/stacks", {

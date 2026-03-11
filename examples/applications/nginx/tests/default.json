@@ -1,4 +1,6 @@
 {
+  "application": "nginx",
+  "task": "installation",
   "params": [
     {
       "name": "upload_nginx_configuration_fil_content",

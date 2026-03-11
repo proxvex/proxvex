@@ -422,8 +422,6 @@ function runCli(
   projectRoot: string,
   apiUrl: string,
   veHost: string,
-  app: string,
-  task: string,
   paramsFile: string,
   addons?: string[],
 ): Promise<{ output: string; exitCode: number }> {
@@ -442,7 +440,7 @@ function runCli(
       args.push("--enable-addons", addons.join(","));
     }
 
-    args.push(app, task, paramsFile);
+    args.push(paramsFile);
 
     let output = "";
     const proc = spawn("node", args, {
@@ -710,6 +708,8 @@ async function executeScenarios(
       // Write params file
       const paramsFile = path.join(tmpDir, `params-${i}.json`);
       const paramsObj: Record<string, unknown> = {
+        application: scenario.application,
+        task,
         params: buildResult.params.map((p) => ({ name: p.name, value: p.value })),
       };
 
@@ -732,7 +732,7 @@ async function executeScenarios(
       logInfo(`Running: ${scenario.application} ${task}...`);
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
-        scenario.application, task, paramsFile, allAddons,
+        paramsFile, allAddons,
       );
 
       if (cliResult.exitCode !== 0) {

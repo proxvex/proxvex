@@ -24,11 +24,16 @@ export function registerValidationRoutes(app: Application): void {
   });
 
   app.post(
-    "/api/:veContext/validate-parameters/:application/:task",
+    "/api/:veContext/validate-parameters/:application",
     express.json(),
     async (req, res) => {
       try {
-        const { application, task } = req.params;
+        const { application } = req.params;
+        const task = String(req.body?.task ?? "");
+        if (!task) {
+          res.status(400).json({ error: "Missing task in request body" });
+          return;
+        }
         const body = req.body as {
           params?: { name: string; value: any }[];
           selectedAddons?: string[];

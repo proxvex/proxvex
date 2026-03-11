@@ -55,13 +55,7 @@ function parseArgs(): ParsedArgs {
         i += 1;
       } else if (arg === "--generate-template") {
         args.generateTemplate = true;
-        const next = argv[i + 1];
-        if (next && !next.startsWith("--")) {
-          args.templateOutput = next;
-          i += 2;
-        } else {
-          i += 1;
-        }
+        i += 1;
       } else if (arg === "--quiet") {
         args.quiet = true;
         i += 1;
@@ -81,18 +75,28 @@ function parseArgs(): ParsedArgs {
         args.disableAddons = argv[i + 1] ?? "";
         i += 2;
       } else if (!arg.startsWith("--")) {
-        // Positional args: application, task, parametersFile
-        if (!args.application) {
-          args.application = arg;
-          i += 1;
-        } else if (!args.task) {
-          args.task = arg;
-          i += 1;
-        } else if (!args.parametersFile) {
-          args.parametersFile = arg;
-          i += 1;
+        if (args.generateTemplate) {
+          // generate-template mode: positional args are application, task, [output.json]
+          if (!args.application) {
+            args.application = arg;
+            i += 1;
+          } else if (!args.task) {
+            args.task = arg;
+            i += 1;
+          } else if (!args.templateOutput) {
+            args.templateOutput = arg;
+            i += 1;
+          } else {
+            i += 1;
+          }
         } else {
-          i += 1;
+          // execute mode: single positional arg is parametersFile
+          if (!args.parametersFile) {
+            args.parametersFile = arg;
+            i += 1;
+          } else {
+            i += 1;
+          }
         }
       } else {
         i += 1;
@@ -129,22 +133,32 @@ async function runRemoteCommand(args: ParsedArgs): Promise<void> {
     console.error("Error: --ve <host> is required");
     process.exit(1);
   }
-  if (!args.application) {
-    console.error("Error: <application> is required");
-    process.exit(1);
-  }
-  if (!args.task) {
-    console.error("Error: <task> is required");
-    process.exit(1);
+
+  if (args.generateTemplate) {
+    // generate-template mode requires application and task as positional args
+    if (!args.application) {
+      console.error("Error: <application> is required for --generate-template");
+      process.exit(1);
+    }
+    if (!args.task) {
+      console.error("Error: <task> is required for --generate-template");
+      process.exit(1);
+    }
+  } else {
+    // execute mode requires parametersFile
+    if (!args.parametersFile) {
+      console.error("Error: <parameters.json> is required");
+      process.exit(1);
+    }
   }
 
   const options: CliOptions = {
     server,
     ve: args.ve,
-    application: args.application,
-    task: args.task,
     timeout: args.timeout ?? 1800,
   };
+  if (args.application) options.application = args.application;
+  if (args.task) options.task = args.task;
   if (args.parametersFile) options.parametersFile = args.parametersFile;
   if (token) options.token = token;
   if (args.insecure) options.insecure = args.insecure;
@@ -202,11 +216,13 @@ function printHelp(): void {
   console.log("");
   console.log("Remote command:");
   console.log(
-    "  oci-lxc-cli remote --ve <host> <application> <task> [parameters.json]  (defaults used if omitted)",
+    "  oci-lxc-cli remote --ve <host> <parameters.json>",
   );
   console.log(
-    "  oci-lxc-cli remote --ve <host> <application> <task> --generate-template [output.json]",
+    "  oci-lxc-cli remote --ve <host> --generate-template <application> <task> [output.json]",
   );
+  console.log("");
+  console.log("  The parameters.json file must contain 'application' and 'task' fields.");
   console.log("");
   console.log("  --server <url>            Backend URL (default: http://localhost:3080, env: OCI_DEPLOYER_URL)");
   console.log("  --ve <host>               Proxmox VE host name (required)");

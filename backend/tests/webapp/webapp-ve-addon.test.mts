@@ -89,12 +89,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["test-addon"],
@@ -106,12 +106,12 @@ describe("WebAppVE Addon Integration", () => {
 
     it("should reject invalid selectedAddons (not an array)", async () => {
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           selectedAddons: "not-an-array",
         })
@@ -150,12 +150,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: [],
@@ -194,12 +194,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           // No selectedAddons
@@ -265,12 +265,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["test-addon"],
@@ -283,12 +283,12 @@ describe("WebAppVE Addon Integration", () => {
 
     it("should skip non-existent addons gracefully", async () => {
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["non-existent-addon"],
@@ -326,12 +326,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["addon-with-props"],
@@ -353,12 +353,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["pre-start-only-addon"],
@@ -391,12 +391,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["test-addon", "another-addon"],
@@ -575,12 +575,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp2")
-        .replace(":task", "addon-reconfigure")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "addon-reconfigure",
           params: [],
           changedParams: [],
           selectedAddons: ["reconfig-addon"],
@@ -620,12 +620,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["upgrade-only-addon"],
@@ -713,12 +713,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["addon-one", "addon-two"],
@@ -750,12 +750,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: [
@@ -823,12 +823,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           selectedAddons: ["ssl-addon"],
@@ -872,12 +872,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           disabledAddons: ["some-addon"],
@@ -889,12 +889,12 @@ describe("WebAppVE Addon Integration", () => {
 
     it("should reject invalid disabledAddons (not an array)", async () => {
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           disabledAddons: "not-an-array",
         })
@@ -982,12 +982,12 @@ describe("WebAppVE Addon Integration", () => {
       );
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "addon-reconfigure")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "addon-reconfigure",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           disabledAddons: ["test-disable-addon"],
@@ -1030,12 +1030,12 @@ describe("WebAppVE Addon Integration", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "addon-reconfigure")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "addon-reconfigure",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           disabledAddons: ["non-existent-addon"],

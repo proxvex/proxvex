@@ -28,8 +28,10 @@ export class CliTemplateGenerator {
         }));
         const result = {
             $comment: `Generated template for: ${input.application} / ${input.task}`,
+            application: input.application,
+            task: input.task,
             params,
-            addons: [],
+            selectedAddons: [],
             availableAddons,
             stackId: "",
             availableStacks,

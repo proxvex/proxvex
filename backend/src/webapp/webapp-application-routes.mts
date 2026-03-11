@@ -32,10 +32,10 @@ export function registerApplicationRoutes(
     ApiUri.UnresolvedParameters,
     asyncHandler(async (req, res) => {
       const application = String(req.params.application);
-      const taskKey = String(req.params.task);
+      const taskKey = String(req.query.task ?? "");
       const veContextKey = String(req.params.veContext);
       if (!taskKey) {
-        return res.status(400).json({ success: false, error: "Missing task" });
+        return res.status(400).json({ success: false, error: "Missing task query parameter" });
       }
       const ctx = storageContext.getVEContextByKey(veContextKey);
       if (!ctx) {
@@ -91,10 +91,10 @@ export function registerApplicationRoutes(
     express.json(),
     asyncHandler(async (req, res) => {
       const application = String(req.params.application);
-      const task = String(req.params.task);
+      const task = String(req.body?.task ?? "");
       const veContextKey = String(req.params.veContext);
       if (!task) {
-        return res.status(400).json({ success: false, error: "Missing task" });
+        return res.status(400).json({ success: false, error: "Missing task in request body" });
       }
       const ctx = storageContext.getVEContextByKey(veContextKey);
       if (!ctx) {

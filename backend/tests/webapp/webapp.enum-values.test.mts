@@ -43,10 +43,9 @@ describe("WebApp Enum Values API", () => {
 
   it("returns enum values without params", async () => {
     const url = ApiUri.EnumValues.replace(":application", "test-enum")
-      .replace(":task", "installation")
       .replace(":veContext", veContextKey);
 
-    const res = await request(app).post(url).send({});
+    const res = await request(app).post(url).send({ task: "installation" });
     expect(res.status).toBe(200);
 
     const body = res.body as IEnumValuesResponse;
@@ -132,12 +131,11 @@ describe("WebApp Enum Values API", () => {
     PersistenceManager.getInstance().getPersistence().invalidateCache();
 
     const url = ApiUri.EnumValues.replace(":application", appId)
-      .replace(":task", "installation")
       .replace(":veContext", veContextKey);
 
     const res = await request(app)
       .post(url)
-      .send({ params: [{ id: "prefix", value: "foo" }] });
+      .send({ task: "installation", params: [{ id: "prefix", value: "foo" }] });
     expect(res.status).toBe(200);
 
     const entry = (res.body as IEnumValuesResponse).enumValues.find(

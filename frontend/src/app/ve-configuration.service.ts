@@ -87,9 +87,9 @@ export class VeConfigurationService {
 
   getUnresolvedParameters(application: string, task: string): Observable<IUnresolvedParametersResponse> {
     const base = ApiUri.UnresolvedParameters
-      .replace(":application", encodeURIComponent(application))
-      .replace(":task", encodeURIComponent(task));
-    const url = this.veContextKey ? base.replace(":veContext", this.veContextKey) : base;
+      .replace(":application", encodeURIComponent(application));
+    const url = (this.veContextKey ? base.replace(":veContext", this.veContextKey) : base)
+      + `?task=${encodeURIComponent(task)}`;
     return this.http.get<IUnresolvedParametersResponse>(url);
   }
 
@@ -103,9 +103,8 @@ export class VeConfigurationService {
 
   postEnumValues(application: string, task: string, params?: { id: string; value: IParameterValue }[], refresh?: boolean): Observable<IEnumValuesResponse> {
     const url = ApiUri.EnumValues
-      .replace(':application', encodeURIComponent(application))
-      .replace(':task', encodeURIComponent(task));
-    const body: IPostEnumValuesBody = {};
+      .replace(':application', encodeURIComponent(application));
+    const body: IPostEnumValuesBody = { task };
     if (params && params.length > 0) body.params = params;
     if (refresh === true) body.refresh = true;
     return this.post<IEnumValuesResponse, IPostEnumValuesBody>(url, body);
@@ -132,9 +131,8 @@ export class VeConfigurationService {
 
   postVeConfiguration(application: string, task: string, params: VeConfigurationParam[], changedParams?: VeConfigurationParam[], selectedAddons?: string[], disabledAddons?: string[], stackId?: string): Observable<{ success: boolean; restartKey?: string; vmInstallKey?: string }> {
     const url = ApiUri.VeConfiguration
-      .replace(':application', encodeURIComponent(application))
-      .replace(':task', encodeURIComponent(task));
-    const body: IPostVeConfigurationBody = { params };
+      .replace(':application', encodeURIComponent(application));
+    const body: IPostVeConfigurationBody = { task, params };
     if (changedParams && changedParams.length > 0) {
       body.changedParams = changedParams;
     }

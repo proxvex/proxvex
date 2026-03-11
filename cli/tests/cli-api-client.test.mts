@@ -126,7 +126,7 @@ describe("CliApiClient", () => {
       );
       await client.getUnresolvedParameters("ve_pve1", "zitadel", "installation");
       expect(mockFetch.mock.calls[0][0]).toContain(
-        "/api/ve_pve1/unresolved-parameters/zitadel/installation",
+        "/api/ve_pve1/unresolved-parameters/zitadel?task=installation",
       );
     });
 
@@ -134,11 +134,14 @@ describe("CliApiClient", () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({ enumValues: [] }),
       );
-      await client.postEnumValues("ve_pve1", "zitadel", "installation", {});
+      await client.postEnumValues("ve_pve1", "zitadel", "installation");
       const [url, options] = mockFetch.mock.calls[0];
-      expect(url).toContain("/api/ve_pve1/enum-values/zitadel/installation");
+      expect(url).toContain("/api/ve_pve1/enum-values/zitadel");
+      expect(url).not.toContain("installation");
       expect(options.method).toBe("POST");
       expect(options.headers["Content-Type"]).toBe("application/json");
+      const body = JSON.parse(options.body);
+      expect(body.task).toBe("installation");
     });
 
     it("getStacks should include stacktype query", async () => {
@@ -169,10 +172,11 @@ describe("CliApiClient", () => {
         params: [{ name: "hostname", value: "test" }],
       });
       const [url, options] = mockFetch.mock.calls[0];
-      expect(url).toContain(
-        "/api/ve_pve1/ve-configuration/zitadel/installation",
-      );
+      expect(url).toContain("/api/ve_pve1/ve-configuration/zitadel");
+      expect(url).not.toContain("installation");
       expect(options.method).toBe("POST");
+      const body = JSON.parse(options.body);
+      expect(body.task).toBe("installation");
     });
   });
 });

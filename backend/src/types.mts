@@ -171,7 +171,7 @@ export enum ApiUri {
   SshConfig = "/api/sshconfig",
   SshConfigGET = "/api/ssh/config/:host",
   SshCheck = "/api/ssh/check",
-  VeConfiguration = "/api/:veContext/ve-configuration/:application/:task",
+  VeConfiguration = "/api/:veContext/ve-configuration/:application",
   VeRestart = "/api/:veContext/ve/restart/:restartKey",
   VeRestartInstallation = "/api/:veContext/ve/restart-installation/:vmInstallKey",
   VeExecute = "/api/:veContext/ve/execute",
@@ -184,8 +184,8 @@ export enum ApiUri {
   Installations = "/api/:veContext/installations",
   ContainerConfig = "/api/:veContext/container-config/:vmId",
   TemplateDetailsForApplication = "/api/:veContext/template-details/:application/:task",
-  UnresolvedParameters = "/api/:veContext/unresolved-parameters/:application/:task",
-  EnumValues = "/api/:veContext/enum-values/:application/:task",
+  UnresolvedParameters = "/api/:veContext/unresolved-parameters/:application",
+  EnumValues = "/api/:veContext/enum-values/:application",
   FrameworkNames = "/api/framework-names",
   FrameworkParameters = "/api/framework-parameters/:frameworkId",
   FrameworkCreateApplication = "/api/framework-create-application",
@@ -282,6 +282,7 @@ export interface IDeleteSshConfigResponse {
   key?: string | undefined;
 }
 export interface IPostVeConfigurationBody {
+  task: string;
   params: { name: string; value: IParameterValue }[];
   outputs?: { id: string; value: IParameterValue }[];
   changedParams?: { name: string; value: IParameterValue }[];
@@ -290,6 +291,7 @@ export interface IPostVeConfigurationBody {
   stackId?: string;
 }
 export interface IPostEnumValuesBody {
+  task: string;
   params?: { id: string; value: IParameterValue }[];
   refresh?: boolean;
 }

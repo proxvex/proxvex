@@ -12,13 +12,26 @@ export class RemoteCli {
         this.client = new CliApiClient(options.server, options.token, options.insecure);
     }
     async run() {
-        // 1. Resolve VE context
+        // 1. Read parameters file first to get application and task (unless generate-template mode)
+        let paramsInput;
+        if (!this.options.generateTemplate) {
+            if (!this.options.parametersFile) {
+                throw new CliError("Parameters file is required", 1);
+            }
+            const fileData = this.readParametersFile(this.options.parametersFile);
+            this.options.application = fileData.application;
+            this.options.task = fileData.task;
+            paramsInput = fileData;
+        }
+        const application = this.options.application;
+        const task = this.options.task;
+        // 2. Resolve VE context
         const veContext = await this.resolveVeContext();
-        // 2. Fetch unresolved parameters (filter out addon_ prefixed)
-        const unresolvedResp = await this.client.getUnresolvedParameters(veContext, this.options.application, this.options.task);
+        // 3. Fetch unresolved parameters (filter out addon_ prefixed)
+        const unresolvedResp = await this.client.getUnresolvedParameters(veContext, application, task);
         const parameterDefs = unresolvedResp.unresolvedParameters.filter((p) => !p.id.startsWith("addon_"));
-        // 3. Resolve enum values
-        const enumResp = await this.client.postEnumValues(veContext, this.options.application, this.options.task, {});
+        // 4. Resolve enum values
+        const enumResp = await this.client.postEnumValues(veContext, application, task);
         for (const entry of enumResp.enumValues) {
             const def = parameterDefs.find((p) => p.id === entry.id);
             if (def) {
@@ -27,21 +40,21 @@ export class RemoteCli {
                     def.default = entry.default;
             }
         }
-        // 4. Fetch compatible addons
+        // 5. Fetch compatible addons
         let addons = [];
         try {
-            const addonsResp = await this.client.getCompatibleAddons(this.options.application);
+            const addonsResp = await this.client.getCompatibleAddons(application);
             addons = addonsResp.addons;
         }
         catch {
             // Addons may not be available
         }
-        // 5. Fetch stacks and detect stacktype
+        // 6. Fetch stacks and detect stacktype
         let stacks = [];
         let appStacktype;
         try {
             const apps = await this.client.getApplications();
-            const app = apps.find((a) => a.name === this.options.application || a.id === this.options.application);
+            const app = apps.find((a) => a.name === application || a.id === application);
             appStacktype = app?.stacktype;
             if (appStacktype) {
                 const stacksResp = await this.client.getStacks(appStacktype);
@@ -51,16 +64,16 @@ export class RemoteCli {
         catch {
             // Stacks may not be available
         }
-        // 6a. Generate template mode
+        // 7a. Generate template mode
         if (this.options.generateTemplate) {
             await this.generateTemplate(parameterDefs, addons, stacks, appStacktype);
             return;
         }
-        // 6b. Execute mode — read parameters file (optional, defaults to empty params)
-        const paramsInput = this.options.parametersFile
-            ? this.readParametersFile(this.options.parametersFile)
-            : { params: [] };
-        // 6b2. If previous_vm_id is in params, fetch previous container config as defaults
+        // 7b. paramsInput was already read at the top of run()
+        if (!paramsInput) {
+            throw new CliError("Parameters file is required", 1);
+        }
+        // 7c. If previous_vm_id is in params, fetch previous container config as defaults
         const previousVmId = paramsInput.params.find(p => p.name === "previous_vm_id");
         if (previousVmId) {
             try {
@@ -102,7 +115,7 @@ export class RemoteCli {
         ];
         const disabledAddons = this.options.disableAddons ?? [];
         // 8. Validate
-        const validationResult = await this.client.postValidateParameters(veContext, this.options.application, this.options.task, {
+        const validationResult = await this.client.postValidateParameters(veContext, application, task, {
             params: processedParams,
             ...(selectedAddons.length > 0 ? { selectedAddons } : {}),
             ...(disabledAddons.length > 0 ? { disabledAddons } : {}),
@@ -118,7 +131,7 @@ export class RemoteCli {
             }
         }
         // 9. Submit
-        const configResp = await this.client.postVeConfiguration(veContext, this.options.application, this.options.task, {
+        const configResp = await this.client.postVeConfiguration(veContext, application, task, {
             params: processedParams,
             ...(selectedAddons.length > 0 ? { selectedAddons } : {}),
             ...(disabledAddons.length > 0 ? { disabledAddons } : {}),
@@ -224,6 +237,12 @@ export class RemoteCli {
         }
         const content = readFileSync(absPath, "utf-8");
         const parsed = JSON.parse(content);
+        if (!parsed.application || typeof parsed.application !== "string") {
+            throw new CliError("Parameters file must contain an 'application' field", 1);
+        }
+        if (!parsed.task || typeof parsed.task !== "string") {
+            throw new CliError("Parameters file must contain a 'task' field", 1);
+        }
         if (!parsed.params || !Array.isArray(parsed.params)) {
             throw new CliError("Parameters file must contain a 'params' array", 1);
         }
@@ -234,6 +253,8 @@ export class RemoteCli {
             value: p.value,
         }));
         return {
+            application: parsed.application,
+            task: parsed.task,
             params,
             selectedAddons: parsed.selectedAddons,
             stackId: parsed.stackId,

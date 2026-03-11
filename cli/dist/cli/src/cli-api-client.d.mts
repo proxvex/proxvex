@@ -1,4 +1,4 @@
-import type { ISshConfigsResponse, IApplicationsResponse, IUnresolvedParametersResponse, IEnumValuesResponse, IPostEnumValuesBody, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IPostVeConfigurationBody, IPostVeConfigurationResponse, IVeExecuteMessagesResponse } from "../../backend/src/types.mjs";
+import type { ISshConfigsResponse, IApplicationsResponse, IUnresolvedParametersResponse, IEnumValuesResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IPostVeConfigurationBody, IPostVeConfigurationResponse, IVeExecuteMessagesResponse } from "../../backend/src/types.mjs";
 import type { ValidationResult } from "../../backend/src/parameter-validator.mjs";
 export declare class CliApiClient {
     private baseUrl;
@@ -11,7 +11,7 @@ export declare class CliApiClient {
     }>;
     getApplications(): Promise<IApplicationsResponse>;
     getUnresolvedParameters(veCtx: string, app: string, task: string): Promise<IUnresolvedParametersResponse>;
-    postEnumValues(veCtx: string, app: string, task: string, body: IPostEnumValuesBody): Promise<IEnumValuesResponse>;
+    postEnumValues(veCtx: string, app: string, task: string): Promise<IEnumValuesResponse>;
     getCompatibleAddons(app: string): Promise<ICompatibleAddonsResponse>;
     getStacktypes(): Promise<IStacktypesResponse>;
     getStacks(stacktype?: string): Promise<IStacksResponse>;
@@ -24,7 +24,7 @@ export declare class CliApiClient {
         disabledAddons?: string[];
         stackId?: string;
     }): Promise<ValidationResult>;
-    postVeConfiguration(veCtx: string, app: string, task: string, body: IPostVeConfigurationBody): Promise<IPostVeConfigurationResponse>;
+    postVeConfiguration(veCtx: string, app: string, task: string, body: Omit<IPostVeConfigurationBody, "task">): Promise<IPostVeConfigurationResponse>;
     postCreateStack(body: {
         name: string;
         stacktype: string;

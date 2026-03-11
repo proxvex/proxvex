@@ -110,7 +110,7 @@ export class WebAppVeRouteHandlers {
   }
 
   /**
-   * Handles POST /api/ve-configuration/:application/:task/:veContext
+   * Handles POST /api/ve-configuration/:application/:veContext (task in body)
    */
   async handleVeConfiguration(
     application: string,
