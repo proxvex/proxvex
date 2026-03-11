@@ -24,6 +24,7 @@ import { CreateApplicationStateService } from './services/create-application-sta
 import { AppPropertiesStepComponent } from './steps/app-properties-step.component';
 import { FrameworkStepComponent } from './steps/framework-step.component';
 import { ParametersStepComponent } from './steps/parameters-step.component';
+import { SslStepComponent } from './steps/ssl-step.component';
 import { UploadFilesStepComponent } from './steps/upload-files-step.component';
 import { SummaryStepComponent } from './steps/summary-step.component';
 
@@ -46,6 +47,7 @@ import { SummaryStepComponent } from './steps/summary-step.component';
     AppPropertiesStepComponent,
     FrameworkStepComponent,
     ParametersStepComponent,
+    SslStepComponent,
     UploadFilesStepComponent,
     SummaryStepComponent
   ],
@@ -55,6 +57,7 @@ import { SummaryStepComponent } from './steps/summary-step.component';
 export class CreateApplication implements OnInit, OnDestroy {
   @ViewChild('stepper') stepper!: MatStepper;
   @ViewChild(SummaryStepComponent) summaryStep: SummaryStepComponent | undefined;
+  @ViewChild(UploadFilesStepComponent) uploadFilesStep: UploadFilesStepComponent | undefined;
 
   // Inject services
   private configService = inject(VeConfigurationService);
@@ -239,6 +242,20 @@ export class CreateApplication implements OnInit, OnDestroy {
                     this.ociInstallMode.set('compose');
                   }
                 }
+
+                // Restore SSL properties
+                if (pv.id === 'ssl.mode' && typeof pv.value === 'string') {
+                  this.state.sslMode.set(pv.value as 'proxy' | 'native' | 'certs');
+                }
+                if (pv.id === 'ssl.needs_server_cert') {
+                  this.state.sslNeedsServerCert.set(String(pv.value) === 'true');
+                }
+                if (pv.id === 'ssl.needs_ca_cert') {
+                  this.state.sslNeedsCaCert.set(String(pv.value) === 'true');
+                }
+                if (pv.id === 'ssl.addon_volumes' && typeof pv.value === 'string') {
+                  this.state.sslAddonVolumes.set(pv.value);
+                }
               }
 
               this.loadingEditData.set(false);
@@ -351,6 +368,11 @@ export class CreateApplication implements OnInit, OnDestroy {
       setTimeout(() => {
         this.state.loadInstallParameters();
       }, 0);
+    }
+
+    // When leaving Step 5 (Upload Files), auto-confirm any pending new file entry
+    if (event.previouslySelectedIndex === 4) {
+      this.uploadFilesStep?.autoConfirmPendingAdd();
     }
   }
 

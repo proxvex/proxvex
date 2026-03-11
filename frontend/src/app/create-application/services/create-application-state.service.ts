@@ -121,7 +121,34 @@ export class CreateApplicationStateService {
   frameworkProperties = signal<IFrameworkPropertyInfo[]>([]);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Step 4: Upload Files
+  // Step 4: SSL Configuration
+  // ─────────────────────────────────────────────────────────────────────────────
+  sslMode = signal<'proxy' | 'native' | 'certs'>('proxy');
+  sslNeedsServerCert = signal(true);
+  sslNeedsCaCert = signal(false);
+  sslAddonVolumes = signal('certs=/etc/ssl/addon,0700,0:0');
+
+  /** Collect SSL properties that differ from addon defaults */
+  collectSslProperties(): { id: string; value: string }[] {
+    const props: { id: string; value: string }[] = [];
+    if (this.sslMode() !== 'proxy') {
+      props.push({ id: 'ssl.mode', value: this.sslMode() });
+    }
+    if (!this.sslNeedsServerCert()) {
+      props.push({ id: 'ssl.needs_server_cert', value: 'false' });
+    }
+    if (this.sslNeedsCaCert()) {
+      props.push({ id: 'ssl.needs_ca_cert', value: 'true' });
+    }
+    const volumes = this.sslAddonVolumes().trim();
+    if (volumes && volumes !== 'certs=/etc/ssl/addon,0700,0:0') {
+      props.push({ id: 'ssl.addon_volumes', value: volumes });
+    }
+    return props;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Step 5: Upload Files
   // ─────────────────────────────────────────────────────────────────────────────
   private _uploadFiles: IUploadFile[] = [];
 
@@ -134,7 +161,7 @@ export class CreateApplicationStateService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Step 5: Summary
+  // Step 6: Summary
   // ─────────────────────────────────────────────────────────────────────────────
   creating = signal(false);
   createError = signal<string | null>(null);
@@ -159,27 +186,42 @@ export class CreateApplicationStateService {
     return this.isDockerComposeFramework() || this.isOciComposeMode();
   }
 
+  /** Tracks previous applicationId to detect auto-synced hostnames */
+  private previousApplicationId = '';
+
   /**
    * Syncs hostname with applicationId for oci-image and docker-compose frameworks.
-   * If hostname is empty and applicationId is set, hostname will be set to applicationId.
+   * Updates hostname in both parameterForm and installForm when it hasn't been manually changed.
    */
   syncHostnameWithApplicationId(): void {
     if (!this.isOciImageFramework() && !this.isDockerComposeFramework()) {
       return;
     }
 
-    const hostnameCtrl = this.parameterForm.get('hostname');
-    if (!hostnameCtrl) {
+    const applicationId = this.appPropertiesForm.get('applicationId')?.value?.trim() ?? '';
+    if (!applicationId) {
       return;
     }
 
-    const currentHostname = hostnameCtrl.value;
-    const applicationId = this.appPropertiesForm.get('applicationId')?.value;
-
-    // Only set hostname if it's empty and applicationId is set
-    if ((!currentHostname || currentHostname.trim() === '') && applicationId && applicationId.trim()) {
-      hostnameCtrl.patchValue(applicationId.trim(), { emitEvent: false });
+    // Update hostname in parameterForm
+    const hostnameCtrl = this.parameterForm.get('hostname');
+    if (hostnameCtrl) {
+      const current = hostnameCtrl.value?.trim() ?? '';
+      if (!current || current === this.previousApplicationId) {
+        hostnameCtrl.patchValue(applicationId, { emitEvent: false });
+      }
     }
+
+    // Update hostname in installForm (Step 3)
+    const installHostnameCtrl = this.installForm.get('hostname');
+    if (installHostnameCtrl) {
+      const current = installHostnameCtrl.value?.trim() ?? '';
+      if (!current || current === this.previousApplicationId) {
+        installHostnameCtrl.patchValue(applicationId, { emitEvent: false });
+      }
+    }
+
+    this.previousApplicationId = applicationId;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -237,6 +279,7 @@ export class CreateApplicationStateService {
     // Step 2: App properties
     this.appPropertiesForm = this.createAppPropertiesForm();
     this.applicationIdError.set(null);
+    this.previousApplicationId = '';
 
     // Icon
     this.selectedIconFile.set(null);
@@ -279,10 +322,16 @@ export class CreateApplicationStateService {
     this.parameterClassifications.set(new Map());
     this.frameworkProperties.set([]);
 
-    // Step 4: Upload Files
+    // Step 4: SSL Configuration
+    this.sslMode.set('proxy');
+    this.sslNeedsServerCert.set(true);
+    this.sslNeedsCaCert.set(false);
+    this.sslAddonVolumes.set('certs=/etc/ssl/addon,0700,0:0');
+
+    // Step 5: Upload Files
     this._uploadFiles = [];
 
-    // Step 5: Summary
+    // Step 6: Summary
     this.creating.set(false);
     this.createError.set(null);
     this.createErrorStep.set(null);
@@ -1159,25 +1208,51 @@ export class CreateApplicationStateService {
 
   collectParameterValues(): { id: string; value: IParameterValue }[] {
     const parameterValues: { id: string; value: IParameterValue }[] = [];
+    const collected = new Set<string>();
+
+    // Collect from parameterForm (framework parameters from Step 1/2)
     for (const param of this.parameters()) {
       let value = this.parameterForm.get(param.id)?.value;
       value = ParameterFormManager.extractBase64FromFileMetadata(value);
       if (value !== null && value !== undefined && value !== '') {
         parameterValues.push({ id: param.id, value });
+        collected.add(param.id);
+      }
+    }
+
+    // Override/add from installForm (user edits in Step 3)
+    // installForm values take priority since they reflect the user's latest edits
+    for (const param of this.installParameters()) {
+      const ctrl = this.installForm.get(param.id);
+      if (!ctrl) continue;
+      let value = ctrl.value;
+      value = ParameterFormManager.extractBase64FromFileMetadata(value);
+      if (value !== null && value !== undefined && value !== '') {
+        const idx = parameterValues.findIndex(p => p.id === param.id);
+        if (idx >= 0) {
+          parameterValues[idx] = { id: param.id, value };
+        } else {
+          parameterValues.push({ id: param.id, value });
+        }
+        collected.add(param.id);
       }
     }
 
     // Ensure docker-compose essentials are not dropped
     if (this.isDockerComposeFramework()) {
       const ensuredIds = ['compose_file', 'env_file', 'volumes'] as const;
-      const existing = new Set(parameterValues.map(p => p.id));
       for (const id of ensuredIds) {
-        if (existing.has(id)) continue;
+        if (collected.has(id)) continue;
         const v = this.parameterForm.get(id)?.value;
         if (v !== null && v !== undefined && String(v).trim() !== '') {
           parameterValues.push({ id, value: v });
         }
       }
+    }
+
+    // Add SSL properties (Step 4)
+    for (const sslProp of this.collectSslProperties()) {
+      parameterValues.push(sslProp);
     }
 
     return parameterValues;

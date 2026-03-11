@@ -220,11 +220,6 @@ export class FrameworkLoader {
 
     this.processUploadFiles(request, appDir, paramValuesMap);
 
-    // Generate tests/params-default.json for new applications
-    if (!request.update) {
-      this.generateTestParams(request, allParameters, appDir);
-    }
-
     return request.applicationId;
   }
 
@@ -569,9 +564,10 @@ export class FrameworkLoader {
         uploadFile.content ??
         (paramValuesMap.get(contentParamId) as string | undefined);
 
+      const truncatedLabel = fileLabel.length > 23 ? fileLabel.slice(0, 23) : fileLabel;
       const uploadTemplate = {
-        name: `Upload ${fileLabel}`,
-        description: `Uploads ${fileLabel} to ${uploadFile.destination}`,
+        name: `Upload ${truncatedLabel}`,
+        description: `Upload ${sanitized}`,
         execute_on: "ve",
         skip_if_all_missing: [contentParamId],
         parameters: [
@@ -643,7 +639,7 @@ export class FrameworkLoader {
         ],
         commands: [
           {
-            name: `Upload ${fileLabel}`,
+            name: `Upload ${truncatedLabel}`,
             script: scriptName,
             library: "upload-file-common.sh",
             outputs: [outputId],
@@ -937,60 +933,4 @@ upload_output_result "${outputId}"
     }
   }
 
-  /**
-   * Generates tests/params-default.json for a new application.
-   * Contains vm_id and all required parameters in CLI format [{name, value}].
-   */
-  private generateTestParams(
-    request: IPostFrameworkCreateApplicationBody,
-    allParameters: IParameter[],
-    appDir: string,
-  ): void {
-    const testsDir = path.join(appDir, "tests");
-    if (!fs.existsSync(testsDir)) {
-      fs.mkdirSync(testsDir, { recursive: true });
-    }
-
-    const params: Array<{ name: string; value: string }> = [
-      { name: "vm_id", value: "{{ vm_id }}" },
-    ];
-
-    // Add all required parameters
-    for (const param of allParameters) {
-      if (!param.required) continue;
-      if (param.id === "vm_id") continue;
-
-      if (param.upload) {
-        // For file upload params, use file:<filename> format
-        // Try to extract filename from uploadfiles definition
-        const uploadFile = request.uploadfiles?.find((uf) => {
-          const label = this.getUploadFileLabel(uf);
-          const sanitized = this.sanitizeFilename(label).replace(/-/g, "_");
-          return `upload_${sanitized}_content` === param.id;
-        });
-
-        if (uploadFile) {
-          const colonIndex = uploadFile.destination.indexOf(":");
-          const filePath =
-            colonIndex >= 0
-              ? uploadFile.destination.slice(colonIndex + 1)
-              : uploadFile.destination;
-          const lastSlash = filePath.lastIndexOf("/");
-          const fileName =
-            lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
-          params.push({ name: param.id, value: `file:${fileName}` });
-        } else {
-          params.push({ name: param.id, value: `file:${param.id}` });
-        }
-      } else {
-        // Use default value or a placeholder
-        const defaultValue =
-          param.default !== undefined ? String(param.default) : "";
-        params.push({ name: param.id, value: defaultValue });
-      }
-    }
-
-    const paramsPath = path.join(testsDir, "params-default.json");
-    fs.writeFileSync(paramsPath, JSON.stringify(params, null, 2) + "\n");
-  }
 }

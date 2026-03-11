@@ -369,6 +369,11 @@ export class SummaryStepComponent {
       }
     }
 
+    // Add SSL properties as 'value' classifications (stored in application.json properties)
+    for (const sslProp of this.state.collectSslProperties()) {
+      classifications.push({ id: sslProp.id, target: 'value' });
+    }
+
     return {
       frameworkId: selectedFramework.id,
       applicationId,
