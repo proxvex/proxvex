@@ -775,14 +775,12 @@ function buildDefaultVerify(
   const verify: Record<string, boolean | number | string> = {
     container_running: true,
     notes_managed: true,
+    lxc_log_no_errors: true,
   };
 
-  // App-type-based checks
+  // Docker-compose apps additionally check docker services
   if (appMeta.extends === "docker-compose") {
     verify.services_up = true;
-    verify.docker_log_no_errors = true;
-  } else {
-    verify.lxc_log_no_errors = true;
   }
 
   // Addon-based checks
