@@ -70,7 +70,7 @@
 					[groupedParameters]="groupedParameters"
 					[form]="form"
 					[showAdvanced]="showAdvanced()"
-					[availableStacks]="availableStacks"
+					[availableStacks]="availableStacks()"
 					(stackSelected)="onStackSelected($event)"
 					(createStackRequested)="onCreateStackRequested()"
 				/>
@@ -84,7 +84,7 @@
 			[expandedAddons]="expandedAddons()"
 			[form]="form"
 			[showAdvanced]="showAdvanced()"
-			[availableStacks]="availableStacks"
+			[availableStacks]="availableStacks()"
 			[isLoading]="addonsLoading()"
 			(addonToggled)="toggleAddon($event.addonId, $event.checked)"
 			(addonExpandedChanged)="toggleAddonExpandedById($event)"

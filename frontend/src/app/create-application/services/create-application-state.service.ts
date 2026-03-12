@@ -1215,12 +1215,8 @@ export class CreateApplicationStateService {
       source: this.appPropertiesForm.get('source')?.value || undefined,
       vendor: this.appPropertiesForm.get('vendor')?.value || undefined,
       tags: this.selectedTags().length > 0 ? this.selectedTags() : undefined,
-<<<<<<< HEAD
       stacktype: this.selectedStacktype() ?? undefined,
-=======
-      stacktype: this.selectedStacktypes().length > 0 ? (this.selectedStacktypes().length === 1 ? this.selectedStacktypes()[0] : this.selectedStacktypes()) : undefined,
       supported_addons: this.selectedSupportedAddons().length > 0 ? this.selectedSupportedAddons() : undefined,
->>>>>>> 40267ab (feat: Dependency resolution in application and addon)
       parameterValues: this.collectParameterValues(),
       uploadfiles: this.getUploadFiles().length > 0 ? this.getUploadFiles() : undefined,
     };

@@ -66,15 +66,8 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
 
   // Stack selection state
   availableStacks = signal<IStack[]>([]);
-  filteredStacks = computed(() => {
-    const stacktype = this.data.app.stacktype;
-    if (!stacktype) return [];
-    return this.availableStacks().filter(s => s.stacktype === stacktype);
-  });
   availableStacktypes = signal<IStacktypeEntry[]>([]);
   stacksLoading = signal(false);
-  selectedStack: IStack | null = null;
-  caConfigured = signal(false);
   private formManager!: ParameterFormManager;
   private enumRefreshAttempted = false;
   private visibilityHandler = () => this.onVisibilityChange();
@@ -91,23 +84,8 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   existingMountPoints: { source: string; target: string }[] = this.data.existingMountPoints ?? [];
   private installedAddons: string[] = this.data.installedAddons ?? [];
 
-  form: FormGroup;
-  unresolvedParameters: IParameter[] = [];
-  groupedParameters: Record<string, IParameter[]> = {};
-  loading = signal(true);
-  hasError = signal(false);
-  showAdvanced = signal(false);
-  availableAddons: IAddonWithParameters[] = [];
-  selectedAddons = signal<string[]>([]);
-  expandedAddons = signal<string[]>([]);
-  addonsLoading = signal(false);
-
-  // Stack selection state
-  availableStacks: IStack[] = [];
   /** Stacktypes required by this application (from application.json) */
   appStacktypes: string[] = [];
-  availableStacktypes: IStacktypeEntry[] = [];
-  stacksLoading = false;
   /** Selected stack per stacktype */
   selectedStacks = new Map<string, IStack>();
   /** Stacktypes that the app requires but have no stacks available */
@@ -121,7 +99,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   /** For each stacktype, the stacks that match it */
   getStacksForType(type: string): IStack[] {
     const toArray = (st: string | string[]) => Array.isArray(st) ? st : [st];
-    return this.availableStacks.filter(s => toArray(s.stacktype).includes(type));
+    return this.availableStacks().filter(s => toArray(s.stacktype).includes(type));
   }
 
   /** All stacks matching any of the app's stacktypes (deduplicated) */
@@ -134,9 +112,6 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     }
     return all;
   }
-  private formManager!: ParameterFormManager;
-  private enumRefreshAttempted = false;
-  private visibilityHandler = () => this.onVisibilityChange();
   constructor(  ) {
     this.form = this.fb.group({});
   }
@@ -348,16 +323,16 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   private loadStacks(): void {
-    this.stacksLoading = true;
+    this.stacksLoading.set(true);
     // Load stacktypes first, then load all stacks
     this.configService.getStacktypes().subscribe({
       next: (res) => {
-        this.availableStacktypes = res.stacktypes;
+        this.availableStacktypes.set(res.stacktypes);
         // Load all stacks (no filter - show all available)
         this.configService.getStacks().subscribe({
           next: (stacksRes) => {
-            this.availableStacks = stacksRes.stacks;
-            this.stacksLoading = false;
+            this.availableStacks.set(stacksRes.stacks);
+            this.stacksLoading.set(false);
             // Set app stacktypes now that stacks are available
             const st = this.data.app.stacktype;
             this.appStacktypes = !st ? [] : Array.isArray(st) ? st : [st];
@@ -373,13 +348,13 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
           },
           error: () => {
             // Don't show error for stacks - they're optional
-            this.stacksLoading = false;
+            this.stacksLoading.set(false);
           }
         });
       },
       error: () => {
         // Don't show error for stacktypes - they're optional
-        this.stacksLoading = false;
+        this.stacksLoading.set(false);
       }
     });
   }
@@ -411,7 +386,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   getStacktypeLabel(stacktype: string): string {
-    const entry = this.availableStacktypes.find(e => e.name === stacktype);
+    const entry = this.availableStacktypes().find(e => e.name === stacktype);
     return entry?.displayName ?? stacktype;
   }
 
@@ -426,7 +401,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     const suggestedEntries = [...new Set([...envMarkers, ...envFileMarkers])];
 
     const dialogData: CreateStackDialogData = {
-      stacktypes: this.availableStacktypes,
+      stacktypes: this.availableStacktypes(),
       suggestedEntries
     };
 
@@ -438,7 +413,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     dialogRef.afterClosed().subscribe((result: CreateStackDialogResult | undefined) => {
       if (result?.stack) {
         // Add to available stacks and apply it
-        this.availableStacks = [...this.availableStacks, result.stack];
+        this.availableStacks.set([...this.availableStacks(), result.stack]);
         this.onStackSelected(result.stack);
       }
     });
@@ -757,7 +732,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     const previousSelections = new Map(this.selectedStacks);
     this.configService.getStacks().subscribe({
       next: (res) => {
-        this.availableStacks = res.stacks;
+        this.availableStacks.set(res.stacks);
         this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
         // Re-select previously selected stacks per stacktype
         this.selectedStacks.clear();
