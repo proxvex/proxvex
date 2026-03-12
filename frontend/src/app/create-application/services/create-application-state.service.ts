@@ -72,10 +72,6 @@ export class CreateApplicationStateService {
   selectedSupportedAddons = signal<string[]>([]);
   availableAddonEntries = signal<{id: string; name: string}[]>([]);
 
-  // Supported Addons
-  selectedSupportedAddons = signal<string[]>([]);
-  availableAddonEntries = signal<{id: string; name: string}[]>([]);
-
   // ─────────────────────────────────────────────────────────────────────────────
   // Docker Compose specific
   // ─────────────────────────────────────────────────────────────────────────────

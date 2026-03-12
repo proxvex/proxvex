@@ -314,10 +314,6 @@ export class AppPropertiesStepComponent implements OnInit, OnDestroy {
     this.state.selectedSupportedAddons.set(addonIds);
   }
 
-  onSupportedAddonsChange(addonIds: string[]): void {
-    this.state.selectedSupportedAddons.set(addonIds);
-  }
-
   /**
    * Load tags configuration directly (simplified, similar to framework names).
    * This avoids async signal issues in Playwright tests.
