@@ -1,12 +1,5 @@
 {
   "default": {
-    "description": "Node-RED with SSL (OCI-image with certs volume)",
-    "addons": ["addon-ssl"],
-    "wait_seconds": 30,
-    "verify": {
-      "container_running": true,
-      "notes_managed": true,
-      "lxc_log_no_errors": true
-    }
+    "wait_seconds": 30
   }
 }

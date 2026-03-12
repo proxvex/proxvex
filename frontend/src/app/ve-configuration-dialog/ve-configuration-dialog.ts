@@ -641,10 +641,13 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   saveAsTestData(): void {
+    const scenarioName = window.prompt('Scenario name:', 'default')?.trim();
+    if (!scenarioName) return;
+
     const data = this.collectInstallationData();
-    this.configService.saveTestData(this.data.app.id, data).subscribe({
+    this.configService.saveTestData(this.data.app.id, { scenarioName, ...data }).subscribe({
       next: (res) => {
-        window.alert(`Test data saved to ${res.testsDir}`);
+        window.alert(`Test data saved to ${res.testsDir}/${scenarioName}.json`);
       },
       error: (err: unknown) => {
         this.errorHandler.handleError('Failed to save test data', err);

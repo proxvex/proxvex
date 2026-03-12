@@ -297,13 +297,14 @@ export function registerApplicationRoutes(
           return res.status(400).json({ error: "Missing applicationId" });
         }
 
-        const { params, uploads, addons } = req.body ?? {};
+        const { scenarioName, params, uploads, addons } = req.body ?? {};
         if (!Array.isArray(params)) {
           return res.status(400).json({ error: "params must be an array" });
         }
 
         const result = pm.saveApplicationTestData(
           applicationId,
+          scenarioName || "default",
           params,
           uploads ?? [],
           addons,

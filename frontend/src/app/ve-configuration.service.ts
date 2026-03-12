@@ -333,6 +333,7 @@ export class VeConfigurationService {
   }
 
   saveTestData(applicationId: string, body: {
+    scenarioName: string;
     params: { name: string; value: string | number | boolean }[];
     uploads?: { name: string; content: string }[];
     addons?: string[];

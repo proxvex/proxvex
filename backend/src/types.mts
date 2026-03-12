@@ -316,7 +316,6 @@ export interface ITestScenarioResponse {
   description: string;
   depends_on?: string[];
   task?: string;
-  addons?: string[];
   wait_seconds?: number;
   cli_timeout?: number;
   verify?: Record<string, boolean | number | string>;

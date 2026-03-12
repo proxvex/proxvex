@@ -52,6 +52,18 @@ export function deriveTestDependencies(
 }
 
 /**
+ * Generate a human-readable description for a test scenario.
+ */
+function buildScenarioDescription(appId: string, variant: string, addons?: string[]): string {
+  const parts = [appId];
+  if (variant !== "default") parts.push(`(${variant})`);
+  if (addons && addons.length > 0) {
+    parts.push("with", addons.map(a => a.replace(/^addon-/, "")).join(", "));
+  }
+  return parts.join(" ");
+}
+
+/**
  * Central singleton manager for Persistence, Services and ContextManager
  * Replaces StorageContext singleton for entity access (Applications, Templates, Frameworks)
  *
@@ -277,6 +289,7 @@ export class PersistenceManager {
    */
   saveApplicationTestData(
     applicationId: string,
+    scenarioName: string,
     params: { name: string; value: string | number | boolean }[],
     uploads: { name: string; content: string }[],
     addons?: string[],
@@ -303,7 +316,7 @@ export class PersistenceManager {
     const testsDir = path.join(appDir, "tests");
     fs.mkdirSync(testsDir, { recursive: true });
 
-    // Build default.json — filter out hostname (test-runner sets its own)
+    // Build {scenarioName}.json — filter out hostname (test-runner sets its own)
     const filteredParams = params.filter(p => p.name !== "hostname");
     const output: Record<string, unknown> = { params: filteredParams };
     if (addons && addons.length > 0) {
@@ -312,7 +325,7 @@ export class PersistenceManager {
     // stackId deliberately NOT saved — test-runner assigns stack names
 
     fs.writeFileSync(
-      path.join(testsDir, "default.json"),
+      path.join(testsDir, `${scenarioName}.json`),
       JSON.stringify(output, null, 2) + "\n",
       "utf-8",
     );
@@ -372,9 +385,7 @@ export class PersistenceManager {
       if (fs.existsSync(testFile)) {
         // Explicit test definitions from test.json
         const defs: Record<string, {
-          description: string;
           task?: string;
-          addons?: string[];
           wait_seconds?: number;
           cli_timeout?: number;
           verify?: Record<string, boolean | number | string>;
@@ -385,6 +396,7 @@ export class PersistenceManager {
           const scenario: ITestScenarioResponse = {
             id: `${appId}/${name}`,
             application: appId,
+            description: "", // generated below
             ...def,
           };
 
@@ -396,6 +408,9 @@ export class PersistenceManager {
             if (paramsContent.selectedAddons) scenario.selectedAddons = paramsContent.selectedAddons;
             if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
           }
+
+          // Auto-generate description from app name, variant, and addons
+          scenario.description = buildScenarioDescription(appId, name, scenario.selectedAddons);
 
           // Read upload files as base64
           const uploadsDir = path.join(testDir, "uploads");
@@ -412,7 +427,7 @@ export class PersistenceManager {
           }
 
           // Auto-derive depends_on from stacktype + addon dependencies
-          const allAddons = [...new Set([...(scenario.addons ?? []), ...(scenario.selectedAddons ?? [])])];
+          const allAddons = [...new Set(scenario.selectedAddons ?? [])];
           const derived = deriveTestDependencies(appId, name, appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
           if (derived.length > 0) {
             scenario.depends_on = derived;
@@ -428,14 +443,14 @@ export class PersistenceManager {
           const scenario: ITestScenarioResponse = {
             id: `${appId}/default`,
             application: appId,
-            description: `${appId} (auto-discovered from default.json)`,
+            description: "", // generated below
           };
           if (paramsContent.params) scenario.params = paramsContent.params;
           if (paramsContent.selectedAddons) {
             scenario.selectedAddons = paramsContent.selectedAddons;
-            scenario.addons = paramsContent.selectedAddons;
           }
           if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
+          scenario.description = buildScenarioDescription(appId, "default", scenario.selectedAddons);
 
           const uploadsDir = path.join(testDir, "uploads");
           if (fs.existsSync(uploadsDir)) {
@@ -451,7 +466,7 @@ export class PersistenceManager {
           }
 
           // Auto-derive depends_on from stacktype + addon dependencies
-          const allAddons = [...new Set([...(scenario.addons ?? []), ...(scenario.selectedAddons ?? [])])];
+          const allAddons = [...new Set(scenario.selectedAddons ?? [])];
           const derived = deriveTestDependencies(appId, "default", appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
           if (derived.length > 0) {
             scenario.depends_on = derived;

@@ -759,10 +759,7 @@ function buildDefaultVerify(
   }
 
   // Addon-based checks
-  const allAddons = [
-    ...(scenario.addons ?? []),
-    ...(scenario.selectedAddons ?? []),
-  ];
+  const allAddons = scenario.selectedAddons ?? [];
   const hasSSL = allAddons.includes("addon-ssl");
 
   if (hasSSL) {
@@ -835,11 +832,8 @@ async function executeScenarios(
 
       const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
 
-      // Merge addons from test.json and params file
-      const allAddons = [
-        ...(scenario.addons ?? []),
-        ...(buildResult.selectedAddons ?? []),
-      ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
+      // Addons come from scenario params file (selectedAddons)
+      const allAddons = buildResult.selectedAddons ?? [];
 
       // Write params file
       const paramsFile = path.join(tmpDir, `params-${i}.json`);
