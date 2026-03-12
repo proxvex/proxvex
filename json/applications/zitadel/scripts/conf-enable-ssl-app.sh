@@ -46,10 +46,13 @@ sed -i '/^    configs:$/i\
     volumes:\
       - /certs:/certs:ro' "$TMPFILE"
 
-# 5. Update env values for HTTPS
+# 5. Switch tlsMode from disabled to external (Traefik handles TLS)
+sed -i 's/--tlsMode disabled/--tlsMode external/' "$TMPFILE"
+
+# 6. Update env values for HTTPS
 sed -i 's/ZITADEL_EXTERNALSECURE: "false"/ZITADEL_EXTERNALSECURE: "true"/' "$TMPFILE"
 sed -i 's/ZITADEL_EXTERNALPORT: 8080/ZITADEL_EXTERNALPORT: 8443/' "$TMPFILE"
-sed -i 's|http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login|https://{{ ZITADEL_EXTERNALDOMAIN }}:8443/ui/v2/login|g' "$TMPFILE"
+sed -i 's|http://\([^:]*\):8080/ui/v2/login|https://\1:8443/ui/v2/login|g' "$TMPFILE"
 sed -i 's/X-Forwarded-Proto:http/X-Forwarded-Proto:https/' "$TMPFILE"
 sed -i 's/SSL_MODE: disable/SSL_MODE: require/g' "$TMPFILE"
 

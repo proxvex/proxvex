@@ -1,0 +1,29 @@
+{
+  "default": {
+    "description": "Gitea with Zitadel OIDC and Postgres (no SSL)",
+    "depends_on": ["zitadel/default"],
+    "addons": ["addon-oidc"],
+    "cli_timeout": 600,
+    "wait_seconds": 60,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "services_up": true,
+      "docker_log_no_errors": true
+    }
+  },
+  "ssl": {
+    "description": "Gitea with SSL, Zitadel SSL, Postgres SSL",
+    "depends_on": ["zitadel/ssl"],
+    "addons": ["addon-oidc", "addon-ssl"],
+    "cli_timeout": 600,
+    "wait_seconds": 60,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true,
+      "services_up": true,
+      "docker_log_no_errors": true,
+      "tls_connect": 3000
+    }
+  }
+}

@@ -791,10 +791,9 @@ function buildDefaultVerify(
   const hasSSL = allAddons.includes("addon-ssl");
 
   if (hasSSL) {
-    const stacktypes = Array.isArray(appMeta.stacktype)
-      ? appMeta.stacktype
-      : appMeta.stacktype ? [appMeta.stacktype] : [];
-    if (stacktypes.includes("postgres")) {
+    // Only check pg_ssl_on for actual postgres applications, not for apps
+    // that merely use the postgres stacktype for shared variables
+    if (scenario.application === "postgres") {
       verify.pg_ssl_on = true;
     }
   }
@@ -1239,28 +1238,19 @@ async function main() {
       const depVm = planned.find(d => d.scenario.application === depApp && d.skipExecution);
       if (depVm) {
         logInfo(`Cleanup SQL on ${depApp} (VM ${depVm.vmId}): ${sql}`);
+        // Split into separate -c flags so DROP DATABASE doesn't run inside a transaction
+        const sqlParts = sql.split(";").map(s => s.trim()).filter(Boolean);
+        const cFlags = sqlParts.map(s => `-c ${JSON.stringify(s)}`).join(" ");
         nestedSsh(config.pveHost, config.portPveSsh,
-          `pct exec ${depVm.vmId} -- psql -U postgres -c ${JSON.stringify(sql)}`,
+          `pct exec ${depVm.vmId} -- psql -U postgres ${cFlags}`,
           15000);
       }
     }
   }
 
-  // Only delete stacks if no dependencies are being reused
-  const hasReusedDeps = planned.some(p => p.skipExecution);
-  if (!hasReusedDeps) {
-    const allPlannedStacks = [...new Set(planned.map((p) => p.stackName))];
-    for (const stackName of allPlannedStacks) {
-      try {
-        await fetch(`${apiUrl}/api/stack/${stackName}`, {
-          method: "DELETE", signal: AbortSignal.timeout(5000),
-        });
-      } catch { /* ignore */ }
-    }
-  }
-
   // Pre-create stacks: collect ALL stacktypes across all apps sharing a stack,
-  // then create once — the server generates secrets for all stacktype variables
+  // then create once — the server generates secrets for all stacktype variables.
+  // If a stack already exists, reuse it to keep passwords stable across runs.
   const stackAllTypes = new Map<string, Set<string>>();
   for (const p of planned) {
     const rawStacktype = appStacktypes.get(p.scenario.application);
@@ -1276,24 +1266,54 @@ async function main() {
     }
   }
 
+  // Only delete+recreate stacks whose ALL VMs are being destroyed (not reused)
   for (const [stackName, allTypes] of stackAllTypes) {
     const typesArray = [...allTypes];
+
+    // Check if stack already exists
+    let stackExists = false;
     try {
-      const resp = await fetch(`${apiUrl}/api/stacks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: stackName,
-          stacktype: typesArray.length === 1 ? typesArray[0] : typesArray,
-          entries: [],
-        }),
-        signal: AbortSignal.timeout(10000),
+      const checkResp = await fetch(`${apiUrl}/api/stack/${stackName}`, {
+        signal: AbortSignal.timeout(5000),
       });
-      if (resp.ok) {
-        logOk(`Stack '${stackName}' created (type: ${typesArray.join("+")})`);
+      stackExists = checkResp.ok;
+    } catch { /* ignore */ }
+
+    if (stackExists) {
+      // Check if all VMs using this stack are being re-executed (not reused)
+      const stackVms = planned.filter(p => p.stackName === stackName);
+      const allDestroyed = stackVms.every(p => !p.skipExecution);
+      if (allDestroyed) {
+        // All VMs destroyed — delete and recreate stack with fresh passwords
+        try {
+          await fetch(`${apiUrl}/api/stack/${stackName}`, {
+            method: "DELETE", signal: AbortSignal.timeout(5000),
+          });
+        } catch { /* ignore */ }
+        stackExists = false;
+      } else {
+        logOk(`Stack '${stackName}' exists — reusing (passwords unchanged)`);
       }
-    } catch {
-      // Stack may already exist
+    }
+
+    if (!stackExists) {
+      try {
+        const resp = await fetch(`${apiUrl}/api/stacks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: stackName,
+            stacktype: typesArray.length === 1 ? typesArray[0] : typesArray,
+            entries: [],
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (resp.ok) {
+          logOk(`Stack '${stackName}' created (type: ${typesArray.join("+")})`);
+        }
+      } catch {
+        // Stack creation failed — may already exist from concurrent run
+      }
     }
   }
 
