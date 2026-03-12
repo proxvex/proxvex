@@ -69,6 +69,11 @@ import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, P
               <dd>{{ state.selectedSupportedAddons().join(', ') }}</dd>
             }
 
+            @if (state.selectedSupportedAddons().length > 0) {
+              <dt>Supported Addons:</dt>
+              <dd>{{ state.selectedSupportedAddons().join(', ') }}</dd>
+            }
+
             @if (state.appPropertiesForm.get('url')?.value) {
               <dt>URL:</dt>
               <dd>{{ state.appPropertiesForm.get('url')?.value }}</dd>
