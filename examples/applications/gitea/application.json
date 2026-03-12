@@ -83,6 +83,7 @@
   "tags": [
     "development"
   ],
+  "supported_addons": ["addon-oidc"],
   "stacktype": [
     "oidc",
     "postgres"

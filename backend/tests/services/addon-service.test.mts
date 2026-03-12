@@ -30,9 +30,17 @@ describe("AddonService", () => {
   ): Record<string, unknown> => ({
     name: "Test Addon",
     description: "A test addon",
-    compatible_with: "*",
     notes_key: "test-addon",
     ...overrides,
+  });
+
+  // Helper to create an inline addon object with id (for isAddonCompatible tests)
+  const createInlineAddon = (
+    id: string,
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    id,
+    ...createAddonJson(overrides),
   });
 
   // Helper to create a mock application
@@ -193,83 +201,97 @@ describe("AddonService", () => {
   });
 
   describe("isAddonCompatible()", () => {
-    it("should return true for wildcard compatible_with", () => {
-      const addon = createAddonJson({ compatible_with: "*" });
-      const app = createApplication({ id: "any-app" });
+    it("should return true when addon ID is in supported_addons", () => {
+      const addon = createInlineAddon("test-addon");
+      const app = createApplication({
+        id: "my-app",
+        supported_addons: ["test-addon", "other-addon"],
+      });
 
       expect(service.isAddonCompatible(addon, app)).toBe(true);
     });
 
-    it("should return true when application ID matches", () => {
-      const addon = createAddonJson({
-        compatible_with: ["my-app", "other-app"],
+    it("should return false when addon ID is not in supported_addons", () => {
+      const addon = createInlineAddon("test-addon");
+      const app = createApplication({
+        id: "my-app",
+        supported_addons: ["other-addon"],
       });
+
+      expect(service.isAddonCompatible(addon, app)).toBe(false);
+    });
+
+    it("should return false when supported_addons is empty", () => {
+      const addon = createInlineAddon("test-addon");
+      const app = createApplication({
+        id: "my-app",
+        supported_addons: [],
+      });
+
+      expect(service.isAddonCompatible(addon, app)).toBe(false);
+    });
+
+    it("should return false when supported_addons is undefined", () => {
+      const addon = createInlineAddon("test-addon");
       const app = createApplication({ id: "my-app" });
-
-      expect(service.isAddonCompatible(addon, app)).toBe(true);
-    });
-
-    it("should return true when application extends matches", () => {
-      const addon = createAddonJson({ compatible_with: ["base-app"] });
-      const app = createApplication({ id: "child-app", extends: "base-app" });
-
-      expect(service.isAddonCompatible(addon, app)).toBe(true);
-    });
-
-    it("should return true when tag matches", () => {
-      const addon = createAddonJson({ compatible_with: ["tag:docker"] });
-      const app = createApplication({ id: "my-app", tags: ["docker", "web"] });
-
-      expect(service.isAddonCompatible(addon, app)).toBe(true);
-    });
-
-    it("should return false when no criteria matches", () => {
-      const addon = createAddonJson({
-        compatible_with: ["other-app", "tag:special"],
-      });
-      const app = createApplication({ id: "my-app", tags: ["docker"] });
 
       expect(service.isAddonCompatible(addon, app)).toBe(false);
     });
   });
 
   describe("getCompatibleAddons()", () => {
-    it("should return only compatible addons", () => {
+    it("should return only addons listed in supported_addons", () => {
       persistenceHelper.writeJsonSync(
         Volume.JsonAddons,
-        "compatible.json",
+        "addon-ssl.json",
         createAddonJson({
-          name: "Compatible Addon",
-          notes_key: "compatible",
-          compatible_with: ["my-app"],
+          name: "SSL Addon",
+          notes_key: "addon-ssl",
         }),
       );
       persistenceHelper.writeJsonSync(
         Volume.JsonAddons,
-        "incompatible.json",
+        "addon-oidc.json",
         createAddonJson({
-          name: "Incompatible Addon",
-          notes_key: "incompatible",
-          compatible_with: ["other-app"],
+          name: "OIDC Addon",
+          notes_key: "addon-oidc",
         }),
       );
       persistenceHelper.writeJsonSync(
         Volume.JsonAddons,
-        "wildcard.json",
+        "samba-shares.json",
         createAddonJson({
-          name: "Wildcard Addon",
-          notes_key: "wildcard",
-          compatible_with: "*",
+          name: "Samba Addon",
+          notes_key: "samba-shares",
+        }),
+      );
+
+      const app = createApplication({
+        id: "my-app",
+        supported_addons: ["addon-ssl", "samba-shares"],
+      });
+      const result = service.getCompatibleAddons(app);
+
+      expect(result).toHaveLength(2);
+      expect(result.map((a) => a.name)).toContain("SSL Addon");
+      expect(result.map((a) => a.name)).toContain("Samba Addon");
+      expect(result.map((a) => a.name)).not.toContain("OIDC Addon");
+    });
+
+    it("should return empty when app has no supported_addons", () => {
+      persistenceHelper.writeJsonSync(
+        Volume.JsonAddons,
+        "some-addon.json",
+        createAddonJson({
+          name: "Some Addon",
+          notes_key: "some-addon",
         }),
       );
 
       const app = createApplication({ id: "my-app" });
       const result = service.getCompatibleAddons(app);
 
-      expect(result).toHaveLength(2);
-      expect(result.map((a) => a.name)).toContain("Compatible Addon");
-      expect(result.map((a) => a.name)).toContain("Wildcard Addon");
-      expect(result.map((a) => a.name)).not.toContain("Incompatible Addon");
+      expect(result).toHaveLength(0);
     });
   });
 
@@ -614,7 +636,7 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-filter",
-          compatible_with: "*",
+
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
             { id: "https_port", name: "HTTPS Port", type: "string", required: true },
@@ -627,6 +649,7 @@ describe("AddonService", () => {
 
       const app = createApplication({
         id: "native-app",
+        supported_addons: ["ssl-filter"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string" },
           { id: "https_port", name: "HTTPS Port", type: "string" },
@@ -656,7 +679,7 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-nofilter",
-          compatible_with: "*",
+
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
             { id: "https_port", name: "HTTPS Port", type: "string", required: true },
@@ -668,6 +691,7 @@ describe("AddonService", () => {
 
       const app = createApplication({
         id: "generic-app",
+        supported_addons: ["ssl-nofilter"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string" },
           { id: "https_port", name: "HTTPS Port", type: "string" },
@@ -692,7 +716,7 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-keepall",
-          compatible_with: "*",
+
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
             { id: "https_port", name: "HTTPS Port", type: "string", required: true },
@@ -701,9 +725,10 @@ describe("AddonService", () => {
         }),
       );
 
-      // App with NO matching parameters or properties
+      // App with NO matching parameters or properties but addon in supported_addons
       const app = createApplication({
         id: "minimal-app",
+        supported_addons: ["ssl-keepall"],
       });
 
       const result = service.getCompatibleAddonsWithParameters(app);
@@ -722,7 +747,7 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-default",
-          compatible_with: "*",
+
           parameters: [
             { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
           ],
@@ -731,6 +756,7 @@ describe("AddonService", () => {
 
       const app = createApplication({
         id: "default-app",
+        supported_addons: ["ssl-default"],
         properties: [
           { id: "ssl.mode", default: "proxy" },
         ],
@@ -752,7 +778,7 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-installed",
-          compatible_with: "*",
+
           required_parameters: ["http_port", "https_port"],
           parameters: [
             { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
@@ -765,19 +791,22 @@ describe("AddonService", () => {
         createAddonJson({
           name: "Basic Addon",
           notes_key: "basic-installed",
-          compatible_with: "*",
+
         }),
       );
 
-      // App without http_port/https_port - SSL addon is NOT compatible
-      const app = createApplication({ id: "simple-app" });
+      // App supports both addons but SSL fails required_parameters check
+      const app = createApplication({
+        id: "simple-app",
+        supported_addons: ["ssl-installed", "basic-installed"],
+      });
 
-      // Without installed IDs: only basic addon returned
+      // Without installed IDs: only basic addon returned (SSL fails required_parameters)
       const withoutInstalled = service.getCompatibleAddonsWithParameters(app);
       expect(withoutInstalled.map((a) => a.name)).toContain("Basic Addon");
       expect(withoutInstalled.map((a) => a.name)).not.toContain("SSL Addon");
 
-      // With installed IDs: SSL addon is included despite failing compatibility
+      // With installed IDs: SSL addon is included despite failing required_parameters
       const withInstalled = service.getCompatibleAddonsWithParameters(app, ["ssl-installed"]);
       expect(withInstalled.map((a) => a.name)).toContain("Basic Addon");
       expect(withInstalled.map((a) => a.name)).toContain("SSL Addon");
@@ -790,11 +819,14 @@ describe("AddonService", () => {
         createAddonJson({
           name: "Both Addon",
           notes_key: "both-addon",
-          compatible_with: "*",
+
         }),
       );
 
-      const app = createApplication({ id: "test-app" });
+      const app = createApplication({
+        id: "test-app",
+        supported_addons: ["both-addon"],
+      });
       const result = service.getCompatibleAddonsWithParameters(app, ["both-addon"]);
       expect(result.filter((a) => a.name === "Both Addon")).toHaveLength(1);
     });
@@ -829,13 +861,13 @@ describe("AddonService", () => {
       expect(addon.required_parameters).toBeUndefined();
     });
 
-    it("should be compatible when app defines required_parameters as parameters", () => {
-      const addon = createAddonJson({
-        compatible_with: "*",
+    it("should be compatible when app has supported_addons and required_parameters met", () => {
+      const addon = createInlineAddon("test-addon", {
         required_parameters: ["http_port", "https_port"],
       });
       const app = createApplication({
         id: "oci-lxc-deployer",
+        supported_addons: ["test-addon"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string", default: "3000" },
           { id: "https_port", name: "HTTPS Port", type: "string", default: "3443" },
@@ -846,12 +878,12 @@ describe("AddonService", () => {
     });
 
     it("should be compatible when app defines required_parameters as properties", () => {
-      const addon = createAddonJson({
-        compatible_with: "*",
+      const addon = createInlineAddon("test-addon", {
         required_parameters: ["http_port", "https_port"],
       });
       const app = createApplication({
         id: "oci-lxc-deployer",
+        supported_addons: ["test-addon"],
         properties: [
           { id: "http_port", value: "{{http_port}}" },
           { id: "https_port", value: "{{https_port}}" },
@@ -862,12 +894,12 @@ describe("AddonService", () => {
     });
 
     it("should be incompatible when app is missing a required parameter", () => {
-      const addon = createAddonJson({
-        compatible_with: "*",
+      const addon = createInlineAddon("test-addon", {
         required_parameters: ["http_port", "https_port"],
       });
       const app = createApplication({
         id: "simple-app",
+        supported_addons: ["test-addon"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string" },
         ],
@@ -877,11 +909,13 @@ describe("AddonService", () => {
     });
 
     it("should be incompatible when app has no parameters at all", () => {
-      const addon = createAddonJson({
-        compatible_with: "*",
+      const addon = createInlineAddon("test-addon", {
         required_parameters: ["http_port"],
       });
-      const app = createApplication({ id: "minimal-app" });
+      const app = createApplication({
+        id: "minimal-app",
+        supported_addons: ["test-addon"],
+      });
 
       expect(service.isAddonCompatible(addon, app)).toBe(false);
     });
@@ -893,7 +927,6 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-addon",
-          compatible_with: "*",
           required_parameters: ["http_port", "https_port"],
         }),
       );
@@ -903,12 +936,14 @@ describe("AddonService", () => {
         createAddonJson({
           name: "Basic Addon",
           notes_key: "basic-addon",
-          compatible_with: "*",
         }),
       );
 
-      // App without http_port/https_port - SSL addon should be filtered out
-      const simpleApp = createApplication({ id: "simple-app" });
+      // App supports both addons but lacks http_port/https_port - SSL filtered by required_parameters
+      const simpleApp = createApplication({
+        id: "simple-app",
+        supported_addons: ["ssl-addon", "basic-addon"],
+      });
       const result = service.getCompatibleAddons(simpleApp);
 
       expect(result.map((a) => a.name)).toContain("Basic Addon");
@@ -922,13 +957,14 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-addon",
-          compatible_with: "*",
+
           required_parameters: ["http_port", "https_port"],
         }),
       );
 
       const app = createApplication({
         id: "web-app",
+        supported_addons: ["ssl-addon"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string" },
           { id: "https_port", name: "HTTPS Port", type: "string" },

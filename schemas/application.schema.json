@@ -34,6 +34,11 @@
         { "type": "array", "items": { "type": "string" } }
       ]
     },
+    "supported_addons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Addon IDs this application supports. Merged with parent via extends."
+    },
     "dependencies": {
       "type": "array",
       "description": "Applications that must be installed before this one (in the same stack)",

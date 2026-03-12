@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { JsonValidator } from "../jsonvalidator.mjs";
 import { IConfiguredPathes } from "../backend-types.mjs";
-import { ITagsConfig, IStacktypeEntry, ITestScenarioResponse } from "../types.mjs";
+import { ITagsConfig, IStacktypeEntry, IStacktypeDependency, ITestScenarioResponse } from "../types.mjs";
 import { FileSystemPersistence } from "./filesystem-persistence.mjs";
 import {
   IApplicationPersistence,
@@ -23,6 +23,33 @@ const baseSchemas: string[] = [
   "categorized-templatelist.schema.json",
   "base-deployable.schema.json",
 ];
+
+/**
+ * Derive test scenario dependencies from stacktype and addon definitions.
+ * Pure function — no filesystem access, fully testable.
+ */
+export function deriveTestDependencies(
+  appId: string,
+  scenarioName: string,
+  stacktypes: string[],
+  scenarioAddons: string[],
+  getStacktypeDeps: (st: string) => IStacktypeDependency[],
+  getAddonDeps: (addonId: string) => IStacktypeDependency[],
+): string[] {
+  const derived: string[] = [];
+  for (const st of stacktypes) {
+    for (const dep of getStacktypeDeps(st)) {
+      if (dep.application !== appId) derived.push(dep.application);
+    }
+  }
+  for (const addonId of new Set(scenarioAddons)) {
+    for (const dep of getAddonDeps(addonId)) {
+      if (dep.application !== appId) derived.push(dep.application);
+    }
+  }
+  if (derived.length === 0) return [];
+  return [...new Set(derived)].map(app => `${app}/${scenarioName}`);
+}
 
 /**
  * Central singleton manager for Persistence, Services and ContextManager
@@ -253,7 +280,6 @@ export class PersistenceManager {
     params: { name: string; value: string | number | boolean }[],
     uploads: { name: string; content: string }[],
     addons?: string[],
-    stackId?: string,
   ): { testsDir: string } {
     const appService = this.applicationService;
     const localAppNames = appService.getLocalAppNames();
@@ -277,14 +303,13 @@ export class PersistenceManager {
     const testsDir = path.join(appDir, "tests");
     fs.mkdirSync(testsDir, { recursive: true });
 
-    // Build default.json
-    const output: Record<string, unknown> = { params };
+    // Build default.json — filter out hostname (test-runner sets its own)
+    const filteredParams = params.filter(p => p.name !== "hostname");
+    const output: Record<string, unknown> = { params: filteredParams };
     if (addons && addons.length > 0) {
       output.selectedAddons = addons;
     }
-    if (stackId) {
-      output.stackId = stackId;
-    }
+    // stackId deliberately NOT saved — test-runner assigns stack names
 
     fs.writeFileSync(
       path.join(testsDir, "default.json"),
@@ -313,23 +338,47 @@ export class PersistenceManager {
    */
   getTestScenarios(): ITestScenarioResponse[] {
     const appService = this.applicationService;
+    const addonService = this.addonService;
     const allApps = appService.getAllAppNames();
     const scenarios: ITestScenarioResponse[] = [];
+
+    // Build stacktype lookup (name → dependencies)
+    const stacktypeMap = new Map<string, IStacktypeDependency[]>();
+    for (const st of this.getStacktypes()) {
+      stacktypeMap.set(st.name, st.dependencies ?? []);
+    }
+    const getStacktypeDeps = (st: string) => stacktypeMap.get(st) ?? [];
+    const getAddonDeps = (addonId: string) => {
+      try {
+        return addonService.getAddon(addonId)?.dependencies ?? [];
+      } catch { return []; }
+    };
 
     for (const [appId, appDir] of allApps) {
       const testDir = path.join(appDir, "tests");
       const testFile = path.join(testDir, "test.json");
 
+      // Get application stacktype for dependency derivation
+      let appStacktypes: string[] = [];
+      try {
+        const appJsonPath = path.join(appDir, "application.json");
+        if (fs.existsSync(appJsonPath)) {
+          const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
+          const st = appJson.stacktype;
+          appStacktypes = st ? (Array.isArray(st) ? st : [st]) : [];
+        }
+      } catch { /* ignore */ }
+
       if (fs.existsSync(testFile)) {
         // Explicit test definitions from test.json
         const defs: Record<string, {
           description: string;
-          depends_on?: string[];
           task?: string;
           addons?: string[];
           wait_seconds?: number;
           cli_timeout?: number;
           verify?: Record<string, boolean | number | string>;
+          cleanup?: Record<string, string>;
         }> = JSON.parse(fs.readFileSync(testFile, "utf-8"));
 
         for (const [name, def] of Object.entries(defs)) {
@@ -362,6 +411,13 @@ export class PersistenceManager {
             }
           }
 
+          // Auto-derive depends_on from stacktype + addon dependencies
+          const allAddons = [...new Set([...(scenario.addons ?? []), ...(scenario.selectedAddons ?? [])])];
+          const derived = deriveTestDependencies(appId, name, appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
+          if (derived.length > 0) {
+            scenario.depends_on = derived;
+          }
+
           scenarios.push(scenario);
         }
       } else {
@@ -392,6 +448,13 @@ export class PersistenceManager {
                 content: fs.readFileSync(path.join(uploadsDir, f)).toString("base64"),
               }));
             }
+          }
+
+          // Auto-derive depends_on from stacktype + addon dependencies
+          const allAddons = [...new Set([...(scenario.addons ?? []), ...(scenario.selectedAddons ?? [])])];
+          const derived = deriveTestDependencies(appId, "default", appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
+          if (derived.length > 0) {
+            scenario.depends_on = derived;
           }
 
           scenarios.push(scenario);

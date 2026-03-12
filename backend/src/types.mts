@@ -32,6 +32,8 @@ export interface IApplicationBase {
   source?: string;
   vendor?: string;
   stacktype?: string | string[];
+  /** Addon IDs this application supports. Merged with parent via extends. */
+  supported_addons?: string[];
   uploadfiles?: IUploadFile[];
   errors?: string[];
   /** User-configurable parameters defined directly in application.json (new approach) */
@@ -435,6 +437,7 @@ export interface IFrameworkApplicationDataBody {
   iconContent?: string;
   tags?: string[];
   stacktype?: string | string[];
+  supported_addons?: string[];
   parameterValues: { id: string; value: string | number | boolean }[];
   parameterClassifications?: IParameterClassification[];
   uploadfiles?: IUploadFile[];
@@ -498,6 +501,7 @@ export interface IApplicationFrameworkDataResponse {
   iconContent?: string;
   tags?: string[];
   stacktype?: string | string[];
+  supported_addons?: string[];
   parameterValues: { id: string; value: string | number | boolean }[];
 }
 
@@ -533,10 +537,10 @@ export interface IAddon {
   name: string;
   description?: string;
   tags?: string[];
-  /** Application IDs, 'tag:<tag-id>' or '*' for all */
-  compatible_with: string[] | "*";
   /** Parameter IDs that must exist in the application for this addon to be compatible */
   required_parameters?: string[];
+  /** Applications that must be installed for this addon to function (in the same stack) */
+  dependencies?: IStacktypeDependency[];
   /** User-configurable parameters defined directly in addon JSON */
   parameters?: IParameter[];
   /** Fixed property values set by this addon (same format as template command properties) */

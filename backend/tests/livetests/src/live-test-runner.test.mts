@@ -156,7 +156,7 @@ describe("buildParams", () => {
   const defaultVars = {
     vm_id: "200",
     hostname: "test-host",
-    stack_name: "200",
+    stack_name: "default",
   };
 
   it("base params always present when no scenario params", () => {

@@ -708,11 +708,6 @@ function planScenarios(
   appStacktypes: Map<string, string | string[]>,
 ): PlannedScenario[] {
   let nextVmId = VM_ID_START;
-  // Group by stacktype + variant: scenarios sharing a stacktype AND variant share a stack.
-  // This ensures e.g. postgres/ssl and zitadel/ssl get a different stack than
-  // postgres/default and zitadel/default, so the dependency resolver finds the
-  // correct postgres container for each variant.
-  const stackByTypeVariant = new Map<string, string>();
 
   return scenarios.map((scenario) => {
     const vmId = nextVmId++;
@@ -720,28 +715,8 @@ function planScenarios(
     const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
     const hasStacktype = stacktypes.length > 0;
 
-    // Extract variant from scenario id (e.g., "ssl" from "zitadel/ssl")
-    const variant = scenario.id.split("/")[1] ?? "default";
-
-    let stackName: string;
-    if (hasStacktype) {
-      // Key includes variant so different test variants get separate stacks
-      const variantKey = (type: string) => `${type}:${variant}`;
-      const existingType = stacktypes.find(st => stackByTypeVariant.has(variantKey(st)));
-      const primaryType = existingType ?? stacktypes[0]!;
-      if (!stackByTypeVariant.has(variantKey(primaryType))) {
-        stackByTypeVariant.set(variantKey(primaryType), String(vmId));
-      }
-      stackName = stackByTypeVariant.get(variantKey(primaryType))!;
-      // Register all stacktypes to point to the same stack
-      for (const st of stacktypes) {
-        if (!stackByTypeVariant.has(variantKey(st))) {
-          stackByTypeVariant.set(variantKey(st), stackName);
-        }
-      }
-    } else {
-      stackName = String(vmId);
-    }
+    // Stack name = scenario variant (e.g. "default", "ssl")
+    const stackName = scenario.id.split("/")[1] ?? "default";
 
     return {
       vmId,

@@ -59,8 +59,7 @@
   "source": "https://github.com/node-red/node-red-docker",
   "tags": [
     "api",
-    "development",
-    "authentication"
+    "development"
   ],
   "supported_addons": ["addon-oidc"],
   "stacktype": "oidc"

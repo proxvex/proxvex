@@ -95,6 +95,18 @@ import { ITagsConfig } from '../../../shared/types';
             </mat-form-field>
           }
 
+          @if (state.availableAddonEntries().length > 0) {
+            <mat-form-field appearance="outline" class="field-addons">
+              <mat-label>Supported Addons</mat-label>
+              <mat-select [value]="state.selectedSupportedAddons()" (selectionChange)="onSupportedAddonsChange($event.value)" multiple>
+                @for (addon of state.availableAddonEntries(); track addon.id) {
+                  <mat-option [value]="addon.id">{{ addon.name }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Addons available during installation</mat-hint>
+            </mat-form-field>
+          }
+
           <div class="tags-wrapper">
             <app-tags-selector
               [tagsConfig]="tagsConfig"
@@ -182,7 +194,7 @@ import { ITagsConfig } from '../../../shared/types';
       margin-bottom: 1rem;
     }
 
-    .field-stacktype {
+    .field-stacktype, .field-addons {
       width: 220px;
       flex-shrink: 0;
     }
@@ -296,6 +308,10 @@ export class AppPropertiesStepComponent implements OnInit, OnDestroy {
 
   onStacktypeChange(stacktype: string | null): void {
     this.state.selectedStacktype.set(stacktype);
+  }
+
+  onSupportedAddonsChange(addonIds: string[]): void {
+    this.state.selectedSupportedAddons.set(addonIds);
   }
 
   /**

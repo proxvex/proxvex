@@ -278,6 +278,8 @@ export function registerApplicationRoutes(
       if (application.tags && application.tags.length > 0)
         response.tags = application.tags;
       if (application.stacktype) response.stacktype = application.stacktype;
+      if (application.supported_addons?.length)
+        response.supported_addons = application.supported_addons;
 
       returnResponse<IApplicationFrameworkDataResponse>(res, response);
     } catch (err: any) {
@@ -295,7 +297,7 @@ export function registerApplicationRoutes(
           return res.status(400).json({ error: "Missing applicationId" });
         }
 
-        const { params, uploads, addons, stackId } = req.body ?? {};
+        const { params, uploads, addons } = req.body ?? {};
         if (!Array.isArray(params)) {
           return res.status(400).json({ error: "params must be an array" });
         }
@@ -305,7 +307,6 @@ export function registerApplicationRoutes(
           params,
           uploads ?? [],
           addons,
-          stackId,
         );
 
         res.json({ success: true, testsDir: result.testsDir });

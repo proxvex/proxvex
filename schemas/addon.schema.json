@@ -4,18 +4,25 @@
   "allOf": [{ "$ref": "base-deployable" }],
   "type": "object",
   "properties": {
-    "compatible_with": {
-      "description": "Application-IDs, 'tag:<tag-id>' or '*' for all applications",
-      "oneOf": [
-        { "const": "*" },
-        { "type": "array", "items": { "type": "string" } }
-      ],
-      "default": "*"
-    },
     "required_parameters": {
       "type": "array",
       "items": { "type": "string" },
       "description": "Parameter IDs that must exist in the application for this addon to be compatible."
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Applications that must be installed for this addon to function (in the same stack)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "application": {
+            "type": "string",
+            "description": "Application ID of the dependency"
+          }
+        },
+        "required": ["application"],
+        "additionalProperties": false
+      }
     },
     "volumes": {
       "type": "array",

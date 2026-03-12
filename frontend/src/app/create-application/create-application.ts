@@ -217,6 +217,11 @@ export class CreateApplication implements OnInit, OnDestroy {
                 this.state.selectedStacktype.set(st);
               }
 
+              // Fill supported addons if present
+              if (data.supported_addons?.length) {
+                this.state.selectedSupportedAddons.set(data.supported_addons);
+              }
+
               // Fill parameter values
               for (const pv of data.parameterValues) {
                 const ctrl = this.parameterForm.get(pv.id);

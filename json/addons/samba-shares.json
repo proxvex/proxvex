@@ -3,8 +3,6 @@
   "description": "SMB/CIFS file sharing for the container. Upload a custom smb.conf to configure shares.",
   "tags": ["storage", "network"],
 
-  "compatible_with": "*",
-
   "parameters": [
     {
       "id": "addon_content",

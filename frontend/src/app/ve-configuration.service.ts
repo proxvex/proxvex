@@ -336,7 +336,6 @@ export class VeConfigurationService {
     params: { name: string; value: string | number | boolean }[];
     uploads?: { name: string; content: string }[];
     addons?: string[];
-    stackId?: string;
   }): Observable<{ success: boolean; testsDir: string }> {
     const url = ApiUri.ApplicationTestData.replace(':applicationId', encodeURIComponent(applicationId));
     return this.http.post<{ success: boolean; testsDir: string }>(url, body);
