@@ -3,8 +3,12 @@ import type { ValidationResult } from "../../backend/src/parameter-validator.mjs
 export declare class CliApiClient {
     private baseUrl;
     private token?;
-    constructor(baseUrl: string, token?: string, insecure?: boolean);
+    private fixtureDir?;
+    private fixtureIndex;
+    constructor(baseUrl: string, token?: string, insecure?: boolean, fixturePath?: string);
     private request;
+    private pollingFixtureFile?;
+    private saveFixture;
     getSshConfigs(): Promise<ISshConfigsResponse>;
     getSshConfigKey(host: string): Promise<{
         key: string;

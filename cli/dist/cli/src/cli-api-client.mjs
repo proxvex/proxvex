@@ -1,13 +1,21 @@
+import { writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { ConnectionError, AuthenticationError, NotFoundError, ApiError, } from "./cli-types.mjs";
 export class CliApiClient {
     baseUrl;
     token;
-    constructor(baseUrl, token, insecure) {
+    fixtureDir;
+    fixtureIndex = 0;
+    constructor(baseUrl, token, insecure, fixturePath) {
         this.baseUrl = baseUrl.replace(/\/+$/, "");
         if (token)
             this.token = token;
         if (insecure) {
             process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+        }
+        if (fixturePath) {
+            this.fixtureDir = fixturePath;
+            mkdirSync(fixturePath, { recursive: true });
         }
     }
     async request(method, path, body) {
@@ -50,7 +58,37 @@ export class CliApiClient {
             }
             throw new ApiError(`API error ${response.status} on ${method} ${path}: ${detail}`);
         }
-        return (await response.json());
+        const data = (await response.json());
+        if (this.fixtureDir) {
+            this.saveFixture(method, path, body, data);
+        }
+        return data;
+    }
+    pollingFixtureFile;
+    saveFixture(method, path, requestBody, responseBody) {
+        // Polling endpoint: only save first and overwrite with latest (keeps first + last)
+        if (path.endsWith("/ve/execute")) {
+            if (!this.pollingFixtureFile) {
+                // First poll — save as "first"
+                const idx = String(++this.fixtureIndex).padStart(3, "0");
+                const slug = path.replace(/^\//, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/-+$/, "");
+                this.pollingFixtureFile = `${idx}-${method}-${slug}`;
+                writeFileSync(join(this.fixtureDir, `${this.pollingFixtureFile}-first.json`), JSON.stringify({
+                    method, path, request: null, response: responseBody,
+                }, null, 2) + "\n");
+            }
+            // Always overwrite "last" — final file will be the last poll
+            writeFileSync(join(this.fixtureDir, `${this.pollingFixtureFile}-last.json`), JSON.stringify({
+                method, path, request: null, response: responseBody,
+            }, null, 2) + "\n");
+            return;
+        }
+        const idx = String(++this.fixtureIndex).padStart(3, "0");
+        const slug = path.replace(/^\//, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/-+$/, "");
+        const filename = `${idx}-${method}-${slug}.json`;
+        writeFileSync(join(this.fixtureDir, filename), JSON.stringify({
+            method, path, request: requestBody ?? null, response: responseBody,
+        }, null, 2) + "\n");
     }
     async getSshConfigs() {
         return this.request("GET", "/api/sshconfigs");

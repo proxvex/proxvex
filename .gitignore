@@ -49,3 +49,4 @@ backend/tests/e2e/.nested-vm-ip
 
 # Generated test certificates
 e2e/certs/
+livetest-diag-*.tar.gz

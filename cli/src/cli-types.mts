@@ -14,6 +14,7 @@ export interface CliOptions {
   timeout: number;
   enableAddons?: string[];
   disableAddons?: string[];
+  fixturePath?: string;
 }
 
 export class CliError extends Error {

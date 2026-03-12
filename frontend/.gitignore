@@ -2,6 +2,8 @@
 
 # Compiled output
 /dist
+/frontend/dist
+/backend/dist
 /tmp
 /out-tsc
 /bazel-out
@@ -27,6 +29,9 @@ yarn-error.log
 !.vscode/launch.json
 !.vscode/extensions.json
 .history/*
+
+# Generated test fixtures
+/src/test-fixtures/
 
 # Miscellaneous
 /.angular/cache

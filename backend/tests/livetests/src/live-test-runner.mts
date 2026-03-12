@@ -335,6 +335,7 @@ function loadConfig(instanceName?: string): {
   instance: string;
   pveHost: string;
   portPveSsh: number;
+  pveWebUrl: string;
   deployerUrl: string;
   deployerHttpsUrl: string;
   bridge: string;
@@ -360,6 +361,7 @@ function loadConfig(instanceName?: string): {
 
   const offset = inst.portOffset;
   const portPveSsh = config.ports.pveSsh + offset;
+  const pveWebUrl = `https://${pveHost}:${config.ports.pveWeb + offset}`;
 
   // Allow explicit deployer host/port override (for dev environments)
   let deployerUrl: string;
@@ -380,6 +382,7 @@ function loadConfig(instanceName?: string): {
     instance,
     pveHost,
     portPveSsh,
+    pveWebUrl,
     deployerUrl,
     deployerHttpsUrl,
     bridge: inst.bridge || "vmbr0",
@@ -388,6 +391,21 @@ function loadConfig(instanceName?: string): {
 
 // ── SSH ──
 
+function nestedSshStrict(
+  pveHost: string,
+  port: number,
+  command: string,
+  timeoutMs = 15000,
+): string {
+  const result = execSync(
+    `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ` +
+    `-o BatchMode=yes -o ConnectTimeout=10 ` +
+    `-p ${port} root@${pveHost} ${JSON.stringify(command)}`,
+    { timeout: timeoutMs, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+  return result.trim();
+}
+
 function nestedSsh(
   pveHost: string,
   port: number,
@@ -395,13 +413,7 @@ function nestedSsh(
   timeoutMs = 15000,
 ): string {
   try {
-    const result = execSync(
-      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ` +
-      `-o BatchMode=yes -o ConnectTimeout=10 ` +
-      `-p ${port} root@${pveHost} ${JSON.stringify(command)}`,
-      { timeout: timeoutMs, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
-    );
-    return result.trim();
+    return nestedSshStrict(pveHost, port, command, timeoutMs);
   } catch {
     return "";
   }
@@ -446,6 +458,7 @@ function runCli(
   paramsFile: string,
   addons?: string[],
   cliTimeout = 600,
+  fixturePath?: string,
 ): Promise<{ output: string; exitCode: number }> {
   return new Promise((resolve) => {
     // Auto-detect dev mode: if TypeScript source exists, use tsx
@@ -463,6 +476,10 @@ function runCli(
 
     if (addons && addons.length > 0) {
       cliArgs.push("--enable-addons", addons.join(","));
+    }
+
+    if (fixturePath) {
+      cliArgs.push("--fixture-path", fixturePath);
     }
 
     cliArgs.push(paramsFile);
@@ -738,6 +755,55 @@ function planScenarios(
   });
 }
 
+// ── Auto-verify defaults ──
+
+/** Application metadata used for auto-determining verifications */
+interface AppMeta {
+  extends?: string | undefined;
+  stacktype?: string | string[] | undefined;
+  tags?: string[] | undefined;
+}
+
+/**
+ * Build default verifications from application metadata and scenario addons.
+ * test.json can override/extend these defaults.
+ */
+function buildDefaultVerify(
+  scenario: ResolvedScenario,
+  appMeta: AppMeta,
+): Record<string, boolean | number | string> {
+  const verify: Record<string, boolean | number | string> = {
+    container_running: true,
+    notes_managed: true,
+  };
+
+  // App-type-based checks
+  if (appMeta.extends === "docker-compose") {
+    verify.services_up = true;
+    verify.docker_log_no_errors = true;
+  } else {
+    verify.lxc_log_no_errors = true;
+  }
+
+  // Addon-based checks
+  const allAddons = [
+    ...(scenario.addons ?? []),
+    ...(scenario.selectedAddons ?? []),
+  ];
+  const hasSSL = allAddons.includes("addon-ssl");
+
+  if (hasSSL) {
+    const stacktypes = Array.isArray(appMeta.stacktype)
+      ? appMeta.stacktype
+      : appMeta.stacktype ? [appMeta.stacktype] : [];
+    if (stacktypes.includes("postgres")) {
+      verify.pg_ssl_on = true;
+    }
+  }
+
+  return verify;
+}
+
 // ── Execute all planned scenarios sequentially ──
 
 async function executeScenarios(
@@ -746,6 +812,8 @@ async function executeScenarios(
   apiUrl: string,
   veHost: string,
   projectRoot: string,
+  appMetaMap: Map<string, AppMeta>,
+  fixtureBaseDir?: string,
 ): Promise<TestResult> {
   const result: TestResult = {
     name: planned.map((p) => p.scenario.id).join(", "),
@@ -826,9 +894,12 @@ async function executeScenarios(
 
       // Run CLI
       logInfo(`Running: ${scenario.application} ${task}...`);
+      const scenarioFixtureDir = fixtureBaseDir
+        ? path.join(fixtureBaseDir, scenario.id.replace("/", "-"))
+        : undefined;
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
-        paramsFile, allAddons, scenario.cli_timeout,
+        paramsFile, allAddons, scenario.cli_timeout, scenarioFixtureDir,
       );
 
       if (cliResult.exitCode !== 0) {
@@ -856,11 +927,16 @@ async function executeScenarios(
         await waitForServices(config.pveHost, config.portPveSsh, step.vmId, scenario.wait_seconds);
       }
 
-      // Run verifications
-      if (scenario.verify) {
-        logInfo("Verifying...");
-        await verifier.runAll(step.vmId, step.hostname, scenario.verify);
+      // Run verifications (auto-defaults merged with explicit verify from test.json)
+      const appMeta = appMetaMap.get(scenario.application) ?? {};
+      const defaultVerify = buildDefaultVerify(scenario, appMeta);
+      const finalVerify = { ...defaultVerify, ...(scenario.verify ?? {}) };
+      // Remove entries explicitly set to false
+      for (const [k, v] of Object.entries(finalVerify)) {
+        if (v === false) delete finalVerify[k];
       }
+      logInfo("Verifying...");
+      await verifier.runAll(step.vmId, step.hostname, finalVerify);
     }
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
@@ -991,8 +1067,10 @@ function cleanupVms(
 
 async function main() {
   const args = process.argv.slice(2);
-  const instance = args[0] || undefined;
-  const testArg = args[1] || "--all";
+  const fixturesFlag = args.includes("--fixtures");
+  const filteredArgs = args.filter(a => a !== "--fixtures");
+  const instance = filteredArgs[0] || undefined;
+  const testArg = filteredArgs[1] || "--all";
 
   const config = loadConfig(instance);
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
@@ -1004,7 +1082,9 @@ async function main() {
   console.log(`Instance:  ${config.instance}`);
   console.log(`Test:      ${testArg}`);
   console.log(`Deployer:  ${config.deployerUrl} (HTTPS: ${config.deployerHttpsUrl})`);
-  console.log(`PVE Host:  ${config.pveHost}`);
+  console.log(`PVE Host:  ${config.pveHost}:${config.portPveSsh}`);
+  console.log(`PVE Web:   ${config.pveWebUrl}`);
+  console.log(`SSH:       ssh -p ${config.portPveSsh} root@${config.pveHost}`);
   console.log("");
 
   // Prerequisites
@@ -1031,14 +1111,31 @@ async function main() {
     process.exit(1);
   }
 
-  // Discover VE host
-  const sshConfigs = await apiFetch<{ sshs: Array<{ host: string }> }>(apiUrl, "/api/sshconfigs");
-  const veHost = sshConfigs?.sshs[0]?.host;
-  if (!veHost) {
-    logFail("Cannot determine VE host from deployer API");
-    process.exit(1);
+  // Ensure VE host SSH config exists on the deployer
+  const veHost = config.pveHost;
+  const veSshPort = config.portPveSsh;
+  const veConfigResp = await apiFetch<{ key: string }>(apiUrl, `/api/ssh/config/${encodeURIComponent(veHost)}`);
+  if (veConfigResp?.key) {
+    logOk(`VE host '${veHost}' already configured on deployer`);
+  } else {
+    logInfo(`VE host '${veHost}' not found on deployer, creating SSH config...`);
+    try {
+      const resp = await fetch(`${apiUrl}/api/sshconfig`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host: veHost, port: veSshPort, current: true }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "unknown" }));
+        throw new Error(`${resp.status}: ${(err as any).error}`);
+      }
+      logOk(`VE host '${veHost}' created (port ${veSshPort}, set as current)`);
+    } catch (err: any) {
+      logFail(`Failed to create SSH config for '${veHost}': ${err.message}`);
+      process.exit(1);
+    }
   }
-  logOk(`VE host discovered: ${veHost}`);
 
   // Discover tests via API
   const allTests = await fetchTestScenarios(apiUrl);
@@ -1063,12 +1160,18 @@ async function main() {
 
   logOk(`${scenariosToRun.length} scenario(s) to run (including dependencies)`);
 
-  // Fetch application stacktypes
+  // Fetch application metadata (stacktypes, extends, tags)
   const appStacktypes = new Map<string, string | string[]>();
-  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[] }>>(apiUrl, "/api/applications");
+  const appMetaMap = new Map<string, AppMeta>();
+  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[]; extends?: string; tags?: string[] }>>(apiUrl, "/api/applications");
   if (apps) {
     for (const app of apps) {
       if (app.stacktype) appStacktypes.set(app.id, app.stacktype);
+      appMetaMap.set(app.id, {
+        extends: app.extends,
+        stacktype: app.stacktype,
+        tags: app.tags,
+      });
     }
   }
 
@@ -1092,15 +1195,22 @@ async function main() {
 
   // Pre-test cleanup: smart handling of dependencies vs targets
   for (const p of planned) {
-    const status = nestedSsh(config.pveHost, config.portPveSsh,
-      `pct status ${p.vmId} 2>/dev/null || true`, 10000);
+    let status: string;
+    try {
+      status = nestedSshStrict(config.pveHost, config.portPveSsh,
+        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
+    } catch (err: any) {
+      logFail(`SSH connection failed during pre-cleanup: ${err.message}`);
+      process.exit(1);
+    }
 
     if (p.isDependency && status.includes("running")) {
       logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
       p.skipExecution = true;
-    } else if (status.includes("status:")) {
-      // VM exists (running or stopped) but is a target or stopped dep → destroy
-      logInfo(`Destroying stale VM ${p.vmId}...`);
+    } else if (!p.isDependency || status.includes("status:")) {
+      // Target VMs: always try to destroy (even if status check failed)
+      // Dependency VMs: only destroy if they exist but aren't running
+      logInfo(`Destroying VM ${p.vmId} (${p.scenario.id})...`);
       nestedSsh(config.pveHost, config.portPveSsh,
         `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
         30000);
@@ -1111,6 +1221,16 @@ async function main() {
       nestedSsh(config.pveHost, config.portPveSsh,
         `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(p.hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
         15000);
+    }
+
+    // Verify VM is actually gone (for targets)
+    if (!p.skipExecution && !p.isDependency) {
+      const verify = nestedSsh(config.pveHost, config.portPveSsh,
+        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
+      if (verify.includes("status:")) {
+        logFail(`Failed to destroy VM ${p.vmId} — aborting`);
+        process.exit(1);
+      }
     }
   }
 
@@ -1181,7 +1301,10 @@ async function main() {
 
   // Execute scenarios sequentially (topologically sorted)
   const keepVm = !!process.env.KEEP_VM;
-  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot);
+  const fixtureBaseDir = fixturesFlag
+    ? path.join(projectRoot, "frontend/src/test-fixtures")
+    : undefined;
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, fixtureBaseDir);
   const allResults = [result];
 
   // Collect diagnostics before cleanup (VMs still running)

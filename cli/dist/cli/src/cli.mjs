@@ -9,7 +9,7 @@ export class RemoteCli {
     client;
     constructor(options) {
         this.options = options;
-        this.client = new CliApiClient(options.server, options.token, options.insecure);
+        this.client = new CliApiClient(options.server, options.token, options.insecure, options.fixturePath);
     }
     async run() {
         // 1. Read parameters file first to get application and task (unless generate-template mode)

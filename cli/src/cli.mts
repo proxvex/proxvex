@@ -24,6 +24,7 @@ export class RemoteCli {
       options.server,
       options.token,
       options.insecure,
+      options.fixturePath,
     );
   }
 

@@ -42,6 +42,15 @@ if ! pct start "$VMID" >/dev/null 2>&1; then
   echo "" >&2
   echo "=== Container $VMID failed to start ===" >&2
   echo "$START_ERROR" >&2
+
+  # Show application log if available — often more useful than the config
+  LOG_PATH=$(pct config "$VMID" 2>/dev/null | grep "^lxc.console.logfile:" | awk '{print $2}')
+  if [ -n "$LOG_PATH" ] && [ -f "$LOG_PATH" ]; then
+    echo "" >&2
+    echo "=== Application log (last 30 lines) ===" >&2
+    tail -30 "$LOG_PATH" >&2
+  fi
+
   echo "" >&2
   echo "=== Container configuration ===" >&2
   pct config "$VMID" >&2 || echo "Could not read container configuration" >&2

@@ -62,6 +62,10 @@ function parseArgs() {
                 args.disableAddons = argv[i + 1] ?? "";
                 i += 2;
             }
+            else if (arg === "--fixture-path") {
+                args.fixturePath = argv[i + 1] ?? "";
+                i += 2;
+            }
             else if (!arg.startsWith("--")) {
                 if (args.generateTemplate) {
                     // generate-template mode: positional args are application, task, [output.json]
@@ -175,6 +179,8 @@ async function runRemoteCommand(args) {
         options.enableAddons = args.enableAddons.split(",").filter(Boolean);
     if (args.disableAddons)
         options.disableAddons = args.disableAddons.split(",").filter(Boolean);
+    if (args.fixturePath)
+        options.fixturePath = args.fixturePath;
     const cli = new RemoteCli(options);
     await cli.run();
 }
@@ -229,6 +235,7 @@ function printHelp() {
     console.log("  --quiet                   Minimal output, final JSON result only");
     console.log("  --json                    All progress as JSON lines");
     console.log("  --timeout <seconds>       Max execution time (default: 1800)");
+    console.log("  --fixture-path <dir>      Save HTTP request/response pairs as JSON fixtures");
     console.log("");
     console.log("Validate command:");
     console.log("  oci-lxc-cli validate [--server <url>]");

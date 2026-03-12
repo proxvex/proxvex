@@ -22,6 +22,7 @@ interface ParsedArgs {
   timeout?: number;
   enableAddons?: string;
   disableAddons?: string;
+  fixturePath?: string;
 }
 
 function parseArgs(): ParsedArgs {
@@ -73,6 +74,9 @@ function parseArgs(): ParsedArgs {
         i += 2;
       } else if (arg === "--disable-addons") {
         args.disableAddons = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--fixture-path") {
+        args.fixturePath = argv[i + 1] ?? "";
         i += 2;
       } else if (!arg.startsWith("--")) {
         if (args.generateTemplate) {
@@ -169,6 +173,7 @@ async function runRemoteCommand(args: ParsedArgs): Promise<void> {
   if (args.verbose) options.verbose = args.verbose;
   if (args.enableAddons) options.enableAddons = args.enableAddons.split(",").filter(Boolean);
   if (args.disableAddons) options.disableAddons = args.disableAddons.split(",").filter(Boolean);
+  if (args.fixturePath) options.fixturePath = args.fixturePath;
 
   const cli = new RemoteCli(options);
   await cli.run();
@@ -235,6 +240,7 @@ function printHelp(): void {
   console.log("  --quiet                   Minimal output, final JSON result only");
   console.log("  --json                    All progress as JSON lines");
   console.log("  --timeout <seconds>       Max execution time (default: 1800)");
+  console.log("  --fixture-path <dir>      Save HTTP request/response pairs as JSON fixtures");
   console.log("");
   console.log("Validate command:");
   console.log("  oci-lxc-cli validate [--server <url>]");

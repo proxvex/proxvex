@@ -23,7 +23,7 @@
       "description": "One per line: key=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "conf=etc/nginx/nginx.conf"
+      "default": "conf=/etc/nginx/conf.d"
     },
     {
       "id": "envs",
@@ -73,11 +73,7 @@
       "value": "root"
     }
   ],
-  "installation": {
-    "pre_start": [
-      "0-upload-nginx-configuration-fil.json"
-    ]
-  },
+  "installation": {},
   "url": "https://github.com/nginx/docker-nginx-unprivileged",
   "source": "https://github.com/nginx/docker-nginx-unprivileged",
   "tags": [
