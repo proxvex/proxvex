@@ -1,6 +1,7 @@
 {
   "name": "docker-compose",
   "description": "Base application for Docker Compose based services",
+  "supported_addons": ["addon-ssl", "samba-shares"],
   "parameters": [
     {
       "id": "compose_file",

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, Input, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, Input } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
 
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
@@ -66,16 +66,8 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
 
   // Stack selection state
   availableStacks = signal<IStack[]>([]);
-  filteredStacks = computed(() => {
-    const appStacktype = this.data.app.stacktype;
-    if (!appStacktype) return [];
-    const stacktypes = Array.isArray(appStacktype) ? appStacktype : [appStacktype];
-    return this.availableStacks().filter(s => stacktypes.includes(s.stacktype));
-  });
   availableStacktypes = signal<IStacktypeEntry[]>([]);
   stacksLoading = signal(false);
-  selectedStack: IStack | null = null;
-  caConfigured = signal(false);
   private formManager!: ParameterFormManager;
   private enumRefreshAttempted = false;
   private visibilityHandler = () => this.onVisibilityChange();
@@ -91,6 +83,35 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   private presetValues = this.data.presetValues ?? {};
   existingMountPoints: { source: string; target: string }[] = this.data.existingMountPoints ?? [];
   private installedAddons: string[] = this.data.installedAddons ?? [];
+
+  /** Stacktypes required by this application (from application.json) */
+  appStacktypes: string[] = [];
+  /** Selected stack per stacktype */
+  selectedStacks = new Map<string, IStack>();
+  /** Stacktypes that the app requires but have no stacks available */
+  missingStacktypes: string[] = [];
+  /** Backwards-compatible single selected stack (first one) */
+  get selectedStack(): IStack | null {
+    return this.selectedStacks.size > 0 ? this.selectedStacks.values().next().value ?? null : null;
+  }
+  caConfigured = signal(false);
+
+  /** For each stacktype, the stacks that match it */
+  getStacksForType(type: string): IStack[] {
+    const toArray = (st: string | string[]) => Array.isArray(st) ? st : [st];
+    return this.availableStacks().filter(s => toArray(s.stacktype).includes(type));
+  }
+
+  /** All stacks matching any of the app's stacktypes (deduplicated) */
+  get filteredStacks(): IStack[] {
+    const all: IStack[] = [];
+    for (const type of this.appStacktypes) {
+      for (const s of this.getStacksForType(type)) {
+        if (!all.some(existing => existing.id === s.id)) all.push(s);
+      }
+    }
+    return all;
+  }
   constructor(  ) {
     this.form = this.fb.group({});
   }
@@ -312,10 +333,17 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
           next: (stacksRes) => {
             this.availableStacks.set(stacksRes.stacks);
             this.stacksLoading.set(false);
-            // Auto-select if only one stack matches
-            const filtered = this.filteredStacks();
-            if (filtered.length === 1) {
-              this.onStackSelected(filtered[0]);
+            // Set app stacktypes now that stacks are available
+            const st = this.data.app.stacktype;
+            this.appStacktypes = !st ? [] : Array.isArray(st) ? st : [st];
+            // Check for missing stacks per required stacktype
+            this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
+            // Auto-select per stacktype if only one stack matches
+            for (const type of this.appStacktypes) {
+              const typeStacks = this.getStacksForType(type);
+              if (typeStacks.length === 1) {
+                this.onStackSelected(typeStacks[0], type);
+              }
             }
           },
           error: () => {
@@ -331,16 +359,39 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     });
   }
 
-  onStackSelected(stack: IStack): void {
-    this.selectedStack = stack;
-    this.formManager.setSelectedStack(stack);
+  onStackSelected(stack: IStack, stacktype?: string): void {
+    if (stacktype) {
+      this.selectedStacks.set(stacktype, stack);
+    } else {
+      // Legacy: set for all app stacktypes
+      this.selectedStacks.clear();
+      for (const st of this.appStacktypes) {
+        this.selectedStacks.set(st, stack);
+      }
+    }
+    // First selected stack is used for install (stackId in API call)
+    this.formManager.setSelectedStack(this.selectedStacks.values().next().value ?? null);
+    this.formManager.updateHostnameFromStacks(this.selectedStacks);
   }
 
   onStackSelectChange(stackId: string): void {
-    const stack = this.filteredStacks().find(s => s.id === stackId);
+    const stack = this.filteredStacks.find(s => s.id === stackId);
     if (stack) {
       this.onStackSelected(stack);
     }
+  }
+
+  getSelectedStackForType(stacktype: string): IStack | null {
+    return this.selectedStacks.get(stacktype) ?? null;
+  }
+
+  getStacktypeLabel(stacktype: string): string {
+    const entry = this.availableStacktypes().find(e => e.name === stacktype);
+    return entry?.displayName ?? stacktype;
+  }
+
+  get missingStacktypeLabels(): string {
+    return this.missingStacktypes.map(t => this.getStacktypeLabel(t)).join(', ');
   }
 
   onCreateStackRequested(): void {
@@ -362,7 +413,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     dialogRef.afterClosed().subscribe((result: CreateStackDialogResult | undefined) => {
       if (result?.stack) {
         // Add to available stacks and apply it
-        this.availableStacks.update(stacks => [...stacks, result.stack]);
+        this.availableStacks.set([...this.availableStacks(), result.stack]);
         this.onStackSelected(result.stack);
       }
     });
@@ -492,11 +543,15 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.dialogRef.close();
   }
 
-  async downloadInstallationFiles(): Promise<void> {
+  /** Extract params and upload files from the current form state */
+  private collectInstallationData(): {
+    params: { name: string; value: string | number | boolean }[];
+    uploads: { name: string; content: string }[];
+    addons?: string[];
+    stackId?: string;
+  } {
     const { changedParams } = this.formManager.extractParamsWithChanges();
-
-    // Collect uploaded files from form values (format: "file:filename:content:base64")
-    const uploadFiles: { name: string; bytes: Uint8Array }[] = [];
+    const uploads: { name: string; content: string }[] = [];
     const uploadParams = this.unresolvedParameters.filter(p => p.upload);
 
     for (const param of uploadParams) {
@@ -507,13 +562,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       const base64 = ParameterFormManager.extractBase64FromFileMetadata(rawValue);
       if (!fileName || typeof base64 !== 'string') continue;
 
-      // Decode base64 to Uint8Array
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      uploadFiles.push({ name: fileName, bytes });
+      uploads.push({ name: fileName, content: base64 });
 
       // In params, replace base64 content with file reference
       const paramEntry = changedParams.find(p => p.name === param.id);
@@ -522,21 +571,39 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       }
     }
 
-    // Build output matching the API body format:
-    // { "params": [...], "selectedAddons": [...], "stackId": "..." }
-    const output: Record<string, unknown> = { params: changedParams };
+    const result: {
+      params: { name: string; value: string | number | boolean }[];
+      uploads: { name: string; content: string }[];
+      addons?: string[];
+      stackId?: string;
+    } = { params: changedParams, uploads };
+
     if (this.selectedAddons().length > 0) {
-      output['selectedAddons'] = this.selectedAddons();
+      result.addons = this.selectedAddons();
     }
     if (this.selectedStack) {
-      output['stackId'] = this.selectedStack.id;
+      result.stackId = this.selectedStack.id;
     }
+    return result;
+  }
+
+  async downloadInstallationFiles(): Promise<void> {
+    const data = this.collectInstallationData();
+
+    const output: Record<string, unknown> = { params: data.params };
+    if (data.addons) output['selectedAddons'] = data.addons;
+    if (data.stackId) output['stackId'] = data.stackId;
 
     const zip = new JSZip();
     zip.file('default.json', JSON.stringify(output, null, 2));
 
-    for (const file of uploadFiles) {
-      zip.file(`uploads/${file.name}`, file.bytes);
+    for (const file of data.uploads) {
+      const binary = atob(file.content);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      zip.file(`uploads/${file.name}`, bytes);
     }
 
     const blob = await zip.generateAsync({ type: 'blob' });
@@ -546,6 +613,21 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     a.download = `${this.data.app.id}-installation.zip`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  saveAsTestData(): void {
+    const scenarioName = window.prompt('Scenario name:', 'default')?.trim();
+    if (!scenarioName) return;
+
+    const data = this.collectInstallationData();
+    this.configService.saveTestData(this.data.app.id, { scenarioName, ...data }).subscribe({
+      next: (res) => {
+        window.alert(`Test data saved to ${res.testsDir}/${scenarioName}.json`);
+      },
+      error: (err: unknown) => {
+        this.errorHandler.handleError('Failed to save test data', err);
+      }
+    });
   }
 
   toggleAdvanced(): void {
@@ -647,21 +729,26 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   private reloadStacks(): void {
-    const previousSelectedId = this.selectedStack?.id;
+    const previousSelections = new Map(this.selectedStacks);
     this.configService.getStacks().subscribe({
       next: (res) => {
         this.availableStacks.set(res.stacks);
-        // Re-select previously selected stack or auto-select if only one
-        const filtered = this.filteredStacks();
-        if (previousSelectedId) {
-          const found = filtered.find(s => s.id === previousSelectedId);
-          if (found) {
-            this.selectedStack = found;
-          } else if (filtered.length === 1) {
-            this.selectedStack = filtered[0];
+        this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
+        // Re-select previously selected stacks per stacktype
+        this.selectedStacks.clear();
+        for (const type of this.appStacktypes) {
+          const typeStacks = this.getStacksForType(type);
+          const prevStack = previousSelections.get(type);
+          if (prevStack) {
+            const found = typeStacks.find(s => s.id === prevStack.id);
+            if (found) {
+              this.selectedStacks.set(type, found);
+            } else if (typeStacks.length === 1) {
+              this.selectedStacks.set(type, typeStacks[0]);
+            }
+          } else if (typeStacks.length === 1) {
+            this.selectedStacks.set(type, typeStacks[0]);
           }
-        } else if (filtered.length === 1) {
-          this.selectedStack = filtered[0];
         }
       }
     });

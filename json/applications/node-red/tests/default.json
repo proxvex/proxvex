@@ -1,5 +1,8 @@
 {
   "params": [
     { "name": "upload_settings_js_content", "value": "file:settings.js" }
+  ],
+  "selectedAddons": [
+    "addon-ssl"
   ]
 }

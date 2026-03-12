@@ -22,6 +22,20 @@
 
 <form [formGroup]="form" (ngSubmit)="save()">
 	@if (!loading()) {
+		@if (missingStacktypes.length > 0) {
+			<div class="missing-stacks-error" role="alert">
+				<mat-icon class="missing-stacks-icon">error</mat-icon>
+				<div>
+					<strong>Missing Secrets</strong>
+					<div>No secrets found for:
+						@for (type of missingStacktypes; track type; let last = $last) {
+							<a [href]="'/stacks?stacktype=' + type" target="_blank"><strong>{{ getStacktypeLabel(type) }}</strong></a>@if (!last) {, }
+						}.
+						Please create the required secrets first.
+					</div>
+				</div>
+			</div>
+		}
 		@if (showMissingRequiredHint) {
 			<div class="missing-required-hint" role="alert">
 				<strong>Missing required parameters detected.</strong>
@@ -34,19 +48,21 @@
 
 		<!-- Parameter groups (vertical stack, required groups first) -->
 		<div class="group-container">
-			@if (data.app.stacktype && filteredStacks().length > 0) {
-				<div class="secrets-selector">
-					<app-stack-selector
-						[availableStacks]="filteredStacks()"
-						[selectedStack]="selectedStack"
-						[label]="'Secrets'"
-						[showCreateButton]="false"
-						[showManageLink]="true"
-						[showEntryCount]="false"
-						[showDefaultHint]="true"
-						(stackSelected)="onStackSelected($event)"
-					></app-stack-selector>
-				</div>
+			@for (type of appStacktypes; track type) {
+				@if (getStacksForType(type).length > 0) {
+					<div class="secrets-selector">
+						<app-stack-selector
+							[availableStacks]="getStacksForType(type)"
+							[selectedStack]="getSelectedStackForType(type)"
+							[label]="getStacktypeLabel(type) + ' Secrets'"
+							[showCreateButton]="false"
+							[showManageLink]="true"
+							[showEntryCount]="false"
+							[showDefaultHint]="true"
+							(stackSelected)="onStackSelected($event, type)"
+						></app-stack-selector>
+					</div>
+				}
 			}
 			@for (groupName of groupNames; track groupName) {
 				<app-parameter-group
@@ -100,6 +116,12 @@
 						<mat-icon>download</mat-icon>
 						Download
 					</button>
+					@if (data.app.source === 'local') {
+						<button mat-stroked-button type="button" (click)="saveAsTestData()" [disabled]="loading()" matTooltip="Save parameters as test data in applications/{{ data.app.id }}/tests/">
+							<mat-icon>science</mat-icon>
+							Save as Test
+						</button>
+					}
 					<span class="action-spacer"></span>
 					<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
 					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="form.invalid || loading()">Install</button>

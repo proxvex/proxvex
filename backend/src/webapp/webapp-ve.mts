@@ -70,12 +70,17 @@ export class WebAppVE {
   }
 
   init(): void {
-    // POST /api/ve-configuration/:application/:task/:veContext
+    // POST /api/ve-configuration/:application/:veContext
     this.post<
-      { application: string; task: TaskType; veContext: string },
+      { application: string; veContext: string },
       IPostVeConfigurationBody
     >(ApiUri.VeConfiguration, async (req, res) => {
-      const { application, task, veContext: veContextKey } = req.params;
+      const { application, veContext: veContextKey } = req.params;
+      const task = req.body?.task as TaskType;
+      if (!task) {
+        res.status(400).json({ success: false, error: "Missing task in request body" });
+        return;
+      }
 
       // Set vmInstallContext in ContextManager for restart support
       // Use changedParams if provided, otherwise fall back to params

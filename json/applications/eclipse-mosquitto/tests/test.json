@@ -1,10 +1,4 @@
 {
   "default": {
-    "description": "Eclipse Mosquitto MQTT Broker with SSL",
-    "verify": {
-      "container_running": true,
-      "notes_managed": true,
-      "lxc_log_no_errors": true
-    }
   }
 }

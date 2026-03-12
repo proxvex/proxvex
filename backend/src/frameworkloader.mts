@@ -531,6 +531,9 @@ export class FrameworkLoader {
     if (request.stacktype) {
       applicationJson.stacktype = request.stacktype;
     }
+    if (request.supported_addons && request.supported_addons.length > 0) {
+      applicationJson.supported_addons = request.supported_addons;
+    }
 
     return applicationJson;
   }

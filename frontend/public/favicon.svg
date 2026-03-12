@@ -1,0 +1,26 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OCI LXC Deployer Icon">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#64B5F6"/>
+      <stop offset="50%" stop-color="#BA68C8"/>
+      <stop offset="100%" stop-color="#FF8A65"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00C853"/>
+      <stop offset="50%" stop-color="#FFC400"/>
+      <stop offset="100%" stop-color="#FF3D00"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="64" height="64" rx="12" fill="#FFFFFF"/>
+  <!-- More-curved lines converging near top-left, contained within the square -->
+  <path d="M6,50 C16,42 28,32 40,24 C50,18 22,16 14,14" fill="none" stroke="url(#g1)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M6,56 C16,46 28,36 40,28 C50,20 24,18 16,16" fill="none" stroke="url(#g2)" stroke-width="4" stroke-linecap="round" opacity="0.95"/>
+
+  <!-- Small container glyph -->
+  <rect x="10" y="10" width="20" height="20" rx="5" fill="#F7F9FC" stroke="#D0D7E2" stroke-width="1.5"/>
+  <!-- Mini curved lines converging top-left inside the small square -->
+  <path d="M12,26 C16,22 20,18 28,16 C 26,14 18,13 14,12" fill="none" stroke="#64B5F6" stroke-width="2" stroke-linecap="round"/>
+  <path d="M12,22 C16,18 20,14 28,12 C 25,10 18,10 14,10" fill="none" stroke="#BA68C8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M12,30 C16,26 20,22 28,20 C 26,18 18,17 14,16" fill="none" stroke="#FF8A65" stroke-width="2" stroke-linecap="round"/>
+</svg>

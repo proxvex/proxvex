@@ -96,7 +96,7 @@ describe("CliTemplateGenerator", () => {
       stacks: [],
     }) as any;
 
-    expect(result.addons).toEqual([]);
+    expect(result.selectedAddons).toEqual([]);
     expect(result.availableAddons).toHaveLength(1);
     expect(result.availableAddons[0].$id).toBe("addon-ssl");
     expect(result.availableAddons[0].$name).toBe("SSL/HTTPS");

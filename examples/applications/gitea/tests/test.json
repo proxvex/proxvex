@@ -1,0 +1,17 @@
+{
+  "default": {
+    "cli_timeout": 600,
+    "wait_seconds": 60,
+    "verify": {
+      "docker_log_no_errors": true
+    }
+  },
+  "ssl": {
+    "cli_timeout": 600,
+    "wait_seconds": 60,
+    "verify": {
+      "docker_log_no_errors": true,
+      "tls_connect": 3000
+    }
+  }
+}

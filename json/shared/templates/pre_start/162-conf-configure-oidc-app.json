@@ -1,0 +1,55 @@
+{
+  "name": "Configure OIDC App",
+  "description": "Application-specific OIDC configuration before container start. For apps that need config files modified (e.g. Node-RED settings.js). The default shared script is a no-op. Applications override conf-configure-oidc-app.sh in their own scripts/ directory.",
+  "execute_on": "ve",
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "string",
+      "required": true,
+      "description": "VMID of the application container"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    },
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "advanced": true,
+      "description": "Path to the shared volume mount point"
+    },
+    {
+      "id": "oidc_issuer_url",
+      "name": "OIDC Issuer URL",
+      "type": "string",
+      "required": false,
+      "description": "Zitadel issuer URL (available from reconfigure, not first install)"
+    },
+    {
+      "id": "oidc_client_id",
+      "name": "OIDC Client ID",
+      "type": "string",
+      "required": false,
+      "description": "OIDC client ID (available from reconfigure, not first install)"
+    },
+    {
+      "id": "oidc_client_secret",
+      "name": "OIDC Client Secret",
+      "type": "string",
+      "required": false,
+      "description": "OIDC client secret (available from reconfigure, not first install)"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Configure OIDC in Application",
+      "script": "conf-configure-oidc-app.sh"
+    }
+  ]
+}

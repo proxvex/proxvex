@@ -84,13 +84,26 @@ import { ITagsConfig } from '../../../shared/types';
         <div class="tags-stack-row">
           @if (state.stacktypes().length > 0) {
             <mat-form-field appearance="outline" class="field-stacktype">
-              <mat-label>Stacktypes</mat-label>
-              <mat-select [value]="state.selectedStacktypes()" (selectionChange)="onStacktypeChange($event.value)" multiple>
+              <mat-label>Stacktype</mat-label>
+              <mat-select [value]="state.selectedStacktype()" (selectionChange)="onStacktypeChange($event.value)">
+                <mat-option [value]="null">-- None --</mat-option>
                 @for (st of state.stacktypes(); track st.name) {
                   <mat-option [value]="st.name">{{ st.name }}</mat-option>
                 }
               </mat-select>
               <mat-hint>Shared environment variables</mat-hint>
+            </mat-form-field>
+          }
+
+          @if (state.availableAddonEntries().length > 0) {
+            <mat-form-field appearance="outline" class="field-addons">
+              <mat-label>Supported Addons</mat-label>
+              <mat-select [value]="state.selectedSupportedAddons()" (selectionChange)="onSupportedAddonsChange($event.value)" multiple>
+                @for (addon of state.availableAddonEntries(); track addon.id) {
+                  <mat-option [value]="addon.id">{{ addon.name }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Addons available during installation</mat-hint>
             </mat-form-field>
           }
 
@@ -181,7 +194,7 @@ import { ITagsConfig } from '../../../shared/types';
       margin-bottom: 1rem;
     }
 
-    .field-stacktype {
+    .field-stacktype, .field-addons {
       width: 220px;
       flex-shrink: 0;
     }
@@ -293,8 +306,12 @@ export class AppPropertiesStepComponent implements OnInit, OnDestroy {
     this.state.toggleTag(tagId);
   }
 
-  onStacktypeChange(stacktypes: string[]): void {
-    this.state.selectedStacktypes.set(stacktypes);
+  onStacktypeChange(stacktype: string | null): void {
+    this.state.selectedStacktype.set(stacktype);
+  }
+
+  onSupportedAddonsChange(addonIds: string[]): void {
+    this.state.selectedSupportedAddons.set(addonIds);
   }
 
   /**

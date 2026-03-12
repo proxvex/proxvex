@@ -217,11 +217,9 @@ export class AddonService {
   /**
    * Checks if an addon is compatible with an application
    *
-   * Compatibility rules:
-   * - "*" matches all applications
-   * - Application ID matches directly
-   * - Application's extends chain matches
-   * - "tag:<tag-id>" matches application tags
+   * Compatibility is determined by the application's supported_addons list.
+   * The addon's ID must be included in the application's supported_addons array.
+   * supported_addons is inherited and merged through the extends chain.
    */
   isAddonCompatible(addon: IAddon, application: IApplication): boolean {
     // Check required_parameters: application must define all of them
@@ -234,31 +232,8 @@ export class AddonService {
       }
     }
 
-    // Wildcard matches all
-    if (addon.compatible_with === "*") {
-      return true;
-    }
-
-    for (const criterion of addon.compatible_with) {
-      // Tag-based matching
-      if (criterion.startsWith("tag:")) {
-        const tag = criterion.substring(4);
-        if (application.tags?.includes(tag)) {
-          return true;
-        }
-      }
-      // Direct application ID or extends chain matching
-      else {
-        if (application.id === criterion) {
-          return true;
-        }
-        if (application.extends === criterion) {
-          return true;
-        }
-      }
-    }
-
-    return false;
+    // Application must explicitly list addon in supported_addons
+    return application.supported_addons?.includes(addon.id) ?? false;
   }
 
   /**

@@ -52,7 +52,7 @@ export class VMInstallContext implements IVMInstallContext {
 export class StackContext implements IStack {
   id: string;
   name: string;
-  stacktype: string;
+  stacktype: string | string[];
   entries: IStackEntry[];
 
   constructor(data: IStack) {
@@ -260,7 +260,8 @@ export class ContextManager extends Context implements IContext {
     for (const key of this.keys().filter((k) => k.startsWith("stack_"))) {
       const value = this.get(key);
       if (value instanceof StackContext) {
-        if (!stacktype || value.stacktype === stacktype) {
+        const types = Array.isArray(value.stacktype) ? value.stacktype : [value.stacktype];
+        if (!stacktype || types.includes(stacktype)) {
           stacks.push(value);
         }
       }

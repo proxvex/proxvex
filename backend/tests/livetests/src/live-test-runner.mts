@@ -27,9 +27,9 @@
 import { execSync, spawn } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -49,14 +49,20 @@ export interface TestScenario {
   task?: string;
   addons?: string[];
   wait_seconds?: number;
-  verify?: Record<string, boolean | number>;
+  cli_timeout?: number;
+  verify?: Record<string, boolean | number | string>;
+  cleanup?: Record<string, string>;
 }
 
 /** Discovered scenario with resolved identity */
 export interface ResolvedScenario extends TestScenario {
   id: string;
   application: string;
-  appTestDir: string;
+  /** Params from scenario params file (delivered by API) */
+  params?: ParamEntry[];
+  selectedAddons?: string[];
+  stackId?: string;
+  uploads?: { name: string; content: string }[];
 }
 
 /** Planned scenario ready for execution */
@@ -66,12 +72,16 @@ interface PlannedScenario {
   stackName: string;
   scenario: ResolvedScenario;
   hasStacktype: boolean;
+  isDependency: boolean;
+  skipExecution: boolean;
 }
 
 interface StepResult {
   vmId: number;
   hostname: string;
   application: string;
+  cliOutput?: string;
+  scenarioId?: string;
 }
 
 interface TestResult {
@@ -93,6 +103,8 @@ interface E2EConfig {
     subnet: string;
     bridge: string;
     filesystem?: string;
+    deployerHost?: string;
+    deployerPort?: string;
   }>;
   defaults: Record<string, unknown>;
   ports: {
@@ -129,47 +141,22 @@ function logStep(step: string, desc: string) {
 // ── Pure functions (exported for unit testing) ──
 
 /**
- * Discover all test scenarios from json/applications/<app>/tests/test.json.
+ * Fetch all test scenarios from the deployer API.
+ * Replaces the old filesystem-based discoverTests().
  */
-export function discoverTests(projectRoot: string): Map<string, ResolvedScenario> {
-  const appsDir = path.join(projectRoot, "json/applications");
-  const all = new Map<string, ResolvedScenario>();
-
-  for (const dir of readdirSync(appsDir, { withFileTypes: true })) {
-    if (!dir.isDirectory()) continue;
-    const testDir = path.join(appsDir, dir.name, "tests");
-    const testFile = path.join(testDir, "test.json");
-
-    if (existsSync(testFile)) {
-      // Explicit test definitions
-      const scenarios: Record<string, TestScenario> = JSON.parse(
-        readFileSync(testFile, "utf-8"),
-      );
-      for (const [name, def] of Object.entries(scenarios)) {
-        const id = `${dir.name}/${name}`;
-        all.set(id, {
-          ...def,
-          id,
-          application: dir.name,
-          appTestDir: testDir,
-        });
-      }
-    } else if (existsSync(path.join(testDir, "default.json"))) {
-      // Implicit default scenario from params file (e.g. unzipped from frontend download)
-      const paramsContent: { selectedAddons?: string[] } = JSON.parse(
-        readFileSync(path.join(testDir, "default.json"), "utf-8"),
-      );
-      const id = `${dir.name}/default`;
-      all.set(id, {
-        description: `${dir.name} (auto-discovered from default.json)`,
-        ...(paramsContent.selectedAddons?.length ? { addons: paramsContent.selectedAddons } : {}),
-        id,
-        application: dir.name,
-        appTestDir: testDir,
-      });
-    }
+export async function fetchTestScenarios(apiUrl: string): Promise<Map<string, ResolvedScenario>> {
+  const resp = await fetch(`${apiUrl}/api/test-scenarios`, {
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch test scenarios: ${resp.status} ${resp.statusText}`);
   }
+  const data = await resp.json() as { scenarios: Array<ResolvedScenario & { params?: ParamEntry[] }> };
 
+  const all = new Map<string, ResolvedScenario>();
+  for (const s of data.scenarios) {
+    all.set(s.id, s);
+  }
   return all;
 }
 
@@ -255,40 +242,60 @@ export interface BuildParamsResult {
 
 /**
  * Build CLI params for a scenario.
- * Merges base params with scenario-specific params from <scenario>.json.
- * Also extracts selectedAddons and stackId from the params file.
- * Supports set mode, append mode (for multiline vars like envs), and file: resolution.
+ * Merges base params with scenario params from the API response.
+ * Also extracts selectedAddons and stackId.
+ * Supports set mode and append mode (for multiline vars like envs).
+ * Resolves file: references using upload data from the API (written to tmpDir).
  */
 export function buildParams(
   scenario: ResolvedScenario,
   baseParams: { name: string; value: string }[],
   templateVars: Record<string, string>,
+  tmpDir?: string,
 ): BuildParamsResult {
   const params = baseParams.map((p) => ({ ...p }));
 
-  const scenarioName = scenario.id.split("/")[1]!;
-  const paramsPath = path.join(scenario.appTestDir, `${scenarioName}.json`);
-
-  if (!existsSync(paramsPath)) return { params };
-
-  let content = readFileSync(paramsPath, "utf-8");
-
-  // Substitute template variables
-  for (const [key, val] of Object.entries(templateVars)) {
-    content = content.replace(
-      new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
-      val,
-    );
+  if (!scenario.params || scenario.params.length === 0) {
+    return {
+      params,
+      ...(scenario.selectedAddons ? { selectedAddons: scenario.selectedAddons } : {}),
+      ...(scenario.stackId ? { stackId: scenario.stackId } : {}),
+    };
   }
 
-  const extra: { params?: ParamEntry[]; selectedAddons?: string[]; stackId?: string } =
-    JSON.parse(content);
+  // Write upload files to tmpDir so file: references can be resolved
+  const uploadMap = new Map<string, string>();
+  if (tmpDir && scenario.uploads) {
+    const uploadsDir = path.join(tmpDir, "uploads");
+    mkdirSync(uploadsDir, { recursive: true });
+    for (const upload of scenario.uploads) {
+      const filePath = path.join(uploadsDir, upload.name);
+      writeFileSync(filePath, Buffer.from(upload.content, "base64"));
+      uploadMap.set(upload.name, filePath);
+    }
+  }
 
-  for (const p of extra.params ?? []) {
+  for (const p of scenario.params) {
+    // Substitute template variables in values
+    let value = p.value ?? "";
+    for (const [key, val] of Object.entries(templateVars)) {
+      value = value.replace(
+        new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
+        val,
+      );
+    }
+
     if (p.append) {
+      let appendVal = p.append;
+      for (const [key, val] of Object.entries(templateVars)) {
+        appendVal = appendVal.replace(
+          new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
+          val,
+        );
+      }
       // Append mode: extend multiline variable (e.g. envs)
       const existing = params.find((b) => b.name === p.name);
-      const line = `${p.append}=${p.value ?? ""}`;
+      const line = `${appendVal}=${value}`;
       if (existing) {
         existing.value = existing.value
           ? `${existing.value}\n${line}`
@@ -298,15 +305,13 @@ export function buildParams(
       }
     } else {
       // Set mode: override or add
-      let value = p.value ?? "";
-      // Resolve file: paths relative to uploads/ in tests dir
+      // Resolve file: references using uploads from API
       if (value.startsWith("file:")) {
-        const relPath = value.slice(5);
-        const uploadsDir = path.join(scenario.appTestDir, "uploads");
-        const resolved = existsSync(path.join(uploadsDir, relPath))
-          ? path.join(uploadsDir, relPath)
-          : path.join(scenario.appTestDir, relPath);
-        value = `file:${resolved}`;
+        const fileName = value.slice(5);
+        const localPath = uploadMap.get(fileName);
+        if (localPath) {
+          value = `file:${localPath}`;
+        }
       }
       const existing = params.find((b) => b.name === p.name);
       if (existing) {
@@ -319,8 +324,8 @@ export function buildParams(
 
   return {
     params,
-    ...(extra.selectedAddons ? { selectedAddons: extra.selectedAddons } : {}),
-    ...(extra.stackId ? { stackId: extra.stackId } : {}),
+    ...(scenario.selectedAddons ? { selectedAddons: scenario.selectedAddons } : {}),
+    ...(scenario.stackId ? { stackId: scenario.stackId } : {}),
   };
 }
 
@@ -330,6 +335,7 @@ function loadConfig(instanceName?: string): {
   instance: string;
   pveHost: string;
   portPveSsh: number;
+  pveWebUrl: string;
   deployerUrl: string;
   deployerHttpsUrl: string;
   bridge: string;
@@ -345,27 +351,60 @@ function loadConfig(instanceName?: string): {
     process.exit(1);
   }
 
-  // Resolve ${VAR:-default} in pveHost
-  const pveHost = inst.pveHost.replace(/\$\{(\w+):-(\w+)\}/g, (_, varName, defaultVal) =>
-    process.env[varName] || defaultVal,
-  );
+  // Resolve ${VAR:-default} and ${VAR} in config values
+  const resolveEnv = (val: string) =>
+    val
+      .replace(/\$\{(\w+):-(\w+)\}/g, (_, varName, defaultVal) => process.env[varName] || defaultVal)
+      .replace(/\$\{(\w+)\}/g, (_, varName) => process.env[varName] || "");
+
+  const pveHost = resolveEnv(inst.pveHost);
 
   const offset = inst.portOffset;
   const portPveSsh = config.ports.pveSsh + offset;
-  const portDeployer = config.ports.deployer + offset;
-  const portDeployerHttps = config.ports.deployerHttps + offset;
+  const pveWebUrl = `https://${pveHost}:${config.ports.pveWeb + offset}`;
+
+  // Allow explicit deployer host/port override (for dev environments)
+  let deployerUrl: string;
+  let deployerHttpsUrl: string;
+  if (inst.deployerHost && inst.deployerPort) {
+    const deployerHost = resolveEnv(inst.deployerHost);
+    const deployerPort = resolveEnv(inst.deployerPort);
+    deployerUrl = `http://${deployerHost}:${deployerPort}`;
+    deployerHttpsUrl = `https://${deployerHost}:${deployerPort}`;
+  } else {
+    const portDeployer = config.ports.deployer + offset;
+    const portDeployerHttps = config.ports.deployerHttps + offset;
+    deployerUrl = `http://${pveHost}:${portDeployer}`;
+    deployerHttpsUrl = `https://${pveHost}:${portDeployerHttps}`;
+  }
 
   return {
     instance,
     pveHost,
     portPveSsh,
-    deployerUrl: `http://${pveHost}:${portDeployer}`,
-    deployerHttpsUrl: `https://${pveHost}:${portDeployerHttps}`,
+    pveWebUrl,
+    deployerUrl,
+    deployerHttpsUrl,
     bridge: inst.bridge || "vmbr0",
   };
 }
 
 // ── SSH ──
+
+function nestedSshStrict(
+  pveHost: string,
+  port: number,
+  command: string,
+  timeoutMs = 15000,
+): string {
+  const result = execSync(
+    `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ` +
+    `-o BatchMode=yes -o ConnectTimeout=10 ` +
+    `-p ${port} root@${pveHost} ${JSON.stringify(command)}`,
+    { timeout: timeoutMs, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+  return result.trim();
+}
 
 function nestedSsh(
   pveHost: string,
@@ -374,13 +413,7 @@ function nestedSsh(
   timeoutMs = 15000,
 ): string {
   try {
-    const result = execSync(
-      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ` +
-      `-o BatchMode=yes -o ConnectTimeout=10 ` +
-      `-p ${port} root@${pveHost} ${JSON.stringify(command)}`,
-      { timeout: timeoutMs, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
-    );
-    return result.trim();
+    return nestedSshStrict(pveHost, port, command, timeoutMs);
   } catch {
     return "";
   }
@@ -422,36 +455,52 @@ function runCli(
   projectRoot: string,
   apiUrl: string,
   veHost: string,
-  app: string,
-  task: string,
   paramsFile: string,
   addons?: string[],
+  cliTimeout = 600,
+  fixturePath?: string,
 ): Promise<{ output: string; exitCode: number }> {
   return new Promise((resolve) => {
-    const cliPath = path.join(projectRoot, "cli/dist/cli/src/oci-lxc-cli.mjs");
-    const args = [
-      cliPath, "remote",
+    // Auto-detect dev mode: if TypeScript source exists, use tsx
+    const tsSource = path.join(projectRoot, "cli/src/oci-lxc-cli.mts");
+    const devMode = existsSync(tsSource);
+
+    const cliArgs = [
+      "remote",
       "--server", apiUrl,
       "--ve", veHost,
       "--insecure",
-      "--timeout", "600",
+      "--timeout", String(cliTimeout),
       "--quiet",
     ];
 
     if (addons && addons.length > 0) {
-      args.push("--enable-addons", addons.join(","));
+      cliArgs.push("--enable-addons", addons.join(","));
     }
 
-    args.push(app, task, paramsFile);
+    if (fixturePath) {
+      cliArgs.push("--fixture-path", fixturePath);
+    }
+
+    cliArgs.push(paramsFile);
+
+    let cmd: string;
+    let args: string[];
+    if (devMode) {
+      cmd = "npx";
+      args = ["tsx", tsSource, ...cliArgs];
+    } else {
+      cmd = "node";
+      args = [path.join(projectRoot, "cli/dist/cli/src/oci-lxc-cli.mjs"), ...cliArgs];
+    }
 
     let output = "";
-    const proc = spawn("node", args, {
-      stdio: ["pipe", "pipe", "pipe"],
+    const proc = spawn(cmd, args, {
+      stdio: ["pipe", "pipe", "inherit"],
       env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: "0" },
     });
 
     proc.stdout.on("data", (data: Buffer) => { output += data.toString(); });
-    proc.stderr.on("data", (data: Buffer) => { output += data.toString(); });
 
     proc.on("close", (code) => {
       resolve({ output, exitCode: code ?? 1 });
@@ -468,6 +517,8 @@ class Verifier {
   constructor(
     private pveHost: string,
     private sshPort: number,
+    private apiUrl: string,
+    private veHost: string,
   ) {}
 
   private ssh(cmd: string, timeout = 15000): string {
@@ -481,6 +532,19 @@ class Verifier {
     } else {
       logFail(message);
       this.failed++;
+    }
+  }
+
+  private async fetchDockerLogs(vmId: number, lines = 100): Promise<string | null> {
+    const veContextKey = `ve_${this.veHost}`;
+    const url = `${this.apiUrl}/api/${veContextKey}/ve/logs/${vmId}/docker?lines=${lines}`;
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (!resp.ok) return null;
+      const data = await resp.json() as { success: boolean; content?: string; error?: string };
+      return data.success ? (data.content ?? null) : null;
+    } catch {
+      return null;
     }
   }
 
@@ -526,16 +590,29 @@ class Verifier {
     }
   }
 
-  dockerLogNoErrors(vmId: number) {
-    const errors = this.ssh(
-      `pct exec ${vmId} -- sh -c 'for cid in $(docker ps -q); do docker logs $cid 2>&1; done | grep -i error | head -10'`,
-    );
-    if (!errors) {
+  async dockerLogNoErrors(vmId: number) {
+    const content = await this.fetchDockerLogs(vmId, 200);
+    if (content === null) {
+      logWarn(`[${vmId}] Could not fetch docker logs via API`);
+      return;
+    }
+    const errorLines = content.split("\n").filter((l) => /error/i.test(l));
+    if (errorLines.length === 0) {
       logOk(`[${vmId}] Docker logs clean (no errors)`);
       this.passed++;
     } else {
       logWarn(`[${vmId}] Docker logs contain errors:`);
-      errors.split("\n").slice(0, 5).forEach((l) => console.log(`  ${l}`));
+      errorLines.slice(0, 10).forEach((l) => console.log(`  ${l}`));
+    }
+  }
+
+  async dumpDockerLogs(vmId: number) {
+    logWarn(`[${vmId}] Dumping docker logs (last 50 lines)...`);
+    const content = await this.fetchDockerLogs(vmId, 50);
+    if (content) {
+      console.log(content);
+    } else {
+      logWarn(`[${vmId}] Could not fetch docker logs via API`);
     }
   }
 
@@ -569,15 +646,30 @@ class Verifier {
     this.assert(sslInUse === "t", `[${vmId}] DB connection uses SSL (pg_stat_ssl = ${sslInUse})`);
   }
 
-  runAll(vmId: number, hostname: string, verify: Record<string, boolean | number>) {
+  fileExists(vmId: number, filePath: string) {
+    const result = this.ssh(
+      `pct exec ${vmId} -- test -f ${filePath} && echo exists || echo missing`,
+    ).trim();
+    this.assert(result === "exists", `[${vmId}] File exists: ${filePath}`);
+  }
+
+  async runAll(vmId: number, hostname: string, verify: Record<string, boolean | number | string>) {
+    const failedBefore = this.failed;
+
     if (verify.container_running) this.containerRunning(vmId);
     if (verify.notes_managed) this.notesManaged(vmId);
     if (verify.services_up) this.servicesUp(vmId);
     if (verify.lxc_log_no_errors) this.lxcLogNoErrors(vmId, hostname);
-    if (verify.docker_log_no_errors) this.dockerLogNoErrors(vmId);
+    if (verify.docker_log_no_errors) await this.dockerLogNoErrors(vmId);
     if (typeof verify.tls_connect === "number") this.tlsConnect(vmId, verify.tls_connect);
     if (verify.pg_ssl_on) this.pgSslOn(vmId);
     if (verify.db_ssl_connection) this.dbSslConnection(vmId);
+    if (typeof verify.file_exists === "string") this.fileExists(vmId, verify.file_exists);
+
+    // Dump docker logs if any verification failed
+    if (this.failed > failedBefore) {
+      await this.dumpDockerLogs(vmId);
+    }
   }
 }
 
@@ -616,8 +708,6 @@ function planScenarios(
   appStacktypes: Map<string, string | string[]>,
 ): PlannedScenario[] {
   let nextVmId = VM_ID_START;
-  // Group by stacktype: scenarios sharing a stacktype share a stack
-  const stackByType = new Map<string, string>();
 
   return scenarios.map((scenario) => {
     const vmId = nextVmId++;
@@ -625,24 +715,8 @@ function planScenarios(
     const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
     const hasStacktype = stacktypes.length > 0;
 
-    let stackName: string;
-    if (hasStacktype) {
-      // Find the first stacktype that already has a stack assigned, or use the first one
-      const existingType = stacktypes.find(st => stackByType.has(st));
-      const primaryType = existingType ?? stacktypes[0]!;
-      if (!stackByType.has(primaryType)) {
-        stackByType.set(primaryType, String(VM_ID_START));
-      }
-      stackName = stackByType.get(primaryType)!;
-      // Register all stacktypes to point to the same stack
-      for (const st of stacktypes) {
-        if (!stackByType.has(st)) {
-          stackByType.set(st, stackName);
-        }
-      }
-    } else {
-      stackName = String(vmId);
-    }
+    // Stack name = scenario variant (e.g. "default", "ssl")
+    const stackName = scenario.id.split("/")[1] ?? "default";
 
     return {
       vmId,
@@ -650,10 +724,54 @@ function planScenarios(
       stackName,
       scenario,
       hasStacktype,
+      isDependency: false,
+      skipExecution: false,
     };
   });
 }
 
+// ── Auto-verify defaults ──
+
+/** Application metadata used for auto-determining verifications */
+interface AppMeta {
+  extends?: string | undefined;
+  stacktype?: string | string[] | undefined;
+  tags?: string[] | undefined;
+}
+
+/**
+ * Build default verifications from application metadata and scenario addons.
+ * test.json can override/extend these defaults.
+ */
+function buildDefaultVerify(
+  scenario: ResolvedScenario,
+  appMeta: AppMeta,
+): Record<string, boolean | number | string> {
+  const verify: Record<string, boolean | number | string> = {
+    container_running: true,
+    notes_managed: true,
+    lxc_log_no_errors: true,
+  };
+
+  // Docker-compose apps additionally check docker services
+  if (appMeta.extends === "docker-compose") {
+    verify.services_up = true;
+  }
+
+  // Addon-based checks
+  const allAddons = scenario.selectedAddons ?? [];
+  const hasSSL = allAddons.includes("addon-ssl");
+
+  if (hasSSL) {
+    // Only check pg_ssl_on for actual postgres applications, not for apps
+    // that merely use the postgres stacktype for shared variables
+    if (scenario.application === "postgres") {
+      verify.pg_ssl_on = true;
+    }
+  }
+
+  return verify;
+}
 // ── Execute all planned scenarios sequentially ──
 
 async function executeScenarios(
@@ -662,6 +780,8 @@ async function executeScenarios(
   apiUrl: string,
   veHost: string,
   projectRoot: string,
+  appMetaMap: Map<string, AppMeta>,
+  fixtureBaseDir?: string,
 ): Promise<TestResult> {
   const result: TestResult = {
     name: planned.map((p) => p.scenario.id).join(", "),
@@ -672,7 +792,7 @@ async function executeScenarios(
     errors: [],
   };
 
-  const verifier = new Verifier(config.pveHost, config.portPveSsh);
+  const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
   try {
@@ -685,6 +805,16 @@ async function executeScenarios(
         `${i + 1}/${planned.length}`,
         `${scenario.id} (${task}) [VM ${step.vmId}]`,
       );
+
+      // Skip dependencies that are already running
+      if (step.skipExecution) {
+        logOk(`Skipping ${scenario.id} (already running)`);
+        result.steps.push({
+          vmId: step.vmId, hostname: step.hostname,
+          application: scenario.application, scenarioId: scenario.id,
+        });
+        continue;
+      }
 
       // Build params
       const baseParams = [
@@ -699,17 +829,16 @@ async function executeScenarios(
         stack_name: step.stackName,
       };
 
-      const buildResult = buildParams(scenario, baseParams, templateVars);
+      const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
 
-      // Merge addons from test.json and params file
-      const allAddons = [
-        ...(scenario.addons ?? []),
-        ...(buildResult.selectedAddons ?? []),
-      ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
+      // Addons come from scenario params file (selectedAddons)
+      const allAddons = buildResult.selectedAddons ?? [];
 
       // Write params file
       const paramsFile = path.join(tmpDir, `params-${i}.json`);
       const paramsObj: Record<string, unknown> = {
+        application: scenario.application,
+        task,
         params: buildResult.params.map((p) => ({ name: p.name, value: p.value })),
       };
 
@@ -730,9 +859,12 @@ async function executeScenarios(
 
       // Run CLI
       logInfo(`Running: ${scenario.application} ${task}...`);
+      const scenarioFixtureDir = fixtureBaseDir
+        ? path.join(fixtureBaseDir, scenario.id.replace("/", "-"))
+        : undefined;
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
-        scenario.application, task, paramsFile, allAddons,
+        paramsFile, allAddons, scenario.cli_timeout, scenarioFixtureDir,
       );
 
       if (cliResult.exitCode !== 0) {
@@ -740,24 +872,36 @@ async function executeScenarios(
         logFail(errMsg);
         result.errors.push(errMsg);
         result.failed++;
-        const lastLines = cliResult.output.split("\n").slice(-20).join("\n");
-        if (lastLines) console.log(lastLines);
+        result.steps.push({
+          vmId: step.vmId, hostname: step.hostname,
+          application: scenario.application, scenarioId: scenario.id,
+          cliOutput: cliResult.output,
+        });
         break;
       }
 
       logOk(`Container created: VM_ID=${step.vmId}, hostname=${step.hostname}`);
-      result.steps.push({ vmId: step.vmId, hostname: step.hostname, application: scenario.application });
+      result.steps.push({
+        vmId: step.vmId, hostname: step.hostname,
+        application: scenario.application, scenarioId: scenario.id,
+        cliOutput: cliResult.output,
+      });
 
       // Wait for services if needed
       if (scenario.wait_seconds && scenario.wait_seconds > 0) {
         await waitForServices(config.pveHost, config.portPveSsh, step.vmId, scenario.wait_seconds);
       }
 
-      // Run verifications
-      if (scenario.verify) {
-        logInfo("Verifying...");
-        verifier.runAll(step.vmId, step.hostname, scenario.verify);
+      // Run verifications (auto-defaults merged with explicit verify from test.json)
+      const appMeta = appMetaMap.get(scenario.application) ?? {};
+      const defaultVerify = buildDefaultVerify(scenario, appMeta);
+      const finalVerify = { ...defaultVerify, ...(scenario.verify ?? {}) };
+      // Remove entries explicitly set to false
+      for (const [k, v] of Object.entries(finalVerify)) {
+        if (v === false) delete finalVerify[k];
       }
+      logInfo("Verifying...");
+      await verifier.runAll(step.vmId, step.hostname, finalVerify);
     }
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
@@ -768,25 +912,116 @@ async function executeScenarios(
   return result;
 }
 
+// ── Diagnostics collection ──
+
+function collectDiagnostics(
+  results: TestResult[],
+  pveHost: string,
+  sshPort: number,
+  projectRoot: string,
+): string | null {
+  const allSteps = results.flatMap((r) => r.steps);
+  if (allSteps.length === 0) return null;
+
+  const diagDir = mkdtempSync(path.join(tmpdir(), "livetest-diag-"));
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+  for (const step of allSteps) {
+    const stepDir = path.join(diagDir, `${step.vmId}-${step.application}`);
+    mkdirSync(stepDir, { recursive: true });
+
+    // Save CLI output
+    if (step.cliOutput) {
+      writeFileSync(path.join(stepDir, "cli-output.log"), step.cliOutput);
+    }
+
+    // Collect LXC config
+    const lxcConf = nestedSsh(pveHost, sshPort,
+      `cat /etc/pve/lxc/${step.vmId}.conf 2>/dev/null || echo '[not found]'`, 10000);
+    if (lxcConf) {
+      writeFileSync(path.join(stepDir, "lxc.conf"), lxcConf);
+    }
+
+    // Collect LXC log
+    const lxcLog = nestedSsh(pveHost, sshPort,
+      `cat /var/log/lxc/${step.hostname}-${step.vmId}.log 2>/dev/null || echo '[not found]'`, 10000);
+    if (lxcLog) {
+      writeFileSync(path.join(stepDir, "lxc.log"), lxcLog);
+    }
+
+    // Collect docker ps
+    const dockerPs = nestedSsh(pveHost, sshPort,
+      `pct exec ${step.vmId} -- docker ps -a 2>/dev/null || echo '[not available]'`, 10000);
+    if (dockerPs) {
+      writeFileSync(path.join(stepDir, "docker-ps.txt"), dockerPs);
+    }
+
+    // Collect docker compose file
+    const composeFile = nestedSsh(pveHost, sshPort,
+      `pct exec ${step.vmId} -- cat /opt/docker-compose.yml 2>/dev/null || ` +
+      `pct exec ${step.vmId} -- cat /opt/docker-compose.yaml 2>/dev/null || echo '[not found]'`, 10000);
+    if (composeFile) {
+      writeFileSync(path.join(stepDir, "docker-compose.yml"), composeFile);
+    }
+
+    // Collect docker logs (last 200 lines per container)
+    const containerNames = nestedSsh(pveHost, sshPort,
+      `pct exec ${step.vmId} -- docker ps -a --format '{{.Names}}' 2>/dev/null || true`, 10000);
+    if (containerNames) {
+      for (const name of containerNames.split("\n").filter(Boolean)) {
+        const logs = nestedSsh(pveHost, sshPort,
+          `pct exec ${step.vmId} -- docker logs --tail 200 ${name} 2>&1 || true`, 15000);
+        if (logs) {
+          writeFileSync(path.join(stepDir, `docker-${name}.log`), logs);
+        }
+      }
+    }
+  }
+
+  // Save test summary
+  const summary = results.map((r) => ({
+    name: r.name,
+    passed: r.passed,
+    failed: r.failed,
+    errors: r.errors,
+    steps: r.steps.map((s) => ({ vmId: s.vmId, hostname: s.hostname, application: s.application, scenarioId: s.scenarioId })),
+  }));
+  writeFileSync(path.join(diagDir, "summary.json"), JSON.stringify(summary, null, 2));
+
+  // Create tar.gz
+  const archiveName = `livetest-diag-${timestamp}.tar.gz`;
+  const archivePath = path.join(projectRoot, archiveName);
+  try {
+    execSync(`tar -czf ${JSON.stringify(archivePath)} -C ${JSON.stringify(path.dirname(diagDir))} ${JSON.stringify(path.basename(diagDir))}`, {
+      timeout: 30000,
+    });
+    rmSync(diagDir, { recursive: true, force: true });
+    return archivePath;
+  } catch {
+    logWarn(`Failed to create diagnostic archive, files remain in ${diagDir}`);
+    return diagDir;
+  }
+}
+
 // ── Cleanup ──
 
 function cleanupVms(
-  results: TestResult[],
+  planned: PlannedScenario[],
   pveHost: string,
   sshPort: number,
   keepVm: boolean,
 ) {
-  const allVms = results.flatMap((r) => r.steps.map((s) => s.vmId));
-  if (allVms.length === 0) return;
-
-  for (const vmId of allVms.reverse()) {
-    if (keepVm) {
-      logWarn(`KEEP_VM set - VM ${vmId} not destroyed`);
-      console.log(`  ssh -p ${sshPort} root@${pveHost} 'pct stop ${vmId}; pct destroy ${vmId}'`);
+  for (const p of [...planned].reverse()) {
+    if (p.isDependency) {
+      logWarn(`Keeping dependency VM ${p.vmId} (${p.scenario.id})`);
+      console.log(`  ssh -p ${sshPort} root@${pveHost} 'pct stop ${p.vmId}; pct destroy ${p.vmId}'`);
+    } else if (keepVm) {
+      logWarn(`KEEP_VM set - VM ${p.vmId} not destroyed`);
+      console.log(`  ssh -p ${sshPort} root@${pveHost} 'pct stop ${p.vmId}; pct destroy ${p.vmId}'`);
     } else {
-      logInfo(`Cleaning up VM ${vmId}...`);
+      logInfo(`Cleaning up VM ${p.vmId}...`);
       nestedSsh(pveHost, sshPort,
-        `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
         30000,
       );
     }
@@ -797,8 +1032,10 @@ function cleanupVms(
 
 async function main() {
   const args = process.argv.slice(2);
-  const instance = args[0] || undefined;
-  const testArg = args[1] || "--all";
+  const fixturesFlag = args.includes("--fixtures");
+  const filteredArgs = args.filter(a => a !== "--fixtures");
+  const instance = filteredArgs[0] || undefined;
+  const testArg = filteredArgs[1] || "--all";
 
   const config = loadConfig(instance);
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
@@ -810,18 +1047,22 @@ async function main() {
   console.log(`Instance:  ${config.instance}`);
   console.log(`Test:      ${testArg}`);
   console.log(`Deployer:  ${config.deployerUrl} (HTTPS: ${config.deployerHttpsUrl})`);
-  console.log(`PVE Host:  ${config.pveHost}`);
+  console.log(`PVE Host:  ${config.pveHost}:${config.portPveSsh}`);
+  console.log(`PVE Web:   ${config.pveWebUrl}`);
+  console.log(`SSH:       ssh -p ${config.portPveSsh} root@${config.pveHost}`);
   console.log("");
 
   // Prerequisites
   logInfo("Checking prerequisites...");
 
+  const tsSource = path.join(projectRoot, "cli/src/oci-lxc-cli.mts");
   const cliPath = path.join(projectRoot, "cli/dist/cli/src/oci-lxc-cli.mjs");
-  try {
-    readFileSync(cliPath);
+  if (existsSync(tsSource)) {
+    logOk("CLI TypeScript source found (dev mode — using tsx)");
+  } else if (existsSync(cliPath)) {
     logOk("CLI is built");
-  } catch {
-    logFail(`CLI not built. Run: cd ${projectRoot} && pnpm run build`);
+  } else {
+    logFail(`CLI not found. Run: cd ${projectRoot} && pnpm run build`);
     process.exit(1);
   }
 
@@ -835,17 +1076,34 @@ async function main() {
     process.exit(1);
   }
 
-  // Discover VE host
-  const sshConfigs = await apiFetch<{ sshs: Array<{ host: string }> }>(apiUrl, "/api/sshconfigs");
-  const veHost = sshConfigs?.sshs[0]?.host;
-  if (!veHost) {
-    logFail("Cannot determine VE host from deployer API");
-    process.exit(1);
+  // Ensure VE host SSH config exists on the deployer
+  const veHost = config.pveHost;
+  const veSshPort = config.portPveSsh;
+  const veConfigResp = await apiFetch<{ key: string }>(apiUrl, `/api/ssh/config/${encodeURIComponent(veHost)}`);
+  if (veConfigResp?.key) {
+    logOk(`VE host '${veHost}' already configured on deployer`);
+  } else {
+    logInfo(`VE host '${veHost}' not found on deployer, creating SSH config...`);
+    try {
+      const resp = await fetch(`${apiUrl}/api/sshconfig`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host: veHost, port: veSshPort, current: true }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "unknown" }));
+        throw new Error(`${resp.status}: ${(err as any).error}`);
+      }
+      logOk(`VE host '${veHost}' created (port ${veSshPort}, set as current)`);
+    } catch (err: any) {
+      logFail(`Failed to create SSH config for '${veHost}': ${err.message}`);
+      process.exit(1);
+    }
   }
-  logOk(`VE host discovered: ${veHost}`);
 
-  // Discover tests
-  const allTests = discoverTests(projectRoot);
+  // Discover tests via API
+  const allTests = await fetchTestScenarios(apiUrl);
   logOk(`Discovered ${allTests.size} test scenario(s)`);
 
   // Select and resolve dependencies
@@ -867,86 +1125,182 @@ async function main() {
 
   logOk(`${scenariosToRun.length} scenario(s) to run (including dependencies)`);
 
-  // Fetch application stacktypes
+  // Fetch application metadata (stacktypes, extends, tags)
   const appStacktypes = new Map<string, string | string[]>();
-  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[] }>>(apiUrl, "/api/applications");
+  const appMetaMap = new Map<string, AppMeta>();
+  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[]; extends?: string; tags?: string[] }>>(apiUrl, "/api/applications");
   if (apps) {
     for (const app of apps) {
       if (app.stacktype) appStacktypes.set(app.id, app.stacktype);
+      appMetaMap.set(app.id, {
+        extends: app.extends,
+        stacktype: app.stacktype,
+        tags: app.tags,
+      });
     }
   }
 
   // Plan: assign VM IDs and stack names
   const planned = planScenarios(scenariosToRun, appStacktypes);
 
+  // Mark dependencies vs explicitly selected targets
+  const selectedIdSet = new Set(selectedIds);
+  for (const p of planned) {
+    p.isDependency = !selectedIdSet.has(p.scenario.id);
+  }
+
   // Show plan
   console.log("");
   logInfo("Execution plan:");
   for (const p of planned) {
-    console.log(`  ${p.scenario.id}: VM ${p.vmId}, stack=${p.stackName}`);
+    const tag = p.isDependency ? " (dep)" : "";
+    console.log(`  ${p.scenario.id}: VM ${p.vmId}, stack=${p.stackName}${tag}`);
   }
   console.log("");
 
-  // Pre-test cleanup: destroy stale VMs, volumes, and stacks
-  const allPlannedVmIds = planned.map((p) => p.vmId);
-  const allPlannedHostnames = planned.map((p) => p.hostname);
-  const allPlannedStacks = [...new Set(planned.map((p) => p.stackName))];
+  // Pre-test cleanup: smart handling of dependencies vs targets
+  for (const p of planned) {
+    let status: string;
+    try {
+      status = nestedSshStrict(config.pveHost, config.portPveSsh,
+        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
+    } catch (err: any) {
+      logFail(`SSH connection failed during pre-cleanup: ${err.message}`);
+      process.exit(1);
+    }
 
-  for (const vmId of allPlannedVmIds) {
-    const status = nestedSsh(config.pveHost, config.portPveSsh,
-      `pct status ${vmId} 2>/dev/null && echo exists || true`, 10000);
-    if (status.includes("exists")) {
-      logInfo(`Cleaning up stale VM ${vmId}...`);
+    if (p.isDependency && status.includes("running")) {
+      logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
+      p.skipExecution = true;
+    } else if (!p.isDependency || status.includes("status:")) {
+      // Target VMs: always try to destroy (even if status check failed)
+      // Dependency VMs: only destroy if they exist but aren't running
+      logInfo(`Destroying VM ${p.vmId} (${p.scenario.id})...`);
       nestedSsh(config.pveHost, config.portPveSsh,
-        `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
         30000);
+    }
+
+    // Clean volumes only for targets (not for reused dependencies)
+    if (!p.skipExecution) {
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(p.hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
+        15000);
+    }
+
+    // Verify VM is actually gone (for targets)
+    if (!p.skipExecution && !p.isDependency) {
+      const verify = nestedSsh(config.pveHost, config.portPveSsh,
+        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
+      if (verify.includes("status:")) {
+        logFail(`Failed to destroy VM ${p.vmId} — aborting`);
+        process.exit(1);
+      }
     }
   }
 
-  for (const hostname of allPlannedHostnames) {
-    nestedSsh(config.pveHost, config.portPveSsh,
-      `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
-      15000);
+  // Run cleanup SQL on reused dependency VMs (e.g. DROP DATABASE for target apps)
+  for (const p of planned) {
+    if (p.isDependency || !p.scenario.cleanup) continue;
+    for (const [depApp, sql] of Object.entries(p.scenario.cleanup)) {
+      const depVm = planned.find(d => d.scenario.application === depApp && d.skipExecution);
+      if (depVm) {
+        logInfo(`Cleanup SQL on ${depApp} (VM ${depVm.vmId}): ${sql}`);
+        // Split into separate -c flags so DROP DATABASE doesn't run inside a transaction
+        const sqlParts = sql.split(";").map(s => s.trim()).filter(Boolean);
+        const cFlags = sqlParts.map(s => `-c ${JSON.stringify(s)}`).join(" ");
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `pct exec ${depVm.vmId} -- psql -U postgres ${cFlags}`,
+          15000);
+      }
+    }
   }
 
-  for (const stackName of allPlannedStacks) {
-    try {
-      await fetch(`${apiUrl}/api/stack/${stackName}`, {
-        method: "DELETE", signal: AbortSignal.timeout(5000),
-      });
-    } catch { /* ignore */ }
-  }
-
-  // Pre-create stacks
-  const createdStacks = new Set<string>();
+  // Pre-create stacks: collect ALL stacktypes across all apps sharing a stack,
+  // then create once — the server generates secrets for all stacktype variables.
+  // If a stack already exists, reuse it to keep passwords stable across runs.
+  const stackAllTypes = new Map<string, Set<string>>();
   for (const p of planned) {
     const rawStacktype = appStacktypes.get(p.scenario.application);
-    const primaryStacktype = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype[0] : rawStacktype) : undefined;
-    if (primaryStacktype && !createdStacks.has(p.stackName)) {
+    const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
+    if (stacktypes.length === 0) continue;
+
+    if (!stackAllTypes.has(p.stackName)) {
+      stackAllTypes.set(p.stackName, new Set(stacktypes));
+    } else {
+      for (const st of stacktypes) {
+        stackAllTypes.get(p.stackName)!.add(st);
+      }
+    }
+  }
+
+  // Only delete+recreate stacks whose ALL VMs are being destroyed (not reused)
+  for (const [stackName, allTypes] of stackAllTypes) {
+    const typesArray = [...allTypes];
+
+    // Check if stack already exists
+    let stackExists = false;
+    try {
+      const checkResp = await fetch(`${apiUrl}/api/stack/${stackName}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      stackExists = checkResp.ok;
+    } catch { /* ignore */ }
+
+    if (stackExists) {
+      // Check if all VMs using this stack are being re-executed (not reused)
+      const stackVms = planned.filter(p => p.stackName === stackName);
+      const allDestroyed = stackVms.every(p => !p.skipExecution);
+      if (allDestroyed) {
+        // All VMs destroyed — delete and recreate stack with fresh passwords
+        try {
+          await fetch(`${apiUrl}/api/stack/${stackName}`, {
+            method: "DELETE", signal: AbortSignal.timeout(5000),
+          });
+        } catch { /* ignore */ }
+        stackExists = false;
+      } else {
+        logOk(`Stack '${stackName}' exists — reusing (passwords unchanged)`);
+      }
+    }
+
+    if (!stackExists) {
       try {
         const resp = await fetch(`${apiUrl}/api/stacks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: p.stackName, stacktype: primaryStacktype, entries: [] }),
+          body: JSON.stringify({
+            name: stackName,
+            stacktype: typesArray.length === 1 ? typesArray[0] : typesArray,
+            entries: [],
+          }),
           signal: AbortSignal.timeout(10000),
         });
         if (resp.ok) {
-          logOk(`Stack '${p.stackName}' created (type: ${primaryStacktype})`);
-          createdStacks.add(p.stackName);
+          logOk(`Stack '${stackName}' created (type: ${typesArray.join("+")})`);
         }
       } catch {
-        // Stack may already exist
+        // Stack creation failed — may already exist from concurrent run
       }
     }
   }
 
   // Execute scenarios sequentially (topologically sorted)
   const keepVm = !!process.env.KEEP_VM;
-  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot);
+  const fixtureBaseDir = fixturesFlag
+    ? path.join(projectRoot, "frontend/src/test-fixtures")
+    : undefined;
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, fixtureBaseDir);
   const allResults = [result];
 
+  // Collect diagnostics before cleanup (VMs still running)
+  const diagPath = collectDiagnostics(allResults, config.pveHost, config.portPveSsh, projectRoot);
+  if (diagPath) {
+    logOk(`Diagnostics saved: ${diagPath}`);
+  }
+
   // Cleanup
-  cleanupVms(allResults, config.pveHost, config.portPveSsh, keepVm);
+  cleanupVms(planned, config.pveHost, config.portPveSsh, keepVm);
 
   // Summary
   const totalPassed = allResults.reduce((s, r) => s + r.passed, 0);

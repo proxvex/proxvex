@@ -1,127 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { describe, it, expect } from "vitest";
 import {
-  discoverTests,
   collectWithDeps,
   selectScenarios,
   buildParams,
   type ResolvedScenario,
 } from "./live-test-runner.mjs";
 
-// ── Helpers ──
-
-function createFixtureDir(): string {
-  return mkdtempSync(path.join(tmpdir(), "livetest-fixture-"));
-}
-
-function writeTestJson(
-  fixtureRoot: string,
-  appName: string,
-  scenarios: Record<string, unknown>,
-) {
-  const dir = path.join(fixtureRoot, "json/applications", appName, "tests");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, "test.json"), JSON.stringify(scenarios));
-}
-
-function writeParamsJson(
-  fixtureRoot: string,
-  appName: string,
-  scenarioName: string,
-  params: { params: unknown[]; selectedAddons?: string[] },
-) {
-  const dir = path.join(fixtureRoot, "json/applications", appName, "tests");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, `${scenarioName}.json`), JSON.stringify(params));
-}
-
-function writeTestFile(
-  fixtureRoot: string,
-  appName: string,
-  filename: string,
-  content: string,
-) {
-  const dir = path.join(fixtureRoot, "json/applications", appName, "tests");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, filename), content);
-}
-
 // ── Tests ──
-
-describe("discoverTests", () => {
-  let fixtureRoot: string;
-
-  beforeEach(() => {
-    fixtureRoot = createFixtureDir();
-    // Create the applications dir
-    mkdirSync(path.join(fixtureRoot, "json/applications"), { recursive: true });
-  });
-
-  afterEach(() => {
-    rmSync(fixtureRoot, { recursive: true, force: true });
-  });
-
-  it("discovers test.json from multiple app dirs", () => {
-    writeTestJson(fixtureRoot, "app-a", {
-      default: { description: "App A default" },
-    });
-    writeTestJson(fixtureRoot, "app-b", {
-      default: { description: "App B default" },
-      ssl: { description: "App B ssl" },
-    });
-
-    const result = discoverTests(fixtureRoot);
-    expect(result.size).toBe(3);
-    expect(result.has("app-a/default")).toBe(true);
-    expect(result.has("app-b/default")).toBe(true);
-    expect(result.has("app-b/ssl")).toBe(true);
-  });
-
-  it("scenario IDs are <app>/<scenario>", () => {
-    writeTestJson(fixtureRoot, "postgres", {
-      default: { description: "Postgres default" },
-    });
-
-    const result = discoverTests(fixtureRoot);
-    const scenario = result.get("postgres/default")!;
-    expect(scenario.id).toBe("postgres/default");
-    expect(scenario.application).toBe("postgres");
-    expect(scenario.description).toBe("Postgres default");
-  });
-
-  it("apps without tests/test.json are skipped", () => {
-    // Create app dir without tests/
-    mkdirSync(path.join(fixtureRoot, "json/applications/no-test-app"), { recursive: true });
-    writeTestJson(fixtureRoot, "has-tests", {
-      default: { description: "Has tests" },
-    });
-
-    const result = discoverTests(fixtureRoot);
-    expect(result.size).toBe(1);
-    expect(result.has("has-tests/default")).toBe(true);
-  });
-
-  it("preserves all scenario fields", () => {
-    writeTestJson(fixtureRoot, "myapp", {
-      ssl: {
-        description: "With SSL",
-        depends_on: ["other/default"],
-        addons: ["addon-ssl"],
-        wait_seconds: 30,
-        verify: { container_running: true, tls_connect: 443 },
-      },
-    });
-
-    const result = discoverTests(fixtureRoot);
-    const scenario = result.get("myapp/ssl")!;
-    expect(scenario.depends_on).toEqual(["other/default"]);
-    expect(scenario.addons).toEqual(["addon-ssl"]);
-    expect(scenario.wait_seconds).toBe(30);
-    expect(scenario.verify).toEqual({ container_running: true, tls_connect: 443 });
-  });
-});
 
 describe("collectWithDeps", () => {
   function makeScenarios(
@@ -133,7 +18,6 @@ describe("collectWithDeps", () => {
       all.set(id, {
         id,
         application: app!,
-        appTestDir: `/fake/${app}/tests`,
         description: `Test ${id}`,
         ...def,
       });
@@ -223,7 +107,6 @@ describe("selectScenarios", () => {
       return [id, {
         id,
         application: app!,
-        appTestDir: `/fake/${app}/tests`,
         description: `Test ${id}`,
       }];
     });
@@ -264,26 +147,6 @@ describe("selectScenarios", () => {
 });
 
 describe("buildParams", () => {
-  let fixtureRoot: string;
-
-  beforeEach(() => {
-    fixtureRoot = createFixtureDir();
-    mkdirSync(path.join(fixtureRoot, "json/applications"), { recursive: true });
-  });
-
-  afterEach(() => {
-    rmSync(fixtureRoot, { recursive: true, force: true });
-  });
-
-  function makeScenario(appName: string, scenarioName: string): ResolvedScenario {
-    return {
-      id: `${appName}/${scenarioName}`,
-      application: appName,
-      appTestDir: path.join(fixtureRoot, "json/applications", appName, "tests"),
-      description: `Test ${appName}/${scenarioName}`,
-    };
-  }
-
   const defaultBase = [
     { name: "hostname", value: "test-host" },
     { name: "bridge", value: "vmbr0" },
@@ -293,45 +156,54 @@ describe("buildParams", () => {
   const defaultVars = {
     vm_id: "200",
     hostname: "test-host",
-    stack_name: "200",
+    stack_name: "default",
   };
 
-  it("base params always present when no params file exists", () => {
-    const scenario = makeScenario("myapp", "default");
-    mkdirSync(scenario.appTestDir, { recursive: true });
+  it("base params always present when no scenario params", () => {
+    const scenario: ResolvedScenario = {
+      id: "myapp/default",
+      application: "myapp",
+      description: "Test myapp/default",
+    };
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
     expect(result.params).toEqual(defaultBase);
   });
 
   it("set mode: adds new param", () => {
-    const scenario = makeScenario("myapp", "default");
-    writeParamsJson(fixtureRoot, "myapp", "default", {
+    const scenario: ResolvedScenario = {
+      id: "myapp/default",
+      application: "myapp",
+      description: "Test myapp/default",
       params: [{ name: "custom_param", value: "custom_value" }],
-    });
+    };
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
     expect(result.params).toContainEqual({ name: "custom_param", value: "custom_value" });
   });
 
   it("set mode: overrides existing param", () => {
-    const scenario = makeScenario("myapp", "default");
-    writeParamsJson(fixtureRoot, "myapp", "default", {
+    const scenario: ResolvedScenario = {
+      id: "myapp/default",
+      application: "myapp",
+      description: "Test myapp/default",
       params: [{ name: "hostname", value: "overridden" }],
-    });
+    };
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
     expect(result.params.find((p) => p.name === "hostname")!.value).toBe("overridden");
   });
 
   it("append mode: builds multiline value", () => {
-    const scenario = makeScenario("pgadmin", "ssl");
-    writeParamsJson(fixtureRoot, "pgadmin", "ssl", {
+    const scenario: ResolvedScenario = {
+      id: "pgadmin/ssl",
+      application: "pgadmin",
+      description: "Test pgadmin/ssl",
       params: [
         { name: "envs", append: "PGADMIN_DEFAULT_EMAIL", value: "admin@test.local" },
         { name: "envs", append: "PGADMIN_DEFAULT_PASSWORD", value: "testpass123" },
       ],
-    });
+    };
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
     const envs = result.params.find((p) => p.name === "envs")!;
@@ -341,12 +213,14 @@ describe("buildParams", () => {
   });
 
   it("append mode: appends to existing value", () => {
-    const scenario = makeScenario("myapp", "default");
-    writeParamsJson(fixtureRoot, "myapp", "default", {
+    const scenario: ResolvedScenario = {
+      id: "myapp/default",
+      application: "myapp",
+      description: "Test myapp/default",
       params: [
         { name: "envs", append: "NEW_VAR", value: "new_value" },
       ],
-    });
+    };
 
     const base = [
       ...defaultBase,
@@ -358,53 +232,26 @@ describe("buildParams", () => {
     expect(envs.value).toBe("EXISTING=old\nNEW_VAR=new_value");
   });
 
-  it("file: prefix resolves to uploads/ subdirectory", () => {
-    const scenario = makeScenario("mosquitto", "default");
-    writeParamsJson(fixtureRoot, "mosquitto", "default", {
-      params: [{ name: "upload_config", value: "file:mosquitto.conf" }],
-    });
-    // Create file in uploads/ subdirectory
-    const uploadsDir = path.join(scenario.appTestDir, "uploads");
-    mkdirSync(uploadsDir, { recursive: true });
-    writeFileSync(path.join(uploadsDir, "mosquitto.conf"), "listener 1883");
-
-    const result = buildParams(scenario, [...defaultBase], defaultVars);
-    const upload = result.params.find((p) => p.name === "upload_config")!;
-    expect(upload.value).toBe(
-      `file:${path.join(uploadsDir, "mosquitto.conf")}`,
-    );
-  });
-
-  it("file: prefix falls back to tests dir if not in uploads/", () => {
-    const scenario = makeScenario("mosquitto", "default");
-    writeParamsJson(fixtureRoot, "mosquitto", "default", {
-      params: [{ name: "upload_config", value: "file:mosquitto.conf" }],
-    });
-    writeTestFile(fixtureRoot, "mosquitto", "mosquitto.conf", "listener 1883");
-
-    const result = buildParams(scenario, [...defaultBase], defaultVars);
-    const upload = result.params.find((p) => p.name === "upload_config")!;
-    expect(upload.value).toBe(
-      `file:${path.join(scenario.appTestDir, "mosquitto.conf")}`,
-    );
-  });
-
-  it("selectedAddons extracted from params file", () => {
-    const scenario = makeScenario("mosquitto", "default");
-    writeParamsJson(fixtureRoot, "mosquitto", "default", {
+  it("selectedAddons extracted from scenario", () => {
+    const scenario: ResolvedScenario = {
+      id: "mosquitto/default",
+      application: "mosquitto",
+      description: "Test mosquitto/default",
       params: [],
       selectedAddons: ["addon-ssl"],
-    });
+    };
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
     expect(result.selectedAddons).toEqual(["addon-ssl"]);
   });
 
   it("template variable substitution works", () => {
-    const scenario = makeScenario("myapp", "default");
-    writeParamsJson(fixtureRoot, "myapp", "default", {
+    const scenario: ResolvedScenario = {
+      id: "myapp/default",
+      application: "myapp",
+      description: "Test myapp/default",
       params: [{ name: "custom", value: "host-{{ vm_id }}-{{ hostname }}" }],
-    });
+    };
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
     expect(result.params.find((p) => p.name === "custom")!.value).toBe("host-200-test-host");

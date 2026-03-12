@@ -32,6 +32,8 @@ export interface IApplicationBase {
   source?: string;
   vendor?: string;
   stacktype?: string | string[];
+  /** Addon IDs this application supports. Merged with parent via extends. */
+  supported_addons?: string[];
   uploadfiles?: IUploadFile[];
   errors?: string[];
   /** User-configurable parameters defined directly in application.json (new approach) */
@@ -171,7 +173,7 @@ export enum ApiUri {
   SshConfig = "/api/sshconfig",
   SshConfigGET = "/api/ssh/config/:host",
   SshCheck = "/api/ssh/check",
-  VeConfiguration = "/api/:veContext/ve-configuration/:application/:task",
+  VeConfiguration = "/api/:veContext/ve-configuration/:application",
   VeRestart = "/api/:veContext/ve/restart/:restartKey",
   VeRestartInstallation = "/api/:veContext/ve/restart-installation/:vmInstallKey",
   VeExecute = "/api/:veContext/ve/execute",
@@ -184,13 +186,15 @@ export enum ApiUri {
   Installations = "/api/:veContext/installations",
   ContainerConfig = "/api/:veContext/container-config/:vmId",
   TemplateDetailsForApplication = "/api/:veContext/template-details/:application/:task",
-  UnresolvedParameters = "/api/:veContext/unresolved-parameters/:application/:task",
-  EnumValues = "/api/:veContext/enum-values/:application/:task",
+  UnresolvedParameters = "/api/:veContext/unresolved-parameters/:application",
+  EnumValues = "/api/:veContext/enum-values/:application",
   FrameworkNames = "/api/framework-names",
   FrameworkParameters = "/api/framework-parameters/:frameworkId",
   FrameworkCreateApplication = "/api/framework-create-application",
   FrameworkFromImage = "/api/framework-from-image",
   ApplicationFrameworkData = "/api/application/:applicationId/framework-data",
+  ApplicationTestData = "/api/application/:applicationId/test-data",
+  TestScenarios = "/api/test-scenarios",
 
   VeCopyUpgrade = "/api/:veContext/ve/copy-upgrade/:application",
 
@@ -282,6 +286,7 @@ export interface IDeleteSshConfigResponse {
   key?: string | undefined;
 }
 export interface IPostVeConfigurationBody {
+  task: string;
   params: { name: string; value: IParameterValue }[];
   outputs?: { id: string; value: IParameterValue }[];
   changedParams?: { name: string; value: IParameterValue }[];
@@ -290,6 +295,7 @@ export interface IPostVeConfigurationBody {
   stackId?: string;
 }
 export interface IPostEnumValuesBody {
+  task: string;
   params?: { id: string; value: IParameterValue }[];
   refresh?: boolean;
 }
@@ -303,6 +309,27 @@ export interface IPostVeConfigurationResponse {
   vmInstallKey?: string;
 }
 export type IApplicationsResponse = IApplicationWeb[];
+
+export interface ITestScenarioResponse {
+  id: string;
+  application: string;
+  description: string;
+  depends_on?: string[];
+  task?: string;
+  wait_seconds?: number;
+  cli_timeout?: number;
+  verify?: Record<string, boolean | number | string>;
+  params?: { name: string; value?: string; append?: string }[];
+  selectedAddons?: string[];
+  stackId?: string;
+  uploads?: { name: string; content: string }[];
+  cleanup?: Record<string, string>;
+}
+
+export interface ITestScenariosResponse {
+  scenarios: ITestScenarioResponse[];
+}
+
 export interface ISingleExecuteMessagesResponse {
   application: string;
   task: string;
@@ -409,6 +436,7 @@ export interface IFrameworkApplicationDataBody {
   iconContent?: string;
   tags?: string[];
   stacktype?: string | string[];
+  supported_addons?: string[];
   parameterValues: { id: string; value: string | number | boolean }[];
   parameterClassifications?: IParameterClassification[];
   uploadfiles?: IUploadFile[];
@@ -472,6 +500,7 @@ export interface IApplicationFrameworkDataResponse {
   iconContent?: string;
   tags?: string[];
   stacktype?: string | string[];
+  supported_addons?: string[];
   parameterValues: { id: string; value: string | number | boolean }[];
 }
 
@@ -507,10 +536,10 @@ export interface IAddon {
   name: string;
   description?: string;
   tags?: string[];
-  /** Application IDs, 'tag:<tag-id>' or '*' for all */
-  compatible_with: string[] | "*";
   /** Parameter IDs that must exist in the application for this addon to be compatible */
   required_parameters?: string[];
+  /** Applications that must be installed for this addon to function (in the same stack) */
+  dependencies?: IStacktypeDependency[];
   /** User-configurable parameters defined directly in addon JSON */
   parameters?: IParameter[];
   /** Fixed property values set by this addon (same format as template command properties) */
@@ -593,7 +622,9 @@ export interface IStacktypeDependency {
 
 // Stacktype entry (aggregated from json/stacktypes/*.json)
 export interface IStacktypeEntry {
-  name: string; // derived from filename
+  name: string; // derived from filename (e.g. "postgres", "oidc")
+  displayName?: string; // human-readable name from JSON "name" field
+  description?: string;
   entries: IStacktypeVariable[];
   dependencies?: IStacktypeDependency[];
 }
@@ -608,7 +639,7 @@ export interface IStackEntry {
 export interface IStack {
   id: string;
   name: string;
-  stacktype: string;
+  stacktype: string | string[];
   entries: IStackEntry[];
 }
 

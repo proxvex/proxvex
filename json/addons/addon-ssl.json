@@ -3,8 +3,6 @@
   "description": "Enable HTTPS via nginx reverse proxy, native app configuration, or certificate provisioning only.",
   "tags": ["security", "network"],
 
-  "compatible_with": "*",
-
   "parameters": [
     {
       "id": "ssl.mode",

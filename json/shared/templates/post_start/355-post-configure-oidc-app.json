@@ -1,0 +1,57 @@
+{
+  "name": "Configure OIDC in Application",
+  "description": "Configure the application to use OIDC authentication. The shared script is a no-op. Applications override this in their own scripts/ directory.",
+  "execute_on": "ve",
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "string",
+      "required": true,
+      "description": "VMID of the application container"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of the application container"
+    },
+    {
+      "id": "oidc_issuer_url",
+      "name": "OIDC Issuer URL",
+      "type": "string",
+      "required": true,
+      "description": "Zitadel issuer URL (from post-setup-oidc-client)"
+    },
+    {
+      "id": "oidc_client_id",
+      "name": "OIDC Client ID",
+      "type": "string",
+      "required": true,
+      "description": "OIDC client ID (from post-setup-oidc-client)"
+    },
+    {
+      "id": "oidc_client_secret",
+      "name": "OIDC Client Secret",
+      "type": "string",
+      "required": true,
+      "description": "OIDC client secret (from post-setup-oidc-client)"
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Domain suffix for constructing URLs"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Configure OIDC in Application",
+      "script": "post-configure-oidc-app.sh"
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { JsonValidator } from "../jsonvalidator.mjs";
 import { IConfiguredPathes } from "../backend-types.mjs";
-import { ITagsConfig, IStacktypeEntry } from "../types.mjs";
+import { ITagsConfig, IStacktypeEntry, IStacktypeDependency, ITestScenarioResponse } from "../types.mjs";
 import { FileSystemPersistence } from "./filesystem-persistence.mjs";
 import {
   IApplicationPersistence,
@@ -23,6 +23,45 @@ const baseSchemas: string[] = [
   "categorized-templatelist.schema.json",
   "base-deployable.schema.json",
 ];
+
+/**
+ * Derive test scenario dependencies from stacktype and addon definitions.
+ * Pure function — no filesystem access, fully testable.
+ */
+export function deriveTestDependencies(
+  appId: string,
+  scenarioName: string,
+  stacktypes: string[],
+  scenarioAddons: string[],
+  getStacktypeDeps: (st: string) => IStacktypeDependency[],
+  getAddonDeps: (addonId: string) => IStacktypeDependency[],
+): string[] {
+  const derived: string[] = [];
+  for (const st of stacktypes) {
+    for (const dep of getStacktypeDeps(st)) {
+      if (dep.application !== appId) derived.push(dep.application);
+    }
+  }
+  for (const addonId of new Set(scenarioAddons)) {
+    for (const dep of getAddonDeps(addonId)) {
+      if (dep.application !== appId) derived.push(dep.application);
+    }
+  }
+  if (derived.length === 0) return [];
+  return [...new Set(derived)].map(app => `${app}/${scenarioName}`);
+}
+
+/**
+ * Generate a human-readable description for a test scenario.
+ */
+function buildScenarioDescription(appId: string, variant: string, addons?: string[]): string {
+  const parts = [appId];
+  if (variant !== "default") parts.push(`(${variant})`);
+  if (addons && addons.length > 0) {
+    parts.push("with", addons.map(a => a.replace(/^addon-/, "")).join(", "));
+  }
+  return parts.join(" ");
+}
 
 /**
  * Central singleton manager for Persistence, Services and ContextManager
@@ -236,10 +275,209 @@ export class PersistenceManager {
       }
       return {
         name,
+        ...(parsed.name ? { displayName: parsed.name } : {}),
+        ...(parsed.description ? { description: parsed.description } : {}),
         entries: (parsed.variables ?? []) as { name: string }[],
         dependencies: parsed.dependencies,
       };
     });
+  }
+
+  /**
+   * Saves test data (params + uploads) for an application into json/applications/<id>/tests/
+   * Only works for applications whose source directory is inside jsonPath.
+   */
+  saveApplicationTestData(
+    applicationId: string,
+    scenarioName: string,
+    params: { name: string; value: string | number | boolean }[],
+    uploads: { name: string; content: string }[],
+    addons?: string[],
+  ): { testsDir: string } {
+    const appService = this.applicationService;
+    const localAppNames = appService.getLocalAppNames();
+
+    // Determine the app directory (local or json)
+    let appDir: string | undefined;
+    if (localAppNames.has(applicationId)) {
+      appDir = localAppNames.get(applicationId)!;
+    } else {
+      // Check in jsonPath
+      const jsonAppDir = path.join(this.pathes.jsonPath, "applications", applicationId);
+      if (fs.existsSync(jsonAppDir)) {
+        appDir = jsonAppDir;
+      }
+    }
+
+    if (!appDir) {
+      throw new Error(`Application ${applicationId} not found`);
+    }
+
+    const testsDir = path.join(appDir, "tests");
+    fs.mkdirSync(testsDir, { recursive: true });
+
+    // Build {scenarioName}.json — filter out hostname (test-runner sets its own)
+    const filteredParams = params.filter(p => p.name !== "hostname");
+    const output: Record<string, unknown> = { params: filteredParams };
+    if (addons && addons.length > 0) {
+      output.selectedAddons = addons;
+    }
+    // stackId deliberately NOT saved — test-runner assigns stack names
+
+    fs.writeFileSync(
+      path.join(testsDir, `${scenarioName}.json`),
+      JSON.stringify(output, null, 2) + "\n",
+      "utf-8",
+    );
+
+    // Write upload files
+    if (uploads.length > 0) {
+      const uploadsDir = path.join(testsDir, "uploads");
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      for (const file of uploads) {
+        fs.writeFileSync(
+          path.join(uploadsDir, file.name),
+          Buffer.from(file.content, "base64"),
+        );
+      }
+    }
+
+    return { testsDir };
+  }
+
+  /**
+   * Discovers all test scenarios across all applications (json + local).
+   * Returns scenario definitions with their params and upload file lists.
+   */
+  getTestScenarios(): ITestScenarioResponse[] {
+    const appService = this.applicationService;
+    const addonService = this.addonService;
+    const allApps = appService.getAllAppNames();
+    const scenarios: ITestScenarioResponse[] = [];
+
+    // Build stacktype lookup (name → dependencies)
+    const stacktypeMap = new Map<string, IStacktypeDependency[]>();
+    for (const st of this.getStacktypes()) {
+      stacktypeMap.set(st.name, st.dependencies ?? []);
+    }
+    const getStacktypeDeps = (st: string) => stacktypeMap.get(st) ?? [];
+    const getAddonDeps = (addonId: string) => {
+      try {
+        return addonService.getAddon(addonId)?.dependencies ?? [];
+      } catch { return []; }
+    };
+
+    for (const [appId, appDir] of allApps) {
+      const testDir = path.join(appDir, "tests");
+      const testFile = path.join(testDir, "test.json");
+
+      // Get application stacktype for dependency derivation
+      let appStacktypes: string[] = [];
+      try {
+        const appJsonPath = path.join(appDir, "application.json");
+        if (fs.existsSync(appJsonPath)) {
+          const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
+          const st = appJson.stacktype;
+          appStacktypes = st ? (Array.isArray(st) ? st : [st]) : [];
+        }
+      } catch { /* ignore */ }
+
+      if (fs.existsSync(testFile)) {
+        // Explicit test definitions from test.json
+        const defs: Record<string, {
+          task?: string;
+          wait_seconds?: number;
+          cli_timeout?: number;
+          verify?: Record<string, boolean | number | string>;
+          cleanup?: Record<string, string>;
+        }> = JSON.parse(fs.readFileSync(testFile, "utf-8"));
+
+        for (const [name, def] of Object.entries(defs)) {
+          const scenario: ITestScenarioResponse = {
+            id: `${appId}/${name}`,
+            application: appId,
+            description: "", // generated below
+            ...def,
+          };
+
+          // Read scenario params file if it exists
+          const paramsFile = path.join(testDir, `${name}.json`);
+          if (fs.existsSync(paramsFile)) {
+            const paramsContent = JSON.parse(fs.readFileSync(paramsFile, "utf-8"));
+            if (paramsContent.params) scenario.params = paramsContent.params;
+            if (paramsContent.selectedAddons) scenario.selectedAddons = paramsContent.selectedAddons;
+            if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
+          }
+
+          // Auto-generate description from app name, variant, and addons
+          scenario.description = buildScenarioDescription(appId, name, scenario.selectedAddons);
+
+          // Read upload files as base64
+          const uploadsDir = path.join(testDir, "uploads");
+          if (fs.existsSync(uploadsDir)) {
+            const files = fs.readdirSync(uploadsDir).filter(
+              f => fs.statSync(path.join(uploadsDir, f)).isFile(),
+            );
+            if (files.length > 0) {
+              scenario.uploads = files.map(f => ({
+                name: f,
+                content: fs.readFileSync(path.join(uploadsDir, f)).toString("base64"),
+              }));
+            }
+          }
+
+          // Auto-derive depends_on from stacktype + addon dependencies
+          const allAddons = [...new Set(scenario.selectedAddons ?? [])];
+          const derived = deriveTestDependencies(appId, name, appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
+          if (derived.length > 0) {
+            scenario.depends_on = derived;
+          }
+
+          scenarios.push(scenario);
+        }
+      } else {
+        // Implicit default scenario from default.json (e.g. saved from frontend)
+        const defaultFile = path.join(testDir, "default.json");
+        if (fs.existsSync(defaultFile)) {
+          const paramsContent = JSON.parse(fs.readFileSync(defaultFile, "utf-8"));
+          const scenario: ITestScenarioResponse = {
+            id: `${appId}/default`,
+            application: appId,
+            description: "", // generated below
+          };
+          if (paramsContent.params) scenario.params = paramsContent.params;
+          if (paramsContent.selectedAddons) {
+            scenario.selectedAddons = paramsContent.selectedAddons;
+          }
+          if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
+          scenario.description = buildScenarioDescription(appId, "default", scenario.selectedAddons);
+
+          const uploadsDir = path.join(testDir, "uploads");
+          if (fs.existsSync(uploadsDir)) {
+            const files = fs.readdirSync(uploadsDir).filter(
+              f => fs.statSync(path.join(uploadsDir, f)).isFile(),
+            );
+            if (files.length > 0) {
+              scenario.uploads = files.map(f => ({
+                name: f,
+                content: fs.readFileSync(path.join(uploadsDir, f)).toString("base64"),
+              }));
+            }
+          }
+
+          // Auto-derive depends_on from stacktype + addon dependencies
+          const allAddons = [...new Set(scenario.selectedAddons ?? [])];
+          const derived = deriveTestDependencies(appId, "default", appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
+          if (derived.length > 0) {
+            scenario.depends_on = derived;
+          }
+
+          scenarios.push(scenario);
+        }
+      }
+    }
+
+    return scenarios;
   }
 
   // Alias für Rückwärtskompatibilität (kann später entfernt werden)

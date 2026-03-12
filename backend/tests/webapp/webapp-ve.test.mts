@@ -37,7 +37,7 @@ describe("WebAppVE API", () => {
     await setup.cleanup();
   });
 
-  describe("POST /api/:veContext/ve-configuration/:application/:task", () => {
+  describe("POST /api/:veContext/ve-configuration/:application", () => {
     it("should successfully start configuration and return restartKey and vmInstallKey", async () => {
       // Create a minimal test application
       helper.writeApplication("testapp", {
@@ -68,12 +68,12 @@ describe("WebAppVE API", () => {
       });
 
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
         } as IPostVeConfigurationBody);
@@ -98,12 +98,12 @@ describe("WebAppVE API", () => {
 
     it("should return error when VE context not found", async () => {
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", "ve_nonexistent");
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
         } as IPostVeConfigurationBody)
         .expect(404);
@@ -114,12 +114,12 @@ describe("WebAppVE API", () => {
 
     it("should return error when request body is invalid", async () => {
       const url = ApiUri.VeConfiguration.replace(":application", "testapp")
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const response = await request(app)
         .post(url)
         .send({
+          task: "installation",
           params: "invalid", // Should be array
         })
         .expect(400);
@@ -182,12 +182,12 @@ describe("WebAppVE API", () => {
         ":application",
         "testapp",
       )
-        .replace(":task", "installation")
         .replace(":veContext", veContextKey);
 
       const configResponse = await request(app)
         .post(configUrl)
         .send({
+          task: "installation",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
         } as IPostVeConfigurationBody)

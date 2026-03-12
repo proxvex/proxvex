@@ -12,6 +12,8 @@ import type {
   IVeExecuteMessagesResponse,
 } from "@shared/types.mjs";
 import type { ValidationResult } from "@shared/parameter-validator.mjs";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   ConnectionError,
   AuthenticationError,
@@ -22,12 +24,18 @@ import {
 export class CliApiClient {
   private baseUrl: string;
   private token?: string;
+  private fixtureDir?: string;
+  private fixtureIndex = 0;
 
-  constructor(baseUrl: string, token?: string, insecure?: boolean) {
+  constructor(baseUrl: string, token?: string, insecure?: boolean, fixturePath?: string) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     if (token) this.token = token;
     if (insecure) {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    }
+    if (fixturePath) {
+      this.fixtureDir = fixturePath;
+      mkdirSync(fixturePath, { recursive: true });
     }
   }
 
@@ -82,7 +90,42 @@ export class CliApiClient {
       );
     }
 
-    return (await response.json()) as T;
+    const data = (await response.json()) as T;
+
+    if (this.fixtureDir) {
+      this.saveFixture(method, path, body, data);
+    }
+
+    return data;
+  }
+
+  private pollingFixtureFile?: string;
+
+  private saveFixture(method: string, path: string, requestBody: unknown, responseBody: unknown): void {
+    // Polling endpoint: only save first and overwrite with latest (keeps first + last)
+    if (path.endsWith("/ve/execute")) {
+      if (!this.pollingFixtureFile) {
+        // First poll — save as "first"
+        const idx = String(++this.fixtureIndex).padStart(3, "0");
+        const slug = path.replace(/^\//, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/-+$/, "");
+        this.pollingFixtureFile = `${idx}-${method}-${slug}`;
+        writeFileSync(join(this.fixtureDir!, `${this.pollingFixtureFile}-first.json`), JSON.stringify({
+          method, path, request: null, response: responseBody,
+        }, null, 2) + "\n");
+      }
+      // Always overwrite "last" — final file will be the last poll
+      writeFileSync(join(this.fixtureDir!, `${this.pollingFixtureFile}-last.json`), JSON.stringify({
+        method, path, request: null, response: responseBody,
+      }, null, 2) + "\n");
+      return;
+    }
+
+    const idx = String(++this.fixtureIndex).padStart(3, "0");
+    const slug = path.replace(/^\//, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/-+$/, "");
+    const filename = `${idx}-${method}-${slug}.json`;
+    writeFileSync(join(this.fixtureDir!, filename), JSON.stringify({
+      method, path, request: requestBody ?? null, response: responseBody,
+    }, null, 2) + "\n");
   }
 
   async getSshConfigs(): Promise<ISshConfigsResponse> {
@@ -104,7 +147,7 @@ export class CliApiClient {
   ): Promise<IUnresolvedParametersResponse> {
     return this.request(
       "GET",
-      `/api/${veCtx}/unresolved-parameters/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
+      `/api/${veCtx}/unresolved-parameters/${encodeURIComponent(app)}?task=${encodeURIComponent(task)}`,
     );
   }
 
@@ -112,12 +155,11 @@ export class CliApiClient {
     veCtx: string,
     app: string,
     task: string,
-    body: IPostEnumValuesBody,
   ): Promise<IEnumValuesResponse> {
     return this.request(
       "POST",
-      `/api/${veCtx}/enum-values/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
-      body,
+      `/api/${veCtx}/enum-values/${encodeURIComponent(app)}`,
+      { task } as IPostEnumValuesBody,
     );
   }
 
@@ -152,8 +194,8 @@ export class CliApiClient {
   ): Promise<ValidationResult> {
     return this.request(
       "POST",
-      `/api/${veCtx}/validate-parameters/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
-      body,
+      `/api/${veCtx}/validate-parameters/${encodeURIComponent(app)}`,
+      { task, ...body },
     );
   }
 
@@ -161,12 +203,12 @@ export class CliApiClient {
     veCtx: string,
     app: string,
     task: string,
-    body: IPostVeConfigurationBody,
+    body: Omit<IPostVeConfigurationBody, "task">,
   ): Promise<IPostVeConfigurationResponse> {
     return this.request(
       "POST",
-      `/api/${veCtx}/ve-configuration/${encodeURIComponent(app)}/${encodeURIComponent(task)}`,
-      body,
+      `/api/${veCtx}/ve-configuration/${encodeURIComponent(app)}`,
+      { task, ...body } as IPostVeConfigurationBody,
     );
   }
 

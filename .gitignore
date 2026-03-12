@@ -5,6 +5,7 @@ node_modules/
 # Build outputs
 backend/dist/
 frontend/dist/
+cli/dist/
 
 # Test coverage
 coverage/
@@ -49,3 +50,4 @@ backend/tests/e2e/.nested-vm-ip
 
 # Generated test certificates
 e2e/certs/
+livetest-diag-*.tar.gz

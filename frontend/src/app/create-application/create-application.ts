@@ -213,8 +213,13 @@ export class CreateApplication implements OnInit, OnDestroy {
 
               // Fill stacktype if present
               if (data.stacktype) {
-                const stacktypes = Array.isArray(data.stacktype) ? data.stacktype : [data.stacktype];
-                this.state.selectedStacktypes.set(stacktypes);
+                const st = Array.isArray(data.stacktype) ? data.stacktype[0] : data.stacktype;
+                this.state.selectedStacktype.set(st);
+              }
+
+              // Fill supported addons if present
+              if (data.supported_addons?.length) {
+                this.state.selectedSupportedAddons.set(data.supported_addons);
               }
 
               // Fill parameter values
@@ -406,7 +411,7 @@ export class CreateApplication implements OnInit, OnDestroy {
       source: 'local',
       framework: this.state.selectedFramework()?.id,
       tags: this.state.selectedTags(),
-      stacktype: this.state.selectedStacktypes().length > 0 ? (this.state.selectedStacktypes().length === 1 ? this.state.selectedStacktypes()[0] : this.state.selectedStacktypes()) : undefined,
+      stacktype: this.state.selectedStacktype() ?? undefined,
     };
 
     // Navigate to applications list first
@@ -415,6 +420,10 @@ export class CreateApplication implements OnInit, OnDestroy {
       const dialogData: VeConfigurationDialogData = { app, task: 'installation' };
       this.dialog.open(VeConfigurationDialog, { data: dialogData });
     });
+  }
+
+  saveAndInstall(): void {
+    this.summaryStep?.saveAndInstall();
   }
 
   onNavigateToStep(stepIndex: number): void {
