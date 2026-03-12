@@ -1,0 +1,82 @@
+{
+  "name": "Nginx Unprivileged",
+  "description": "Unprivileged NGINX Dockerfiles",
+  "extends": "oci-image",
+  "icon": "nginx.svg",
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "required": false,
+      "type": "string",
+      "description": "Hostname for the LXC container",
+      "template": "100-conf-create-configure-lxc.json",
+      "templatename": "Create and Configure LXC",
+      "default": "nginx"
+    },
+    {
+      "id": "volumes",
+      "name": "Volumes",
+      "type": "string",
+      "multiline": true,
+      "required": false,
+      "description": "One per line: key=/container/path",
+      "template": "150-conf-create-storage-volumes-for-lxc.json",
+      "templatename": "Create Storage Volumes for LXC",
+      "default": "conf=/etc/nginx/conf.d"
+    },
+    {
+      "id": "envs",
+      "name": "Environment Variables",
+      "type": "string",
+      "advanced": true,
+      "multiline": true,
+      "default": "NGINX_VERSION=alpine",
+      "description": "Environment variables to substitute in initial_command.",
+      "template": "107-conf-oci-lxc-configuration.json",
+      "templatename": "Configure LXC for OCI"
+    },
+    {
+      "id": "rootfs_storage",
+      "name": "Rootfs Storage",
+      "type": "enum",
+      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
+      "description": "Proxmox storage for the container rootfs",
+      "advanced": true,
+      "template": "100-conf-create-configure-lxc.json",
+      "templatename": "Create and Configure LXC",
+      "default": "local-zfs"
+    },
+    {
+      "id": "volume_storage",
+      "name": "Volume Storage",
+      "type": "enum",
+      "required": true,
+      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
+      "description": "Proxmox storage ID for data volumes",
+      "template": "150-conf-create-storage-volumes-for-lxc.json",
+      "templatename": "Create Storage Volumes for LXC",
+      "default": "local-zfs"
+    }
+  ],
+  "properties": [
+    {
+      "id": "oci_image",
+      "value": "nginxinc/nginx-unprivileged:alpine"
+    },
+    {
+      "id": "uid",
+      "value": "101"
+    },
+    {
+      "id": "username",
+      "value": "root"
+    }
+  ],
+  "installation": {},
+  "url": "https://github.com/nginx/docker-nginx-unprivileged",
+  "source": "https://github.com/nginx/docker-nginx-unprivileged",
+  "tags": [
+    "infrastructure"
+  ]
+}

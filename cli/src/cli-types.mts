@@ -1,8 +1,8 @@
 export interface CliOptions {
   server: string;
   ve: string;
-  application: string;
-  task: string;
+  application?: string;
+  task?: string;
   parametersFile?: string;
   token?: string;
   insecure?: boolean;
@@ -14,6 +14,7 @@ export interface CliOptions {
   timeout: number;
   enableAddons?: string[];
   disableAddons?: string[];
+  fixturePath?: string;
 }
 
 export class CliError extends Error {

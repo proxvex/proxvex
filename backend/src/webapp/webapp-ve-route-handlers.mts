@@ -110,7 +110,7 @@ export class WebAppVeRouteHandlers {
   }
 
   /**
-   * Handles POST /api/ve-configuration/:application/:task/:veContext
+   * Handles POST /api/ve-configuration/:application/:veContext (task in body)
    */
   async handleVeConfiguration(
     application: string,
@@ -181,12 +181,32 @@ export class WebAppVeRouteHandlers {
         initialInputs.push({ id: "stack_name", value: stackId });
       }
 
-      // Read application config to check for dependencies
+      // Read application + addon dependencies for dependency-host-discovery
       try {
         const appConfig = this.pm.getRepositories().getApplication(application);
-        const appDeps = (appConfig as any)?.dependencies;
-        if (Array.isArray(appDeps) && appDeps.length > 0) {
-          initialInputs.push({ id: "app_dependencies", value: JSON.stringify(appDeps) });
+        const appDeps = (appConfig as any)?.dependencies as { application: string }[] | undefined;
+        const allDeps = [...(appDeps ?? [])];
+
+        // Merge addon dependencies
+        const addonIds = body.selectedAddons ?? [];
+        if (addonIds.length > 0) {
+          const addonSvc = this.pm.getAddonService();
+          for (const addonId of addonIds) {
+            try {
+              const addon = addonSvc.getAddon(addonId);
+              if (addon?.dependencies) {
+                for (const dep of addon.dependencies) {
+                  if (!allDeps.some(d => d.application === dep.application)) {
+                    allDeps.push(dep);
+                  }
+                }
+              }
+            } catch { /* ignore unknown addon */ }
+          }
+        }
+
+        if (allDeps.length > 0) {
+          initialInputs.push({ id: "app_dependencies", value: JSON.stringify(allDeps) });
         }
       } catch {
         // Ignore - getApplication may fail for some apps
@@ -244,10 +264,28 @@ export class WebAppVeRouteHandlers {
         }
       }
 
-      // Inject application dependencies for dependency-host-discovery script
-      const appDependencies = (loaded.application as any)?.dependencies;
-      if (Array.isArray(appDependencies) && appDependencies.length > 0) {
-        defaults.set("app_dependencies", JSON.stringify(appDependencies));
+      // Inject application + addon dependencies for dependency-host-discovery script
+      {
+        const appDependencies = (loaded.application as any)?.dependencies as { application: string }[] | undefined;
+        const allDeps = [...(appDependencies ?? [])];
+        if (selectedAddons.length > 0) {
+          const addonSvc = this.pm.getAddonService();
+          for (const addonId of selectedAddons) {
+            try {
+              const addon = addonSvc.getAddon(addonId);
+              if (addon?.dependencies) {
+                for (const dep of addon.dependencies) {
+                  if (!allDeps.some(d => d.application === dep.application)) {
+                    allDeps.push(dep);
+                  }
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+        if (allDeps.length > 0) {
+          defaults.set("app_dependencies", JSON.stringify(allDeps));
+        }
       }
 
       // Built-in context variables (available to scripts as {{ application_id }}, etc.)

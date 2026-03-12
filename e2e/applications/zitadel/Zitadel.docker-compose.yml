@@ -1,27 +1,136 @@
 services:
-  zitadel:
-    image: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-latest}
-    network_mode: host
+  traefik:
+    image: traefik:v3.6
     restart: unless-stopped
-    command: 'start-from-init --masterkey "{{ ZITADEL_MASTERKEY }}" --tlsMode enabled'
+    command:
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--entrypoints.web.address=:8080"
+      - "--log.level=INFO"
+    ports:
+      - "8080:8080"
+    configs:
+      - source: traefik-dynamic-http
+        target: /etc/traefik/dynamic.yml
+    networks:
+      - zitadel
+
+  zitadel-api:
+    image: ghcr.io/zitadel/zitadel:latest
+    restart: unless-stopped
+    command: 'start-from-init --masterkey "{{ ZITADEL_MASTERKEY }}" --tlsMode disabled'
     environment:
-      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-localhost}
-      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-true}
-      ZITADEL_EXTERNALPORT: ${ZITADEL_PORT:-8080}
-      ZITADEL_TLS_CERTPATH: /certs/server.crt
-      ZITADEL_TLS_KEYPATH: /certs/server.key
-      ZITADEL_DATABASE_POSTGRES_HOST: ${POSTGRES_HOST}
-      ZITADEL_DATABASE_POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DB:-zitadel}
-      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${POSTGRES_USER:-postgres}
-      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: "{{ POSTGRES_PASSWORD }}"
+      ZITADEL_EXTERNALDOMAIN: "{{ ZITADEL_EXTERNALDOMAIN }}"
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_EXTERNALPORT: 8080
+      ZITADEL_TLS_ENABLED: "false"
+      ZITADEL_DATABASE_POSTGRES_HOST: "{{ POSTGRES_HOST }}"
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: "{{ ZITADEL_DB_PASSWORD }}"
       ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
-      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_USER:-postgres}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: postgres
       ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: "{{ POSTGRES_PASSWORD }}"
       ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login/login?samlRequest=
+      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: Password1!
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "{{ ZITADEL_ADMIN_PASSWORD }}!Aa1"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_FIRSTNAME: Admin
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_LASTNAME: User
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL: "admin@{{ ZITADEL_EXTERNALDOMAIN }}"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PREFERREDLANGUAGE: en
     volumes:
-      - ./certs:/certs:ro
-    ports:
-      - "${ZITADEL_PORT:-8080}:8080"
+      - /bootstrap:/zitadel/bootstrap
+    healthcheck:
+      test: ["CMD", "/app/zitadel", "ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    networks:
+      - zitadel
+
+  zitadel-login:
+    image: ghcr.io/zitadel/zitadel-login:latest
+    restart: unless-stopped
+    environment:
+      ZITADEL_API_URL: http://zitadel-api:8080
+      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
+      NEXT_PUBLIC_BASE_PATH: /ui/v2/login
+      CUSTOM_REQUEST_HEADERS: "Host:{{ ZITADEL_EXTERNALDOMAIN }},X-Forwarded-Proto:http"
+    volumes:
+      - /bootstrap:/zitadel/bootstrap:ro
+    depends_on:
+      zitadel-api:
+        condition: service_healthy
+    networks:
+      - zitadel
+
+configs:
+  traefik-dynamic-http:
+    content: |
+      http:
+        routers:
+          zitadel-login:
+            rule: "PathPrefix(`/ui/v2/login`)"
+            service: zitadel-login
+            priority: 250
+            entryPoints:
+              - web
+          zitadel-api:
+            rule: "PathPrefix(`/`)"
+            service: zitadel-api
+            priority: 100
+            entryPoints:
+              - web
+        services:
+          zitadel-api:
+            loadBalancer:
+              servers:
+                - url: "h2c://zitadel-api:8080"
+          zitadel-login:
+            loadBalancer:
+              servers:
+                - url: "http://zitadel-login:3000"
+  traefik-dynamic-https:
+    content: |
+      tls:
+        certificates:
+          - certFile: /certs/fullchain.pem
+            keyFile: /certs/privkey.pem
+      http:
+        routers:
+          zitadel-login:
+            rule: "PathPrefix(`/ui/v2/login`)"
+            service: zitadel-login
+            priority: 250
+            entryPoints:
+              - websecure
+            tls: {}
+          zitadel-api:
+            rule: "PathPrefix(`/`)"
+            service: zitadel-api
+            priority: 100
+            entryPoints:
+              - websecure
+            tls: {}
+        services:
+          zitadel-api:
+            loadBalancer:
+              servers:
+                - url: "h2c://zitadel-api:8080"
+          zitadel-login:
+            loadBalancer:
+              servers:
+                - url: "http://zitadel-login:3000"
+
+networks:
+  zitadel:

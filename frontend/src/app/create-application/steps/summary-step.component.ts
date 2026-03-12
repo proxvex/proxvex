@@ -59,9 +59,19 @@ import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, P
               <dd>{{ state.selectedTags().join(', ') }}</dd>
             }
 
-            @if (state.selectedStacktypes().length > 0) {
-              <dt>Stacktypes:</dt>
-              <dd>{{ state.selectedStacktypes().join(', ') }}</dd>
+            @if (state.selectedStacktype()) {
+              <dt>Stacktype:</dt>
+              <dd>{{ state.selectedStacktype() }}</dd>
+            }
+
+            @if (state.selectedSupportedAddons().length > 0) {
+              <dt>Supported Addons:</dt>
+              <dd>{{ state.selectedSupportedAddons().join(', ') }}</dd>
+            }
+
+            @if (state.selectedSupportedAddons().length > 0) {
+              <dt>Supported Addons:</dt>
+              <dd>{{ state.selectedSupportedAddons().join(', ') }}</dd>
             }
 
             @if (state.appPropertiesForm.get('url')?.value) {
@@ -105,6 +115,22 @@ import { IFrameworkApplicationDataBody, IParameterClassification, IUploadFile, P
             <ul class="param-list">
               @for (p of defaultParams(); track p.id) {
                 <li><strong>{{ p.name }}</strong>: {{ getParamDisplayValue(p.id) }}</li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Selected Addons -->
+      @if (state.selectedAddons().length > 0) {
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Selected Addons</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="param-list">
+              @for (addonId of state.selectedAddons(); track addonId) {
+                <li>{{ getAddonName(addonId) }}</li>
               }
             </ul>
           </mat-card-content>
@@ -310,6 +336,10 @@ export class SummaryStepComponent {
     return lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
   }
 
+  getAddonName(addonId: string): string {
+    return this.state.availableAddons().find(a => a.id === addonId)?.name ?? addonId;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Classification display helpers
   // ─────────────────────────────────────────────────────────────────────────────
@@ -341,6 +371,63 @@ export class SummaryStepComponent {
   // Application creation
   // ─────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Saves the application and then installs it.
+   */
+  async saveAndInstall(): Promise<void> {
+    const applicationId = await this.saveApplicationOnly();
+    if (!applicationId) return;
+
+    if (!this.state.installFormManager) {
+      this.state.createError.set('Install form not initialized');
+      return;
+    }
+
+    this.state.installFormManager.install(applicationId).subscribe({
+      next: () => {
+        this.state.creating.set(false);
+      },
+      error: (err: { error?: { error?: string }; message?: string }) => {
+        this.state.creating.set(false);
+        this.state.createError.set(err?.error?.error || err?.message || 'Installation failed');
+      }
+    });
+  }
+
+  /**
+   * Saves the application without installing.
+   */
+  private saveApplicationOnly(): Promise<string | null> {
+    return new Promise((resolve) => {
+      const body = this.buildCreateApplicationBody();
+      if (!body) {
+        resolve(null);
+        return;
+      }
+
+      this.state.creating.set(true);
+      this.state.createError.set(null);
+      this.state.createErrorStep.set(null);
+
+      this.configService.createApplicationFromFramework(body).subscribe({
+        next: (res) => {
+          this.state.creating.set(false);
+          if (res.success) {
+            this.applicationSaved.emit(body.applicationId);
+            resolve(body.applicationId);
+          } else {
+            this.state.createError.set(`Failed to ${this.state.editMode() ? 'update' : 'create'} application.`);
+            resolve(null);
+          }
+        },
+        error: (err: { error?: { error?: string }; message?: string }) => {
+          this.state.creating.set(false);
+          this.state.createError.set(err?.error?.error || err?.message || 'Failed to save application');
+          resolve(null);
+        }
+      });
+    });
+  }
 
   /**
    * Builds the request body for creating/updating an application.
@@ -391,7 +478,8 @@ export class SummaryStepComponent {
         iconContent: iconContent,
       }),
       ...(this.state.selectedTags().length > 0 && { tags: this.state.selectedTags() }),
-      ...(this.state.selectedStacktypes().length > 0 && { stacktype: this.state.selectedStacktypes().length === 1 ? this.state.selectedStacktypes()[0] : this.state.selectedStacktypes() }),
+      ...(this.state.selectedStacktype() && { stacktype: this.state.selectedStacktype() ?? undefined }),
+      ...(this.state.selectedSupportedAddons().length > 0 && { supported_addons: this.state.selectedSupportedAddons() }),
       parameterValues,
       ...(classifications.length > 0 && { parameterClassifications: classifications }),
       ...(this.state.getUploadFiles().length > 0 && { uploadfiles: this.state.getUploadFiles() }),
@@ -399,6 +487,9 @@ export class SummaryStepComponent {
     };
   }
 
+  get isInstallFormValid(): boolean {
+    return this.state.isInstallFormValid;
+  }
 
   createApplication(): void {
     const body = this.buildCreateApplicationBody();

@@ -9,6 +9,7 @@ import { ParameterTarget } from '../../../shared/types';
 import { CreateApplicationStateService } from '../services/create-application-state.service';
 import { ParameterGroupComponent } from '../../ve-configuration-dialog/parameter-group.component';
 import { StackSelectorComponent } from '../../shared/components/stack-selector/stack-selector.component';
+import { AddonSectionComponent } from '../../shared/components/addon-section/addon-section.component';
 
 @Component({
   selector: 'app-parameters-step',
@@ -20,7 +21,8 @@ import { StackSelectorComponent } from '../../shared/components/stack-selector/s
     MatIconModule,
     MatProgressSpinnerModule,
     ParameterGroupComponent,
-    StackSelectorComponent
+    StackSelectorComponent,
+    AddonSectionComponent
   ],
   template: `
     <div class="step-content">
@@ -59,7 +61,7 @@ import { StackSelectorComponent } from '../../shared/components/stack-selector/s
         }
 
         <!-- Stack selector for applications with stacktype -->
-        @if (state.selectedStacktypes().length > 0 && state.availableStacks().length > 0) {
+        @if (state.selectedStacktype() && state.availableStacks().length > 0) {
           <div class="secrets-selector">
             <app-stack-selector
               [availableStacks]="state.availableStacks()"
@@ -154,12 +156,6 @@ import { StackSelectorComponent } from '../../shared/components/stack-selector/s
       }
     }
 
-    .secrets-selector {
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      background: #f5f5f5;
-      border-radius: 8px;
-    }
   `]
 })
 export class ParametersStepComponent {

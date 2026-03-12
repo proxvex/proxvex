@@ -2,6 +2,7 @@
   "name": "oci-image",
   "description": "Base application for OCI image based services",
   "icon": "icon.png",
+  "supported_addons": ["addon-ssl", "samba-shares"],
   "installation": {
     "image": [
       "011-host-get-oci-image.json"

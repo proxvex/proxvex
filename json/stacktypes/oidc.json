@@ -1,6 +1,11 @@
 {
+  "name": "OIDC (Zitadel)",
+  "description": "Master key, database and admin passwords for Zitadel identity provider",
   "variables": [
-    { "name": "OIDC_PROJECT_NAME", "external": true }
+    { "name": "OIDC_PROJECT_NAME", "external": true },
+    { "name": "ZITADEL_MASTERKEY", "length": 32 },
+    { "name": "ZITADEL_DB_PASSWORD" },
+    { "name": "ZITADEL_ADMIN_PASSWORD" }
   ],
   "dependencies": [
     { "application": "zitadel" }

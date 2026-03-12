@@ -46,6 +46,31 @@ h2, p {
   }
 }
 
+/* Missing stacks error */
+.missing-stacks-error {
+  margin: 0 1rem 1rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e57373;
+  background: #ffebee;
+  color: #b71c1c;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px 0 #0001;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+
+  .missing-stacks-icon {
+    color: #e53935;
+    margin-top: 2px;
+  }
+
+  a {
+    color: #1565c0;
+    text-decoration: underline;
+  }
+}
+
 /* Missing required hint */
 .missing-required-hint {
   margin: 0 1rem 1rem 1rem;

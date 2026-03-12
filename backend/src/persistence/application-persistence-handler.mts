@@ -424,6 +424,15 @@ export class ApplicationPersistenceHandler {
             appData.iconContent = parent.iconContent;
             appData.iconType = parent.iconType;
           }
+          // Merge supported_addons: parent + child, deduplicated
+          if (parent.supported_addons?.length || appData.supported_addons?.length) {
+            appData.supported_addons = [
+              ...new Set([
+                ...(parent.supported_addons ?? []),
+                ...(appData.supported_addons ?? []),
+              ]),
+            ];
+          }
         } catch (e: Error | any) {
           this.addErrorToOptions(opts, e);
         }

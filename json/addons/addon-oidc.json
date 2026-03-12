@@ -3,8 +3,6 @@
   "description": "Enable OpenID Connect authentication via Zitadel. Automatically creates an OIDC client in Zitadel and provides credentials as template variables.",
   "tags": ["security", "authentication"],
 
-  "compatible_with": ["tag:authentication"],
-
   "parameters": [
     {
       "id": "oidc_app_name",
@@ -24,17 +22,29 @@
     }
   ],
 
+  "dependencies": [
+    { "application": "zitadel" }
+  ],
+
   "properties": [],
 
   "installation": {
+    "pre_start": [
+      "162-conf-configure-oidc-app.json"
+    ],
     "post_start": [
-      "350-post-setup-oidc-client.json"
+      "350-post-setup-oidc-client.json",
+      "355-post-configure-oidc-app.json"
     ]
   },
 
   "reconfigure": {
+    "pre_start": [
+      "162-conf-configure-oidc-app.json"
+    ],
     "post_start": [
-      "350-post-setup-oidc-client.json"
+      "350-post-setup-oidc-client.json",
+      "355-post-configure-oidc-app.json"
     ]
   },
 
