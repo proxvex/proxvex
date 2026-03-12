@@ -730,6 +730,48 @@ function planScenarios(
   });
 }
 
+// ── Auto-verify defaults ──
+
+/** Application metadata used for auto-determining verifications */
+interface AppMeta {
+  extends?: string | undefined;
+  stacktype?: string | string[] | undefined;
+  tags?: string[] | undefined;
+}
+
+/**
+ * Build default verifications from application metadata and scenario addons.
+ * test.json can override/extend these defaults.
+ */
+function buildDefaultVerify(
+  scenario: ResolvedScenario,
+  appMeta: AppMeta,
+): Record<string, boolean | number | string> {
+  const verify: Record<string, boolean | number | string> = {
+    container_running: true,
+    notes_managed: true,
+    lxc_log_no_errors: true,
+  };
+
+  // Docker-compose apps additionally check docker services
+  if (appMeta.extends === "docker-compose") {
+    verify.services_up = true;
+  }
+
+  // Addon-based checks
+  const allAddons = scenario.selectedAddons ?? [];
+  const hasSSL = allAddons.includes("addon-ssl");
+
+  if (hasSSL) {
+    // Only check pg_ssl_on for actual postgres applications, not for apps
+    // that merely use the postgres stacktype for shared variables
+    if (scenario.application === "postgres") {
+      verify.pg_ssl_on = true;
+    }
+  }
+
+  return verify;
+}
 // ── Execute all planned scenarios sequentially ──
 
 async function executeScenarios(
