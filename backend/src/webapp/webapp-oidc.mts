@@ -36,10 +36,17 @@ export async function initOidc(): Promise<OidcConfig | null> {
   }
 
   try {
+    // Allow HTTP for internal/LAN issuer URLs (e.g. http://zitadel:8080)
+    const discoveryOptions: Parameters<typeof client.discovery>[4] =
+      new URL(issuerUrl).protocol === "http:"
+        ? { execute: [client.allowInsecureRequests] }
+        : undefined;
     const config = await client.discovery(
       new URL(issuerUrl),
       clientId,
       { client_secret: clientSecret },
+      undefined,
+      discoveryOptions,
     );
     logger.info(`[oidc] OIDC initialized with issuer: ${issuerUrl}`);
     const result: OidcConfig = { config, issuerUrl, clientId, callbackUrl };
