@@ -19,7 +19,7 @@
       "id": "http_port",
       "name": "HTTP Port",
       "type": "string",
-      "default": "3000",
+      "default": "3080",
       "required": false,
       "advanced": true
     },
