@@ -40,7 +40,6 @@ export async function initOidc(): Promise<OidcConfig | null> {
       new URL(issuerUrl),
       clientId,
       { client_secret: clientSecret },
-      client.ClientSecretBasic(clientSecret),
     );
     logger.info(`[oidc] OIDC initialized with issuer: ${issuerUrl}`);
     const result: OidcConfig = { config, issuerUrl, clientId, callbackUrl };
