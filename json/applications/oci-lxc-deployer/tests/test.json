@@ -1,12 +1,7 @@
 {
   "default": {
-    "wait_seconds": 30,
-    "cli_timeout": 600
-  },
-  "oidc": {
     "depends_on": ["zitadel/default"],
     "addons": ["addon-oidc"],
-    "wait_seconds": 30,
     "cli_timeout": 900,
     "verify": {
       "oidc_enabled": true,

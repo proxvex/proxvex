@@ -556,6 +556,7 @@ export class FileSystemRepositories
           ref.name,
           appPath,
           this.pathes,
+          ref.category || "root",
         );
       }
     }

@@ -89,6 +89,15 @@ export class PersistenceManager {
   private contextManager: ContextManager;
   private repositories: IRepositories;
 
+  private initArgs: {
+    localPath: string;
+    storageContextFilePath: string;
+    secretFilePath: string;
+    enableCache: boolean;
+    jsonPath: string | undefined;
+    schemaPath: string | undefined;
+  };
+
   private constructor(
     localPath: string,
     storageContextFilePath: string,
@@ -98,6 +107,7 @@ export class PersistenceManager {
     schemaPath?: string,
     repositories?: IRepositories,
   ) {
+    this.initArgs = { localPath, storageContextFilePath, secretFilePath, enableCache, jsonPath, schemaPath };
     // Create paths (same logic as StorageContext)
     // persistence-manager.mts is in backend/src/persistence/
     // So we need to go up 3 levels: ../../.. to project root
@@ -390,6 +400,8 @@ export class PersistenceManager {
           cli_timeout?: number;
           verify?: Record<string, boolean | number | string>;
           cleanup?: Record<string, string>;
+          depends_on?: string[];
+          addons?: string[];
         }> = JSON.parse(fs.readFileSync(testFile, "utf-8"));
 
         for (const [name, def] of Object.entries(defs)) {
@@ -399,6 +411,11 @@ export class PersistenceManager {
             description: "", // generated below
             ...def,
           };
+
+          // Map addons → selectedAddons (test.json uses "addons" as shorthand)
+          if (def.addons && !scenario.selectedAddons) {
+            scenario.selectedAddons = def.addons;
+          }
 
           // Read scenario params file if it exists
           const paramsFile = path.join(testDir, `${name}.json`);
@@ -427,10 +444,13 @@ export class PersistenceManager {
           }
 
           // Auto-derive depends_on from stacktype + addon dependencies
-          const allAddons = [...new Set(scenario.selectedAddons ?? [])];
-          const derived = deriveTestDependencies(appId, name, appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
-          if (derived.length > 0) {
-            scenario.depends_on = derived;
+          // Only if test.json doesn't already specify explicit depends_on
+          if (!def.depends_on) {
+            const allAddons = [...new Set(scenario.selectedAddons ?? [])];
+            const derived = deriveTestDependencies(appId, name, appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
+            if (derived.length > 0) {
+              scenario.depends_on = derived;
+            }
           }
 
           scenarios.push(scenario);
@@ -483,6 +503,23 @@ export class PersistenceManager {
   // Alias für Rückwärtskompatibilität (kann später entfernt werden)
   getStorageContext(): ContextManager {
     return this.contextManager;
+  }
+
+  /**
+   * Reload: close and re-initialize with the same parameters.
+   * Clears all caches and re-reads json/ and schemas/ from disk.
+   */
+  static reload(): PersistenceManager {
+    const instance = PersistenceManager.getInstance();
+    const args = instance.initArgs;
+    return PersistenceManager.initialize(
+      args.localPath,
+      args.storageContextFilePath,
+      args.secretFilePath,
+      args.enableCache,
+      args.jsonPath,
+      args.schemaPath,
+    );
   }
 
   /**

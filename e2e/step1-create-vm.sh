@@ -445,6 +445,20 @@ DNSEOF
     # can resolve other container hostnames via dnsmasq expand-hosts.
     echo 'nameserver 10.0.0.1' > /etc/resolv.conf
     echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
+
+    # Make resolv.conf persistent across reboots by hooking into ifup
+    mkdir -p /etc/network/if-up.d
+    cat > /etc/network/if-up.d/resolv-dnsmasq << 'RESOLVEOF'
+#!/bin/sh
+# Ensure local dnsmasq is used as primary DNS resolver.
+# Without this, reboots revert resolv.conf to external DNS only,
+# breaking hostname resolution for LXC containers on vmbr1.
+if [ "$IFACE" = "vmbr1" ] || [ "$IFACE" = "--all" ]; then
+    echo 'nameserver 10.0.0.1' > /etc/resolv.conf
+    echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
+fi
+RESOLVEOF
+    chmod +x /etc/network/if-up.d/resolv-dnsmasq
 " || error "Failed to configure dnsmasq"
 success "DHCP server configured on vmbr1 (10.0.0.100-200, DNS: 10.0.0.1)"
 

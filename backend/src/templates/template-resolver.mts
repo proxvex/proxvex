@@ -57,12 +57,12 @@ export class TemplateResolver {
     scriptName: string,
     category: string,
   ): { content: string | null; ref: ScriptRef | null } {
-    // First try app-specific
+    // First try app-specific (with category for subdirectory lookup)
     const appRef: ScriptRef = {
       name: scriptName,
       scope: "application",
       applicationId,
-      category: "",
+      category,
     };
     const appContent = this.repositories.getScript(appRef);
     if (appContent !== null) return { content: appContent, ref: appRef };

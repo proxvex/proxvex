@@ -26,6 +26,10 @@ OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_PROJECT_NAME="{{ OIDC_PROJECT_NAME }}"
 
+# Guard against NOT_DEFINED
+if [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then DOMAIN_SUFFIX=""; fi
+if [ "$OIDC_APP_NAME" = "NOT_DEFINED" ]; then OIDC_APP_NAME=""; fi
+
 # Default app name to hostname if not set
 if [ -z "$OIDC_APP_NAME" ]; then
   OIDC_APP_NAME="$HOSTNAME"
@@ -39,7 +43,7 @@ ISSUER_URL="${ZITADEL_URL}"
 # docker-compose working directory, which is NOT mapped to a PVE-host volume.
 # This needs to be fixed in the Zitadel docker-compose configuration first.
 # For now, we look in the expected volume path.
-PAT_FILE="${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/current-dir/login-client.pat"
+PAT_FILE="${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/bootstrap/admin-client.pat"
 
 if [ ! -f "$PAT_FILE" ]; then
   echo "ERROR: PAT file not found at ${PAT_FILE}" >&2
@@ -130,6 +134,7 @@ APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/_sea
 
 APP_ID=$(echo "$APP_RESPONSE" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
 CLIENT_ID=""
+CLIENT_SECRET=""
 
 if [ -z "$APP_ID" ]; then
   echo "OIDC app not found, creating '${OIDC_APP_NAME}'..." >&2
@@ -142,6 +147,7 @@ if [ -z "$APP_ID" ]; then
 
   APP_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p' | head -1)
   CLIENT_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"clientId":"\([^"]*\)".*/\1/p' | head -1)
+  CLIENT_SECRET=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"clientSecret":"\([^"]*\)".*/\1/p' | head -1)
 
   if [ -z "$APP_ID" ]; then
     echo "ERROR: Failed to create OIDC app" >&2
@@ -162,17 +168,19 @@ if [ -z "$CLIENT_ID" ]; then
   exit 1
 fi
 
-# --- Generate new client secret ---
-echo "Generating client secret for app ${APP_ID}..." >&2
-SECRET_RESPONSE=$(zitadel_api PUT "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config/_generate_client_secret" "{}")
-
-CLIENT_SECRET=$(echo "$SECRET_RESPONSE" | sed -n 's/.*"clientSecret":"\([^"]*\)".*/\1/p' | head -1)
-
+# --- Generate client secret (only needed for existing apps) ---
 if [ -z "$CLIENT_SECRET" ]; then
-  echo "ERROR: Failed to generate client secret" >&2
-  echo "Response: ${SECRET_RESPONSE}" >&2
-  echo '[]'
-  exit 1
+  echo "Generating client secret for app ${APP_ID}..." >&2
+  SECRET_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config/_generate_client_secret" "{}")
+
+  CLIENT_SECRET=$(echo "$SECRET_RESPONSE" | sed -n 's/.*"clientSecret":"\([^"]*\)".*/\1/p' | head -1)
+
+  if [ -z "$CLIENT_SECRET" ]; then
+    echo "ERROR: Failed to generate client secret" >&2
+    echo "Response: ${SECRET_RESPONSE}" >&2
+    echo '[]'
+    exit 1
+  fi
 fi
 
 echo "OIDC client setup complete" >&2

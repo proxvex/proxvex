@@ -18,6 +18,8 @@ import { WebAppStack } from "./webapp-stack-routes.mjs";
 import { registerCertificateRoutes } from "./webapp-certificate-routes.mjs";
 import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
 import { createAuthMiddleware } from "./webapp-auth-middleware.mjs";
+import { PersistenceManager } from "../persistence/persistence-manager.mjs";
+import { createLogger } from "../logger/index.mjs";
 import {
   initOidc,
   setupSession,
@@ -90,6 +92,20 @@ export class VEWebApp {
     registerCertificateRoutes(this.app, this.storageContext);
     registerAddonRoutes(this.app, this.storageContext);
     registerValidationRoutes(this.app);
+
+    // Reload endpoint: re-reads json/ and schemas/ from disk
+    const reloadLogger = createLogger("reload");
+    this.app.post("/api/reload", (_req, res) => {
+      try {
+        PersistenceManager.reload();
+        reloadLogger.info("PersistenceManager reloaded");
+        res.json({ ok: true });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        reloadLogger.error("Reload failed", { error: message });
+        res.status(500).json({ ok: false, error: message });
+      }
+    });
 
     registerFrameworkRoutes(
       this.app,

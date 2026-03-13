@@ -7,7 +7,7 @@
     "wait_seconds": 90,
     "verify": {
       "docker_log_no_errors": true,
-      "file_exists": "/bootstrap/login-client.pat"
+      "file_exists": ["/bootstrap/login-client.pat", "/bootstrap/admin-client.pat"]
     }
   },
   "ssl": {
@@ -19,7 +19,7 @@
     "verify": {
       "docker_log_no_errors": true,
       "tls_connect": 8443,
-      "file_exists": "/bootstrap/login-client.pat"
+      "file_exists": ["/bootstrap/login-client.pat", "/bootstrap/admin-client.pat"]
     }
   }
 }

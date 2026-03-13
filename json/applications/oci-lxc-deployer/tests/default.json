@@ -1,0 +1,8 @@
+{
+  "params": [
+    {
+      "name": "OIDC_PROJECT_NAME",
+      "value": "proxmox"
+    }
+  ]
+}

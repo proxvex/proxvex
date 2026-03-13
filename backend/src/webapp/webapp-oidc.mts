@@ -60,7 +60,7 @@ export async function initOidc(): Promise<OidcConfig | null> {
 export function setupSession(app: Application): void {
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || randomBytes(32).toString("hex"),
+      secret: process.env.OIDC_SESSION_SECRET || randomBytes(32).toString("hex"),
       resave: false,
       saveUninitialized: false,
       cookie: {

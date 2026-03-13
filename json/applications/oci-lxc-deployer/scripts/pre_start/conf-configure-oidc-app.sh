@@ -38,8 +38,12 @@ echo "Configuring OIDC for oci-lxc-deployer (VM $VM_ID, pre-start)" >&2
 echo "  Issuer: $OIDC_ISSUER_URL" >&2
 echo "  Callback: $CALLBACK_URL" >&2
 
-# Remove any existing OIDC environment entries
+# Generate a stable OIDC_SESSION_SECRET
+OIDC_SESSION_SECRET=$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')
+
+# Remove any existing OIDC/SESSION environment entries
 sed -i '/^lxc\.environment:\s*OIDC_/d' "$CONF_FILE"
+sed -i '/^lxc\.environment:\s*OIDC_SESSION_SECRET/d' "$CONF_FILE"
 
 # Append OIDC environment variables
 cat >> "$CONF_FILE" <<EOF
@@ -48,6 +52,7 @@ lxc.environment: OIDC_ISSUER_URL=${OIDC_ISSUER_URL}
 lxc.environment: OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
 lxc.environment: OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
 lxc.environment: OIDC_CALLBACK_URL=${CALLBACK_URL}
+lxc.environment: OIDC_SESSION_SECRET=${OIDC_SESSION_SECRET}
 EOF
 
 if [ -n "$OIDC_REQUIRED_ROLE" ]; then

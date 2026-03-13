@@ -996,6 +996,58 @@ async function executeScenarios(
   const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
+  // ZFS snapshot support for dependencies
+  const depSteps = planned.filter((p) => p.isDependency && !p.skipExecution);
+  const nonDepSteps = planned.filter((p) => !p.isDependency);
+  const snapshotName = depSteps.length > 0
+    ? "livetest-deps-" + depSteps
+        .map((p) => p.scenario.id.replace(/\/default$/, "").replace(/\//g, "-"))
+        .join("-")
+        + (nonDepSteps.length > 0 ? "-" + nonDepSteps[0]!.stackName : "")
+    : "";
+
+  // Try to restore from ZFS snapshot (skip dependency installation)
+  let depsRestoredFromSnapshot = false;
+  if (snapshotName && depSteps.length > 0) {
+    try {
+      const checkSnap = nestedSsh(config.pveHost, config.portPveSsh,
+        `zfs list -t snapshot -o name -H | grep '@${snapshotName}$' | head -1`, 30000);
+      if (checkSnap.trim()) {
+        logStep("ZFS", `Restoring dependencies from snapshot @${snapshotName}`);
+        // Stop dependency containers
+        for (const dep of depSteps) {
+          nestedSsh(config.pveHost, config.portPveSsh,
+            `pct stop ${dep.vmId} 2>/dev/null; true`, 30000);
+        }
+        // Rollback each dependency container's disk (recursive removes newer snapshots)
+        for (const dep of depSteps) {
+          const dataset = `rpool/data/subvol-${dep.vmId}-disk-0`;
+          nestedSshStrict(config.pveHost, config.portPveSsh,
+            `zfs rollback -r ${dataset}@${snapshotName}`, 60000);
+        }
+        // Also rollback the volumes dataset if it has the snapshot
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `zfs rollback -r rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName} 2>/dev/null; true`, 30000);
+        // Start dependency containers
+        for (const dep of depSteps) {
+          nestedSshStrict(config.pveHost, config.portPveSsh,
+            `pct start ${dep.vmId}`, 30000);
+        }
+        // Wait for docker services in last dependency (if docker-compose app)
+        const lastDep = depSteps[depSteps.length - 1]!;
+        const lastDepMeta = appMetaMap.get(lastDep.scenario.application) ?? {};
+        if (lastDep.scenario.wait_seconds && lastDep.scenario.wait_seconds > 0 && lastDepMeta.extends === "docker-compose") {
+          await waitForServices(config.pveHost, config.portPveSsh,
+            lastDep.vmId, lastDep.scenario.wait_seconds);
+        }
+        depsRestoredFromSnapshot = true;
+        logOk(`Dependencies restored from ZFS snapshot @${snapshotName}`);
+      }
+    } catch (err) {
+      logInfo(`ZFS snapshot restore failed, will install normally: ${err}`);
+    }
+  }
+
   try {
     for (let i = 0; i < planned.length; i++) {
       const step = planned[i]!;
@@ -1006,6 +1058,16 @@ async function executeScenarios(
         `${i + 1}/${planned.length}`,
         `${scenario.id} (${task}) [VM ${step.vmId}]`,
       );
+
+      // Skip dependencies restored from ZFS snapshot
+      if (depsRestoredFromSnapshot && step.isDependency) {
+        logOk(`Skipping ${scenario.id} (restored from snapshot)`);
+        result.steps.push({
+          vmId: step.vmId, hostname: step.hostname,
+          application: scenario.application, scenarioId: scenario.id,
+        });
+        continue;
+      }
 
       // Skip dependencies that are already running
       if (step.skipExecution) {
@@ -1058,6 +1120,18 @@ async function executeScenarios(
         logInfo(`Addons: ${allAddons.join(", ")}`);
       }
 
+      // Reload deployer to pick up any json/ changes
+      try {
+        const reloadResp = await fetch(`${apiUrl}/api/reload`, { method: "POST" });
+        if (reloadResp.ok) {
+          logInfo("Deployer reloaded");
+        } else {
+          logInfo(`Deployer reload returned ${reloadResp.status} (continuing)`);
+        }
+      } catch {
+        logInfo("Deployer reload not available (continuing)");
+      }
+
       // Run CLI
       logInfo(`Running: ${scenario.application} ${task}...`);
       const scenarioFixtureDir = fixtureBaseDir
@@ -1088,13 +1162,11 @@ async function executeScenarios(
         cliOutput: cliResult.output,
       });
 
-      // Wait for services if needed
-      if (scenario.wait_seconds && scenario.wait_seconds > 0) {
+      // Wait for docker services (only for docker-compose apps)
+      const appMeta = appMetaMap.get(scenario.application) ?? {};
+      if (scenario.wait_seconds && scenario.wait_seconds > 0 && appMeta.extends === "docker-compose") {
         await waitForServices(config.pveHost, config.portPveSsh, step.vmId, scenario.wait_seconds);
       }
-
-      // Run verifications (auto-defaults merged with explicit verify from test.json)
-      const appMeta = appMetaMap.get(scenario.application) ?? {};
       const defaultVerify = buildDefaultVerify(scenario, appMeta);
       const finalVerify = { ...defaultVerify, ...(scenario.verify ?? {}) };
       // Remove entries explicitly set to false
@@ -1103,6 +1175,26 @@ async function executeScenarios(
       }
       logInfo("Verifying...");
       await verifier.runAll(step.vmId, step.hostname, finalVerify, planned);
+
+      // Create ZFS snapshot after last dependency is installed and verified
+      const nextStep = planned[i + 1];
+      if (snapshotName && step.isDependency && nextStep && !nextStep.isDependency && !depsRestoredFromSnapshot) {
+        try {
+          logStep("ZFS", `Creating snapshot @${snapshotName}`);
+          // Snapshot each dependency container
+          for (const dep of depSteps) {
+            const dataset = `rpool/data/subvol-${dep.vmId}-disk-0`;
+            nestedSshStrict(config.pveHost, config.portPveSsh,
+              `zfs destroy ${dataset}@${snapshotName} 2>/dev/null; zfs snapshot ${dataset}@${snapshotName}`, 30000);
+          }
+          // Also snapshot the volumes dataset
+          nestedSsh(config.pveHost, config.portPveSsh,
+            `zfs destroy rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName} 2>/dev/null; zfs snapshot rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName}`, 30000);
+          logOk(`ZFS snapshot @${snapshotName} created`);
+        } catch (err) {
+          logInfo(`ZFS snapshot creation failed (non-fatal): ${err}`);
+        }
+      }
     }
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });

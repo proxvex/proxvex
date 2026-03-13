@@ -10,7 +10,8 @@
     "pre_start": [
       "100-conf-create-configure-lxc.json",
       "107-conf-oci-lxc-configuration.json",
-      "160-conf-bind-multiple-volumes-to-lxc.json"
+      "160-conf-bind-multiple-volumes-to-lxc.json",
+      "185-host-resolve-dependency-hosts.json"
     ],
     "start": [
       "200-start-lxc.json",
@@ -60,7 +61,8 @@
     "pre_start": [
       "set-addon-reconfigure-defaults.json",
       "100-conf-create-configure-lxc.json",
-      "160-conf-bind-multiple-volumes-to-lxc.json"
+      "160-conf-bind-multiple-volumes-to-lxc.json",
+      "185-host-resolve-dependency-hosts.json"
     ],
     "start": [
       "200-start-lxc.json",

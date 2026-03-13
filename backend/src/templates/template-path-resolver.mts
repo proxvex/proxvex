@@ -95,7 +95,13 @@ export class TemplatePathResolver {
     pathes: IConfiguredPathes,
     category: string = "root",
   ): string | null {
-    // Check app-specific first
+    // Check app-specific first (with category subdirectory, then without)
+    if (category !== "root") {
+      const appCategoryPath = path.join(appPath, "scripts", category, scriptName);
+      if (fs.existsSync(appCategoryPath)) {
+        return appCategoryPath;
+      }
+    }
     const appScriptPath = path.join(appPath, "scripts", scriptName);
     if (fs.existsSync(appScriptPath)) {
       return appScriptPath;
