@@ -449,7 +449,7 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
         # Uses installation task (not addon-reconfigure) — deployer instances use reinstall mode
         # (see installed-list.ts:89)
         # Write JSON on nested VM first, then pct push (avoids multi-layer shell escaping)
-        nested_ssh "printf '%s' '{\"params\":[{\"name\":\"vm_id\",\"value\":${DEPLOYER_VMID}},{\"name\":\"previous_vm_id\",\"value\":${TEMP_VMID}}],\"addons\":[\"addon-ssl\"]}' > /tmp/ssl-params.json"
+        nested_ssh "printf '%s' '{\"application\":\"oci-lxc-deployer\",\"task\":\"installation\",\"params\":[{\"name\":\"vm_id\",\"value\":${DEPLOYER_VMID}},{\"name\":\"previous_vm_id\",\"value\":${TEMP_VMID}}],\"selectedAddons\":[\"addon-ssl\"]}' > /tmp/ssl-params.json"
         nested_ssh "pct push ${TEMP_VMID} /tmp/ssl-params.json /tmp/ssl-params.json"
 
         # Run reinstall via oci-lxc-cli (installed in Phase 2)
@@ -463,7 +463,7 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
             --insecure \
             --timeout 600 \
             $VERBOSE_FLAG \
-            oci-lxc-deployer installation /tmp/ssl-params.json" \
+            /tmp/ssl-params.json" \
             && HTTPS_DONE="true" || true
 
         # Fallback: if CLI exited early (container replaced), check HTTPS

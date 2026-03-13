@@ -11,7 +11,7 @@
 #   oidc_app_name      - Name of the OIDC app in Zitadel (optional, defaults to hostname)
 #   oidc_callback_path - OIDC callback path (default: /auth/strategy/callback)
 #   domain_suffix      - Domain suffix for URL construction
-#   OIDC_PROJECT_NAME  - Zitadel project name (from oidc stack variable)
+#   OIDC_PROJECT_NAME  - Zitadel project name (from addon parameter, defaults to hostname)
 #
 # Outputs (JSON to stdout):
 #   oidc_issuer_url    - Zitadel issuer URL
@@ -25,6 +25,11 @@ OIDC_APP_NAME="{{ oidc_app_name }}"
 OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_PROJECT_NAME="{{ OIDC_PROJECT_NAME }}"
+
+# Default project name to hostname if not set
+if [ -z "$OIDC_PROJECT_NAME" ]; then
+  OIDC_PROJECT_NAME="$HOSTNAME"
+fi
 
 # Default app name to hostname if not set
 if [ -z "$OIDC_APP_NAME" ]; then
