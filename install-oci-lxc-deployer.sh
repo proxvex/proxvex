@@ -811,12 +811,12 @@ if [ "$enable_https" = "true" ]; then
         # Build params file for reinstall with SSL
         # Uses installation task (not addon-reconfigure) like the UI does for deployer instances
         # (see installed-list.ts:89 — deployer instances use reinstall mode)
-        params_json='{"params":['
+        params_json='{"application":"oci-lxc-deployer","task":"installation","params":['
         if [ -n "$https_target_vmid" ]; then
           params_json="${params_json}{\"name\":\"vm_id\",\"value\":${https_target_vmid}},"
         fi
         params_json="${params_json}{\"name\":\"previous_vm_id\",\"value\":${vm_id}}"
-        params_json="${params_json}],\"addons\":[\"addon-ssl\"]}"
+        params_json="${params_json}],\"selectedAddons\":[\"addon-ssl\"]}"
 
         pct exec "${vm_id}" -- sh -c "printf '%s' '${params_json}' > /tmp/ssl-params.json"
 
@@ -827,7 +827,7 @@ if [ "$enable_https" = "true" ]; then
           --ve "${proxmox_hostname}" \
           --insecure \
           --timeout 600 \
-          oci-lxc-deployer installation /tmp/ssl-params.json >&2 \
+          /tmp/ssl-params.json >&2 \
           && https_done="true" || true
 
         # Fallback: if CLI died (container replaced before finished), check HTTPS

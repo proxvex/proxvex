@@ -1,0 +1,7 @@
+{
+  "params": [],
+  "selectedAddons": [
+    "addon-oidc",
+    "addon-ssl"
+  ]
+}

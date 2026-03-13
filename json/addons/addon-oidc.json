@@ -12,6 +12,13 @@
       "description": "Name of the OIDC application in Zitadel (defaults to hostname)"
     },
     {
+      "id": "OIDC_PROJECT_NAME",
+      "name": "Zitadel Project Name",
+      "type": "string",
+      "required": false,
+      "description": "Name of the Zitadel project for this application (defaults to hostname)"
+    },
+    {
       "id": "oidc_callback_path",
       "name": "Callback Path",
       "type": "string",
