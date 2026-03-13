@@ -1,0 +1,11 @@
+{
+  "application": "gitea",
+  "task": "installation",
+  "params": [
+    { "name": "vm_id", "value": 503 },
+    { "name": "static_ip", "value": "192.168.4.43/24" },
+    { "name": "static_gw", "value": "192.168.4.1" }
+  ],
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "stackId": "production"
+}
