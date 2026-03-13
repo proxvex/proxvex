@@ -6,6 +6,12 @@
     { "path": "backend" }
   ],
   "settings": {
+    "workbench.colorCustomizations": {
+      "activityBar.background": "#2e7d32",
+      "activityBar.foreground": "#ffffff",
+      "titleBar.activeBackground": "#2e7d32",
+      "titleBar.activeForeground": "#ffffff"
+    },
     "window.title": "${activeEditorShort} - oci-lxc-deployer [GREEN]",
 
     "claudeCode.allowDangerouslySkipPermissions": true,
@@ -29,6 +35,33 @@
   },
   "launch": {
     "configurations": [
+      {
+        "name": "Launch Backend",
+        "program": "${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
+        "preLaunchTask": "npm: build",
+        "request": "launch",
+        "sourceMaps": true,
+        "cwd": "${workspaceFolder:backend}",
+        "console": "integratedTerminal",
+        "args": [
+          "--local",
+          "${workspaceFolder:backend}/examples",
+          "--storageContextFilePath",
+          "${workspaceFolder:backend}/../storagecontext.json",
+          "--secretsFilePath",
+          "${workspaceFolder:backend}/../secret.txt"
+        ],
+        "env": {
+          "DEPLOYER_PORT": "3201"
+        },
+        "trace": true,
+        "outFiles": [
+          "${workspaceFolder:backend}/dist/**/*.mjs",
+          "${workspaceFolder:backend}/dist/**/*.mjs.map"
+        ],
+        "skipFiles": ["<node_internals>/**"],
+        "type": "node"
+      },
       {
         "name": "ng serve",
         "type": "chrome",
