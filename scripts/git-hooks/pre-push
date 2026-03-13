@@ -119,8 +119,14 @@ STASH_NEEDED=0
 # Check if there are uncommitted changes
 if ! git diff-index --quiet HEAD --; then
   echo "${YELLOW}Stashing uncommitted changes...${NC}"
+  STASH_COUNT_BEFORE=$(git stash list | wc -l)
   git stash push -m "pre-push hook stash" --include-untracked
-  STASH_NEEDED=1
+  STASH_COUNT_AFTER=$(git stash list | wc -l)
+  if [ "$STASH_COUNT_AFTER" -gt "$STASH_COUNT_BEFORE" ]; then
+    STASH_NEEDED=1
+  else
+    echo "${YELLOW}Nothing was actually stashed, continuing...${NC}"
+  fi
 fi
 
 # Function to restore state and exit
@@ -145,34 +151,33 @@ fi
 
 echo "${BLUE}==> Updating ${MAIN_BRANCH} branch...${NC}"
 
-# Switch to main branch
-if ! git checkout "$MAIN_BRANCH" -q; then
-  echo "${RED}Error: Failed to checkout ${MAIN_BRANCH} branch${NC}"
-  cleanup_and_exit 1
-fi
+# Update main branch ref without checkout (worktree-safe)
+# Check if fast-forward is possible
+LOCAL_MAIN=$(git rev-parse "refs/heads/${MAIN_BRANCH}")
+ORIGIN_MAIN=$(git rev-parse "origin/${MAIN_BRANCH}" 2>/dev/null || echo "")
 
-# Update main branch (fast-forward only)
-if git merge --ff-only "origin/${MAIN_BRANCH}"; then
-  echo "${GREEN}✓ ${MAIN_BRANCH} branch updated${NC}"
+if [ -z "$ORIGIN_MAIN" ]; then
+  echo "${YELLOW}Warning: origin/${MAIN_BRANCH} not found. Skipping main branch update.${NC}"
+elif [ "$LOCAL_MAIN" = "$ORIGIN_MAIN" ]; then
+  echo "${GREEN}✓ ${MAIN_BRANCH} branch already up-to-date${NC}"
+elif git merge-base --is-ancestor "$LOCAL_MAIN" "$ORIGIN_MAIN"; then
+  # Fast-forward possible: update ref directly (no checkout needed)
+  git update-ref "refs/heads/${MAIN_BRANCH}" "$ORIGIN_MAIN" "$LOCAL_MAIN"
+  echo "${GREEN}✓ ${MAIN_BRANCH} branch updated (fast-forward)${NC}"
 else
   echo "${RED}Error: Cannot fast-forward ${MAIN_BRANCH} branch${NC}"
   echo "${RED}Please resolve manually: git checkout ${MAIN_BRANCH} && git merge origin/${MAIN_BRANCH}${NC}"
-  git checkout "$ORIGINAL_BRANCH" -q
   cleanup_and_exit 1
 fi
 
-# Return to original branch if not on main
+# Merge main into current branch if not on main
 if [ "$ORIGINAL_BRANCH" != "$MAIN_BRANCH" ]; then
-  echo "${BLUE}==> Returning to ${ORIGINAL_BRANCH} branch...${NC}"
-  if ! git checkout "$ORIGINAL_BRANCH" -q; then
-    echo "${RED}Error: Failed to checkout ${ORIGINAL_BRANCH} branch${NC}"
-    cleanup_and_exit 1
-  fi
-  
   echo "${BLUE}==> Merging ${MAIN_BRANCH} into ${ORIGINAL_BRANCH}...${NC}"
-  
-  # Try to merge main into current branch
-  if git merge "$MAIN_BRANCH" --no-edit; then
+
+  # Check if merge is needed
+  if git merge-base --is-ancestor "refs/heads/${MAIN_BRANCH}" HEAD; then
+    echo "${GREEN}✓ ${ORIGINAL_BRANCH} already contains ${MAIN_BRANCH}${NC}"
+  elif git merge "$MAIN_BRANCH" --no-edit; then
     echo "${GREEN}✓ Successfully merged ${MAIN_BRANCH} into ${ORIGINAL_BRANCH}${NC}"
   else
     # Merge conflict detected
@@ -193,7 +198,7 @@ if [ "$ORIGINAL_BRANCH" != "$MAIN_BRANCH" ]; then
     echo "${YELLOW}To abort the merge:${NC}"
     echo "  git merge --abort"
     echo ""
-    
+
     # Don't abort automatically - let user decide
     cleanup_and_exit 1
   fi
