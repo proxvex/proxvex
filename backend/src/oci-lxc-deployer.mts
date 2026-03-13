@@ -125,8 +125,6 @@ async function startWebApp(
     logger.info("HTTPS disabled: certificate files not found");
   }
 
-  let httpFallbackServer: http.Server | undefined;
-
   if (httpsEnabled) {
     // HTTPS active: HTTP server becomes a redirect-only server
     const redirectApp = express();
@@ -146,19 +144,13 @@ async function startWebApp(
       logger.info("HTTP server started", { port: httpPort });
     });
 
-    // Also listen on the HTTPS port via HTTP so it doesn't refuse connections
-    if (String(httpsPort) !== String(httpPort)) {
-      httpFallbackServer = http.createServer(webApp.app);
-      httpFallbackServer.listen(httpsPort, () => {
-        logger.info("HTTP fallback server started on HTTPS port (no certificates available)", { port: httpsPort });
-      });
-    }
+    // No fallback listener on HTTPS port — without certificates, only HTTP is needed
   }
 
   // Graceful shutdown handlers
   const servers: http.Server[] = [webApp.httpServer];
   if (webApp.httpsServer) servers.push(webApp.httpsServer);
-  if (httpFallbackServer) servers.push(httpFallbackServer);
+
 
   const shutdown = (signal: string) => {
     logger.info("Shutdown initiated", { signal });

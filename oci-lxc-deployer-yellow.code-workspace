@@ -25,6 +25,13 @@
     "version": "2.0.0",
     "tasks": [
       {
+        "label": "build backend",
+        "type": "shell",
+        "command": "pnpm run build",
+        "options": { "cwd": "${workspaceFolder:backend}" },
+        "problemMatcher": ["$tsc"]
+      },
+      {
         "label": "start frontend",
         "type": "shell",
         "command": "pnpm start",
@@ -39,7 +46,7 @@
       {
         "name": "Launch Backend",
         "program": "${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
-        "preLaunchTask": "npm: build",
+        "preLaunchTask": "build backend",
         "request": "launch",
         "sourceMaps": true,
         "cwd": "${workspaceFolder:backend}",
