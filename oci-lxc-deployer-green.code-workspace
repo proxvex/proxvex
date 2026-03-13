@@ -6,12 +6,6 @@
     { "path": "backend" }
   ],
   "settings": {
-    "workbench.colorCustomizations": {
-      "activityBar.background": "#2e7d32",
-      "activityBar.foreground": "#ffffff",
-      "titleBar.activeBackground": "#2e7d32",
-      "titleBar.activeForeground": "#ffffff"
-    },
     "window.title": "${activeEditorShort} - oci-lxc-deployer [GREEN]",
 
     "claudeCode.allowDangerouslySkipPermissions": true,
@@ -23,6 +17,13 @@
   "tasks": {
     "version": "2.0.0",
     "tasks": [
+      {
+        "label": "build backend",
+        "type": "shell",
+        "command": "pnpm run build",
+        "options": { "cwd": "${workspaceFolder:backend}" },
+        "problemMatcher": ["$tsc"]
+      },
       {
         "label": "start frontend",
         "type": "shell",
@@ -38,7 +39,7 @@
       {
         "name": "Launch Backend",
         "program": "${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
-        "preLaunchTask": "npm: build",
+        "preLaunchTask": "build backend",
         "request": "launch",
         "sourceMaps": true,
         "cwd": "${workspaceFolder:backend}",
