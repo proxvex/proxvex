@@ -18,6 +18,11 @@ import { WebAppStack } from "./webapp-stack-routes.mjs";
 import { registerCertificateRoutes } from "./webapp-certificate-routes.mjs";
 import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
 import { createAuthMiddleware } from "./webapp-auth-middleware.mjs";
+import {
+  initOidc,
+  setupSession,
+  registerOidcRoutes,
+} from "./webapp-oidc.mjs";
 
 export class VEWebApp {
   app: express.Application;
@@ -37,14 +42,31 @@ export class VEWebApp {
     res.status(statusCode).json(payload);
   }
 
-  constructor(private storageContext: ContextManager) {
+  private constructor(private storageContext: ContextManager) {
     this.app = express();
     this.httpServer = http.createServer(this.app);
-    // No socket.io needed anymore
+  }
+
+  static async create(storageContext: ContextManager): Promise<VEWebApp> {
+    const instance = new VEWebApp(storageContext);
+    await instance.init();
+    return instance;
+  }
+
+  private async init(): Promise<void> {
     const staticDir = setupStaticRoutes(this.app);
 
-    // Optional Bearer token auth on /api/* routes (must be before route registration)
-    const authMiddleware = createAuthMiddleware();
+    // OIDC initialization (async - needs discovery)
+    const oidcConfig = await initOidc();
+
+    // Session middleware (needed for OIDC, set up before auth)
+    if (oidcConfig) {
+      setupSession(this.app);
+      registerOidcRoutes(this.app, oidcConfig);
+    }
+
+    // Auth middleware on /api/* routes (must be before route registration)
+    const authMiddleware = createAuthMiddleware(oidcConfig);
     if (authMiddleware) {
       this.app.use("/api", authMiddleware);
     }

@@ -8,8 +8,8 @@ import {
 describe("WebApp serves index.html", () => {
   let setup: WebAppStaticTestSetup;
 
-  beforeAll(() => {
-    setup = createWebAppStaticTestSetup(import.meta.url);
+  beforeAll(async () => {
+    setup = await createWebAppStaticTestSetup(import.meta.url);
   });
 
   afterAll(() => {

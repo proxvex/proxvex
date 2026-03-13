@@ -115,3 +115,31 @@
 	line-height: 20px;
 	text-align: center;
 }
+
+.auth-user {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.8rem;
+	color: #555;
+	margin-left: 0.5rem;
+
+	mat-icon {
+		font-size: 18px;
+		width: 18px;
+		height: 18px;
+	}
+}
+
+.auth-username {
+	max-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.logout-btn mat-icon {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+}

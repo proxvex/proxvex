@@ -4,9 +4,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { VeConfigurationService } from './ve-configuration.service';
+import { AuthService } from './auth/auth.service';
 import { take, filter } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
 import { CacheService } from './shared/services/cache.service';
@@ -14,7 +16,7 @@ import { ISsh } from '../shared/types';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, MatTooltipModule, MatSelectModule, MatFormFieldModule, MatIconModule, FormsModule, CommonModule],
+  imports: [RouterOutlet, RouterLink, MatTooltipModule, MatSelectModule, MatFormFieldModule, MatIconModule, FormsModule, CommonModule, MatButtonModule],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -22,6 +24,7 @@ export class App implements OnInit, OnDestroy {
   private cfg = inject(VeConfigurationService);
   private router = inject(Router);
   private cacheService = inject(CacheService);
+  auth = inject(AuthService);
   private routerSub?: Subscription;
   private previousUrl = '';
 

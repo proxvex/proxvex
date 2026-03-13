@@ -21,7 +21,7 @@ describe("WebApp Installations API", () => {
   let tmpPve: string;
   const veContextKey = "ve_testhost";
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Ensure VeExecution runs locally (no SSH) for this test
     process.env.LXC_MANAGER_TEST_MODE = "true";
 
@@ -87,7 +87,7 @@ describe("WebApp Installations API", () => {
     // Point scan logic to our fake dir in tests
     process.env.LXC_MANAGER_PVE_LXC_DIR = lxcDir;
 
-    app = new VEWebApp(ctx as any).app;
+    app = (await VEWebApp.create(ctx as any)).app;
   });
 
   afterEach(() => {

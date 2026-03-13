@@ -25,10 +25,14 @@ export class RemoteCli {
       options.token,
       options.insecure,
       options.fixturePath,
+      options.oidcCredentials,
     );
   }
 
   async run(): Promise<void> {
+    // Authenticate via OIDC if credentials are provided
+    await this.client.authenticateOidc();
+
     // 1. Read parameters file first to get application and task (unless generate-template mode)
     let paramsInput: {
       application: string;

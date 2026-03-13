@@ -206,6 +206,11 @@ export enum ApiUri {
   Stacks = "/api/stacks",
   Stack = "/api/stack/:id",
 
+  // Auth endpoints
+  AuthConfig = "/api/auth/config",
+  AuthLogin = "/api/auth/login",
+  AuthLogout = "/api/auth/logout",
+
   // Version / build info
   Version = "/api/version",
 

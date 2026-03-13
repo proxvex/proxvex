@@ -32,13 +32,14 @@ export interface WebAppStaticTestSetup {
   cleanup: () => void;
 }
 
-export function createWebAppTestSetup(
+export async function createWebAppTestSetup(
   testFileUrl: string,
   opts: CreateTestEnvironmentOptions = {},
-): WebAppTestSetup {
+): Promise<WebAppTestSetup> {
   const env = createTestEnvironment(testFileUrl, opts);
   const { ctx } = env.initPersistence();
-  const app = new VEWebApp(ctx as any).app;
+  const webApp = await VEWebApp.create(ctx as any);
+  const app = webApp.app;
   const cleanup = () => {
     try {
       env.cleanup();
@@ -129,9 +130,9 @@ export async function createWebAppVETestSetup(): Promise<WebAppVETestSetup> {
   return { helper, ctx, app, webAppVE, cleanup };
 }
 
-export function createWebAppStaticTestSetup(
+export async function createWebAppStaticTestSetup(
   testFileUrl: string,
-): WebAppStaticTestSetup {
+): Promise<WebAppStaticTestSetup> {
   const prevEnv = process.env.LXC_MANAGER_FRONTEND_DIR;
   const env = createTestEnvironment(testFileUrl);
 
@@ -144,7 +145,8 @@ export function createWebAppStaticTestSetup(
   process.env.LXC_MANAGER_FRONTEND_DIR = frontendDir;
 
   const { ctx } = env.initPersistence({ enableCache: false });
-  const app = new VEWebApp(ctx as any).app;
+  const webApp = await VEWebApp.create(ctx as any);
+  const app = webApp.app;
 
   const cleanup = () => {
     if (prevEnv === undefined) delete process.env.LXC_MANAGER_FRONTEND_DIR;

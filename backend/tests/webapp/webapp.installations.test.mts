@@ -19,11 +19,11 @@ describe("WebApp Installations API", () => {
   let tmpPve: string;
   const veContextKey = "ve_testhost";
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Ensure VeExecution runs locally (no SSH) for this test
     process.env.LXC_MANAGER_TEST_MODE = "true";
 
-    setup = createWebAppTestSetup(import.meta.url, {
+    setup = await createWebAppTestSetup(import.meta.url, {
       // Provide required scripts for /api/installations via json/ (no manual copying)
       jsonIncludePatterns: [
         ".*list/list-managed-oci-containers.*",

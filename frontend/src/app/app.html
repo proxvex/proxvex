@@ -35,6 +35,15 @@
     <button class="monitor-btn header-btn" type="button" aria-label="Process Monitor" routerLink="/monitor" matTooltip="Process Monitor">
       <span aria-hidden="true">📊</span>
     </button>
+    @if (auth.isOidcEnabled && auth.isAuthenticated) {
+      <span class="auth-user" matTooltip="Logged in as {{ auth.user?.name || auth.user?.email || 'User' }}">
+        <mat-icon>person</mat-icon>
+        <span class="auth-username">{{ auth.user?.name || auth.user?.email || 'User' }}</span>
+      </span>
+      <button class="logout-btn header-btn" type="button" aria-label="Logout" (click)="auth.logout()" matTooltip="Logout">
+        <mat-icon>logout</mat-icon>
+      </button>
+    }
   </span>
 </header>
 

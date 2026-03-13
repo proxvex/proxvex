@@ -13,8 +13,8 @@ describe("Stack API", () => {
   let app: express.Application;
   let setup: WebAppTestSetup;
 
-  beforeEach(() => {
-    setup = createWebAppTestSetup(import.meta.url);
+  beforeEach(async () => {
+    setup = await createWebAppTestSetup(import.meta.url);
     app = setup.app;
   });
 

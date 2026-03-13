@@ -21,15 +21,23 @@ import {
   ApiError,
 } from "./cli-types.mjs";
 
+export interface OidcCredentials {
+  issuerUrl: string;
+  clientId: string;
+  clientSecret: string;
+}
+
 export class CliApiClient {
   private baseUrl: string;
   private token?: string;
+  private oidcCredentials?: OidcCredentials;
   private fixtureDir?: string;
   private fixtureIndex = 0;
 
-  constructor(baseUrl: string, token?: string, insecure?: boolean, fixturePath?: string) {
+  constructor(baseUrl: string, token?: string, insecure?: boolean, fixturePath?: string, oidcCredentials?: OidcCredentials) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     if (token) this.token = token;
+    if (oidcCredentials) this.oidcCredentials = oidcCredentials;
     if (insecure) {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     }
@@ -37,6 +45,44 @@ export class CliApiClient {
       this.fixtureDir = fixturePath;
       mkdirSync(fixturePath, { recursive: true });
     }
+  }
+
+  /**
+   * Fetch a JWT via OIDC Client Credentials Grant.
+   * Called once before the first API request if oidcCredentials are set.
+   */
+  async authenticateOidc(): Promise<void> {
+    if (!this.oidcCredentials) return;
+    if (this.token) return; // Already have a token
+
+    const tokenUrl = `${this.oidcCredentials.issuerUrl}/oauth/v2/token`;
+    const params = new URLSearchParams({
+      grant_type: "client_credentials",
+      scope: "openid",
+    });
+
+    const credentials = Buffer.from(
+      `${this.oidcCredentials.clientId}:${this.oidcCredentials.clientSecret}`,
+    ).toString("base64");
+
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${credentials}`,
+      },
+      body: params.toString(),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new AuthenticationError(
+        `OIDC token request failed (${response.status}): ${detail}`,
+      );
+    }
+
+    const data = (await response.json()) as { access_token: string };
+    this.token = data.access_token;
   }
 
   private async request<T>(

@@ -15,10 +15,10 @@ describe("WebApp Enum Values API", () => {
   let setup: WebAppTestSetup;
   const veContextKey = "ve_testhost";
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.LXC_MANAGER_TEST_MODE = "true";
 
-    setup = createWebAppTestSetup(import.meta.url, {
+    setup = await createWebAppTestSetup(import.meta.url, {
       jsonIncludePatterns: [
         "^shared/templates/list/list-enum-values\\.json$",
       ],

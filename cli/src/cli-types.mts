@@ -15,6 +15,11 @@ export interface CliOptions {
   enableAddons?: string[];
   disableAddons?: string[];
   fixturePath?: string;
+  oidcCredentials?: {
+    issuerUrl: string;
+    clientId: string;
+    clientSecret: string;
+  };
 }
 
 export class CliError extends Error {

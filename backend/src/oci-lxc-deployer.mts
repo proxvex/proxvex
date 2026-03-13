@@ -99,7 +99,7 @@ async function startWebApp(
     }
   } catch {}
   const contextManager = pm.getContextManager();
-  const webApp = new VEWebApp(contextManager);
+  const webApp = await VEWebApp.create(contextManager);
   const httpPort = process.env.DEPLOYER_PORT || process.env.PORT || 3080;
   const httpsPort = process.env.DEPLOYER_HTTPS_PORT || 3443;
 

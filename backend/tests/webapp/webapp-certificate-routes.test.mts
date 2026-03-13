@@ -13,8 +13,8 @@ describe("Certificate API routes", () => {
   let setup: WebAppTestSetup;
   const veContextKey = "ve_testhost";
 
-  beforeEach(() => {
-    setup = createWebAppTestSetup(import.meta.url);
+  beforeEach(async () => {
+    setup = await createWebAppTestSetup(import.meta.url);
     app = setup.app;
     // Set up a VE context so routes can find it
     setup.ctx.setVEContext({ host: "testhost", current: true });

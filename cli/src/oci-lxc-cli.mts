@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { RemoteCli } from "./cli.mjs";
-import { CliApiClient } from "./cli-api-client.mjs";
+import { CliApiClient, type OidcCredentials } from "./cli-api-client.mjs";
 import { CliError } from "./cli-types.mjs";
 import type { CliOptions } from "./cli-types.mjs";
 
@@ -23,6 +23,9 @@ interface ParsedArgs {
   enableAddons?: string;
   disableAddons?: string;
   fixturePath?: string;
+  oidcIssuer?: string;
+  oidcClientId?: string;
+  oidcClientSecret?: string;
 }
 
 function parseArgs(): ParsedArgs {
@@ -78,6 +81,15 @@ function parseArgs(): ParsedArgs {
       } else if (arg === "--fixture-path") {
         args.fixturePath = argv[i + 1] ?? "";
         i += 2;
+      } else if (arg === "--oidc-issuer") {
+        args.oidcIssuer = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--oidc-client-id") {
+        args.oidcClientId = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--oidc-client-secret") {
+        args.oidcClientSecret = argv[i + 1] ?? "";
+        i += 2;
       } else if (!arg.startsWith("--")) {
         if (args.generateTemplate) {
           // generate-template mode: positional args are application, task, [output.json]
@@ -115,6 +127,15 @@ function parseArgs(): ParsedArgs {
       } else if (arg === "--insecure") {
         args.insecure = true;
         i += 1;
+      } else if (arg === "--oidc-issuer") {
+        args.oidcIssuer = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--oidc-client-id") {
+        args.oidcClientId = argv[i + 1] ?? "";
+        i += 2;
+      } else if (arg === "--oidc-client-secret") {
+        args.oidcClientSecret = argv[i + 1] ?? "";
+        i += 2;
       } else {
         i += 1;
       }
@@ -132,6 +153,15 @@ async function runRemoteCommand(args: ParsedArgs): Promise<void> {
     process.env.OCI_DEPLOYER_URL ||
     "http://localhost:3080";
   const token = args.token || process.env.OCI_DEPLOYER_TOKEN;
+
+  // Build OIDC credentials from args or env vars
+  const oidcIssuer = args.oidcIssuer || process.env.OIDC_ISSUER_URL;
+  const oidcClientId = args.oidcClientId || process.env.OIDC_CLI_CLIENT_ID;
+  const oidcClientSecret = args.oidcClientSecret || process.env.OIDC_CLI_CLIENT_SECRET;
+  let oidcCredentials: OidcCredentials | undefined;
+  if (oidcIssuer && oidcClientId && oidcClientSecret) {
+    oidcCredentials = { issuerUrl: oidcIssuer, clientId: oidcClientId, clientSecret: oidcClientSecret };
+  }
 
   if (!args.ve) {
     console.error("Error: --ve <host> is required");
@@ -174,6 +204,7 @@ async function runRemoteCommand(args: ParsedArgs): Promise<void> {
   if (args.enableAddons) options.enableAddons = args.enableAddons.split(",").filter(Boolean);
   if (args.disableAddons) options.disableAddons = args.disableAddons.split(",").filter(Boolean);
   if (args.fixturePath) options.fixturePath = args.fixturePath;
+  if (oidcCredentials) options.oidcCredentials = oidcCredentials;
 
   const cli = new RemoteCli(options);
   await cli.run();
@@ -186,7 +217,16 @@ async function runValidateCommand(args: ParsedArgs): Promise<void> {
     "http://localhost:3080";
   const token = args.token || process.env.OCI_DEPLOYER_TOKEN;
 
-  const client = new CliApiClient(server, token, args.insecure);
+  const oidcIssuer = args.oidcIssuer || process.env.OIDC_ISSUER_URL;
+  const oidcClientId = args.oidcClientId || process.env.OIDC_CLI_CLIENT_ID;
+  const oidcClientSecret = args.oidcClientSecret || process.env.OIDC_CLI_CLIENT_SECRET;
+  let oidcCreds: OidcCredentials | undefined;
+  if (oidcIssuer && oidcClientId && oidcClientSecret) {
+    oidcCreds = { issuerUrl: oidcIssuer, clientId: oidcClientId, clientSecret: oidcClientSecret };
+  }
+
+  const client = new CliApiClient(server, token, args.insecure, undefined, oidcCreds);
+  await client.authenticateOidc();
 
   try {
     const result = await client.getValidation();
@@ -241,6 +281,9 @@ function printHelp(): void {
   console.log("  --json                    All progress as JSON lines");
   console.log("  --timeout <seconds>       Max execution time (default: 1800)");
   console.log("  --fixture-path <dir>      Save HTTP request/response pairs as JSON fixtures");
+  console.log("  --oidc-issuer <url>       OIDC issuer URL (env: OIDC_ISSUER_URL)");
+  console.log("  --oidc-client-id <id>     OIDC client ID (env: OIDC_CLI_CLIENT_ID)");
+  console.log("  --oidc-client-secret <s>  OIDC client secret (env: OIDC_CLI_CLIENT_SECRET)");
   console.log("");
   console.log("Validate command:");
   console.log("  oci-lxc-cli validate [--server <url>]");
