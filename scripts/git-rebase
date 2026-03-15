@@ -35,7 +35,7 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 if [ "$1" = "--push" ]; then
   echo "${BLUE}==> Pushing with --force-with-lease...${NC}"
-  git push --force-with-lease origin "$CURRENT_BRANCH"
+  git push --force-with-lease -u origin "$CURRENT_BRANCH"
   echo "${GREEN}✓ Rebased and pushed.${NC}"
 else
   echo ""
