@@ -68,8 +68,8 @@ fi
 
 echo "OIDC environment variables written to $CONF_FILE" >&2
 
-# Reboot container to pick up new environment
-echo "Rebooting container $VM_ID..." >&2
-pct reboot "$VM_ID" 2>&1 >&2 || echo "WARNING: pct reboot failed (container may need manual restart)" >&2
+# Reboot container to pick up new environment (delayed so script output completes first)
+echo "Scheduling reboot for container $VM_ID..." >&2
+nohup sh -c "sleep 5; pct reboot $VM_ID" >/dev/null 2>&1 &
 
 echo '[]'

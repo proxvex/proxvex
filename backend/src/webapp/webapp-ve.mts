@@ -13,7 +13,6 @@ import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
 import { WebAppVeRouteHandlers } from "./webapp-ve-route-handlers.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { registerVeLogsRoutes } from "./webapp-ve-logs-routes.mjs";
-import { registerVeCopyUpgradeRoutes } from "./webapp-ve-copy-upgrade-routes.mjs";
 
 export class WebAppVE {
   private messageManager: WebAppVeMessageManager;
@@ -227,7 +226,6 @@ export class WebAppVE {
     });
 
     // Register extracted route modules
-    registerVeCopyUpgradeRoutes(this.app, this.routeHandlers);
     registerVeLogsRoutes(this.app);
   }
 }

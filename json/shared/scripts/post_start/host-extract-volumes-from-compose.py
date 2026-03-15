@@ -144,6 +144,11 @@ def main():
     # and are accessible from the VE host (e.g. for addon reconfigure).
     volumes_list.append("compose=opt/docker-compose")
 
+    # Persist Docker storage directory so images survive container recreation.
+    # During upgrades, images can be pre-pulled in the old container and
+    # reused by the new container without re-downloading.
+    volumes_list.append("docker=var/lib/docker")
+
     # Remove duplicates while preserving order
     seen = set()
     unique_volumes = []

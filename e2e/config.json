@@ -22,7 +22,9 @@
       "subnet": "10.99.1",
       "bridge": "vmbr1",
       "localPath": "./examples",
-      "filesystem": "zfs"
+      "filesystem": "zfs",
+      "veHost": "pve-e2e-nested.local",
+      "veSshPort": 22
     },
     "github-action": {
       "description": "GitHub Actions CI testing",

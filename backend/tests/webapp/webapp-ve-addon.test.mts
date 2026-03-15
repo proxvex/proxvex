@@ -411,12 +411,12 @@ describe("WebAppVE Addon Integration", () => {
 
   describe("Addon phase mapping for different tasks", () => {
     beforeEach(() => {
-      // Create a test application with copy-upgrade task
+      // Create a test application with upgrade task
       helper.writeApplication("testapp", {
         name: "Test App",
         description: "Test application",
         installation: { post_start: ["set-parameters.json"] },
-        "copy-upgrade": ["copy-upgrade.json"],
+        upgrade: ["upgrade.json"],
       } as any);
 
       helper.writeTemplate("testapp", "set-parameters.json", {
@@ -440,10 +440,10 @@ describe("WebAppVE Addon Integration", () => {
         ],
       });
 
-      helper.writeTemplate("testapp", "copy-upgrade.json", {
+      helper.writeTemplate("testapp", "upgrade.json", {
         execute_on: "ve",
-        name: "Copy-Upgrade",
-        description: "Copy-upgrade template",
+        name: "Upgrade",
+        description: "Upgrade template",
         parameters: [
           {
             id: "oci_image",
@@ -451,13 +451,6 @@ describe("WebAppVE Addon Integration", () => {
             type: "string",
             required: true,
             description: "OCI image reference",
-          },
-          {
-            id: "source_vm_id",
-            name: "Source VM ID",
-            type: "number",
-            required: true,
-            description: "Source container ID",
           },
         ],
         commands: [
@@ -469,7 +462,7 @@ describe("WebAppVE Addon Integration", () => {
       });
     });
 
-    it("should use upgrade phase for copy-upgrade task", async () => {
+    it("should use upgrade phase for upgrade task", async () => {
       // Create addon with upgrade templates
       writeAddon(helper.jsonDir, "upgrade-addon", {
         name: "Upgrade Addon",
@@ -477,7 +470,7 @@ describe("WebAppVE Addon Integration", () => {
         compatible_with: "*",
         notes_key: "upgrade-addon",
         upgrade: ["upgrade-template.json"],
-        post_start: ["post-template.json"], // Should NOT be used for copy-upgrade
+        post_start: ["post-template.json"], // Should NOT be used for upgrade
       });
 
       writeSharedTemplate(helper.jsonDir, "upgrade-template.json", {
@@ -492,7 +485,7 @@ describe("WebAppVE Addon Integration", () => {
         ],
       });
 
-      const url = ApiUri.VeCopyUpgrade.replace(
+      const url = ApiUri.VeConfiguration.replace(
         ":application",
         "testapp",
       ).replace(":veContext", veContextKey);
@@ -500,12 +493,12 @@ describe("WebAppVE Addon Integration", () => {
       const response = await request(app)
         .post(url)
         .send({
-          oci_image: "docker://alpine:3.19",
-          source_vm_id: 101,
+          task: "upgrade",
+          params: [{ name: "oci_image", value: "docker://alpine:3.19" }],
+          changedParams: [{ name: "oci_image", value: "docker://alpine:3.19" }],
           selectedAddons: ["upgrade-addon"],
-        });
+        } as IPostVeConfigurationBody);
 
-      // Copy-upgrade endpoint may have different validation
       // The important thing is it doesn't fail with 400 for invalid selectedAddons
       expect(response.status).not.toBe(400);
     });

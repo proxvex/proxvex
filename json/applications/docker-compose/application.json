@@ -50,8 +50,10 @@
       "095-host-check-kernel-modules.json",
       "096-host-load-kernel-modules.json"
     ],
+    "create_ct": [
+      { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
+    ],
     "pre_start": [
-      "100-conf-create-configure-lxc.json",
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
@@ -66,6 +68,62 @@
       "307-post-install-docker-rootless.json",
       "320-post-upload-docker-compose-files.json",
       "330-svc-start-docker-compose.json"
+    ]
+  },
+  "upgrade": {
+    "image": [
+      "010-host-get-latest-os-template.json",
+      "012-host-docker-pull-in-existing.json",
+      "095-host-check-kernel-modules.json",
+      "096-host-load-kernel-modules.json"
+    ],
+    "create_ct": [
+      { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
+    ],
+    "pre_start": [
+      "101-conf-configure-lxc-for-docker.json",
+      { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
+      "121-conf-mount-zfs-pool-on-host.json",
+      "160-conf-bind-multiple-volumes-to-lxc.json"
+    ],
+    "start": [
+      "200-start-lxc.json"
+    ],
+    "post_start": [
+      "305-post-set-pkg-mirror.json",
+      "307-post-install-docker-rootless.json",
+      "320-post-upload-docker-compose-files.json",
+      "330-svc-start-docker-compose.json"
+    ],
+    "replace_ct": [
+      "900-replace-ct.json"
+    ]
+  },
+  "addon-reconfigure": {
+    "image": [
+      "012-host-docker-pull-in-existing.json"
+    ],
+    "create_ct": [
+      "100-create-ct-clone.json"
+    ],
+    "pre_start": [
+      "101-conf-configure-lxc-for-docker.json",
+      { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
+      "121-conf-mount-zfs-pool-on-host.json",
+      "160-conf-bind-multiple-volumes-to-lxc.json",
+      "185-host-resolve-dependency-hosts.json"
+    ],
+    "start": [
+      "200-start-lxc.json"
+    ],
+    "post_start": [
+      "305-post-set-pkg-mirror.json",
+      "307-post-install-docker-rootless.json",
+      "320-post-upload-docker-compose-files.json",
+      "330-svc-start-docker-compose.json"
+    ],
+    "replace_ct": [
+      "900-replace-ct.json"
     ]
   }
 }

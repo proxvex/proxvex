@@ -42,22 +42,9 @@
     </div>
 
     <div class="card-actions">
-      <div class="split-button">
-        <button type="button" (click)="startUpgrade(it)"
-          matTooltip="In-place upgrade: replaces the container, no rollback"
-          matTooltipPosition="above">Upgrade</button>
-        <button type="button" class="split-toggle" [matMenuTriggerFor]="upgradeMenu">
-          <mat-icon>arrow_drop_down</mat-icon>
-        </button>
-        <mat-menu #upgradeMenu="matMenu">
-          <button mat-menu-item (click)="goToMonitor(it)"
-            matTooltip="Creates a copy so the previous version can be quickly reactivated"
-            matTooltipPosition="right">
-            <mat-icon>content_copy</mat-icon>
-            <span>Copy-Upgrade</span>
-          </button>
-        </mat-menu>
-      </div>
+      <button type="button" (click)="startUpgrade(it)"
+        matTooltip="Creates a new container with the latest image, then replaces the old one"
+        matTooltipPosition="above">Upgrade</button>
       <button type="button" class="secondary" (click)="editAddons(it)">Reconfigure</button>
     </div>
   </ng-template>

@@ -5,8 +5,8 @@ import { createLogger } from "../logger/index.mjs";
 
 const logger = createLogger("auth");
 
-// Zitadel role claim key
-const ZITADEL_ROLES_CLAIM = "urn:zitadel:iam:org:project:roles";
+// Zitadel role claim key prefix (project-specific: urn:zitadel:iam:org:project:{id}:roles)
+const ZITADEL_ROLES_CLAIM_PREFIX = "urn:zitadel:iam:org:project:";
 
 // Paths that are always public (no auth required)
 const PUBLIC_PATHS = ["/api/auth/config", "/api/auth/login", "/api/auth/callback"];
@@ -28,9 +28,8 @@ export function createAuthMiddleware(
   }
 
   // Create JWKS fetcher for JWT validation (cached)
-  const jwksUrl = new URL(
-    `${oidcConfig.issuerUrl}/.well-known/jwks.json`,
-  );
+  const jwksUri = oidcConfig.config.serverMetadata().jwks_uri;
+  const jwksUrl = new URL(jwksUri ?? `${oidcConfig.issuerUrl}/oauth/v2/keys`);
   const jwks = createRemoteJWKSet(jwksUrl);
 
   return async (
@@ -60,14 +59,24 @@ export function createAuthMiddleware(
           issuer: oidcConfig.issuerUrl,
         });
 
-        // Role check
+        // Role check — Zitadel uses project-specific claim keys:
+        // urn:zitadel:iam:org:project:roles (authorization_code flow)
+        // urn:zitadel:iam:org:project:{projectId}:roles (client_credentials flow)
         if (oidcConfig.requiredRole) {
-          const roles = payload[ZITADEL_ROLES_CLAIM];
-          if (
-            !roles ||
-            typeof roles !== "object" ||
-            !(oidcConfig.requiredRole in (roles as Record<string, unknown>))
-          ) {
+          let hasRole = false;
+          for (const [key, value] of Object.entries(payload)) {
+            if (
+              key.startsWith(ZITADEL_ROLES_CLAIM_PREFIX) &&
+              key.endsWith(":roles") &&
+              value &&
+              typeof value === "object" &&
+              oidcConfig.requiredRole in (value as Record<string, unknown>)
+            ) {
+              hasRole = true;
+              break;
+            }
+          }
+          if (!hasRole) {
             logger.warn(
               `[auth] JWT denied: missing role '${oidcConfig.requiredRole}' for sub=${payload.sub}`,
             );

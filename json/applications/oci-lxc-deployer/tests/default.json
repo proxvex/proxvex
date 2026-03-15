@@ -3,6 +3,14 @@
     {
       "name": "OIDC_PROJECT_NAME",
       "value": "proxmox"
+    },
+    {
+      "name": "volume_storage",
+      "value": "local-zfs"
+    },
+    {
+      "name": "memory",
+      "value": "1024"
     }
   ]
 }

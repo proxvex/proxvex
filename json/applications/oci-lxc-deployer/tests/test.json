@@ -2,11 +2,22 @@
   "default": {
     "depends_on": ["zitadel/default"],
     "addons": ["addon-oidc"],
+    "wait_seconds": 30,
     "cli_timeout": 900,
     "verify": {
       "oidc_enabled": true,
       "oidc_api_protected": true,
       "oidc_machine_login": true
+    }
+  },
+  "upgrade": {
+    "task": "upgrade",
+    "depends_on": ["oci-lxc-deployer/default"],
+    "wait_seconds": 30,
+    "cli_timeout": 900,
+    "verify": {
+      "container_running": true,
+      "notes_managed": true
     }
   }
 }

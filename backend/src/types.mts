@@ -64,8 +64,7 @@ export type TaskType =
   | "uninstall"
   | "update"
   | "upgrade"
-  | "copy-upgrade"
-  | "copy-rollback"
+  | "reconfigure"
   | "addon-reconfigure"
   | "webui"
   | "addon";
@@ -101,6 +100,8 @@ export interface ICommand {
   description?: string;
   /** @internal execute_on is set internally from template.execute_on, not part of the schema */
   execute_on?: "ve" | "lxc" | string;
+  /** @internal category is set internally from the template's category for look-ahead skip logic */
+  category?: string;
 }
 
 export interface IVeExecuteMessage {
@@ -195,8 +196,6 @@ export enum ApiUri {
   ApplicationFrameworkData = "/api/application/:applicationId/framework-data",
   ApplicationTestData = "/api/application/:applicationId/test-data",
   TestScenarios = "/api/test-scenarios",
-
-  VeCopyUpgrade = "/api/:veContext/ve/copy-upgrade/:application",
 
   CompatibleAddons = "/api/addons/compatible/:application",
   AddonInstall = "/api/:veContext/addons/install/:addonId",
@@ -297,6 +296,8 @@ export interface IPostVeConfigurationBody {
   changedParams?: { name: string; value: IParameterValue }[];
   selectedAddons?: string[];
   disabledAddons?: string[];
+  /** Addons currently installed in the container (from notes markers). Used for delta injection. */
+  installedAddons?: string[];
   stackId?: string;
 }
 export interface IPostEnumValuesBody {
@@ -372,27 +373,6 @@ export interface IManagedOciContainer {
 
 export type IInstallationsResponse = IManagedOciContainer[];
 
-export interface IPostVeCopyUpgradeBody {
-  oci_image: string;
-  source_vm_id: number;
-  vm_id?: number;
-  application_id?: string;
-  application_name?: string;
-  version?: string;
-  disk_size?: string;
-  bridge?: string;
-  memory?: number;
-
-  // Optional OCI download/import knobs (mirrors 011-get-oci-image.json)
-  storage?: string;
-  registry_username?: string;
-  registry_password?: string;
-  registry_token?: string;
-  platform?: string;
-
-  // Addons to re-apply after upgrade (from container notes markers)
-  selectedAddons?: string[];
-}
 
 export type IVeExecuteMessagesResponse = ISingleExecuteMessagesResponse[];
 export interface IVeConfigurationResponse {
@@ -561,7 +541,7 @@ export interface IAddon {
     pre_start?: AddonTemplateReference[];
     post_start?: AddonTemplateReference[];
   };
-  /** Templates for copy-upgrade */
+  /** Templates for upgrade/reconfigure */
   upgrade?: AddonTemplateReference[];
   /** Templates for disabling a previously installed addon */
   disable?: {

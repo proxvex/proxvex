@@ -60,10 +60,7 @@
     "upgrade": {
       "$ref": "categorized-templatelist"
     },
-    "copy-upgrade": {
-      "$ref": "categorized-templatelist"
-    },
-    "copy-rollback": {
+    "reconfigure": {
       "$ref": "categorized-templatelist"
     },
     "addon-reconfigure": {

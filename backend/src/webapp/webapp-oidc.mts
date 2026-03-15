@@ -36,10 +36,17 @@ export async function initOidc(): Promise<OidcConfig | null> {
   }
 
   try {
+    // Allow HTTP for internal/LAN issuer URLs (e.g. http://zitadel:8080)
+    const discoveryOptions: Parameters<typeof client.discovery>[4] =
+      new URL(issuerUrl).protocol === "http:"
+        ? { execute: [client.allowInsecureRequests] }
+        : undefined;
     const config = await client.discovery(
       new URL(issuerUrl),
       clientId,
       { client_secret: clientSecret },
+      undefined,
+      discoveryOptions,
     );
     logger.info(`[oidc] OIDC initialized with issuer: ${issuerUrl}`);
     const result: OidcConfig = { config, issuerUrl, clientId, callbackUrl };
@@ -71,19 +78,29 @@ export function setupSession(app: Application): void {
   );
 }
 
-// Zitadel role claim key
-const ZITADEL_ROLES_CLAIM = "urn:zitadel:iam:org:project:roles";
+// Zitadel role claim key prefix (project-specific: urn:zitadel:iam:org:project:{id}:roles)
+const ZITADEL_ROLES_CLAIM_PREFIX = "urn:zitadel:iam:org:project:";
 
 /**
  * Check if a roles claim contains the required role.
+ * Zitadel uses project-specific claim keys:
+ *   urn:zitadel:iam:org:project:roles (authorization_code flow)
+ *   urn:zitadel:iam:org:project:{projectId}:roles (client_credentials flow)
  */
 function hasRole(
   claims: Record<string, unknown>,
   requiredRole: string,
 ): boolean {
-  const roles = claims[ZITADEL_ROLES_CLAIM];
-  if (roles && typeof roles === "object") {
-    return requiredRole in (roles as Record<string, unknown>);
+  for (const [key, value] of Object.entries(claims)) {
+    if (
+      key.startsWith(ZITADEL_ROLES_CLAIM_PREFIX) &&
+      key.endsWith(":roles") &&
+      value &&
+      typeof value === "object" &&
+      requiredRole in (value as Record<string, unknown>)
+    ) {
+      return true;
+    }
   }
   return false;
 }

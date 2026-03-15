@@ -31,7 +31,7 @@ export class WebAppVeAddonCommandBuilder {
         return "installation";
       case "addon-reconfigure":
         return "reconfigure";
-      case "copy-upgrade":
+      case "reconfigure":
       case "upgrade":
         return "upgrade";
       default:

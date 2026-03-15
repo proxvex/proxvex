@@ -242,6 +242,10 @@ export class TemplateProcessor extends EventEmitter {
       await this.#processTemplate(ptOpts);
     }
 
+    // Look-ahead: conditionally skip create_ct and start categories
+    // based on whether downstream categories have unskipped templates
+    this.applyLookaheadSkipping(outCommands);
+
     const processedTemplatesArray =
       this.traceBuilder.buildProcessedTemplatesArray(
         processedTemplates,
@@ -447,6 +451,7 @@ export class TemplateProcessor extends EventEmitter {
           command: "exit 0",
           description,
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(opts.templateCategory && { category: opts.templateCategory }),
         };
         opts.commands.push(skippedCommand);
       }
@@ -590,6 +595,7 @@ export class TemplateProcessor extends EventEmitter {
             ? { scriptContent: scriptResolution.content }
             : {}),
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(opts.templateCategory && { category: opts.templateCategory }),
         };
 
         if (cmd.library !== undefined) {
@@ -629,6 +635,7 @@ export class TemplateProcessor extends EventEmitter {
         const commandToAdd: ICommand = {
           ...cmd,
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(opts.templateCategory && { category: opts.templateCategory }),
         };
         opts.commands.push(commandToAdd);
       } else {
@@ -639,11 +646,50 @@ export class TemplateProcessor extends EventEmitter {
           ...cmd,
           name: cmd.name || tmplData.name || "unnamed-template",
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(opts.templateCategory && { category: opts.templateCategory }),
         };
         opts.commands.push(commandToAdd);
       }
     }
   }
+  /**
+   * Look-ahead skip logic for create_ct and start categories.
+   * - create_ct is skipped if pre_start has no unskipped commands
+   * - start is skipped if post_start has no unskipped commands
+   * - replace_ct is never skipped
+   */
+  private applyLookaheadSkipping(commands: ICommand[]): void {
+    const hasUnskipped = (category: string): boolean =>
+      commands.some(
+        (c) => c.category === category && !c.name.includes("(skipped)"),
+      );
+
+    if (!hasUnskipped("pre_start")) {
+      this.skipCommandsByCategory(commands, "create_ct");
+    }
+    if (!hasUnskipped("post_start")) {
+      this.skipCommandsByCategory(commands, "start");
+    }
+  }
+
+  private skipCommandsByCategory(
+    commands: ICommand[],
+    category: string,
+  ): void {
+    for (let i = 0; i < commands.length; i++) {
+      const cmd = commands[i]!;
+      if (cmd.category === category && !cmd.name.includes("(skipped)")) {
+        commands[i] = {
+          name: `${cmd.name} (skipped)`,
+          command: "exit 0",
+          description: "Skipped by look-ahead: no unskipped templates in downstream category",
+          ...(cmd.execute_on ? { execute_on: cmd.execute_on } : {}),
+          category: cmd.category,
+        };
+      }
+    }
+  }
+
   async getUnresolvedParameters(
     application: string,
     task: TaskType,

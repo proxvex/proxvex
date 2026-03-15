@@ -29,6 +29,7 @@ OIDC_PROJECT_NAME="{{ OIDC_PROJECT_NAME }}"
 # Guard against NOT_DEFINED
 if [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then DOMAIN_SUFFIX=""; fi
 if [ "$OIDC_APP_NAME" = "NOT_DEFINED" ]; then OIDC_APP_NAME=""; fi
+if [ "$OIDC_PROJECT_NAME" = "NOT_DEFINED" ]; then OIDC_PROJECT_NAME=""; fi
 
 # Default project name to hostname if not set
 if [ -z "$OIDC_PROJECT_NAME" ]; then

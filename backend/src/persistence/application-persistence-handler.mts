@@ -683,7 +683,7 @@ export class ApplicationPersistenceHandler {
     opts: IReadApplicationOptions,
   ): void {
     // Installation uses category-based format: { image, pre_start, start, post_start }
-    const installationCategories = ["image", "pre_start", "start", "post_start"];
+    const installationCategories = ["image", "create_ct", "pre_start", "start", "post_start", "replace_ct"];
     const installation = (appData as any).installation;
     if (installation && typeof installation === "object") {
       let taskEntry = opts.taskTemplates.find((t) => t.task === "installation");
@@ -717,8 +717,8 @@ export class ApplicationPersistenceHandler {
       }
     }
 
-    // upgrade, copy-upgrade, copy-rollback: support both array (flat) and object (category-based) format
-    for (const key of ["upgrade", "copy-upgrade", "copy-rollback"] as const) {
+    // upgrade, reconfigure: support both array (flat) and object (category-based) format
+    for (const key of ["upgrade", "reconfigure"] as const) {
       const value = (appData as any)[key];
       if (!value) continue;
 
@@ -888,9 +888,11 @@ export class ApplicationPersistenceHandler {
    */
   private static readonly CATEGORY_ORDER = [
     "image",
+    "create_ct",
     "pre_start",
     "start",
     "post_start",
+    "replace_ct",
   ];
 
   /**

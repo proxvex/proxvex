@@ -1,0 +1,38 @@
+{
+  "execute_on": "ve",
+  "name": "Clone Container",
+  "description": "Creates a new LXC container by cloning an existing one. Used for reconfigure and addon-reconfigure tasks where the OS image stays the same but configuration changes.",
+  "parameters": [
+    {
+      "id": "source_vm_id",
+      "name": "Source VM ID",
+      "type": "number",
+      "required": true,
+      "description": "Existing LXC container ID to clone. Must be a container created by oci-lxc-deployer."
+    },
+    {
+      "id": "vm_id",
+      "name": "Target VM ID",
+      "type": "number",
+      "default": "",
+      "advanced": true,
+      "description": "Optional: VM/CT ID for the new container. If empty, the next free ID will be used (respecting vm_id_start if set)."
+    },
+    {
+      "id": "vm_id_start",
+      "name": "VM ID Start",
+      "type": "number",
+      "default": "",
+      "advanced": true,
+      "description": "Optional: Start index for auto-assigned VM IDs. The next free ID starting from this value will be used."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Clone Container",
+      "script": "create-ct-clone.sh",
+      "library": "upgrade-common.sh",
+      "outputs": ["vm_id", "source_vm_id", "installed_addons"]
+    }
+  ]
+}

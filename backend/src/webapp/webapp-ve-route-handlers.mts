@@ -229,11 +229,26 @@ export class WebAppVeRouteHandlers {
       }
 
       // Insert addon templates at correct positions for each phase
-      const selectedAddons = body.selectedAddons ?? [];
-      const disabledAddons = body.disabledAddons ?? [];
+      // For addon-reconfigure/reconfigure with installedAddons: only inject changed addons (delta)
+      const installedAddons = body.installedAddons ?? [];
+      let selectedAddons = body.selectedAddons ?? [];
+      let disabledAddons = body.disabledAddons ?? [];
+
+      if (installedAddons.length > 0 && (task === "addon-reconfigure" || task === "reconfigure")) {
+        // Delta injection: only inject templates for NEW addons (not already installed)
+        const installedSet = new Set(installedAddons);
+        const selectedSet = new Set(selectedAddons);
+
+        // New addons = selected but not installed
+        const newAddons = selectedAddons.filter(a => !installedSet.has(a));
+        // Removed addons = installed but not selected (merge with explicitly disabled)
+        const removedAddons = installedAddons.filter(a => !selectedSet.has(a));
+        disabledAddons = [...new Set([...disabledAddons, ...removedAddons])];
+        // Only inject templates for new addons
+        selectedAddons = newAddons;
+      }
 
       if (selectedAddons.length > 0) {
-
         commands = await this.addonCommandBuilder.insertAddonCommands(
           commands,
           selectedAddons,

@@ -47,6 +47,7 @@ export interface TestScenario {
   description: string;
   depends_on?: string[];
   task?: string;
+  vm_id?: number;
   addons?: string[];
   wait_seconds?: number;
   cli_timeout?: number;
@@ -105,6 +106,8 @@ interface E2EConfig {
     filesystem?: string;
     deployerHost?: string;
     deployerPort?: string;
+    veHost?: string;
+    veSshPort?: number;
   }>;
   defaults: Record<string, unknown>;
   ports: {
@@ -339,6 +342,8 @@ function loadConfig(instanceName?: string): {
   deployerUrl: string;
   deployerHttpsUrl: string;
   bridge: string;
+  veHost: string;
+  veSshPort: number;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
   const configPath = path.join(projectRoot, "e2e/config.json");
@@ -378,6 +383,12 @@ function loadConfig(instanceName?: string): {
     deployerHttpsUrl = `https://${pveHost}:${portDeployerHttps}`;
   }
 
+  // veHost/veSshPort: how the deployer (inside the nested VM) reaches the PVE host.
+  // Defaults to pveHost:portPveSsh (same as external), but can be overridden
+  // for nested setups where the deployer uses a different hostname/port.
+  const veHost = inst.veHost ? resolveEnv(inst.veHost) : pveHost;
+  const veSshPort = inst.veSshPort ?? portPveSsh;
+
   return {
     instance,
     pveHost,
@@ -386,6 +397,8 @@ function loadConfig(instanceName?: string): {
     deployerUrl,
     deployerHttpsUrl,
     bridge: inst.bridge || "vmbr0",
+    veHost,
+    veSshPort,
   };
 }
 
@@ -431,6 +444,24 @@ async function apiFetch<T>(baseUrl: string, apiPath: string): Promise<T | null> 
   } catch {
     return null;
   }
+}
+
+/** Tasks that use create_ct + replace_ct (old container must stay running) */
+const REPLACE_CT_TASKS = ["upgrade", "addon-reconfigure", "reconfigure"];
+
+/** Find an existing managed container by application_id via the installations API */
+async function findExistingVm(
+  apiUrl: string,
+  veHost: string,
+  applicationId: string,
+): Promise<{ vm_id: number; addons?: string[] } | null> {
+  const veContextKey = `ve_${veHost}`;
+  const containers = await apiFetch<Array<{ vm_id: number; application_id?: string; addons?: string[] }>>(
+    apiUrl,
+    `/api/${veContextKey}/installations`,
+  );
+  if (!containers) return null;
+  return containers.find((c) => c.application_id === applicationId) ?? null;
 }
 
 async function discoverApiUrl(httpUrl: string, httpsUrl: string): Promise<string> {
@@ -618,7 +649,7 @@ class Verifier {
 
   tlsConnect(vmId: number, port: number) {
     const ip = this.ssh(
-      `pct exec ${vmId} -- ip -4 addr show eth0 | grep inet | awk '{print $2}' | cut -d/ -f1`,
+      `pct exec ${vmId} -- ip -4 addr show eth0 | sed -n 's/.*inet \\([0-9.]*\\).*/\\1/p' | head -1`,
     );
     if (!ip) {
       logFail(`[${vmId}] Cannot determine container IP for TLS check`);
@@ -655,9 +686,122 @@ class Verifier {
 
   private getContainerIp(vmId: number): string | null {
     const ip = this.ssh(
-      `pct exec ${vmId} -- ip -4 addr show eth0 | grep inet | awk '{print $2}' | cut -d/ -f1`,
+      `pct exec ${vmId} -- ip -4 addr show eth0 | sed -n 's/.*inet \\([0-9.]*\\).*/\\1/p' | head -1`,
     ).trim();
     return ip || null;
+  }
+
+  private getContainerHostname(vmId: number): string | null {
+    const hostname = this.ssh(`pct exec ${vmId} -- hostname`).trim();
+    return hostname || null;
+  }
+
+  /**
+   * Set up a test project in Zitadel with a test user and admin role.
+   * Provides prerequisites for downstream OIDC tests (e.g. oci-lxc-deployer).
+   */
+  zitadelSetupTestProject(vmId: number) {
+    const ip = this.getContainerIp(vmId);
+    if (!ip) {
+      logFail(`[${vmId}] Cannot determine container IP`);
+      this.failed++;
+      return;
+    }
+
+    // Read admin PAT
+    const pat = this.ssh(
+      `pct exec ${vmId} -- cat /bootstrap/admin-client.pat`,
+    ).trim();
+    if (!pat) {
+      logFail(`[${vmId}] Cannot read admin-client.pat`);
+      this.failed++;
+      return;
+    }
+
+    const hostname = this.getContainerHostname(vmId) ?? ip;
+    const issuerUrl = `http://${ip}:8080`;
+    const mgmtApi = `${issuerUrl}/management/v1`;
+    const curlAuth = `curl -sf -H 'Host: ${hostname}:8080' -H 'Authorization: Bearer ${pat}' -H 'Content-Type: application/json'`;
+
+    // 1. Create project "proxmox" with projectRoleAssertion (includes roles in JWT tokens)
+    let projectId: string | undefined;
+    const projectResult = this.ssh(
+      `${curlAuth} -X POST ${mgmtApi}/projects -d '{"name":"proxmox","projectRoleAssertion":true}'`,
+      15000,
+    );
+    try {
+      const parsed = JSON.parse(projectResult);
+      projectId = parsed.id;
+    } catch { /* ignore */ }
+
+    if (!projectId) {
+      // Project might already exist
+      const projectSearch = this.ssh(
+        `${curlAuth} -X POST ${mgmtApi}/projects/_search -d '{"queries":[{"nameQuery":{"name":"proxmox","method":"TEXT_QUERY_METHOD_EQUALS"}}]}'`,
+        15000,
+      );
+      try {
+        const parsed = JSON.parse(projectSearch);
+        projectId = parsed.result?.[0]?.id;
+      } catch { /* ignore */ }
+    }
+
+    if (!projectId) {
+      logFail(`[${vmId}] Cannot create/find project 'proxmox'`);
+      this.failed++;
+      return;
+    }
+
+    // Ensure projectRoleAssertion is enabled (adds role claims to tokens)
+    this.ssh(
+      `${curlAuth} -X PUT ${mgmtApi}/projects/${projectId} -d '{"name":"proxmox","projectRoleAssertion":true}'`,
+      15000,
+    );
+    logOk(`[${vmId}] Zitadel project 'proxmox': ${projectId} (projectRoleAssertion=true)`);
+
+    // 2. Create role "admin"
+    this.ssh(
+      `${curlAuth} -X POST ${mgmtApi}/projects/${projectId}/roles -d '{"roleKey":"admin","displayName":"Admin"}' 2>/dev/null || true`,
+      15000,
+    );
+    logOk(`[${vmId}] Role 'admin' ensured in project`);
+
+    // 3. Create test user (human, verified email, known password)
+    let testUserId: string | undefined;
+    const userResult = this.ssh(
+      `${curlAuth} -X POST ${issuerUrl}/v2/users/human -d '{"username":"testadmin","profile":{"givenName":"Test","familyName":"Admin"},"email":{"email":"testadmin@zitadel-default","isVerified":true},"password":{"password":"TestAdmin-1234","changeRequired":false}}'`,
+      15000,
+    );
+    try {
+      const parsed = JSON.parse(userResult);
+      testUserId = parsed.userId;
+    } catch { /* ignore */ }
+
+    if (!testUserId) {
+      // User might already exist
+      const userSearch = this.ssh(
+        `${curlAuth} -X POST ${mgmtApi}/users/_search -d '{"queries":[{"userNameQuery":{"userName":"testadmin","method":"TEXT_QUERY_METHOD_EQUALS"}}]}'`,
+        15000,
+      );
+      try {
+        const parsed = JSON.parse(userSearch);
+        testUserId = parsed.result?.[0]?.id;
+      } catch { /* ignore */ }
+    }
+
+    if (!testUserId) {
+      logFail(`[${vmId}] Cannot create/find test user 'testadmin'`);
+      this.failed++;
+      return;
+    }
+    logOk(`[${vmId}] Test user 'testadmin': ${testUserId}`);
+
+    // 4. Grant admin role to test user
+    this.ssh(
+      `${curlAuth} -X POST ${mgmtApi}/users/${testUserId}/grants -d '{"projectId":"${projectId}","roleKeys":["admin"]}' 2>/dev/null || true`,
+      15000,
+    );
+    logOk(`[${vmId}] Test user granted 'admin' role in project 'proxmox'`);
   }
 
   oidcEnabled(vmId: number) {
@@ -668,7 +812,7 @@ class Verifier {
       return;
     }
     const result = this.ssh(
-      `curl -sf --connect-timeout 5 http://${ip}:3000/api/auth/config`,
+      `curl -sf --connect-timeout 5 http://${ip}:3080/api/auth/config`,
       20000,
     );
     let ok = false;
@@ -680,16 +824,23 @@ class Verifier {
   }
 
   oidcApiProtected(vmId: number) {
-    const ip = this.getContainerIp(vmId);
-    if (!ip) {
-      logFail(`[${vmId}] Cannot determine container IP for OIDC API protection check`);
-      this.failed++;
-      return;
+    // Retry: deployer reboots after OIDC configuration (IP may change via DHCP)
+    let statusCode = "000";
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const ip = this.getContainerIp(vmId);
+      if (!ip) {
+        if (attempt < 5) { this.ssh("sleep 5"); }
+        continue;
+      }
+      statusCode = this.ssh(
+        `curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 http://${ip}:3080/api/applications`,
+        30000,
+      ).trim();
+      if (statusCode === "401") break;
+      if (attempt < 5) {
+        this.ssh("sleep 5");
+      }
     }
-    const statusCode = this.ssh(
-      `curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 http://${ip}:3000/api/applications`,
-      20000,
-    ).trim();
     this.assert(statusCode === "401", `[${vmId}] API is protected (status=${statusCode}, expected 401)`);
   }
 
@@ -718,7 +869,7 @@ class Verifier {
 
     // Read PAT from Zitadel container
     const pat = this.ssh(
-      `pct exec ${zitadelVm.vmId} -- cat /bootstrap/login-client.pat`,
+      `pct exec ${zitadelVm.vmId} -- cat /bootstrap/admin-client.pat`,
     ).trim();
     if (!pat) {
       logFail(`[${vmId}] Cannot read Zitadel PAT from VM ${zitadelVm.vmId}`);
@@ -726,9 +877,10 @@ class Verifier {
       return;
     }
 
+    const zitadelHostname = this.getContainerHostname(zitadelVm.vmId) ?? zitadelIp;
     const issuerUrl = `http://${zitadelIp}:8080`;
     const mgmtApi = `${issuerUrl}/management/v1`;
-    const curlAuth = `curl -sf -H 'Authorization: Bearer ${pat}' -H 'Content-Type: application/json'`;
+    const curlAuth = `curl -sf -H 'Host: ${zitadelHostname}:8080' -H 'Authorization: Bearer ${pat}' -H 'Content-Type: application/json'`;
 
     // 1. Find the project (search for "proxmox" project)
     const projectSearch = this.ssh(
@@ -819,9 +971,11 @@ class Verifier {
       15000,
     );
 
-    // 6. Fetch JWT via Client Credentials Grant
+    // 6. Fetch JWT via Client Credentials Grant (include project audience + roles scopes)
+    const projectAudScope = `urn:zitadel:iam:org:project:id:${projectId}:aud`;
+    const rolesScope = "urn:zitadel:iam:org:projects:roles";
     const tokenResult = this.ssh(
-      `curl -sf -X POST -u '${clientId}:${clientSecret}' -d 'grant_type=client_credentials&scope=openid' ${issuerUrl}/oauth/v2/token`,
+      `curl -sf -H 'Host: ${zitadelHostname}:8080' -X POST -u '${clientId}:${clientSecret}' -d 'grant_type=client_credentials&scope=openid+${projectAudScope}+${rolesScope}' ${issuerUrl}/oauth/v2/token`,
       20000,
     );
     let accessToken: string | undefined;
@@ -839,7 +993,7 @@ class Verifier {
 
     // 7. Call deployer API with JWT
     const apiResult = this.ssh(
-      `curl -sf -H 'Authorization: Bearer ${accessToken}' --connect-timeout 5 http://${ip}:3000/api/applications`,
+      `curl -sf -H 'Authorization: Bearer ${accessToken}' --connect-timeout 5 http://${ip}:3080/api/applications`,
       20000,
     );
     let apiOk = false;
@@ -863,6 +1017,7 @@ class Verifier {
     if (verify.pg_ssl_on) this.pgSslOn(vmId);
     if (verify.db_ssl_connection) this.dbSslConnection(vmId);
     if (typeof verify.file_exists === "string") this.fileExists(vmId, verify.file_exists);
+    if (verify.zitadel_setup_test_project) this.zitadelSetupTestProject(vmId);
     if (verify.oidc_enabled) this.oidcEnabled(vmId);
     if (verify.oidc_api_protected) this.oidcApiProtected(vmId);
     if (verify.oidc_machine_login && planned) await this.oidcMachineLogin(vmId, planned);
@@ -911,7 +1066,7 @@ function planScenarios(
   let nextVmId = VM_ID_START;
 
   return scenarios.map((scenario) => {
-    const vmId = nextVmId++;
+    const vmId = scenario.vm_id ?? nextVmId++;
     const rawStacktype = appStacktypes.get(scenario.application);
     const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
     const hasStacktype = stacktypes.length > 0;
@@ -1079,11 +1234,12 @@ async function executeScenarios(
         continue;
       }
 
-      // Build params
+      // Build params — for replace_ct tasks, don't preset vm_id (create_ct assigns it)
+      const isReplaceCt = REPLACE_CT_TASKS.includes(task);
       const baseParams = [
         { name: "hostname", value: step.hostname },
         { name: "bridge", value: config.bridge },
-        { name: "vm_id", value: String(step.vmId) },
+        ...(!isReplaceCt ? [{ name: "vm_id", value: String(step.vmId) }] : []),
       ];
 
       const templateVars: Record<string, string> = {
@@ -1093,6 +1249,20 @@ async function executeScenarios(
       };
 
       const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
+
+      // For upgrade/reconfigure: find existing VM via installations API
+      if (isReplaceCt) {
+        const existing = await findExistingVm(apiUrl, veHost, scenario.application);
+        if (!existing) {
+          const errMsg = `No existing VM found for ${scenario.application} — cannot ${task}`;
+          logFail(errMsg);
+          result.errors.push(errMsg);
+          result.failed++;
+          break;
+        }
+        buildResult.params.push({ name: "source_vm_id", value: String(existing.vm_id) });
+        logInfo(`Found existing VM ${existing.vm_id} for ${task} (source_vm_id)`);
+      }
 
       // Addons come from scenario params file (selectedAddons)
       const allAddons = buildResult.selectedAddons ?? [];
@@ -1155,17 +1325,32 @@ async function executeScenarios(
         break;
       }
 
-      logOk(`Container created: VM_ID=${step.vmId}, hostname=${step.hostname}`);
+      // For replace_ct tasks: discover the new VM ID (create_ct assigned a new one)
+      if (isReplaceCt) {
+        const newVm = await findExistingVm(apiUrl, veHost, scenario.application);
+        if (newVm) {
+          logOk(`replace_ct: new VM_ID=${newVm.vm_id} (was ${step.vmId})`);
+          step.vmId = newVm.vm_id;
+        }
+      }
+
+      logOk(`Container ready: VM_ID=${step.vmId}, hostname=${step.hostname}`);
       result.steps.push({
         vmId: step.vmId, hostname: step.hostname,
         application: scenario.application, scenarioId: scenario.id,
         cliOutput: cliResult.output,
       });
 
-      // Wait for docker services (only for docker-compose apps)
+      // Wait for services after installation/reconfigure
       const appMeta = appMetaMap.get(scenario.application) ?? {};
-      if (scenario.wait_seconds && scenario.wait_seconds > 0 && appMeta.extends === "docker-compose") {
-        await waitForServices(config.pveHost, config.portPveSsh, step.vmId, scenario.wait_seconds);
+      if (scenario.wait_seconds && scenario.wait_seconds > 0) {
+        if (appMeta.extends === "docker-compose") {
+          await waitForServices(config.pveHost, config.portPveSsh, step.vmId, scenario.wait_seconds);
+        } else {
+          // For non-docker apps (e.g. oci-image after reboot), wait a fixed time
+          logInfo(`Waiting ${scenario.wait_seconds}s for container to be ready...`);
+          await new Promise((r) => setTimeout(r, scenario.wait_seconds! * 1000));
+        }
       }
       const defaultVerify = buildDefaultVerify(scenario, appMeta);
       const finalVerify = { ...defaultVerify, ...(scenario.verify ?? {}) };
@@ -1341,6 +1526,7 @@ async function main() {
   console.log(`Test:      ${testArg}`);
   console.log(`Deployer:  ${config.deployerUrl} (HTTPS: ${config.deployerHttpsUrl})`);
   console.log(`PVE Host:  ${config.pveHost}:${config.portPveSsh}`);
+  console.log(`VE Host:   ${config.veHost}:${config.veSshPort}`);
   console.log(`PVE Web:   ${config.pveWebUrl}`);
   console.log(`SSH:       ssh -p ${config.portPveSsh} root@${config.pveHost}`);
   console.log("");
@@ -1370,8 +1556,8 @@ async function main() {
   }
 
   // Ensure VE host SSH config exists on the deployer
-  const veHost = config.pveHost;
-  const veSshPort = config.portPveSsh;
+  const veHost = config.veHost;
+  const veSshPort = config.veSshPort;
   const veConfigResp = await apiFetch<{ key: string }>(apiUrl, `/api/ssh/config/${encodeURIComponent(veHost)}`);
   if (veConfigResp?.key) {
     logOk(`VE host '${veHost}' already configured on deployer`);
@@ -1462,9 +1648,13 @@ async function main() {
       process.exit(1);
     }
 
+    const task = p.scenario.task || "installation";
     if (p.isDependency && status.includes("running")) {
       logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
       p.skipExecution = true;
+    } else if (REPLACE_CT_TASKS.includes(task) && status.includes("running")) {
+      // upgrade/reconfigure/addon-reconfigure: keep existing VM, don't destroy
+      logOk(`VM ${p.vmId} (${p.scenario.id}) running — ${task} in place`);
     } else if (!p.isDependency || status.includes("status:")) {
       // Target VMs: always try to destroy (even if status check failed)
       // Dependency VMs: only destroy if they exist but aren't running
@@ -1474,15 +1664,15 @@ async function main() {
         30000);
     }
 
-    // Clean volumes only for targets (not for reused dependencies)
-    if (!p.skipExecution) {
+    // Clean volumes only for targets (not for reused dependencies or replace_ct tasks)
+    if (!p.skipExecution && !REPLACE_CT_TASKS.includes(task)) {
       nestedSsh(config.pveHost, config.portPveSsh,
         `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(p.hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
         15000);
     }
 
-    // Verify VM is actually gone (for targets)
-    if (!p.skipExecution && !p.isDependency) {
+    // Verify VM is actually gone (for targets, not replace_ct tasks)
+    if (!p.skipExecution && !p.isDependency && !REPLACE_CT_TASKS.includes(task)) {
       const verify = nestedSsh(config.pveHost, config.portPveSsh,
         `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
       if (verify.includes("status:")) {

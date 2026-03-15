@@ -24,7 +24,6 @@ class MockVeConfigurationService {
       icon: '',
     },
   ]));
-  postVeCopyUpgrade = vi.fn(() => of({ success: true, restartKey: 'rk_test' }));
   postVeUpgrade = vi.fn(() => of({ success: true, restartKey: 'rk_test' }));
 }
 
@@ -57,10 +56,9 @@ describe('InstalledList component (vitest)', () => {
     expect(svc.getInstallations).toHaveBeenCalledTimes(1);
 
     const el: HTMLElement = fixture.nativeElement as HTMLElement;
-    // 2 cards with 3 buttons each (Upgrade + dropdown-toggle + Reconfigure) = 6
-    // Note: Copy-Upgrade is inside a mat-menu overlay, not a direct button
+    // 2 cards with 2 buttons each (Upgrade + Reconfigure) = 4
     const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.card-actions button'));
-    expect(buttons.length).toBe(6);
+    expect(buttons.length).toBe(4);
 
     // Click Upgrade button (index 0) of the first card
     buttons[0].click();

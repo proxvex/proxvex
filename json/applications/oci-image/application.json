@@ -7,8 +7,10 @@
     "image": [
       "011-host-get-oci-image.json"
     ],
+    "create_ct": [
+      { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
+    ],
     "pre_start": [
-      "100-conf-create-configure-lxc.json",
       "107-conf-oci-lxc-configuration.json",
       "160-conf-bind-multiple-volumes-to-lxc.json",
       "185-host-resolve-dependency-hosts.json"
@@ -18,45 +20,34 @@
       "210-wait-for-container-ready.json"
     ],
     "post_start": [
-      "305-post-set-pkg-mirror.json",
-      "900-post-cleanup-previous-container.json"
+      "305-post-set-pkg-mirror.json"
     ]
   },
   "upgrade": {
     "image": [
       "011-host-get-oci-image.json"
     ],
-    "start": [
-      "221-upgrade-oci-lxc.json"
-    ]
-  },
-  "copy-upgrade": {
-    "image": [
-      "011-host-get-oci-image.json"
+    "create_ct": [
+      { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
+    ],
+    "pre_start": [
+      "107-conf-oci-lxc-configuration.json",
+      "160-conf-bind-multiple-volumes-to-lxc.json"
     ],
     "start": [
-      "220-copy-upgrade-oci-lxc.json"
-    ]
-  },
-  "upgrade": {
-    "image": [
-      "011-host-get-oci-image.json"
+      "200-start-lxc.json",
+      "210-wait-for-container-ready.json"
     ],
-    "start": [
-      "221-upgrade-oci-lxc.json"
-    ]
-  },
-  "copy-upgrade": {
-    "image": [
-      "011-host-get-oci-image.json"
+    "post_start": [
+      "305-post-set-pkg-mirror.json"
     ],
-    "start": [
-      "220-copy-upgrade-oci-lxc.json"
+    "replace_ct": [
+      "900-replace-ct.json"
     ]
   },
   "addon-reconfigure": {
-    "image": [
-      "050-stop-lxc.json"
+    "create_ct": [
+      "100-create-ct-clone.json"
     ],
     "pre_start": [
       "set-addon-reconfigure-defaults.json",
@@ -67,6 +58,9 @@
     "start": [
       "200-start-lxc.json",
       "210-wait-for-container-ready.json"
+    ],
+    "replace_ct": [
+      "900-replace-ct.json"
     ]
   }
 }

@@ -55,7 +55,7 @@ export interface IApplicationWeb {
     stacktype?: string | string[] | undefined;
     errors?: IJsonError[];
 }
-export type TaskType = "installation" | "backup" | "restore" | "uninstall" | "update" | "upgrade" | "copy-upgrade" | "copy-rollback" | "addon-reconfigure" | "webui" | "addon";
+export type TaskType = "installation" | "backup" | "restore" | "uninstall" | "update" | "upgrade" | "reconfigure" | "addon-reconfigure" | "webui" | "addon";
 export interface IOutputObject {
     id: string;
     value?: string | number | boolean | (string | {
@@ -88,6 +88,8 @@ export interface ICommand {
     description?: string;
     /** @internal execute_on is set internally from template.execute_on, not part of the schema */
     execute_on?: "ve" | "lxc" | string;
+    /** @internal category is set internally from the template's category for look-ahead skip logic */
+    category?: string;
 }
 export interface IVeExecuteMessage {
     command: string;
@@ -168,7 +170,6 @@ export declare enum ApiUri {
     FrameworkCreateApplication = "/api/framework-create-application",
     FrameworkFromImage = "/api/framework-from-image",
     ApplicationFrameworkData = "/api/application/:applicationId/framework-data",
-    VeCopyUpgrade = "/api/:veContext/ve/copy-upgrade/:application",
     CompatibleAddons = "/api/addons/compatible/:application",
     AddonInstall = "/api/:veContext/addons/install/:addonId",
     PreviewUnresolvedParameters = "/api/:veContext/preview-unresolved-parameters",
@@ -253,6 +254,8 @@ export interface IPostVeConfigurationBody {
     }[];
     selectedAddons?: string[];
     disabledAddons?: string[];
+    /** Addons currently installed in the container (from notes markers). Used for delta injection. */
+    installedAddons?: string[];
     stackId?: string;
 }
 export interface IPostEnumValuesBody {
@@ -309,23 +312,7 @@ export interface IManagedOciContainer {
     volumes?: string;
 }
 export type IInstallationsResponse = IManagedOciContainer[];
-export interface IPostVeCopyUpgradeBody {
-    oci_image: string;
-    source_vm_id: number;
-    vm_id?: number;
-    application_id?: string;
-    application_name?: string;
-    version?: string;
-    disk_size?: string;
-    bridge?: string;
-    memory?: number;
-    storage?: string;
-    registry_username?: string;
-    registry_password?: string;
-    registry_token?: string;
-    platform?: string;
-    selectedAddons?: string[];
-}
+
 export type IVeExecuteMessagesResponse = ISingleExecuteMessagesResponse[];
 export interface IVeConfigurationResponse {
     success: boolean;
@@ -478,7 +465,7 @@ export interface IAddon {
         pre_start?: AddonTemplateReference[];
         post_start?: AddonTemplateReference[];
     };
-    /** Templates for copy-upgrade */
+    /** Templates for upgrade/reconfigure */
     upgrade?: AddonTemplateReference[];
     /** Templates for disabling a previously installed addon */
     disable?: {

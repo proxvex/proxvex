@@ -28,6 +28,22 @@ export interface SshExecutorDependencies {
 }
 
 /**
+ * Check if an interpreter array represents a shell (sh) interpreter.
+ * Handles both direct interpreters (["sh"]) and lxc-attach wrapped interpreters
+ * (["lxc-attach", "-n", "201", "--", "sh"]).
+ */
+function isShellInterpreter(interpreter?: string[]): boolean {
+  if (!interpreter || interpreter.length === 0 || !interpreter[0]) return true;
+  // For lxc-attach commands, check the interpreter after "--"
+  if (interpreter[0] === "lxc-attach") {
+    const sep = interpreter.indexOf("--");
+    const inner = sep >= 0 ? interpreter[sep + 1] : undefined;
+    return !inner || inner === "sh" || inner.endsWith("/sh");
+  }
+  return interpreter[0] === "sh" || interpreter[0].endsWith("/sh");
+}
+
+/**
  * Handles SSH/remote command execution for VeExecution.
  */
 export class VeExecutionSshExecutor {
@@ -186,19 +202,13 @@ export class VeExecutionSshExecutor {
       // Production: use ssh with executionArgs (which contains SSH args + optional interpreter)
       actualCommand = "ssh";
       // For production, prepend marker to script for shell scripts
-      if (
-        !interpreter ||
-        interpreter.length === 0 ||
-        !interpreter[0] ||
-        interpreter[0] === "sh" ||
-        interpreter[0].endsWith("/sh")
-      ) {
+      if (isShellInterpreter(interpreter)) {
         actualArgs = executionArgs;
         actualInput = `export LC_ALL=C LANG=C\necho "${marker}"\n${input}`;
       } else {
         // For non-shell interpreters in production, run interpreter via sh -c so we can export locale
         const baseArgs = this.buildExecutionArgs(undefined);
-        const interpreterCmd = interpreter.join(" ");
+        const interpreterCmd = interpreter!.join(" ");
         actualArgs = [
           ...baseArgs,
           "sh",
@@ -209,13 +219,7 @@ export class VeExecutionSshExecutor {
       }
     } else {
       // Test mode: use sh -c with "echo 'MARKER' && interpreter" for non-shell interpreters
-      if (
-        !interpreter ||
-        interpreter.length === 0 ||
-        !interpreter[0] ||
-        interpreter[0] === "sh" ||
-        interpreter[0].endsWith("/sh")
-      ) {
+      if (isShellInterpreter(interpreter)) {
         // Shell script: just prepend echo marker
         actualCommand = "sh";
         actualArgs = [];
@@ -224,7 +228,7 @@ export class VeExecutionSshExecutor {
         // For non-shell interpreters: use sh -c with "echo 'MARKER' && interpreter"
         // The script content goes via stdin to this command
         // Format: sh -c 'echo "MARKER" && python3' < script.py
-        const interpreterCmd = interpreter.join(" ");
+        const interpreterCmd = interpreter!.join(" ");
         actualCommand = "sh";
         actualArgs = ["-c", `echo "${marker}" && ${interpreterCmd}`];
         // Script content goes via stdin (separate from the -c argument)
@@ -281,16 +285,10 @@ export class VeExecutionSshExecutor {
 
           // Rebuild args with verbose=true for retry (removes -q, sets LogLevel=DEBUG)
           const verboseArgs = this.buildExecutionArgs(interpreter, true);
-          if (
-            !interpreter ||
-            interpreter.length === 0 ||
-            !interpreter[0] ||
-            interpreter[0] === "sh" ||
-            interpreter[0].endsWith("/sh")
-          ) {
+          if (isShellInterpreter(interpreter)) {
             actualArgs = verboseArgs;
           } else {
-            const interpreterCmd = interpreter.join(" ");
+            const interpreterCmd = interpreter!.join(" ");
             actualArgs = [
               ...this.buildExecutionArgs(undefined, true),
               "sh",

@@ -524,6 +524,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     const currentlySelected = this.selectedAddons();
     const disabled = this.installedAddons.filter(id => !currentlySelected.includes(id));
     this.formManager.setDisabledAddons(disabled);
+    this.formManager.setInstalledAddons(this.installedAddons);
 
     // Addons are already set in formManager via toggleAddon() -> setSelectedAddons()
     this.formManager.install(this.data.app.id, this.task).subscribe({

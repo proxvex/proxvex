@@ -391,7 +391,7 @@ describe("ApplicationPersistenceHandler", () => {
     });
 
     it("should inherit upgrade task from parent when child does not define it", () => {
-      // Setup: Parent Application with upgrade and copy-upgrade tasks
+      // Setup: Parent Application with upgrade task
       const parentDir = persistenceHelper.resolve(
         Volume.JsonApplications,
         "parent-with-upgrade",
@@ -406,7 +406,6 @@ describe("ApplicationPersistenceHandler", () => {
             pre_start: ["100-parent-pre-start.json"],
           },
           upgrade: ["221-upgrade.json"],
-          "copy-upgrade": ["220-copy-upgrade.json"],
         },
       );
 
@@ -442,15 +441,6 @@ describe("ApplicationPersistenceHandler", () => {
       expect(getTemplateNames(upgradeTask?.templates)).toContain(
         "221-upgrade.json",
       );
-
-      // Copy-upgrade task should also be inherited
-      const copyUpgradeTask = opts.taskTemplates.find(
-        (t) => t.task === "copy-upgrade",
-      );
-      expect(copyUpgradeTask).toBeDefined();
-      expect(getTemplateNames(copyUpgradeTask?.templates)).toContain(
-        "220-copy-upgrade.json",
-      );
     });
 
     it("should process category-based upgrade format", () => {
@@ -468,10 +458,6 @@ describe("ApplicationPersistenceHandler", () => {
           upgrade: {
             image: ["011-get-image.json"],
             start: ["221-upgrade.json"],
-          },
-          "copy-upgrade": {
-            image: ["011-get-image.json"],
-            start: ["220-copy-upgrade.json"],
           },
         },
       );
@@ -496,15 +482,6 @@ describe("ApplicationPersistenceHandler", () => {
       expect(upgradeNames.indexOf("011-get-image.json")).toBeLessThan(
         upgradeNames.indexOf("221-upgrade.json"),
       );
-
-      // Copy-upgrade should also work
-      const copyUpgradeTask = opts.taskTemplates.find(
-        (t) => t.task === "copy-upgrade",
-      );
-      expect(copyUpgradeTask).toBeDefined();
-      const copyNames = getTemplateNames(copyUpgradeTask?.templates);
-      expect(copyNames).toContain("011-get-image.json");
-      expect(copyNames).toContain("220-copy-upgrade.json");
     });
 
     it("should inherit category-based upgrade from parent", () => {

@@ -50,6 +50,8 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_FIRSTNAME: Admin
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_LASTNAME: User
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL: "admin@{{ ZITADEL_EXTERNALDOMAIN }}"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PREFERREDLANGUAGE: en
     volumes:
       - /bootstrap:/zitadel/bootstrap
@@ -57,8 +59,8 @@ services:
       test: ["CMD", "/app/zitadel", "ready"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 120s
+      retries: 15
+      start_period: 300s
     networks:
       - zitadel
 

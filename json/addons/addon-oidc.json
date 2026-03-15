@@ -46,9 +46,6 @@
   },
 
   "reconfigure": {
-    "pre_start": [
-      "162-conf-configure-oidc-app.json"
-    ],
     "post_start": [
       "350-post-setup-oidc-client.json",
       "355-post-configure-oidc-app.json"

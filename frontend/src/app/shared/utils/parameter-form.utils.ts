@@ -24,6 +24,7 @@ export class ParameterFormManager {
   private readonly initialValues = new Map<string, IParameterValue>();
   private selectedAddons: string[] = [];
   private disabledAddons: string[] = [];
+  private installedAddons: string[] = [];
   private selectedStack: IStack | null = null;
   private hostnameManuallyChanged = false;
 
@@ -79,6 +80,11 @@ export class ParameterFormManager {
   /** Sets disabled addons (previously installed, now deselected) */
   setDisabledAddons(addons: string[]): void {
     this.disabledAddons = addons;
+  }
+
+  /** Sets installed addons (from container notes, for delta injection) */
+  setInstalledAddons(addons: string[]): void {
+    this.installedAddons = addons;
   }
 
   /**
@@ -213,6 +219,7 @@ export class ParameterFormManager {
       this.selectedAddons.length > 0 ? this.selectedAddons : undefined,
       this.disabledAddons.length > 0 ? this.disabledAddons : undefined,
       stackId,
+      this.installedAddons.length > 0 ? this.installedAddons : undefined,
     ).pipe(
       tap((res) => {
         const extras: NavigationExtras = {

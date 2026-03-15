@@ -476,7 +476,7 @@ export class VeExecution extends EventEmitter {
         actualTimeout,
         tmplCommand,
         command,
-        interpreter,
+        finalLxcCmd,
       );
 
     const msg = this.sshExecutor.createMessageFromResult(

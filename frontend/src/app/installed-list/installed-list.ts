@@ -45,25 +45,6 @@ export class InstalledList implements OnInit {
     });
   }
 
-  goToMonitor(installation: IManagedOciContainer) {
-    const application = installation.application_id || 'oci-lxc-deployer';
-    this.svc.postVeCopyUpgrade(application, {
-      source_vm_id: installation.vm_id,
-      oci_image: installation.oci_image,
-      application_id: installation.application_id,
-      application_name: installation.application_name,
-      version: installation.version,
-      selectedAddons: installation.addons,
-    }).subscribe({
-      next: () => {
-        this.router.navigate(['/monitor']);
-      },
-      error: () => {
-        this.error = 'Error starting upgrade copy';
-      },
-    });
-  }
-
   startUpgrade(installation: IManagedOciContainer) {
     const application = installation.application_id || 'oci-lxc-deployer';
     this.svc.postVeUpgrade(application, {
@@ -78,7 +59,7 @@ export class InstalledList implements OnInit {
         this.router.navigate(['/monitor']);
       },
       error: () => {
-        this.error = 'Error starting in-place upgrade';
+        this.error = 'Error starting upgrade';
       },
     });
   }

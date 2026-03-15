@@ -1,0 +1,59 @@
+{
+  "execute_on": "ve",
+  "name": "Replace Container",
+  "description": "Replaces the old container with the new one. Starts the new container if not already running, stops and destroys the old container. Runs on the PVE host so it can safely replace the deployer's own container.",
+  "parameters": [
+    {
+      "id": "source_vm_id",
+      "name": "Source VM ID",
+      "type": "number",
+      "required": true,
+      "description": "Old container ID to be stopped and destroyed."
+    },
+    {
+      "id": "vm_id",
+      "name": "New VM ID",
+      "type": "number",
+      "required": true,
+      "description": "New container ID that replaces the old one."
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of the new container (used for redirect URL)."
+    },
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "default": "3000",
+      "advanced": true,
+      "description": "HTTP port of the new instance."
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "default": "3443",
+      "advanced": true,
+      "description": "HTTPS port of the new instance."
+    },
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer Base URL",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Auto-injected by backend: External deployer URL (e.g. https://deployer.example.com). Used for redirect when set."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Replace Container",
+      "script": "replace-ct.sh",
+      "outputs": ["redirect_url"]
+    }
+  ]
+}

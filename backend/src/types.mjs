@@ -23,7 +23,6 @@ export var ApiUri;
     ApiUri["FrameworkCreateApplication"] = "/api/framework-create-application";
     ApiUri["FrameworkFromImage"] = "/api/framework-from-image";
     ApiUri["ApplicationFrameworkData"] = "/api/application/:applicationId/framework-data";
-    ApiUri["VeCopyUpgrade"] = "/api/:veContext/ve/copy-upgrade/:application";
     ApiUri["CompatibleAddons"] = "/api/addons/compatible/:application";
     ApiUri["AddonInstall"] = "/api/:veContext/addons/install/:addonId";
     ApiUri["PreviewUnresolvedParameters"] = "/api/:veContext/preview-unresolved-parameters";
