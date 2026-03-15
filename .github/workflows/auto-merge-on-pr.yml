@@ -20,6 +20,6 @@ jobs:
       || startsWith(github.head_ref, 'release-please--')) }}
     steps:
       - uses: actions/checkout@v5
-      - run: gh pr merge ${{ github.event.pull_request.number }} --auto --rebase
+      - run: gh pr merge ${{ github.event.pull_request.number }} --auto --squash
         env:
           GH_TOKEN: ${{ secrets.PAT }}

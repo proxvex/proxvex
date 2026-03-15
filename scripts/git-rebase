@@ -1,0 +1,42 @@
+#!/bin/sh
+# Rebase current branch on upstream/main and optionally push.
+#
+# Usage:
+#   ./scripts/git-rebase          # rebase only
+#   ./scripts/git-rebase --push   # rebase + force-push
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Check upstream remote
+if ! git remote get-url upstream >/dev/null 2>&1; then
+  echo "${RED}Error: No 'upstream' remote configured.${NC}"
+  echo "Add it with: git remote add upstream git@github.com:modbus2mqtt/oci-lxc-deployer.git"
+  exit 1
+fi
+
+echo "${BLUE}==> Fetching upstream...${NC}"
+git fetch upstream
+
+echo "${BLUE}==> Rebasing on upstream/main...${NC}"
+if git rebase upstream/main; then
+  echo "${GREEN}✓ Rebased on upstream/main${NC}"
+else
+  echo "${RED}Rebase failed. Resolve conflicts, then:${NC}"
+  echo "  git rebase --continue"
+  echo "  git push --force-with-lease"
+  exit 1
+fi
+
+if [ "$1" = "--push" ]; then
+  echo "${BLUE}==> Pushing with --force-with-lease...${NC}"
+  git push --force-with-lease
+  echo "${GREEN}✓ Rebased and pushed.${NC}"
+else
+  echo ""
+  echo "Push with: git push --force-with-lease"
+  echo "Or run:    ./scripts/git-rebase --push"
+fi

@@ -1,18 +1,12 @@
 #!/bin/sh
-# Pre-push hook to sync with upstream and update main branch before pushing
-# This hook runs before every git push to ensure the local repository is up-to-date
-# with the upstream (GitHub) repository and that the current branch is based on the latest main.
+# Pre-push hook: rebase on upstream/main before pushing
+#
+# Ensures your feature branch is always based on the latest upstream/main.
+# Uses rebase (not merge) to keep a clean, linear history.
 #
 # Requirements:
-#   - gh (GitHub CLI) must be installed and authenticated
-#   - git must be available
-#
-# Behavior:
-#   1. Syncs the GitHub fork with the upstream repository (if configured)
-#   2. Fetches latest changes from origin
-#   3. Updates local main branch to match origin/main (fast-forward only)
-#   4. Merges main into the current branch
-#   5. Aborts and exits with error if merge conflicts occur
+#   - 'upstream' remote pointing to the main repository
+#   - No uncommitted changes (commit or stash before pushing)
 #
 # To skip this hook temporarily: git push --no-verify
 
@@ -21,204 +15,94 @@ set -e
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Sync dependencies (fast check, auto-repairs if needed)
+# --- Step 1: Dependency sync check ---
 echo "${BLUE}==> Checking dependency sync...${NC}"
 if ! node scripts/sync-dependencies.mjs; then
   echo "${RED}Error: Failed to sync dependencies${NC}"
   exit 1
 fi
 
-# Color codes for output (reset for rest of script)
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Get current branch
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-
-echo "${BLUE}==> Pre-push hook started${NC}"
-echo "${BLUE}==> Current branch: ${CURRENT_BRANCH}${NC}"
-
-# Check if gh is installed
-if ! command -v gh >/dev/null 2>&1; then
-  echo "${YELLOW}Warning: GitHub CLI (gh) is not installed. Skipping upstream sync.${NC}"
-  echo "${YELLOW}Install gh from: https://cli.github.com/${NC}"
-else
-  # Sync fork with upstream (if this is a fork)
-  echo "${BLUE}==> Syncing GitHub repository with upstream...${NC}"
-  # Use sync without --force to avoid overwriting local work
-  # If conflicts exist, gh repo sync will fail and show instructions
-  if gh repo sync 2>/dev/null; then
-    echo "${GREEN}✓ GitHub repository synced with upstream${NC}"
-  else
-    # Sync failed - could be due to conflicts or not being a fork
-    SYNC_EXIT_CODE=$?
-    if [ $SYNC_EXIT_CODE -ne 0 ]; then
-      echo "${YELLOW}Note: GitHub upstream sync was not possible${NC}"
-      echo "${YELLOW}This could mean:${NC}"
-      echo "${YELLOW}  - This repository is not a fork${NC}"
-      echo "${YELLOW}  - The fork has diverged from upstream (conflicting commits)${NC}"
-      echo "${YELLOW}  - No upstream repository is configured${NC}"
-      echo ""
-      
-      # Try to get upstream URL
-      UPSTREAM_URL=$(gh repo view --json parent -q .parent.url 2>/dev/null || echo "")
-      
-      if [ -n "$UPSTREAM_URL" ]; then
-        echo "${YELLOW}Gentle alternative - Compare upstream in separate branch:${NC}"
-        
-        # Check if upstream remote already exists
-        if git remote get-url upstream >/dev/null 2>&1; then
-          echo "  1. ${GREEN}✓${NC} Upstream remote already configured"
-        else
-          echo "  1. Add upstream as remote:"
-          echo "     ${BLUE}git remote add upstream ${UPSTREAM_URL}${NC}"
-        fi
-        
-        echo "  2. Fetch upstream into new branch:"
-        echo "     ${BLUE}git fetch upstream main:upstream-compare${NC}"
-        echo "  3. Compare changes:"
-        echo "     ${BLUE}git diff main upstream-compare${NC}"
-        echo "  4. Merge upstream changes into main:"
-        echo "     ${BLUE}git checkout main${NC}"
-        echo "     ${BLUE}git merge upstream-compare${NC}"
-        echo "     ${BLUE}git checkout ${CURRENT_BRANCH}${NC}"
-        echo "  5. Merge main into your branch:"
-        echo "     ${BLUE}git merge main${NC}"
-        echo "  6. Push your changes:"
-        echo "     ${BLUE}git push${NC}"
-        echo ""
-      fi
-      
-      echo "${YELLOW}Or sync directly (${RED}overwrites your fork on GitHub!${YELLOW}):${NC}"
-      echo "     ${RED}gh repo sync --force${NC}"
-      echo ""
-      echo "${YELLOW}Continuing with local repository sync...${NC}"
-      # Don't fail the hook - continue with local sync
-    fi
-  fi
-fi
-
-# Fetch latest changes from origin
-echo "${BLUE}==> Fetching latest changes from origin...${NC}"
-if ! git fetch origin; then
-  echo "${RED}Error: Failed to fetch from origin${NC}"
+# Check if sync modified files (package.json, lock files)
+if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+  echo "${RED}========================================${NC}"
+  echo "${RED}Dependency sync made changes.${NC}"
+  echo "${RED}========================================${NC}"
+  echo "${YELLOW}Stage and commit them, then push again:${NC}"
+  echo "  git add package.json pnpm-lock.yaml"
+  echo "  git commit -m 'chore: sync dependencies'"
+  echo "  git push"
   exit 1
 fi
-echo "${GREEN}✓ Fetched latest changes${NC}"
 
-# Save current state
-ORIGINAL_BRANCH="$CURRENT_BRANCH"
-STASH_NEEDED=0
+# --- Step 2: Get current branch, skip if not a feature branch ---
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-# Check if there are uncommitted changes
+# Skip for main, master, and release-please branches
+case "$CURRENT_BRANCH" in
+  main|master|release-please--*)
+    echo "${GREEN}==> Skipping rebase for branch: ${CURRENT_BRANCH}${NC}"
+    exit 0
+    ;;
+esac
+
+echo "${BLUE}==> Pre-push hook: ${CURRENT_BRANCH}${NC}"
+
+# --- Step 3: Check for uncommitted changes ---
 if ! git diff-index --quiet HEAD --; then
-  echo "${YELLOW}Stashing uncommitted changes...${NC}"
-  STASH_COUNT_BEFORE=$(git stash list | wc -l)
-  git stash push -m "pre-push hook stash" --include-untracked
-  STASH_COUNT_AFTER=$(git stash list | wc -l)
-  if [ "$STASH_COUNT_AFTER" -gt "$STASH_COUNT_BEFORE" ]; then
-    STASH_NEEDED=1
-  else
-    echo "${YELLOW}Nothing was actually stashed, continuing...${NC}"
-  fi
+  echo "${RED}========================================${NC}"
+  echo "${RED}Uncommitted changes detected.${NC}"
+  echo "${RED}========================================${NC}"
+  echo "${YELLOW}Commit or stash your changes before pushing:${NC}"
+  echo "  git add -A && git commit -m 'wip: save progress'"
+  echo "  # or"
+  echo "  git stash"
+  exit 1
 fi
 
-# Function to restore state and exit
-cleanup_and_exit() {
-  EXIT_CODE=$1
-  if [ "$STASH_NEEDED" -eq 1 ]; then
-    echo "${BLUE}==> Restoring stashed changes...${NC}"
-    git stash pop
-  fi
-  exit "$EXIT_CODE"
-}
+# --- Step 4: Check upstream remote ---
+if ! git remote get-url upstream >/dev/null 2>&1; then
+  echo "${YELLOW}Warning: No 'upstream' remote configured. Skipping rebase.${NC}"
+  echo "${YELLOW}Add it with:${NC}"
+  echo "  git remote add upstream git@github.com:modbus2mqtt/oci-lxc-deployer.git"
+  exit 0
+fi
 
-# Update main branch if it exists
-if git show-ref --verify --quiet refs/heads/main; then
-  MAIN_BRANCH="main"
-elif git show-ref --verify --quiet refs/heads/master; then
-  MAIN_BRANCH="master"
+# --- Step 5: Fetch upstream ---
+echo "${BLUE}==> Fetching upstream...${NC}"
+if ! git fetch upstream; then
+  echo "${YELLOW}Warning: Failed to fetch upstream. Continuing without rebase.${NC}"
+  exit 0
+fi
+
+# --- Step 6: Check if rebase is needed ---
+if git merge-base --is-ancestor upstream/main HEAD; then
+  echo "${GREEN}✓ Already up-to-date with upstream/main${NC}"
+  exit 0
+fi
+
+# --- Step 7: Rebase on upstream/main ---
+echo "${BLUE}==> Rebasing ${CURRENT_BRANCH} on upstream/main...${NC}"
+if git rebase upstream/main; then
+  echo "${GREEN}========================================${NC}"
+  echo "${GREEN}✓ Rebased on upstream/main successfully${NC}"
+  echo "${GREEN}========================================${NC}"
+  exit 0
 else
-  echo "${YELLOW}Warning: Neither main nor master branch found. Skipping main branch update.${NC}"
-  cleanup_and_exit 0
+  echo "${RED}========================================${NC}"
+  echo "${RED}Rebase conflict detected!${NC}"
+  echo "${RED}========================================${NC}"
+  echo ""
+  echo "${YELLOW}To resolve and continue:${NC}"
+  echo "  1. Fix conflicts in your editor"
+  echo "  2. Stage resolved files: git add <files>"
+  echo "  3. Continue rebase: git rebase --continue"
+  echo "  4. Push again: git push"
+  echo ""
+  echo "${YELLOW}To abort the rebase:${NC}"
+  echo "  git rebase --abort"
+  exit 1
 fi
-
-echo "${BLUE}==> Updating ${MAIN_BRANCH} branch...${NC}"
-
-# Update main branch ref without checkout (worktree-safe)
-# Check if fast-forward is possible
-LOCAL_MAIN=$(git rev-parse "refs/heads/${MAIN_BRANCH}")
-ORIGIN_MAIN=$(git rev-parse "origin/${MAIN_BRANCH}" 2>/dev/null || echo "")
-
-if [ -z "$ORIGIN_MAIN" ]; then
-  echo "${YELLOW}Warning: origin/${MAIN_BRANCH} not found. Skipping main branch update.${NC}"
-elif [ "$LOCAL_MAIN" = "$ORIGIN_MAIN" ]; then
-  echo "${GREEN}✓ ${MAIN_BRANCH} branch already up-to-date${NC}"
-elif git merge-base --is-ancestor "$LOCAL_MAIN" "$ORIGIN_MAIN"; then
-  # Fast-forward possible: update ref directly (no checkout needed)
-  git update-ref "refs/heads/${MAIN_BRANCH}" "$ORIGIN_MAIN" "$LOCAL_MAIN"
-  echo "${GREEN}✓ ${MAIN_BRANCH} branch updated (fast-forward)${NC}"
-else
-  echo "${RED}Error: Cannot fast-forward ${MAIN_BRANCH} branch${NC}"
-  echo "${RED}Please resolve manually: git checkout ${MAIN_BRANCH} && git merge origin/${MAIN_BRANCH}${NC}"
-  cleanup_and_exit 1
-fi
-
-# Merge main into current branch if not on main
-if [ "$ORIGINAL_BRANCH" != "$MAIN_BRANCH" ]; then
-  echo "${BLUE}==> Merging ${MAIN_BRANCH} into ${ORIGINAL_BRANCH}...${NC}"
-
-  # Check if merge is needed
-  if git merge-base --is-ancestor "refs/heads/${MAIN_BRANCH}" HEAD; then
-    echo "${GREEN}✓ ${ORIGINAL_BRANCH} already contains ${MAIN_BRANCH}${NC}"
-  elif git merge "$MAIN_BRANCH" --no-edit; then
-    echo "${GREEN}✓ Successfully merged ${MAIN_BRANCH} into ${ORIGINAL_BRANCH}${NC}"
-  else
-    # Merge conflict detected
-    echo "${RED}========================================${NC}"
-    echo "${RED}ERROR: Merge conflict detected!${NC}"
-    echo "${RED}========================================${NC}"
-    echo "${RED}Cannot automatically merge ${MAIN_BRANCH} into ${ORIGINAL_BRANCH} due to conflicts.${NC}"
-    echo ""
-    echo "${YELLOW}The merge has been started but not completed.${NC}"
-    echo "${YELLOW}Please resolve the conflicts now, or abort the merge.${NC}"
-    echo ""
-    echo "${YELLOW}To resolve and continue:${NC}"
-    echo "  1. Fix conflicts in your editor"
-    echo "  2. Stage resolved files: git add <files>"
-    echo "  3. Complete merge: git commit"
-    echo "  4. Try pushing again: git push"
-    echo ""
-    echo "${YELLOW}To abort the merge:${NC}"
-    echo "  git merge --abort"
-    echo ""
-
-    # Don't abort automatically - let user decide
-    cleanup_and_exit 1
-  fi
-fi
-
-# Restore stashed changes if any
-if [ "$STASH_NEEDED" -eq 1 ]; then
-  echo "${BLUE}==> Restoring stashed changes...${NC}"
-  if git stash pop; then
-    echo "${GREEN}✓ Stashed changes restored${NC}"
-  else
-    echo "${RED}Error: Failed to restore stashed changes${NC}"
-    echo "${YELLOW}Run 'git stash pop' manually after resolving any issues${NC}"
-    exit 1
-  fi
-fi
-
-echo "${GREEN}========================================${NC}"
-echo "${GREEN}✓ Pre-push checks passed successfully${NC}"
-echo "${GREEN}========================================${NC}"
-echo ""
-
-exit 0

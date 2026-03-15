@@ -22,7 +22,12 @@
     "prettier": "cd backend && pnpm prettier && cd ../frontend && pnpm prettier",
     "sync-dependencies": "node scripts/sync-dependencies.mjs",
     "dupcheck": "npx jscpd --config .jscpd.json backend/src frontend/src",
-    "prepack": "pnpm sync-dependencies"
+    "prepack": "pnpm sync-dependencies",
+    "git:create-branch": "sh scripts/git-create-branch",
+    "git:rebase": "sh scripts/git-rebase",
+    "git:rebase:push": "sh scripts/git-rebase --push",
+    "git:delete-branch": "sh scripts/git-delete-branch",
+    "git:pr": "sh scripts/git-pr"
   },
   "bin": {
     "oci-lxc-deployer": "backend/dist/oci-lxc-deployer.mjs",
