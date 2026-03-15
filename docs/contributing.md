@@ -127,7 +127,7 @@ Or manually:
 ```bash
 git fetch upstream
 git rebase upstream/main
-git push --force-with-lease
+git push --force-with-lease origin HEAD
 ```
 
 > **`--force-with-lease`** is a safe version of `--force`. It refuses to push

@@ -31,12 +31,14 @@ else
   exit 1
 fi
 
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
 if [ "$1" = "--push" ]; then
   echo "${BLUE}==> Pushing with --force-with-lease...${NC}"
-  git push --force-with-lease
+  git push --force-with-lease origin "$CURRENT_BRANCH"
   echo "${GREEN}✓ Rebased and pushed.${NC}"
 else
   echo ""
-  echo "Push with: git push --force-with-lease"
+  echo "Push with: git push --force-with-lease origin $CURRENT_BRANCH"
   echo "Or run:    ./scripts/git-rebase --push"
 fi
