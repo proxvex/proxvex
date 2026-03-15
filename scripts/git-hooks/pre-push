@@ -27,7 +27,8 @@ if ! node scripts/sync-dependencies.mjs; then
 fi
 
 # Check if sync modified files (package.json, lock files)
-if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+# Only check files that sync-dependencies can modify, not the entire worktree
+if ! git diff --quiet HEAD -- package.json '*/package.json' pnpm-lock.yaml '*/pnpm-lock.yaml' 2>/dev/null; then
   echo "${RED}========================================${NC}"
   echo "${RED}Dependency sync made changes.${NC}"
   echo "${RED}========================================${NC}"
@@ -52,7 +53,7 @@ esac
 echo "${BLUE}==> Pre-push hook: ${CURRENT_BRANCH}${NC}"
 
 # --- Step 3: Check for uncommitted changes ---
-if ! git diff-index --quiet HEAD --; then
+if ! git diff --quiet HEAD --; then
   echo "${RED}========================================${NC}"
   echo "${RED}Uncommitted changes detected.${NC}"
   echo "${RED}========================================${NC}"
