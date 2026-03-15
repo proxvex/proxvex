@@ -187,11 +187,27 @@ describe("buildParams", () => {
       id: "myapp/default",
       application: "myapp",
       description: "Test myapp/default",
-      params: [{ name: "hostname", value: "overridden" }],
+      params: [{ name: "bridge", value: "vmbr99" }],
     };
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
-    expect(result.params.find((p) => p.name === "hostname")!.value).toBe("overridden");
+    expect(result.params.find((p) => p.name === "bridge")!.value).toBe("vmbr99");
+  });
+
+  it("runner-controlled params (vm_id, hostname) are not overridden by scenario", () => {
+    const scenario: ResolvedScenario = {
+      id: "myapp/default",
+      application: "myapp",
+      description: "Test myapp/default",
+      params: [
+        { name: "vm_id", value: "999" },
+        { name: "hostname", value: "overridden" },
+      ],
+    };
+
+    const result = buildParams(scenario, [...defaultBase], defaultVars);
+    expect(result.params.find((p) => p.name === "vm_id")!.value).toBe("200");
+    expect(result.params.find((p) => p.name === "hostname")!.value).toBe("test-host");
   });
 
   it("append mode: builds multiline value", () => {

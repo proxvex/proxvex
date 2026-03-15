@@ -17,6 +17,8 @@ import { WebAppVE } from "./webapp-ve.mjs";
 import { WebAppStack } from "./webapp-stack-routes.mjs";
 import { registerCertificateRoutes } from "./webapp-certificate-routes.mjs";
 import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
+import { registerDependencyCheckRoutes } from "./webapp-dependency-check-routes.mjs";
+import { registerTestQueueRoutes } from "./webapp-test-queue-routes.mjs";
 import { createAuthMiddleware } from "./webapp-auth-middleware.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { createLogger } from "../logger/index.mjs";
@@ -92,6 +94,8 @@ export class VEWebApp {
     registerCertificateRoutes(this.app, this.storageContext);
     registerAddonRoutes(this.app, this.storageContext);
     registerValidationRoutes(this.app);
+    registerDependencyCheckRoutes(this.app, this.storageContext);
+    registerTestQueueRoutes(this.app);
 
     // Reload endpoint: re-reads json/ and schemas/ from disk
     const reloadLogger = createLogger("reload");

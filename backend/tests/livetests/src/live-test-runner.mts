@@ -15,12 +15,13 @@
  * - Comprehensive verification suite (container, notes, services, TLS, SSL)
  *
  * Usage:
- *   tsx live-test-runner.mts [instance] [test-name|--all]
+ *   tsx live-test-runner.mts [instance] [test-name|--all] [--queue] [--fixtures]
  *
  * Examples:
  *   tsx live-test-runner.mts github-action postgres/ssl
  *   tsx live-test-runner.mts github-action zitadel        # runs all zitadel/* + deps
  *   tsx live-test-runner.mts github-action --all
+ *   tsx live-test-runner.mts github-action --queue         # parallel queue worker mode
  *   KEEP_VM=1 tsx live-test-runner.mts github-action zitadel/ssl
  */
 
@@ -278,9 +279,15 @@ export function buildParams(
     }
   }
 
+  // These params are controlled by the test runner (VM allocation) and must not be overridden
+  const runnerControlled = new Set(["vm_id", "hostname"]);
+
   for (const p of scenario.params) {
+    // Skip runner-controlled params — they're set via baseParams
+    if (runnerControlled.has(p.name) && !p.append) continue;
+
     // Substitute template variables in values
-    let value = p.value ?? "";
+    let value = String(p.value ?? "");
     for (const [key, val] of Object.entries(templateVars)) {
       value = value.replace(
         new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"),
@@ -462,6 +469,38 @@ async function findExistingVm(
   );
   if (!containers) return null;
   return containers.find((c) => c.application_id === applicationId) ?? null;
+}
+
+/**
+ * Resolve volume_storage parameter by querying PVE rootdir storages via SSH.
+ * Prioritizes zfspool > dir > any other type.
+ */
+function resolveVolumeStorage(
+  pveHost: string,
+  sshPort: number,
+  existingParams: { name: string; value: string }[],
+): void {
+  if (existingParams.some((p) => p.name === "volume_storage")) return;
+  try {
+    const raw = nestedSshStrict(pveHost, sshPort,
+      "pvesm status --content rootdir 2>/dev/null | tail -n +2", 10000);
+    const storages = raw.trim().split("\n")
+      .map((line) => {
+        const [name, type] = line.trim().split(/\s+/);
+        return { name: name || "", type: type || "" };
+      })
+      .filter((s) => s.name);
+    if (storages.length === 0) return;
+    // Prioritize: zfspool > dir > first available
+    const preferred =
+      storages.find((s) => s.type === "zfspool") ??
+      storages.find((s) => s.type === "dir") ??
+      storages[0];
+    existingParams.push({ name: "volume_storage", value: preferred.name });
+    logInfo(`Auto-resolved volume_storage=${preferred.name} (${preferred.type})`);
+  } catch {
+    // SSH failed — continue without, CLI will validate
+  }
 }
 
 async function discoverApiUrl(httpUrl: string, httpsUrl: string): Promise<string> {
@@ -1093,6 +1132,10 @@ interface AppMeta {
   extends?: string | undefined;
   stacktype?: string | string[] | undefined;
   tags?: string[] | undefined;
+  verification?: {
+    wait_seconds?: number;
+    checks?: Record<string, boolean | number | string | { enabled?: boolean; fatal?: boolean }>;
+  };
 }
 
 /**
@@ -1123,6 +1166,20 @@ function buildDefaultVerify(
     // that merely use the postgres stacktype for shared variables
     if (scenario.application === "postgres") {
       verify.pg_ssl_on = true;
+    }
+  }
+
+  // Merge application-level verification checks from application.json
+  if (appMeta.verification?.checks) {
+    for (const [key, value] of Object.entries(appMeta.verification.checks)) {
+      if (typeof value === "object" && value !== null) {
+        // { enabled?: boolean; fatal?: boolean } - only add if enabled (default true)
+        if (value.enabled !== false) {
+          verify[key] = true;
+        }
+      } else {
+        verify[key] = value;
+      }
     }
   }
 
@@ -1264,6 +1321,9 @@ async function executeScenarios(
         logInfo(`Found existing VM ${existing.vm_id} for ${task} (source_vm_id)`);
       }
 
+      // Resolve enum defaults (e.g. volume_storage) via API
+      resolveVolumeStorage(config.pveHost, config.portPveSsh, buildResult.params);
+
       // Addons come from scenario params file (selectedAddons)
       const allAddons = buildResult.selectedAddons ?? [];
 
@@ -1341,17 +1401,20 @@ async function executeScenarios(
         cliOutput: cliResult.output,
       });
 
-      // Wait for services after installation/reconfigure
+      // Wait for services if needed (test.json overrides application.json default)
       const appMeta = appMetaMap.get(scenario.application) ?? {};
-      if (scenario.wait_seconds && scenario.wait_seconds > 0) {
+      const waitSeconds = scenario.wait_seconds ?? appMeta.verification?.wait_seconds ?? 0;
+      if (waitSeconds > 0) {
         if (appMeta.extends === "docker-compose") {
-          await waitForServices(config.pveHost, config.portPveSsh, step.vmId, scenario.wait_seconds);
+          await waitForServices(config.pveHost, config.portPveSsh, step.vmId, waitSeconds);
         } else {
           // For non-docker apps (e.g. oci-image after reboot), wait a fixed time
-          logInfo(`Waiting ${scenario.wait_seconds}s for container to be ready...`);
-          await new Promise((r) => setTimeout(r, scenario.wait_seconds! * 1000));
+          logInfo(`Waiting ${waitSeconds}s for container to be ready...`);
+          await new Promise((r) => setTimeout(r, waitSeconds * 1000));
         }
       }
+
+      // Run verifications (auto-defaults merged with explicit verify from test.json)
       const defaultVerify = buildDefaultVerify(scenario, appMeta);
       const finalVerify = { ...defaultVerify, ...(scenario.verify ?? {}) };
       // Remove entries explicitly set to false
@@ -1511,7 +1574,8 @@ function cleanupVms(
 async function main() {
   const args = process.argv.slice(2);
   const fixturesFlag = args.includes("--fixtures");
-  const filteredArgs = args.filter(a => a !== "--fixtures");
+  const queueFlag = args.includes("--queue");
+  const filteredArgs = args.filter(a => a !== "--fixtures" && a !== "--queue");
   const instance = filteredArgs[0] || undefined;
   const testArg = filteredArgs[1] || "--all";
 
@@ -1557,9 +1621,11 @@ async function main() {
 
   // Ensure VE host SSH config exists on the deployer
   const veHost = config.veHost;
-  const veSshPort = config.veSshPort;
+  const deploySshPort = config.veSshPort;
+  let veContextKey = "";
   const veConfigResp = await apiFetch<{ key: string }>(apiUrl, `/api/ssh/config/${encodeURIComponent(veHost)}`);
   if (veConfigResp?.key) {
+    veContextKey = veConfigResp.key;
     logOk(`VE host '${veHost}' already configured on deployer`);
   } else {
     logInfo(`VE host '${veHost}' not found on deployer, creating SSH config...`);
@@ -1567,18 +1633,43 @@ async function main() {
       const resp = await fetch(`${apiUrl}/api/sshconfig`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host: veHost, port: veSshPort, current: true }),
+        body: JSON.stringify({ host: veHost, port: deploySshPort, current: true }),
         signal: AbortSignal.timeout(10000),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: "unknown" }));
         throw new Error(`${resp.status}: ${(err as any).error}`);
       }
-      logOk(`VE host '${veHost}' created (port ${veSshPort}, set as current)`);
+      logOk(`VE host '${veHost}' created (port ${deploySshPort}, set as current)`);
+      // Fetch the newly created key
+      const newConfig = await apiFetch<{ key: string }>(apiUrl, `/api/ssh/config/${encodeURIComponent(veHost)}`);
+      if (newConfig?.key) veContextKey = newConfig.key;
     } catch (err: any) {
       logFail(`Failed to create SSH config for '${veHost}': ${err.message}`);
       process.exit(1);
     }
+  }
+
+  // Fetch application metadata (stacktypes, extends, tags)
+  const appStacktypes = new Map<string, string | string[]>();
+  const appMetaMap = new Map<string, AppMeta>();
+  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[]; extends?: string; tags?: string[]; verification?: AppMeta["verification"] }>>(apiUrl, "/api/applications");
+  if (apps) {
+    for (const app of apps) {
+      if (app.stacktype) appStacktypes.set(app.id, app.stacktype);
+      appMetaMap.set(app.id, {
+        extends: app.extends,
+        stacktype: app.stacktype,
+        tags: app.tags,
+        verification: app.verification,
+      });
+    }
+  }
+
+  // Queue worker mode — delegate all scenario management to the queue API
+  if (queueFlag) {
+    await runQueueWorker(config, apiUrl, veHost, projectRoot, appMetaMap);
+    return;
   }
 
   // Discover tests via API
@@ -1603,21 +1694,6 @@ async function main() {
   }
 
   logOk(`${scenariosToRun.length} scenario(s) to run (including dependencies)`);
-
-  // Fetch application metadata (stacktypes, extends, tags)
-  const appStacktypes = new Map<string, string | string[]>();
-  const appMetaMap = new Map<string, AppMeta>();
-  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[]; extends?: string; tags?: string[] }>>(apiUrl, "/api/applications");
-  if (apps) {
-    for (const app of apps) {
-      if (app.stacktype) appStacktypes.set(app.id, app.stacktype);
-      appMetaMap.set(app.id, {
-        extends: app.extends,
-        stacktype: app.stacktype,
-        tags: app.tags,
-      });
-    }
-  }
 
   // Plan: assign VM IDs and stack names
   const planned = planScenarios(scenariosToRun, appStacktypes);
@@ -1824,6 +1900,192 @@ async function main() {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ── Queue Worker Mode ──
+
+interface QueueNextResponse {
+  scenario?: ResolvedScenario;
+  vmId?: number;
+  hostname?: string;
+  stackName?: string;
+  wait?: boolean;
+  done?: boolean;
+}
+
+async function runQueueWorker(
+  config: ReturnType<typeof loadConfig>,
+  apiUrl: string,
+  veHost: string,
+  projectRoot: string,
+  appMetaMap: Map<string, AppMeta>,
+) {
+  const workerId = `worker-${process.pid}`;
+  logInfo(`Queue worker started: ${workerId}`);
+
+  // Init queue (idempotent — only first worker actually initializes)
+  try {
+    await fetch(`${apiUrl}/api/test-queue/init`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch (err: any) {
+    logFail(`Failed to init queue: ${err.message}`);
+    process.exit(1);
+  }
+
+  const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
+  const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-queue-"));
+  let scenarioCount = 0;
+  let failedCount = 0;
+
+  try {
+    // Worker loop
+    while (true) {
+      const resp = await fetch(
+        `${apiUrl}/api/test-queue/next?workerId=${encodeURIComponent(workerId)}`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+      const data = await resp.json() as QueueNextResponse;
+
+      if (data.done) {
+        logInfo("Queue complete — no more scenarios.");
+        break;
+      }
+
+      if (data.wait) {
+        logInfo("Waiting for dependencies to complete...");
+        await sleep(10000);
+        continue;
+      }
+
+      const scenario = data.scenario!;
+      const vmId = data.vmId!;
+      const hostname = data.hostname!;
+      const stackName = data.stackName!;
+      const scenarioId = scenario.id;
+      const task = scenario.task || "installation";
+      scenarioCount++;
+
+      logStep(workerId, `${scenarioId} (${task}) [VM ${vmId}]`);
+
+      // Destroy any existing VM at this ID
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        30000);
+
+      // Clean volumes
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
+        15000);
+
+      // Build params
+      const appMeta = appMetaMap.get(scenario.application) ?? {};
+      const hasStacktype = !!appMeta.stacktype;
+      const baseParams = [
+        { name: "hostname", value: hostname },
+        { name: "bridge", value: config.bridge },
+        { name: "vm_id", value: String(vmId) },
+      ];
+      const templateVars: Record<string, string> = {
+        vm_id: String(vmId),
+        hostname,
+        stack_name: stackName,
+      };
+
+      const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
+
+      // Resolve enum defaults (e.g. volume_storage) via API
+      resolveVolumeStorage(config.pveHost, config.portPveSsh, buildResult.params);
+
+      const allAddons = buildResult.selectedAddons ?? [];
+
+      // Write params file
+      const paramsFile = path.join(tmpDir, `params-${scenarioCount}.json`);
+      const paramsObj: Record<string, unknown> = {
+        application: scenario.application,
+        task,
+        params: buildResult.params.map((p) => ({ name: p.name, value: p.value })),
+      };
+      if (allAddons.length > 0) paramsObj.selectedAddons = allAddons;
+      if (buildResult.stackId) {
+        paramsObj.stackId = buildResult.stackId;
+      } else if (hasStacktype) {
+        paramsObj.stackId = stackName;
+      }
+      writeFileSync(paramsFile, JSON.stringify(paramsObj));
+
+      // Run CLI
+      logInfo(`Running: ${scenario.application} ${task}...`);
+      const cliResult = await runCli(
+        projectRoot, apiUrl, veHost,
+        paramsFile, allAddons, scenario.cli_timeout,
+      );
+
+      if (cliResult.exitCode !== 0) {
+        logFail(`Scenario failed: ${scenarioId}`);
+        failedCount++;
+        // Destroy failed container
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+          30000);
+        await fetch(`${apiUrl}/api/test-queue/fail/${scenarioId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          signal: AbortSignal.timeout(10000),
+        });
+        continue;
+      }
+
+      logOk(`Container created: VM_ID=${vmId}, hostname=${hostname}`);
+
+      // Wait for services
+      const waitSeconds = scenario.wait_seconds ?? appMeta.verification?.wait_seconds ?? 0;
+      if (waitSeconds > 0) {
+        await waitForServices(config.pveHost, config.portPveSsh, vmId, waitSeconds);
+      }
+
+      // Verify
+      const defaultVerify = buildDefaultVerify(scenario, appMeta);
+      const finalVerify = { ...defaultVerify, ...(scenario.verify ?? {}) };
+      for (const [k, v] of Object.entries(finalVerify)) {
+        if (v === false) delete finalVerify[k];
+      }
+      logInfo("Verifying...");
+      const prevFailed = verifier.failed;
+      await verifier.runAll(vmId, hostname, finalVerify);
+
+      if (verifier.failed > prevFailed) {
+        failedCount++;
+        await fetch(`${apiUrl}/api/test-queue/fail/${scenarioId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          signal: AbortSignal.timeout(10000),
+        });
+      } else {
+        await fetch(`${apiUrl}/api/test-queue/complete/${scenarioId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          signal: AbortSignal.timeout(10000),
+        });
+      }
+    }
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // Summary
+  console.log("");
+  console.log(`${workerId}: ${scenarioCount} scenarios processed, ${failedCount} failed`);
+
+  if (failedCount > 0) {
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {

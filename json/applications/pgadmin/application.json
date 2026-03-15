@@ -11,5 +11,8 @@
         "before": "011-host-get-oci-image.json"
       }
     ]
+  },
+  "verification": {
+    "wait_seconds": 30
   }
 }

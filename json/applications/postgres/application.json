@@ -61,5 +61,8 @@
   ],
   "installation": {},
   "tags": ["database"],
-  "stacktype": "postgres"
+  "stacktype": "postgres",
+  "verification": {
+    "wait_seconds": 30
+  }
 }
