@@ -25,35 +25,42 @@ const projects = [
 
 /**
  * Fast check: Does pnpm-lock.yaml exist and contain all dependencies?
- * pnpm lock files are platform-independent, so we just check existence
- * and that the importers section matches package.json dependencies.
+ *
+ * For the root project, checks that all dependencies appear in the lock file.
+ * For sub-projects in a pnpm workspace, only checks existence — pnpm resolves
+ * their dependencies via the root lock file, so sub-project locks may not
+ * contain all deps listed in their package.json.
  */
-function isLockInSync(projectDir) {
+function isLockInSync(projectDir, isRoot = false) {
   try {
-    const pkgPath = join(projectDir, 'package.json');
     const lockPath = join(projectDir, 'pnpm-lock.yaml');
 
     if (!existsSync(lockPath)) {
       return false;
     }
 
+    // Sub-projects: just check lock file exists (pnpm workspace handles the rest)
+    if (!isRoot) {
+      return true;
+    }
+
+    // Root: verify all dependencies appear in the lock file
+    const pkgPath = join(projectDir, 'package.json');
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
     const lockContent = readFileSync(lockPath, 'utf-8');
 
-    // Quick check: all dependencies should appear in lock file
-    // pnpm-lock.yaml format: "  ajv:" or "  '@scope/pkg':"
     const allDeps = {
       ...pkg.dependencies || {},
       ...pkg.devDependencies || {}
     };
 
     for (const dep of Object.keys(allDeps)) {
-      // Check for both unquoted and quoted formats
+      // Check importers section (indented) and packages section (top-level)
       const patterns = [
-        `\n      ${dep}:`,           // unquoted: "      ajv:"
-        `\n      '${dep}':`,         // quoted: "      '@scope/pkg':"
-        `\n  '${dep}@`,              // packages section: "  '@scope/pkg@version':"
-        `\n  ${dep}@`                // packages section: "  ajv@version:"
+        `\n      ${dep}:`,           // importers: "      ajv:"
+        `\n      '${dep}':`,         // importers: "      '@scope/pkg':"
+        `\n  '${dep}@`,              // packages: "  '@scope/pkg@version':"
+        `\n  ${dep}@`                // packages: "  ajv@version:"
       ];
       if (!patterns.some(p => lockContent.includes(p))) {
         return false;
@@ -102,7 +109,7 @@ const rootDepsInSync = backendDeps === rootDeps;
 // Check 2: Are all lock files in sync?
 const lockStatus = projects.map(p => ({
   ...p,
-  inSync: isLockInSync(p.dir)
+  inSync: isLockInSync(p.dir, p.name === 'root')
 }));
 
 const allLocksInSync = lockStatus.every(p => p.inSync);
