@@ -170,7 +170,8 @@ jobs:
         run: pvetest snapshot-create live-test
 
       - name: Initialize test queue
-        run: pvetest exec "curl -s -X POST http://localhost:3000/api/test-queue/init -H 'Content-Type: application/json' -d '{}'"
+        run: |
+          pvetest exec "curl -s -X POST http://localhost:3000/api/test-queue/init -H 'Content-Type: application/json' -d '{}'"
 
   live-test-worker:
     needs: [live-test-init]
