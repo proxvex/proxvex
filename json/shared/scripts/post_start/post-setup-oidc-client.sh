@@ -12,6 +12,7 @@
 #   oidc_callback_path - OIDC callback path (default: /auth/strategy/callback)
 #   domain_suffix      - Domain suffix for URL construction
 #   OIDC_PROJECT_NAME  - Zitadel project name (from addon parameter, defaults to hostname)
+#   oidc_issuer_url    - External issuer URL override (optional, defaults to internal Zitadel URL)
 #
 # Outputs (JSON to stdout):
 #   oidc_issuer_url    - Zitadel issuer URL
@@ -25,6 +26,7 @@ OIDC_APP_NAME="{{ oidc_app_name }}"
 OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_PROJECT_NAME="{{ OIDC_PROJECT_NAME }}"
+OIDC_ISSUER_URL_INPUT="{{ oidc_issuer_url }}"
 
 # Guard against NOT_DEFINED
 if [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then DOMAIN_SUFFIX=""; fi
@@ -42,7 +44,13 @@ if [ -z "$OIDC_APP_NAME" ]; then
 fi
 
 ZITADEL_URL="http://${ZITADEL_HOST}${DOMAIN_SUFFIX}:8080"
-ISSUER_URL="${ZITADEL_URL}"
+
+# Use provided issuer URL if set, otherwise default to internal Zitadel URL
+if [ -n "$OIDC_ISSUER_URL_INPUT" ] && [ "$OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then
+  ISSUER_URL="$OIDC_ISSUER_URL_INPUT"
+else
+  ISSUER_URL="${ZITADEL_URL}"
+fi
 
 # --- Read PAT ---
 # NOTE: PAT path is an open issue. Zitadel writes the PAT to the container's

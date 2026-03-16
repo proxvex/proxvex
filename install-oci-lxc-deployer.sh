@@ -139,6 +139,7 @@ execute_script_from_github() {
 
 # Defaults
 vm_id=""
+vm_id_start=""
 disk_size="1"
 memory="512"
 bridge="vmbr0"
@@ -167,6 +168,7 @@ domain_suffix=".local"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --vm-id) vm_id="$2"; shift 2 ;;
+    --vm-id-start) vm_id_start="$2"; shift 2 ;;
     --disk-size) disk_size="$2"; shift 2 ;;
     --memory) memory="$2"; shift 2 ;;
     --bridge) bridge="$2"; shift 2 ;;
@@ -188,6 +190,7 @@ Installs oci-lxc-deployer as an LXC container from OCI image on a Proxmox host.
 
 Options:
   --vm-id <id>          Optional VMID. If empty, the next free VMID is chosen.
+  --vm-id-start <id>    Start index for auto-assigned VM IDs (next free ID from this value).
   --disk-size <GB>      LXC rootfs size in GB. Default: 1
   --memory <MB>         Container memory in MB. Default: 512
   --bridge <name>       Network bridge (e.g. vmbr0). Default: vmbr0
@@ -428,6 +431,7 @@ vm_id=$(execute_script_from_github \
   "rootfs_storage=" \
   "template_path=${template_path}" \
   "vm_id=${vm_id}" \
+  "vm_id_start=${vm_id_start}" \
   "disk_size=${disk_size}" \
   "memory=${memory}" \
   "bridge=${bridge}" \

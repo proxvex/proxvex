@@ -49,8 +49,12 @@ echo "Rootfs: $ROOTFS" >&2
 
 # Auto-select VMID if not set
 if [ -z "{{ vm_id }}" ] || [ "{{ vm_id }}" = "NOT_DEFINED" ]; then
-  # Find the next free VMID (highest existing + 1)
-  VMID=$(pvesh get /cluster/nextid)
+  VM_ID_START="{{ vm_id_start }}"
+  if [ -n "$VM_ID_START" ] && [ "$VM_ID_START" != "NOT_DEFINED" ]; then
+    VMID=$(pvesh get /cluster/nextid --vmid "$VM_ID_START")
+  else
+    VMID=$(pvesh get /cluster/nextid)
+  fi
   CREATE_NEW=1
 else
   VMID="{{ vm_id }}"

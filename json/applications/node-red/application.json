@@ -62,5 +62,11 @@
     "development"
   ],
   "supported_addons": ["addon-oidc"],
-  "stacktype": "oidc"
+  "stacktype": "oidc",
+  "verification": {
+    "wait_seconds": 30,
+    "checks": {
+      "docker_log_no_errors": true
+    }
+  }
 }

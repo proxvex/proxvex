@@ -154,3 +154,54 @@ jobs:
           name: playwright-report
           path: /tmp/playwright-report/
           retention-days: 7
+
+  # ============================================================
+  # Live integration tests — parallel queue workers
+  # Creates real LXC containers on PVE host.
+  # Uses ZFS snapshot/rollback for clean state.
+  # ============================================================
+
+  live-test-init:
+    needs: [install-test]
+    runs-on: [self-hosted, linux, pve1]
+    timeout-minutes: 10
+    steps:
+      - name: Create ZFS snapshot for live tests
+        run: pvetest snapshot-create live-test
+
+      - name: Initialize test queue
+        run: |
+          pvetest exec "curl -s -X POST http://localhost:3000/api/test-queue/init -H 'Content-Type: application/json' -d '{}'"
+
+  live-test-worker:
+    needs: [live-test-init]
+    runs-on: [self-hosted, linux, pve1]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [1, 2]
+    steps:
+      - name: Checkout on test-worker
+        run: pvetest checkout ${{ github.sha }} https://github.com/${{ github.repository }}.git
+
+      - name: Install dependencies
+        run: pvetest exec "cd backend && pnpm install --frozen-lockfile"
+
+      - name: Run queue worker ${{ matrix.worker }}
+        run: pvetest exec "npx tsx backend/tests/livetests/src/live-test-runner.mts github-action --queue"
+
+  live-test-finish:
+    needs: [live-test-worker]
+    if: always()
+    runs-on: [self-hosted, linux, pve1]
+    timeout-minutes: 15
+    steps:
+      - name: Collect queue results
+        run: pvetest exec "curl -s http://localhost:3000/api/test-queue/status" || true
+
+      - name: Rollback ZFS snapshot
+        run: pvetest snapshot-rollback live-test
+
+      - name: Reinstall deployer
+        run: ./e2e/step2-install-deployer.sh github-action

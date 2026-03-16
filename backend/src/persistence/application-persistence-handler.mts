@@ -149,6 +149,7 @@ export class ApplicationPersistenceHandler {
           framework,
           extends: app.extends,
           stacktype: app.stacktype,
+          verification: app.verification,
           ...(app.errors &&
             app.errors.length > 0 && {
               errors: app.errors.map((e) => ({

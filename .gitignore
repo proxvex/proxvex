@@ -38,6 +38,8 @@ docker/oci-lxc-deployer.tgz
 # Environment files with credentials (keep .env.template)
 **/.env
 !**/.env.template
+# Personal Access Tokens
+**/*.pat
 **/__pycache__/*
 
 

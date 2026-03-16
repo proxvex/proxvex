@@ -42,7 +42,14 @@ export interface IApplicationBase {
   properties?: IOutputObject[];
   /** Override name/description of parameters defined in templates */
   parameterOverrides?: IParameterOverride[];
+  verification?: IApplicationVerification | undefined;
+  dependencies?: { application: string }[];
 }
+export interface IApplicationVerification {
+  wait_seconds?: number;
+  checks?: Record<string, boolean | number | string | { enabled?: boolean; fatal?: boolean }>;
+}
+
 export interface IApplicationWeb {
   name: string;
   description: string;
@@ -56,6 +63,7 @@ export interface IApplicationWeb {
   extends?: string | undefined;
   stacktype?: string | string[] | undefined;
   errors?: IJsonError[];
+  verification?: IApplicationVerification | undefined;
 }
 export type TaskType =
   | "installation"
@@ -223,6 +231,16 @@ export enum ApiUri {
   CertificateDomainSuffix = "/api/:veContext/ve/certificates/domain-suffix",
   CertificateCaDownload = "/api/:veContext/ve/certificates/ca/download",
   CertificateGenerate = "/api/:veContext/ve/certificates/generate",
+  // Dependency check
+  DependencyCheck = "/api/:veContext/dependency-check/:application",
+
+  // Test queue (parallel test execution)
+  TestQueueInit = "/api/test-queue/init",
+  TestQueueNext = "/api/test-queue/next",
+  TestQueueComplete = "/api/test-queue/complete/:app/:variant",
+  TestQueueFail = "/api/test-queue/fail/:app/:variant",
+  TestQueueStatus = "/api/test-queue/status",
+
   // Logger endpoints
   LoggerConfig = "/api/logger/config",
   LoggerLevel = "/api/logger/level/:level",
@@ -336,6 +354,18 @@ export interface ITestScenariosResponse {
   scenarios: ITestScenarioResponse[];
 }
 
+export interface IDependencyStatus {
+  application: string;
+  source: string; // "application" or addon ID like "addon-oidc"
+  status: "running" | "stopped" | "not_found";
+  hostname?: string;
+  vmId?: number;
+}
+
+export interface IDependencyCheckResponse {
+  dependencies: IDependencyStatus[];
+}
+
 export interface ISingleExecuteMessagesResponse {
   application: string;
   task: string;
@@ -369,6 +399,7 @@ export interface IManagedOciContainer {
   bridge?: string;
   mount_points?: { source: string; target: string }[];
   volumes?: string;
+  stack_name?: string;
 }
 
 export type IInstallationsResponse = IManagedOciContainer[];

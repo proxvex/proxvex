@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { IApplicationWeb, IParameter, IParameterValue, IEnumValuesResponse, IAddonWithParameters, IStack, IStacktypeEntry } from '../../shared/types';
+import { IApplicationWeb, IParameter, IParameterValue, IEnumValuesResponse, IAddonWithParameters, IStack, IStacktypeEntry, IDependencyStatus } from '../../shared/types';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
 import { DockerComposeService } from '../shared/services/docker-compose.service';
@@ -64,6 +64,9 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   expandedAddons = signal<string[]>([]);
   addonsLoading = signal(false);
 
+  // Dependency check state
+  dependencyErrors = signal<IDependencyStatus[]>([]);
+
   // Stack selection state
   availableStacks = signal<IStack[]>([]);
   availableStacktypes = signal<IStacktypeEntry[]>([]);
@@ -118,6 +121,9 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Listen for tab focus to reload stacks after editing in new tab
     document.addEventListener('visibilitychange', this.visibilityHandler);
+
+    // Check dependencies (initial load)
+    this.checkDependencies();
 
     // Load compatible addons and stacks in parallel with parameters
     this.loadCompatibleAddons();
@@ -372,6 +378,8 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     // First selected stack is used for install (stackId in API call)
     this.formManager.setSelectedStack(this.selectedStacks.values().next().value ?? null);
     this.formManager.updateHostnameFromStacks(this.selectedStacks);
+    // Re-check dependencies (stack_name affects container matching)
+    this.checkDependencies();
   }
 
   onStackSelectChange(stackId: string): void {
@@ -453,6 +461,8 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     }
     // Update manager's addon list for install()
     this.formManager.setSelectedAddons(this.selectedAddons());
+    // Re-check dependencies (addons may add/remove dependencies)
+    this.checkDependencies();
   }
 
   private showCaRequiredDialog(addonId: string): void {
@@ -629,6 +639,30 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         this.errorHandler.handleError('Failed to save test data', err);
       }
     });
+  }
+
+  /** Check if dependency containers are running. Re-called on addon/stack changes. */
+  private checkDependencies(): void {
+    const stackId = this.selectedStack?.id;
+    this.configService.checkDependencies(
+      this.data.app.id,
+      this.selectedAddons(),
+      stackId ?? undefined,
+    ).subscribe({
+      next: (res) => {
+        const errors = res.dependencies.filter(d => d.status !== 'running');
+        this.dependencyErrors.set(errors);
+      },
+      error: () => {
+        // Don't block UI on dependency check failure - clear errors
+        this.dependencyErrors.set([]);
+      }
+    });
+  }
+
+  /** Whether the install button should be disabled */
+  get installDisabled(): boolean {
+    return this.form.invalid || this.loading() || this.dependencyErrors().length > 0;
   }
 
   toggleAdvanced(): void {

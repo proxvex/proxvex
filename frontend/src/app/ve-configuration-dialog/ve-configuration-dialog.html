@@ -36,6 +36,26 @@
 				</div>
 			</div>
 		}
+		@if (dependencyErrors().length > 0) {
+			<div class="missing-stacks-error" role="alert">
+				<mat-icon class="missing-stacks-icon">error</mat-icon>
+				<div>
+					<strong>Missing Dependencies</strong>
+					<div>The following required containers are not running:
+						@for (dep of dependencyErrors(); track dep.application; let last = $last) {
+							<strong>{{ dep.application }}</strong>
+							@if (dep.source !== 'application') {
+								<span class="dep-source">(required by {{ dep.source }})</span>
+							}
+							@if (dep.status === 'stopped') {
+								<span class="dep-status">(stopped)</span>
+							}@if (!last) {, }
+						}.
+						Please start the required containers first.
+					</div>
+				</div>
+			</div>
+		}
 		@if (showMissingRequiredHint) {
 			<div class="missing-required-hint" role="alert">
 				<strong>Missing required parameters detected.</strong>
@@ -124,7 +144,7 @@
 					}
 					<span class="action-spacer"></span>
 					<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
-					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="form.invalid || loading()">Install</button>
+					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="installDisabled">Install</button>
 				</div>
 			}
 		}

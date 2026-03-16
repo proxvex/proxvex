@@ -68,6 +68,36 @@
     },
     "addon": {
       "$ref": "templatelist"
+    },
+    "verification": {
+      "type": "object",
+      "description": "Post-installation verification configuration",
+      "properties": {
+        "wait_seconds": {
+          "type": "number",
+          "description": "Seconds to wait before running verification checks (allows services to start up)"
+        },
+        "checks": {
+          "type": "object",
+          "description": "Verification checks. Keys are check names, values are true/false or objects with enabled/fatal flags.",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "boolean" },
+              {
+                "type": "object",
+                "properties": {
+                  "enabled": { "type": "boolean", "default": true },
+                  "fatal": { "type": "boolean", "default": true }
+                },
+                "additionalProperties": false
+              },
+              { "type": "string" },
+              { "type": "number" }
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [

@@ -55,6 +55,15 @@
       "type": "string",
       "required": true,
       "description": "Name of the Zitadel project (from oidc stack variable)"
+    },
+    {
+      "id": "oidc_issuer_url",
+      "name": "OIDC Issuer URL",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Optional: External OIDC issuer URL (e.g. https://auth.example.com). If empty, defaults to internal Zitadel URL."
     }
   ],
   "commands": [

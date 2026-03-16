@@ -3,6 +3,8 @@
   "description": "Unprivileged NGINX Dockerfiles",
   "extends": "oci-image",
   "icon": "nginx.svg",
+  "supported_addons": ["addon-oidc"],
+  "stacktype": "oidc",
   "parameters": [
     {
       "id": "hostname",
@@ -71,12 +73,18 @@
     {
       "id": "username",
       "value": "root"
-    }
+    },
+    { "id": "http_port", "value": "8080" },
+    { "id": "oidc_callback_path", "value": "/oauth2/callback" },
+    { "id": "oidc_required_role", "value": "" }
   ],
   "installation": {},
   "url": "https://github.com/nginx/docker-nginx-unprivileged",
   "source": "https://github.com/nginx/docker-nginx-unprivileged",
   "tags": [
     "infrastructure"
-  ]
+  ],
+  "verification": {
+    "wait_seconds": 30
+  }
 }
