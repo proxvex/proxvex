@@ -3,7 +3,7 @@
   "name": "Map Serial Device",
   "description": "Map serial device to VM",
   "skip_if_all_missing": [
-    "host_device_path"
+    "app_supports_serial"
   ],
   "parameters": [
     {
