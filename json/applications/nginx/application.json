@@ -4,7 +4,7 @@
   "extends": "oci-image",
   "icon": "nginx.svg",
   "supported_addons": ["addon-oidc"],
-  "stacktype": "oidc",
+  "stacktype": ["oidc", "cloudflare"],
   "parameters": [
     {
       "id": "hostname",
@@ -78,7 +78,11 @@
     { "id": "oidc_callback_path", "value": "/oauth2/callback" },
     { "id": "oidc_required_role", "value": "" }
   ],
-  "installation": {},
+  "installation": {
+    "post_start": [
+      "post-setup-acme-cloudflare.json"
+    ]
+  },
   "url": "https://github.com/nginx/docker-nginx-unprivileged",
   "source": "https://github.com/nginx/docker-nginx-unprivileged",
   "tags": [
