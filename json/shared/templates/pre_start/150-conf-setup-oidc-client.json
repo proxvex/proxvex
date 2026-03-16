@@ -1,6 +1,6 @@
 {
   "name": "Setup OIDC Client",
-  "description": "Create or retrieve an OIDC client application in Zitadel. Outputs oidc_issuer_url, oidc_client_id, and oidc_client_secret as template variables.",
+  "description": "Create or retrieve an OIDC client application in Zitadel. Outputs oidc_issuer_url, oidc_client_id, and oidc_client_secret as template variables. Runs on PVE host before container start so credentials are available to pre_start templates.",
   "execute_on": "ve",
   "parameters": [
     {
@@ -69,7 +69,7 @@
   "commands": [
     {
       "name": "Setup OIDC Client",
-      "script": "post-setup-oidc-client.sh",
+      "script": "conf-setup-oidc-client.sh",
       "outputs": ["oidc_issuer_url", "oidc_client_id", "oidc_client_secret"]
     }
   ]

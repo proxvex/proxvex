@@ -750,15 +750,17 @@ if [ "$enable_https" = "true" ]; then
     echo "Warning: Deployer API not ready after 60s, skipping HTTPS setup" >&2
   else
     # Ensure container can resolve PVE hostname (needed for SSH from deployer to host)
-    pve_host_ip=""
-    if [ -n "$static_gw" ]; then
-      pve_host_ip="$static_gw"
-    else
-      pve_host_ip=$(ip route | awk '/default/ {print $3; exit}')
-    fi
-    if [ -n "$pve_host_ip" ] && [ -n "$proxmox_hostname" ]; then
-      pct exec "${vm_id}" -- sh -c "grep -q '${proxmox_hostname}' /etc/hosts 2>/dev/null || echo '${pve_host_ip} ${proxmox_hostname} ${proxmox_hostname%%.*}' >> /etc/hosts"
-      echo "  Added /etc/hosts entry: ${pve_host_ip} ${proxmox_hostname}" >&2
+    # Only add /etc/hosts entry if DNS resolution fails inside the container
+    if [ -n "$proxmox_hostname" ] && ! pct exec "${vm_id}" -- getent hosts "$proxmox_hostname" >/dev/null 2>&1; then
+      pve_host_ip=$(getent hosts "$proxmox_hostname" 2>/dev/null | awk '{print $1; exit}')
+      if [ -z "$pve_host_ip" ]; then
+        # Host can't resolve either — use IP of the default-route interface
+        pve_host_ip=$(ip -4 addr show "$(ip route | awk '/default/ {print $5; exit}')" 2>/dev/null | awk '/inet / {split($2, a, "/"); print a[1]; exit}')
+      fi
+      if [ -n "$pve_host_ip" ]; then
+        pct exec "${vm_id}" -- sh -c "echo '${pve_host_ip} ${proxmox_hostname} ${proxmox_hostname%%.*}' >> /etc/hosts"
+        echo "  Added /etc/hosts entry: ${pve_host_ip} ${proxmox_hostname}" >&2
+      fi
     fi
 
     # Resolve VE context key

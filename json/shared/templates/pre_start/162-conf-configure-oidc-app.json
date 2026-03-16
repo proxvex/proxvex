@@ -29,21 +29,21 @@
       "name": "OIDC Issuer URL",
       "type": "string",
       "required": false,
-      "description": "Zitadel issuer URL (available from reconfigure, not first install)"
+      "description": "Zitadel issuer URL (from 150-conf-setup-oidc-client)"
     },
     {
       "id": "oidc_client_id",
       "name": "OIDC Client ID",
       "type": "string",
       "required": false,
-      "description": "OIDC client ID (available from reconfigure, not first install)"
+      "description": "OIDC client ID (from 150-conf-setup-oidc-client)"
     },
     {
       "id": "oidc_client_secret",
       "name": "OIDC Client Secret",
       "type": "string",
       "required": false,
-      "description": "OIDC client secret (available from reconfigure, not first install)"
+      "description": "OIDC client secret (from 150-conf-setup-oidc-client)"
     }
   ],
   "commands": [
