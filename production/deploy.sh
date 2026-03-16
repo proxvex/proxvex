@@ -4,9 +4,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PVE_HOST="pve1.cluster"
+DEPLOYER_HOST="oci-lxc-deployer"
 PORT_DEPLOYER_HTTPS=3443
 
-SERVER="https://${PVE_HOST}:${PORT_DEPLOYER_HTTPS}"
+SERVER="https://${DEPLOYER_HOST}:${PORT_DEPLOYER_HTTPS}"
 CLI="npx tsx $PROJECT_ROOT/cli/src/oci-lxc-cli.mts"
 
 # Load OIDC credentials if available (optional — without .env, CLI runs without auth)

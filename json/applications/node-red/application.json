@@ -39,6 +39,10 @@
   ],
   "properties": [
     {
+      "id": "app_supports_serial",
+      "value": "true"
+    },
+    {
       "id": "oci_image",
       "value": "nodered/node-red:latest"
     },

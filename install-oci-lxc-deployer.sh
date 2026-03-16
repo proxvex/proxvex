@@ -414,14 +414,8 @@ fi
 echo "  OCI image ready: ${template_path}" >&2
 
 
-# If --https with a specific vm_id: create temp container at vm_id-1,
-# then reinstall to the target vm_id with SSL addon
+# https_target_vmid is set after container creation (Step 2) when we know the actual vm_id
 https_target_vmid=""
-if [ "$enable_https" = "true" ] && [ -n "$vm_id" ]; then
-  https_target_vmid="$vm_id"
-  vm_id=$((vm_id - 1))
-  echo "  HTTPS mode: creating temp container at $vm_id, target: $https_target_vmid" >&2
-fi
 
 # 2) Create LXC container from OCI image
 echo "Step 2: Creating LXC container..." >&2
@@ -449,6 +443,13 @@ if [ -z "$vm_id" ]; then
 fi
 
 echo "  Container created: ${vm_id}" >&2
+
+# For HTTPS mode: the deployer can't replace itself (pct stop would kill it),
+# so reinstall creates a NEW container at vm_id+1, then the old one gets destroyed
+if [ "$enable_https" = "true" ]; then
+  https_target_vmid=$((vm_id + 1))
+  echo "  HTTPS mode: current container $vm_id, target: $https_target_vmid" >&2
+fi
 
 # 2b) Configure static IP if provided
 if [ -n "$static_ip" ]; then

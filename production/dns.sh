@@ -16,10 +16,13 @@ add_dns() {
   uci add dhcp domain
   uci set "dhcp.@domain[-1].name=$name"
   uci set "dhcp.@domain[-1].ip=$ip"
+  uci set "dhcp.@domain[-1].dns=1"
   echo "Added DNS: $name → $ip"
 }
 
 # Container hostnames
+add_dns oci-lxc-deployer    192.168.4.39
+
 add_dns postgres    192.168.4.40
 add_dns nginx       192.168.4.41
 add_dns zitadel     192.168.4.42
