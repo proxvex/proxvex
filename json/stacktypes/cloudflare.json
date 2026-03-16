@@ -1,0 +1,8 @@
+{
+  "name": "Cloudflare",
+  "description": "Cloudflare API credentials for DNS-01 ACME challenge (Let's Encrypt)",
+  "variables": [
+    { "name": "CF_TOKEN", "external": true },
+    { "name": "CF_ZONE_ID", "external": true }
+  ]
+}

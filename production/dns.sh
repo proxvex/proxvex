@@ -19,10 +19,15 @@ add_dns() {
   echo "Added DNS: $name → $ip"
 }
 
+# Container hostnames
 add_dns postgres    192.168.4.40
 add_dns nginx       192.168.4.41
 add_dns zitadel     192.168.4.42
 add_dns gitea       192.168.4.43
+
+# External domain names
+add_dns auth.ohnewarum.de  192.168.4.42
+add_dns www.ohnewarum.de   192.168.4.41
 
 uci commit dhcp
 /etc/init.d/dnsmasq restart

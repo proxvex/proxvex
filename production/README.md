@@ -114,6 +114,29 @@ Um die URL zu ändern, die Datei auf dem PVE-Host bearbeiten:
 
 Ohne diese Datei wird automatisch die interne Zitadel-URL (`http://zitadel:8080`) verwendet.
 
+## Let's Encrypt Wildcard-Zertifikat
+
+Der nginx-Container kann automatisch ein Let's Encrypt Wildcard-Zertifikat via Cloudflare DNS-01 Challenge ausstellen. Das ersetzt die selbstsignierten Zertifikate des SSL-Addons.
+
+### Voraussetzungen
+
+1. **Cloudflare API Token** mit Permission `Zone:DNS:Edit` erstellen ([Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens))
+2. **Zone ID** der Domain kopieren (Cloudflare Dashboard → Domain → Overview → rechte Seite)
+
+### Konfiguration
+
+Im Deployer-UI unter **Stacks → production**:
+- Stacktype `cloudflare` hinzufügen
+- `CF_TOKEN` und `CF_ZONE_ID` manuell eintragen
+
+Beim nächsten nginx-Deploy wird automatisch:
+- `acme.sh` im Container installiert
+- Wildcard-Zertifikat für `*.{domain_suffix}` ausgestellt
+- Zertifikat nach `/etc/ssl/addon/` deployed (überschreibt self-signed)
+- Auto-Renewal Daemon eingerichtet (prüft täglich bei Container-Start)
+
+Ohne Cloudflare-Stack wird das Template übersprungen und die self-signed Zertifikate bleiben aktiv.
+
 ## Destroy
 
 VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken werden vorher aufgeräumt.
