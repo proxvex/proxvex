@@ -12,6 +12,14 @@
       "advanced": true
     },
     {
+      "id": "vm_id_start",
+      "name": "VM ID Start",
+      "type": "number",
+      "default": "",
+      "advanced": true,
+      "description": "Optional: Start index for auto-assigned VM IDs. The next free ID starting from this value will be used."
+    },
+    {
       "id": "template_path",
       "name": "Path to the LXC template",
       "type": "string",

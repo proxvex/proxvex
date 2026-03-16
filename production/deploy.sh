@@ -9,6 +9,19 @@ PORT_DEPLOYER_HTTPS=3443
 SERVER="https://${PVE_HOST}:${PORT_DEPLOYER_HTTPS}"
 CLI="npx tsx $PROJECT_ROOT/cli/src/oci-lxc-cli.mts"
 
+# Load OIDC credentials if available (optional — without .env, CLI runs without auth)
+ENV_FILE="$SCRIPT_DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+  set -a; . "$ENV_FILE"; set +a
+  echo "OIDC credentials loaded from $ENV_FILE"
+fi
+
+# Build OIDC flags if credentials are set
+OIDC_FLAGS=""
+if [ -n "$OIDC_CLI_CLIENT_ID" ]; then
+  OIDC_FLAGS="--oidc-issuer $OIDC_ISSUER_URL --oidc-client-id $OIDC_CLI_CLIENT_ID --oidc-client-secret $OIDC_CLI_CLIENT_SECRET"
+fi
+
 ensure_stack() {
   echo "=== Ensuring stack 'production' exists ==="
   curl -sk -X POST "$SERVER/api/stacks" \
@@ -29,7 +42,7 @@ deploy_app() {
 
   NODE_TLS_REJECT_UNAUTHORIZED=0 $CLI remote \
     --server "$SERVER" --ve "$PVE_HOST" --insecure \
-    --timeout "$timeout" "$params"
+    --timeout "$timeout" $OIDC_FLAGS "$params"
 }
 
 ensure_stack

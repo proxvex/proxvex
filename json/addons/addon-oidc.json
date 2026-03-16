@@ -37,6 +37,7 @@
 
   "installation": {
     "pre_start": [
+      "106-set-oidc-issuer-url.json",
       "162-conf-configure-oidc-app.json"
     ],
     "post_start": [
@@ -46,6 +47,9 @@
   },
 
   "reconfigure": {
+    "pre_start": [
+      "106-set-oidc-issuer-url.json"
+    ],
     "post_start": [
       "350-post-setup-oidc-client.json",
       "355-post-configure-oidc-app.json"
