@@ -73,12 +73,6 @@ if [ "$TARGET_VMID" = "$SOURCE_VMID" ]; then
   fail "Target VMID ($TARGET_VMID) must differ from source VMID ($SOURCE_VMID)"
 fi
 
-# Stop source if running (pct clone requires stopped container)
-if [ "$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}')" = "running" ]; then
-  log "Stopping source container $SOURCE_VMID for cloning..."
-  pct stop "$SOURCE_VMID" >&2 || fail "Failed to stop source container $SOURCE_VMID"
-fi
-
 # Detect and temporarily remove bind mounts (pct clone cannot handle them)
 BIND_MOUNTS_FILE=$(mktemp)
 pct config "$SOURCE_VMID" | while IFS= read -r line; do
@@ -93,10 +87,17 @@ pct config "$SOURCE_VMID" | while IFS= read -r line; do
   esac
 done
 
-# Clone the container
-log "Cloning container $SOURCE_VMID to $TARGET_VMID..."
+# Clone using snapshot to allow cloning a running container (e.g. deployer reconfiguring itself)
+SNAP_NAME="oci-clone-$$"
+log "Creating snapshot $SNAP_NAME of container $SOURCE_VMID..."
+pct snapshot "$SOURCE_VMID" "$SNAP_NAME" >&2 || fail "Failed to create snapshot of container $SOURCE_VMID"
+
+log "Cloning container $SOURCE_VMID to $TARGET_VMID (from snapshot $SNAP_NAME)..."
 clone_ok=true
-pct clone "$SOURCE_VMID" "$TARGET_VMID" --full >&2 || clone_ok=false
+pct clone "$SOURCE_VMID" "$TARGET_VMID" --snapname "$SNAP_NAME" --full >&2 || clone_ok=false
+
+log "Removing snapshot $SNAP_NAME..."
+pct delsnapshot "$SOURCE_VMID" "$SNAP_NAME" >&2 || log "Warning: failed to remove snapshot $SNAP_NAME"
 
 # Restore bind mounts on source (and target if clone succeeded)
 if [ -s "$BIND_MOUNTS_FILE" ]; then
@@ -117,7 +118,7 @@ if [ "$clone_ok" != true ]; then
   fail "Failed to clone container $SOURCE_VMID to $TARGET_VMID"
 fi
 
-# Source container stays stopped — it will be destroyed by post-cleanup-previous-container
+# Source container keeps running — it will be destroyed by post-cleanup-previous-container
 
 # Determine volume_storage from oci-lxc-deployer-volumes volume
 # Search all storages for a volume whose name contains "oci-lxc-deployer-volumes"
