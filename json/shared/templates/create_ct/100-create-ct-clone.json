@@ -29,6 +29,9 @@
   ],
   "commands": [
     {
+      "template": "099-set-vm-id-start.json"
+    },
+    {
       "name": "Clone Container",
       "script": "create-ct-clone.sh",
       "library": "upgrade-common.sh",
