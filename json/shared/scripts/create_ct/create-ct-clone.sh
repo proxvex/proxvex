@@ -19,7 +19,6 @@ set -eu
 
 SOURCE_VMID="{{ source_vm_id }}"
 TARGET_VMID_INPUT="{{ vm_id }}"
-VM_ID_START="{{ vm_id_start }}"
 
 CONFIG_DIR="/etc/pve/lxc"
 SOURCE_CONF="${CONFIG_DIR}/${SOURCE_VMID}.conf"
@@ -48,10 +47,26 @@ fi
 # Determine target VMID
 if [ -n "$TARGET_VMID_INPUT" ] && [ "$TARGET_VMID_INPUT" != "NOT_DEFINED" ] && [ "$TARGET_VMID_INPUT" != "" ]; then
   TARGET_VMID="$TARGET_VMID_INPUT"
-elif [ -n "$VM_ID_START" ] && [ "$VM_ID_START" != "NOT_DEFINED" ] && [ "$VM_ID_START" != "" ]; then
-  TARGET_VMID=$(pvesh get /cluster/nextid --vmid "$VM_ID_START")
 else
-  TARGET_VMID=$(pvesh get /cluster/nextid)
+  # Find next free VMID starting from vm_id_start
+  _id_start="{{ vm_id_start }}"
+  if [ -n "$_id_start" ] && [ "$_id_start" != "NOT_DEFINED" ]; then
+    _id="$_id_start"
+    _id_max=$(( _id_start + 1000 ))
+    TARGET_VMID=""
+    while [ "$_id" -le "$_id_max" ]; do
+      if TARGET_VMID=$(pvesh get /cluster/nextid --vmid "$_id" 2>/dev/null); then
+        break
+      fi
+      _id=$(( _id + 1 ))
+    done
+    if [ -z "$TARGET_VMID" ]; then
+      echo "Error: no free VMID found between $_id_start and $_id_max" >&2
+      exit 1
+    fi
+  else
+    TARGET_VMID=$(pvesh get /cluster/nextid)
+  fi
 fi
 
 if [ "$TARGET_VMID" = "$SOURCE_VMID" ]; then

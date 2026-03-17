@@ -322,11 +322,12 @@ async function main(): Promise<void> {
 main().catch((err) => {
   if (err instanceof CliError) {
     console.error(`Error: ${err.message}`);
-    process.exit(err.exitCode);
+    process.exitCode = err.exitCode;
+  } else {
+    console.error("Unexpected error:", err?.message || err);
+    if (err?.stack) {
+      console.error("Stack trace:", err.stack);
+    }
+    process.exitCode = 1;
   }
-  console.error("Unexpected error:", err?.message || err);
-  if (err?.stack) {
-    console.error("Stack trace:", err.stack);
-  }
-  process.exit(1);
 });

@@ -110,7 +110,7 @@ export class CliProgress {
       return;
     }
 
-    if (this.options.verbose && msg.stderr) {
+    if ((this.options.verbose || msg.exitCode !== 0) && msg.stderr) {
       for (const line of msg.stderr.split("\n")) {
         if (line) process.stderr.write(`    ${line}\n`);
       }
