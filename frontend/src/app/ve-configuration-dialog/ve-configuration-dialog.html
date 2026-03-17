@@ -144,7 +144,7 @@
 					}
 					<span class="action-spacer"></span>
 					<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
-					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="installDisabled">Install</button>
+					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="installDisabled">{{ taskKey === 'reconfigure' ? 'Reconfigure' : 'Install' }}</button>
 				</div>
 			}
 		}

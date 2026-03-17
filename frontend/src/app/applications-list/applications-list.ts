@@ -96,7 +96,7 @@ export class ApplicationsList implements OnInit {
     // Build preset values from query params (same as addon, plus previous_vm_id)
     const presetValues: Record<string, string | number> = {};
     const paramKeys = ['hostname', 'oci_image', 'application_id', 'application_name', 'username', 'uid', 'gid',
-                       'memory', 'cores', 'rootfs_storage', 'disk_size', 'bridge', 'previous_vm_id'];
+                       'memory', 'cores', 'rootfs_storage', 'disk_size', 'bridge', 'previous_vm_id', 'volumes'];
     for (const key of paramKeys) {
       if (params[key] !== undefined) {
         if (['memory', 'cores', 'previous_vm_id'].includes(key)) {
@@ -107,14 +107,25 @@ export class ApplicationsList implements OnInit {
       }
     }
 
+    // Parse existing mount points from JSON string
+    let existingMountPoints: { source: string; target: string }[] | undefined;
+    if (params['mount_points']) {
+      try {
+        existingMountPoints = JSON.parse(params['mount_points']);
+      } catch {
+        // Ignore parse errors - mount points are optional info
+      }
+    }
+
     // Parse installed addons from comma-separated string
     const installedAddons = params['installed_addons']?.split(',').filter(Boolean) || [];
 
-    // Open dialog in installation mode (reinstall creates a new container)
+    // Open dialog in reconfigure mode (reinstall creates a new container but uses reconfigure templates)
     const dialogData: VeConfigurationDialogData = {
       app,
-      task: 'installation',
+      task: 'reconfigure',
       presetValues,
+      existingMountPoints,
       installedAddons,
     };
     const dialogRef = this.dialog.open(VeConfigurationDialog, { data: dialogData });
