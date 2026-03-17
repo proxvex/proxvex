@@ -54,12 +54,12 @@ export class VeConfigurationService {
       catchError((err) => this.handleError(err))
     )
   }
-  
+
   // Post without global error handling - caller must handle errors
   postWithoutGlobalErrorHandler<T, U>(url:string, body:U):Observable<T> {
     return this.http.post<T>(this.veContextKey? url.replace(":veContext", this.veContextKey) : url, body);
   }
-  
+
   get<T>(url:string):Observable<T> {
     return this.http.get<T>(this.veContextKey? url.replace(":veContext", this.veContextKey) : url).pipe(
       catchError((err) => this.handleError(err))
@@ -153,12 +153,12 @@ export class VeConfigurationService {
     );
   }
 
-  postVeUpgrade(application: string, body: { source_vm_id: number; oci_image: string; application_id?: string; application_name?: string; version?: string; addons?: string[] }): Observable<IVeConfigurationResponse> {
+  postVeUpgrade(application: string, body: { previouse_vm_id: number; oci_image: string; application_id?: string; application_name?: string; version?: string; addons?: string[] }): Observable<IVeConfigurationResponse> {
     const params: VeConfigurationParam[] = [];
     const add = (name: string, value: string | number | boolean | undefined) => {
       if (value !== undefined && value !== null) params.push({ name, value });
     };
-    add('source_vm_id', body.source_vm_id);
+    add('previouse_vm_id', body.previouse_vm_id);
     add('oci_image', body.oci_image);
     add('application_id', body.application_id);
     add('application_name', body.application_name);
@@ -188,7 +188,7 @@ export class VeConfigurationService {
   getExecuteMessages(): Observable<IVeExecuteMessagesResponse> {
     return  this.get<IVeExecuteMessagesResponse>(ApiUri.VeExecute);
   }
-  
+
   restartExecution(restartKey: string): Observable<IPostVeConfigurationResponse> {
     if (!this.veContextKey) {
       return throwError(() => new Error("VE context not set"));
@@ -222,8 +222,8 @@ export class VeConfigurationService {
   createApplicationFromFramework(body: IPostFrameworkCreateApplicationBody): Observable<IPostFrameworkCreateApplicationResponse> {
     // Use http.post directly to avoid catchError in post() method
     // This allows the component to handle errors itself
-    const url = this.veContextKey 
-      ? ApiUri.FrameworkCreateApplication.replace(":veContext", this.veContextKey) 
+    const url = this.veContextKey
+      ? ApiUri.FrameworkCreateApplication.replace(":veContext", this.veContextKey)
       : ApiUri.FrameworkCreateApplication;
     return this.http.post<IPostFrameworkCreateApplicationResponse>(url, body);
   }

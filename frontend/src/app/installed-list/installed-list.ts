@@ -48,7 +48,7 @@ export class InstalledList implements OnInit {
   startUpgrade(installation: IManagedOciContainer) {
     const application = installation.application_id || 'oci-lxc-deployer';
     this.svc.postVeUpgrade(application, {
-      source_vm_id: installation.vm_id,
+      previouse_vm_id: installation.vm_id,
       oci_image: installation.oci_image,
       application_id: installation.application_id,
       application_name: installation.application_name,
@@ -73,7 +73,7 @@ export class InstalledList implements OnInit {
       application_name: installation.application_name,
       oci_image: installation.oci_image,
       installed_addons: installation.addons?.join(',') || undefined,
-      source_vm_id: installation.vm_id
+      previouse_vm_id: installation.vm_id
     };
 
     // Filter out undefined values

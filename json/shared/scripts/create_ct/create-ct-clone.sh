@@ -8,16 +8,16 @@
 # 4) Output target VMID, source VMID, and installed addons.
 #
 # Inputs (templated):
-#   - source_vm_id (required)
+#   - previouse_vm_id (required)
 #   - vm_id (optional target id)
 #   - vm_id_start (optional start index for auto-assigned IDs)
 #
 # Output:
-#   - JSON to stdout with vm_id, source_vm_id, installed_addons
+#   - JSON to stdout with vm_id, previouse_vm_id, installed_addons
 
 set -eu
 
-SOURCE_VMID="{{ source_vm_id }}"
+SOURCE_VMID="{{ previouse_vm_id }}"
 TARGET_VMID_INPUT="{{ vm_id }}"
 
 CONFIG_DIR="/etc/pve/lxc"
@@ -27,7 +27,7 @@ log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
 
 if [ -z "$SOURCE_VMID" ] || [ "$SOURCE_VMID" = "NOT_DEFINED" ]; then
-  fail "source_vm_id is required"
+  fail "previouse_vm_id is required"
 fi
 
 if [ ! -f "$SOURCE_CONF" ]; then
@@ -74,8 +74,7 @@ if [ "$TARGET_VMID" = "$SOURCE_VMID" ]; then
 fi
 
 # Stop source if running (pct clone requires stopped container)
-source_status=$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
-if [ "$source_status" = "running" ]; then
+if [ "$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}')" = "running" ]; then
   log "Stopping source container $SOURCE_VMID for cloning..."
   pct stop "$SOURCE_VMID" >&2 || fail "Failed to stop source container $SOURCE_VMID"
 fi
@@ -118,15 +117,26 @@ if [ "$clone_ok" != true ]; then
   fail "Failed to clone container $SOURCE_VMID to $TARGET_VMID"
 fi
 
-# Restart source (it was running before)
-if [ "$source_status" = "running" ]; then
-  log "Restarting source container $SOURCE_VMID..."
-  pct start "$SOURCE_VMID" >&2 || log "Warning: failed to restart source container $SOURCE_VMID"
+# Source container stays stopped — it will be destroyed by post-cleanup-previous-container
+
+# Determine volume_storage from oci-lxc-deployer-volumes volume
+# Search all storages for a volume whose name contains "oci-lxc-deployer-volumes"
+VOLUME_STORAGE=""
+for store in $(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 {print $1}'); do
+  if pvesm list "$store" 2>/dev/null | grep -q "oci-lxc-deployer-volumes"; then
+    VOLUME_STORAGE="$store"
+    break
+  fi
+done
+if [ -n "$VOLUME_STORAGE" ]; then
+  log "Detected volume_storage=$VOLUME_STORAGE (from oci-lxc-deployer-volumes)"
+else
+  log "Warning: could not detect volume_storage (no oci-lxc-deployer-volumes found)"
 fi
 
 # Extract installed addons from source
 INSTALLED_ADDONS=$(extract_addons "$SOURCE_DESC$SOURCE_CONF_TEXT")
-log "Clone prepared: source=$SOURCE_VMID target=$TARGET_VMID addons=$INSTALLED_ADDONS"
+log "Clone prepared: source=$SOURCE_VMID target=$TARGET_VMID volume_storage=$VOLUME_STORAGE addons=$INSTALLED_ADDONS"
 
-printf '[{"id":"vm_id","value":"%s"},{"id":"source_vm_id","value":"%s"},{"id":"installed_addons","value":"%s"}]' \
-  "$TARGET_VMID" "$SOURCE_VMID" "$INSTALLED_ADDONS"
+printf '[{"id":"vm_id","value":"%s"},{"id":"previouse_vm_id","value":"%s"},{"id":"installed_addons","value":"%s"},{"id":"volume_storage","value":"%s"}]' \
+  "$TARGET_VMID" "$SOURCE_VMID" "$INSTALLED_ADDONS" "$VOLUME_STORAGE"

@@ -4,7 +4,7 @@
   "description": "Replaces the old container with the new one. Starts the new container if not already running, stops and destroys the old container. Runs on the PVE host so it can safely replace the deployer's own container.",
   "parameters": [
     {
-      "id": "source_vm_id",
+      "id": "previouse_vm_id",
       "name": "Source VM ID",
       "type": "number",
       "required": true,

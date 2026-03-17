@@ -2,7 +2,7 @@
 # Replace old container with new one.
 #
 # Steps:
-# 1) Validate source_vm_id and vm_id are set and different.
+# 1) Validate previouse_vm_id and vm_id are set and different.
 # 2) Start new container if not already running.
 # 3) Stop old container.
 # 4) Destroy old container.
@@ -13,7 +13,7 @@
 
 set -eu
 
-SOURCE_VMID="{{ source_vm_id }}"
+SOURCE_VMID="{{ previouse_vm_id }}"
 TARGET_VMID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
 HTTP_PORT="{{ http_port }}"
@@ -25,13 +25,13 @@ fail() { log "Error: $*"; exit 1; }
 
 # ─── Step 1: Validate ────────────────────────────────────────────────────────
 if [ -z "$SOURCE_VMID" ] || [ "$SOURCE_VMID" = "NOT_DEFINED" ]; then
-  fail "source_vm_id is required"
+  fail "previouse_vm_id is required"
 fi
 if [ -z "$TARGET_VMID" ] || [ "$TARGET_VMID" = "NOT_DEFINED" ]; then
   fail "vm_id is required"
 fi
 if [ "$SOURCE_VMID" = "$TARGET_VMID" ]; then
-  fail "source_vm_id ($SOURCE_VMID) must differ from vm_id ($TARGET_VMID)"
+  fail "previouse_vm_id ($SOURCE_VMID) must differ from vm_id ($TARGET_VMID)"
 fi
 if [ "$HTTP_PORT" = "NOT_DEFINED" ]; then HTTP_PORT="3000"; fi
 if [ "$HTTPS_PORT" = "NOT_DEFINED" ]; then HTTPS_PORT="3443"; fi

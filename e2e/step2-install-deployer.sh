@@ -454,7 +454,7 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
 
         # Enable SSL addon on the existing container via reconfigure
         # Write JSON on nested VM first, then pct push (avoids multi-layer shell escaping)
-        nested_ssh "printf '%s' '{\"application\":\"oci-lxc-deployer\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"source_vm_id\",\"value\":${TEMP_VMID}}],\"selectedAddons\":[\"addon-ssl\"]}' > /tmp/ssl-params.json"
+        nested_ssh "printf '%s' '{\"application\":\"oci-lxc-deployer\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"previouse_vm_id\",\"value\":${TEMP_VMID}}],\"selectedAddons\":[\"addon-ssl\"]}' > /tmp/ssl-params.json"
         nested_ssh "pct push ${TEMP_VMID} /tmp/ssl-params.json /tmp/ssl-params.json"
 
         # Run reinstall via oci-lxc-cli (installed in Phase 2)

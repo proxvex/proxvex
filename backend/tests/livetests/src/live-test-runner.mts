@@ -1317,8 +1317,8 @@ async function executeScenarios(
           result.failed++;
           break;
         }
-        buildResult.params.push({ name: "source_vm_id", value: String(existing.vm_id) });
-        logInfo(`Found existing VM ${existing.vm_id} for ${task} (source_vm_id)`);
+        buildResult.params.push({ name: "previouse_vm_id", value: String(existing.vm_id) });
+        logInfo(`Found existing VM ${existing.vm_id} for ${task} (previouse_vm_id)`);
       }
 
       // Resolve enum defaults (e.g. volume_storage) via API
