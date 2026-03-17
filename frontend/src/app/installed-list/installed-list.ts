@@ -48,7 +48,7 @@ export class InstalledList implements OnInit {
   startUpgrade(installation: IManagedOciContainer) {
     const application = installation.application_id || 'oci-lxc-deployer';
     this.svc.postVeUpgrade(application, {
-      source_vm_id: installation.vm_id,
+      previouse_vm_id: installation.vm_id,
       oci_image: installation.oci_image,
       application_id: installation.application_id,
       application_name: installation.application_name,
@@ -65,41 +65,16 @@ export class InstalledList implements OnInit {
   }
 
   editAddons(installation: IManagedOciContainer) {
-    // Deployer instances use reinstall mode (new container + cleanup old)
-    // because reconfigure would stop the deployer's own API
-    const isReinstall = !!installation.is_deployer_instance;
 
-    // Build query params from all available container data
+    // Build query params
     const queryParams: Record<string, string | number | undefined> = {
-      mode: isReinstall ? 'reinstall' : 'addon',
+      mode: 'addon',
       application_id: installation.application_id,
       application_name: installation.application_name,
-      hostname: installation.hostname,
       oci_image: installation.oci_image,
-      // User/permission info for addon configuration
-      username: installation.username,
-      uid: installation.uid,
-      gid: installation.gid,
-      // Container resource settings
-      memory: installation.memory,
-      cores: installation.cores,
-      rootfs_storage: installation.rootfs_storage,
-      disk_size: installation.disk_size,
-      bridge: installation.bridge,
-      // Mount points for existing volumes display
-      mount_points: installation.mount_points ? JSON.stringify(installation.mount_points) : undefined,
-      // Volumes in name=path format (derived from mount points)
-      volumes: installation.volumes,
-      // Currently installed addons (from container notes markers)
       installed_addons: installation.addons?.join(',') || undefined,
+      previouse_vm_id: installation.vm_id
     };
-
-    if (isReinstall) {
-      // Pass old VM ID as previous_vm_id for cleanup after reinstall
-      queryParams['previous_vm_id'] = installation.vm_id;
-    } else {
-      queryParams['vm_id'] = installation.vm_id;
-    }
 
     // Filter out undefined values
     const filteredParams = Object.fromEntries(

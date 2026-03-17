@@ -5,7 +5,6 @@
   "icon": "favicon.svg",
   "tags": ["infrastructure"],
   "supported_addons": ["addon-oidc"],
-  "stacktype": "oidc",
   "parameters": [
     {
       "id": "volumes",

@@ -62,7 +62,13 @@
       },
       "additionalProperties": false
     },
-    "notes_key": { "type": "string" }
+    "notes_key": { "type": "string" },
+    "stacktype": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    }
   },
   "required": ["notes_key"],
   "unevaluatedProperties": false

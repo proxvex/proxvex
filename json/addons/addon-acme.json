@@ -2,6 +2,7 @@
   "name": "ACME/Let's Encrypt",
   "description": "Provision trusted TLS certificates via Let's Encrypt using acme.sh with Cloudflare DNS challenge.",
   "tags": ["security", "network"],
+  "stacktype": "cloudflare",
 
   "parameters": [
     {

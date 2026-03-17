@@ -39,6 +39,30 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
   --https
 ```
 
+### 2b. vm_id_start auf 500 setzen
+
+Das Template `099-set-vm-id-start.json` ins Local-Verzeichnis des Deployers legen, damit alle weiteren Apps ab VM-ID 500 vergeben werden:
+
+```bash
+# Auf pve1.cluster:
+mkdir -p /rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config/shared/templates/create_ct
+
+cat > /rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config/shared/templates/create_ct/099-set-vm-id-start.json << 'EOF'
+{
+  "name": "Set VM ID Start",
+  "description": "Default start index for auto-assigned VM IDs. Override in local/shared/templates/create_ct/.",
+  "commands": [
+    {
+      "properties": {
+        "id": "vm_id_start",
+        "default": "500"
+      }
+    }
+  ]
+}
+EOF
+```
+
 ### 3. Postgres und Zitadel deployen
 
 Zitadel wird als OIDC-Provider benötigt, bevor die anderen Apps mit OIDC konfiguriert werden können.

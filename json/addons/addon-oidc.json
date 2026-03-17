@@ -2,6 +2,7 @@
   "name": "OIDC Authentication",
   "description": "Enable OpenID Connect authentication via Zitadel. Automatically creates an OIDC client in Zitadel and provides credentials as template variables.",
   "tags": ["security", "authentication"],
+  "stacktype": "oidc",
 
   "parameters": [
     {

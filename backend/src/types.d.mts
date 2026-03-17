@@ -257,6 +257,7 @@ export interface IPostVeConfigurationBody {
     /** Addons currently installed in the container (from notes markers). Used for delta injection. */
     installedAddons?: string[];
     stackId?: string;
+    stackIds?: string[];
 }
 export interface IPostEnumValuesBody {
     params?: {
@@ -445,6 +446,7 @@ export interface IAddon {
     name: string;
     description?: string;
     tags?: string[];
+    stacktype?: string | string[];
     /** Parameter IDs that must exist in the application for this addon to be compatible */
     required_parameters?: string[];
     /** Applications that must be installed for this addon to function (in the same stack) */
