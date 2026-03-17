@@ -69,36 +69,32 @@ export class InstalledList implements OnInit {
     // because reconfigure would stop the deployer's own API
     const isReinstall = !!installation.is_deployer_instance;
 
-    // Build query params from all available container data
+    // Build query params
     const queryParams: Record<string, string | number | undefined> = {
       mode: isReinstall ? 'reinstall' : 'addon',
       application_id: installation.application_id,
       application_name: installation.application_name,
-      hostname: installation.hostname,
       oci_image: installation.oci_image,
-      // User/permission info for addon configuration
-      username: installation.username,
-      uid: installation.uid,
-      gid: installation.gid,
-      // Container resource settings
-      memory: installation.memory,
-      cores: installation.cores,
-      rootfs_storage: installation.rootfs_storage,
-      disk_size: installation.disk_size,
-      bridge: installation.bridge,
-      // Mount points for existing volumes display
-      mount_points: installation.mount_points ? JSON.stringify(installation.mount_points) : undefined,
-      // Volumes in name=path format (derived from mount points)
-      volumes: installation.volumes,
-      // Currently installed addons (from container notes markers)
       installed_addons: installation.addons?.join(',') || undefined,
     };
 
     if (isReinstall) {
-      // Pass old VM ID as previous_vm_id for cleanup after reinstall
+      // Reinstall needs full container data for creating a new container
       queryParams['previous_vm_id'] = installation.vm_id;
+      queryParams['hostname'] = installation.hostname;
+      queryParams['username'] = installation.username;
+      queryParams['uid'] = installation.uid;
+      queryParams['gid'] = installation.gid;
+      queryParams['memory'] = installation.memory;
+      queryParams['cores'] = installation.cores;
+      queryParams['rootfs_storage'] = installation.rootfs_storage;
+      queryParams['disk_size'] = installation.disk_size;
+      queryParams['bridge'] = installation.bridge;
+      queryParams['mount_points'] = installation.mount_points ? JSON.stringify(installation.mount_points) : undefined;
+      queryParams['volumes'] = installation.volumes;
     } else {
-      queryParams['vm_id'] = installation.vm_id;
+      // Addon reconfigure: clone copies everything, only source_vm_id needed
+      queryParams['source_vm_id'] = installation.vm_id;
     }
 
     // Filter out undefined values
