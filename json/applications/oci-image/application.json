@@ -8,6 +8,7 @@
       "011-host-get-oci-image.json"
     ],
     "create_ct": [
+      { "name": "099-set-vm-id-start.json", "category": "create_ct" },
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
@@ -28,6 +29,7 @@
       "011-host-get-oci-image.json"
     ],
     "create_ct": [
+      { "name": "099-set-vm-id-start.json", "category": "create_ct" },
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
