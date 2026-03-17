@@ -26,6 +26,7 @@ export class ParameterFormManager {
   private disabledAddons: string[] = [];
   private installedAddons: string[] = [];
   private selectedStack: IStack | null = null;
+  private selectedStacksMap = new Map<string, IStack>();
   private hostnameManuallyChanged = false;
 
   constructor(
@@ -107,6 +108,13 @@ export class ParameterFormManager {
   /** Setzt ausgewählten Stack (für install) ohne Hostname-Update */
   setSelectedStack(stack: IStack | null): void {
     this.selectedStack = stack;
+  }
+
+  /** Setzt alle ausgewählten Stacks (app + addon stacktypes) */
+  setSelectedStacks(stacks: Map<string, IStack>): void {
+    this.selectedStacksMap = new Map(stacks);
+    // Keep legacy selectedStack in sync (first stack)
+    this.selectedStack = stacks.size > 0 ? stacks.values().next().value ?? null : null;
   }
 
   /**
@@ -209,7 +217,10 @@ export class ParameterFormManager {
     }
 
     const { params, changedParams } = this.extractParamsWithChanges();
-    const stackId = this.selectedStack?.id;
+    // Collect unique stack IDs from all selected stacks
+    const stackIds = [...new Set(
+      Array.from(this.selectedStacksMap.values()).map(s => s.id)
+    )];
 
     return this.configService.postVeConfiguration(
       applicationId,
@@ -218,7 +229,7 @@ export class ParameterFormManager {
       changedParams.length > 0 ? changedParams : undefined,
       this.selectedAddons.length > 0 ? this.selectedAddons : undefined,
       this.disabledAddons.length > 0 ? this.disabledAddons : undefined,
-      stackId,
+      stackIds.length > 0 ? stackIds : undefined,
       this.installedAddons.length > 0 ? this.installedAddons : undefined,
     ).pipe(
       tap((res) => {

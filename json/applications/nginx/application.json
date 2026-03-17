@@ -4,7 +4,6 @@
   "extends": "oci-image",
   "icon": "nginx.svg",
   "supported_addons": ["addon-oidc"],
-  "stacktype": ["oidc", "cloudflare"],
   "parameters": [
     {
       "id": "hostname",

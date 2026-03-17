@@ -129,7 +129,7 @@ export class VeConfigurationService {
     return this.get<ISshCheckResponse>(`${ApiUri.SshCheck}?${params.toString()}`);
   }
 
-  postVeConfiguration(application: string, task: string, params: VeConfigurationParam[], changedParams?: VeConfigurationParam[], selectedAddons?: string[], disabledAddons?: string[], stackId?: string, installedAddons?: string[]): Observable<{ success: boolean; restartKey?: string; vmInstallKey?: string }> {
+  postVeConfiguration(application: string, task: string, params: VeConfigurationParam[], changedParams?: VeConfigurationParam[], selectedAddons?: string[], disabledAddons?: string[], stackIds?: string[], installedAddons?: string[]): Observable<{ success: boolean; restartKey?: string; vmInstallKey?: string }> {
     const url = ApiUri.VeConfiguration
       .replace(':application', encodeURIComponent(application));
     const body: IPostVeConfigurationBody = { task, params };
@@ -145,8 +145,8 @@ export class VeConfigurationService {
     if (installedAddons && installedAddons.length > 0) {
       body.installedAddons = installedAddons;
     }
-    if (stackId) {
-      body.stackId = stackId;
+    if (stackIds && stackIds.length > 0) {
+      body.stackIds = stackIds;
     }
     return this.post<IPostVeConfigurationResponse,IPostVeConfigurationBody>(url, body).pipe(
       tap((res) => this.setVeContextKeyFrom(res))

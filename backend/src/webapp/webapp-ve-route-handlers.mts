@@ -177,9 +177,14 @@ export class WebAppVeRouteHandlers {
 
       // Pre-inject backend-generated values so skip_if_all_missing can see them
       // during template loading (before defaults are set post-load).
-      const stackId = body.stackId;
-      if (stackId) {
-        initialInputs.push({ id: "stack_name", value: stackId });
+      // Collect all stack IDs (new array format + legacy single format)
+      const allStackIds = [...(body.stackIds ?? [])];
+      if (body.stackId && !allStackIds.includes(body.stackId)) {
+        allStackIds.unshift(body.stackId);
+      }
+      const firstStackId = allStackIds[0];
+      if (firstStackId) {
+        initialInputs.push({ id: "stack_name", value: firstStackId });
       }
 
       // Read application + addon dependencies for dependency-host-discovery
@@ -269,11 +274,13 @@ export class WebAppVeRouteHandlers {
 
       const defaults = this.parameterProcessor.buildDefaults(loaded.parameters);
 
-      // Load stack entries if stackId is provided
-      if (stackId) {
-        const stack = storageContext.getStack(stackId);
+      // Load entries from all stacks (app + addon stacktypes)
+      for (const sid of allStackIds) {
+        const stack = storageContext.getStack(sid);
         if (stack) {
-          defaults.set("stack_name", stackId);
+          if (!defaults.has("stack_name")) {
+            defaults.set("stack_name", sid);
+          }
           if (stack.entries) {
             for (const entry of stack.entries) {
               defaults.set(entry.name, entry.value);

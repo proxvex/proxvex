@@ -84,10 +84,7 @@
     "development"
   ],
   "supported_addons": ["addon-oidc"],
-  "stacktype": [
-    "oidc",
-    "postgres"
-  ],
+  "stacktype": "postgres",
   "verification": {
     "wait_seconds": 60,
     "checks": {

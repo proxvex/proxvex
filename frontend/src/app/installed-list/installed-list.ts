@@ -65,37 +65,16 @@ export class InstalledList implements OnInit {
   }
 
   editAddons(installation: IManagedOciContainer) {
-    // Deployer instances use reinstall mode (new container + cleanup old)
-    // because reconfigure would stop the deployer's own API
-    const isReinstall = !!installation.is_deployer_instance;
 
     // Build query params
     const queryParams: Record<string, string | number | undefined> = {
-      mode: isReinstall ? 'reinstall' : 'addon',
+      mode: 'addon',
       application_id: installation.application_id,
       application_name: installation.application_name,
       oci_image: installation.oci_image,
       installed_addons: installation.addons?.join(',') || undefined,
+      source_vm_id: installation.vm_id
     };
-
-    if (isReinstall) {
-      // Reinstall needs full container data for creating a new container
-      queryParams['previous_vm_id'] = installation.vm_id;
-      queryParams['hostname'] = installation.hostname;
-      queryParams['username'] = installation.username;
-      queryParams['uid'] = installation.uid;
-      queryParams['gid'] = installation.gid;
-      queryParams['memory'] = installation.memory;
-      queryParams['cores'] = installation.cores;
-      queryParams['rootfs_storage'] = installation.rootfs_storage;
-      queryParams['disk_size'] = installation.disk_size;
-      queryParams['bridge'] = installation.bridge;
-      queryParams['mount_points'] = installation.mount_points ? JSON.stringify(installation.mount_points) : undefined;
-      queryParams['volumes'] = installation.volumes;
-    } else {
-      // Addon reconfigure: clone copies everything, only source_vm_id needed
-      queryParams['source_vm_id'] = installation.vm_id;
-    }
 
     // Filter out undefined values
     const filteredParams = Object.fromEntries(

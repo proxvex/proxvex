@@ -339,18 +339,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
           next: (stacksRes) => {
             this.availableStacks.set(stacksRes.stacks);
             this.stacksLoading.set(false);
-            // Set app stacktypes now that stacks are available
-            const st = this.data.app.stacktype;
-            this.appStacktypes = !st ? [] : Array.isArray(st) ? st : [st];
-            // Check for missing stacks per required stacktype
-            this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
-            // Auto-select per stacktype if only one stack matches
-            for (const type of this.appStacktypes) {
-              const typeStacks = this.getStacksForType(type);
-              if (typeStacks.length === 1) {
-                this.onStackSelected(typeStacks[0], type);
-              }
-            }
+            this.refreshStacktypes();
           },
           error: () => {
             // Don't show error for stacks - they're optional
@@ -376,7 +365,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       }
     }
     // First selected stack is used for install (stackId in API call)
-    this.formManager.setSelectedStack(this.selectedStacks.values().next().value ?? null);
+    this.formManager.setSelectedStacks(this.selectedStacks);
     this.formManager.updateHostnameFromStacks(this.selectedStacks);
     // Re-check dependencies (stack_name affects container matching)
     this.checkDependencies();
@@ -463,6 +452,47 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.formManager.setSelectedAddons(this.selectedAddons());
     // Re-check dependencies (addons may add/remove dependencies)
     this.checkDependencies();
+    // Recompute effective stacktypes (addons may add/remove stacktype requirements)
+    this.refreshStacktypes();
+  }
+
+  /** Compute effective stacktypes = app stacktypes + selected addon stacktypes (deduplicated) */
+  private computeEffectiveStacktypes(): string[] {
+    const st = this.data.app.stacktype;
+    const types = !st ? [] : Array.isArray(st) ? [...st] : [st];
+    for (const addonId of this.selectedAddons()) {
+      const addon = this.availableAddons.find(a => a.id === addonId);
+      if (addon?.stacktype) {
+        const addonTypes = Array.isArray(addon.stacktype) ? addon.stacktype : [addon.stacktype];
+        for (const t of addonTypes) {
+          if (!types.includes(t)) types.push(t);
+        }
+      }
+    }
+    return types;
+  }
+
+  /** Recompute appStacktypes and missingStacktypes based on app + selected addons */
+  private refreshStacktypes(): void {
+    this.appStacktypes = this.computeEffectiveStacktypes();
+    this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
+    // Remove stack selections for stacktypes no longer needed
+    for (const type of this.selectedStacks.keys()) {
+      if (!this.appStacktypes.includes(type)) {
+        this.selectedStacks.delete(type);
+      }
+    }
+    // Auto-select per stacktype if only one stack matches
+    for (const type of this.appStacktypes) {
+      if (!this.selectedStacks.has(type)) {
+        const typeStacks = this.getStacksForType(type);
+        if (typeStacks.length === 1) {
+          this.onStackSelected(typeStacks[0], type);
+        }
+      }
+    }
+    // Update formManager with all selected stacks
+    this.formManager?.setSelectedStacks(this.selectedStacks);
   }
 
   private showCaRequiredDialog(addonId: string): void {
@@ -559,7 +589,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     params: { name: string; value: string | number | boolean }[];
     uploads: { name: string; content: string }[];
     addons?: string[];
-    stackId?: string;
+    stackIds?: string[];
   } {
     const { changedParams } = this.formManager.extractParamsWithChanges();
     const uploads: { name: string; content: string }[] = [];
@@ -586,14 +616,17 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       params: { name: string; value: string | number | boolean }[];
       uploads: { name: string; content: string }[];
       addons?: string[];
-      stackId?: string;
+      stackIds?: string[];
     } = { params: changedParams, uploads };
 
     if (this.selectedAddons().length > 0) {
       result.addons = this.selectedAddons();
     }
-    if (this.selectedStack) {
-      result.stackId = this.selectedStack.id;
+    const stackIds = [...new Set(
+      Array.from(this.selectedStacks.values()).map(s => s.id)
+    )];
+    if (stackIds.length > 0) {
+      result.stackIds = stackIds;
     }
     return result;
   }
@@ -603,7 +636,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
 
     const output: Record<string, unknown> = { params: data.params };
     if (data.addons) output['selectedAddons'] = data.addons;
-    if (data.stackId) output['stackId'] = data.stackId;
+    if (data.stackIds) output['stackIds'] = data.stackIds;
 
     const zip = new JSZip();
     zip.file('default.json', JSON.stringify(output, null, 2));
@@ -768,6 +801,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.configService.getStacks().subscribe({
       next: (res) => {
         this.availableStacks.set(res.stacks);
+        this.appStacktypes = this.computeEffectiveStacktypes();
         this.missingStacktypes = this.appStacktypes.filter(type => this.getStacksForType(type).length === 0);
         // Re-select previously selected stacks per stacktype
         this.selectedStacks.clear();
