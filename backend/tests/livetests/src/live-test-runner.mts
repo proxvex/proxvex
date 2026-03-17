@@ -454,7 +454,7 @@ async function apiFetch<T>(baseUrl: string, apiPath: string): Promise<T | null> 
 }
 
 /** Tasks that use create_ct + replace_ct (old container must stay running) */
-const REPLACE_CT_TASKS = ["upgrade", "addon-reconfigure", "reconfigure"];
+const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
 
 /** Find an existing managed container by application_id via the installations API */
 async function findExistingVm(
@@ -1729,7 +1729,7 @@ async function main() {
       logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
       p.skipExecution = true;
     } else if (REPLACE_CT_TASKS.includes(task) && status.includes("running")) {
-      // upgrade/reconfigure/addon-reconfigure: keep existing VM, don't destroy
+      // upgrade/reconfigure: keep existing VM, don't destroy
       logOk(`VM ${p.vmId} (${p.scenario.id}) running — ${task} in place`);
     } else if (!p.isDependency || status.includes("status:")) {
       // Target VMs: always try to destroy (even if status check failed)

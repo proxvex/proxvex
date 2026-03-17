@@ -45,13 +45,12 @@
       "900-replace-ct.json"
     ]
   },
-  "addon-reconfigure": {
+  "reconfigure": {
     "create_ct": [
       "100-create-ct-clone.json"
     ],
     "pre_start": [
-      "set-addon-reconfigure-defaults.json",
-      "100-conf-create-configure-lxc.json",
+      "set-reconfigure-defaults.json",
       "160-conf-bind-multiple-volumes-to-lxc.json",
       "185-host-resolve-dependency-hosts.json"
     ],

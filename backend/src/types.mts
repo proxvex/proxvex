@@ -73,7 +73,6 @@ export type TaskType =
   | "update"
   | "upgrade"
   | "reconfigure"
-  | "addon-reconfigure"
   | "webui"
   | "addon";
 // Generated from template.schema.json

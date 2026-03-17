@@ -1,6 +1,6 @@
 {
-  "name": "Set Addon Reconfigure Defaults",
-  "description": "Sets default values for parameters that are required by templates but not needed in addon-reconfigure mode (container already exists).",
+  "name": "Set Reconfigure Defaults",
+  "description": "Sets default values for parameters that are required by templates but not needed in reconfigure mode (container already exists).",
   "commands": [
     {
       "properties": [

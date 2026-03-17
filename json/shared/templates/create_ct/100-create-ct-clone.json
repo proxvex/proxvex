@@ -1,7 +1,7 @@
 {
   "execute_on": "ve",
   "name": "Clone Container",
-  "description": "Creates a new LXC container by cloning an existing one. Used for reconfigure and addon-reconfigure tasks where the OS image stays the same but configuration changes.",
+  "description": "Creates a new LXC container by cloning an existing one. Used for reconfigure tasks where the OS image stays the same but configuration changes.",
   "parameters": [
     {
       "id": "source_vm_id",

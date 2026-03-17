@@ -55,7 +55,7 @@ export interface IApplicationWeb {
     stacktype?: string | string[] | undefined;
     errors?: IJsonError[];
 }
-export type TaskType = "installation" | "backup" | "restore" | "uninstall" | "update" | "upgrade" | "reconfigure" | "addon-reconfigure" | "webui" | "addon";
+export type TaskType = "installation" | "backup" | "restore" | "uninstall" | "update" | "upgrade" | "reconfigure" | "webui" | "addon";
 export interface IOutputObject {
     id: string;
     value?: string | number | boolean | (string | {

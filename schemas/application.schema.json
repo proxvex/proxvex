@@ -63,12 +63,6 @@
     "reconfigure": {
       "$ref": "categorized-templatelist"
     },
-    "addon-reconfigure": {
-      "$ref": "categorized-templatelist"
-    },
-    "addon": {
-      "$ref": "templatelist"
-    },
     "verification": {
       "type": "object",
       "description": "Post-installation verification configuration",

@@ -414,9 +414,6 @@ fi
 echo "  OCI image ready: ${template_path}" >&2
 
 
-# https_target_vmid is set after container creation (Step 2) when we know the actual vm_id
-https_target_vmid=""
-
 # 2) Create LXC container from OCI image
 echo "Step 2: Creating LXC container..." >&2
 vm_id=$(execute_script_from_github \
@@ -443,13 +440,6 @@ if [ -z "$vm_id" ]; then
 fi
 
 echo "  Container created: ${vm_id}" >&2
-
-# For HTTPS mode: the deployer can't replace itself (pct stop would kill it),
-# so reinstall creates a NEW container at vm_id+1, then the old one gets destroyed
-if [ "$enable_https" = "true" ]; then
-  https_target_vmid=$((vm_id + 1))
-  echo "  HTTPS mode: current container $vm_id, target: $https_target_vmid" >&2
-fi
 
 # 2b) Configure static IP if provided
 if [ -n "$static_ip" ]; then
@@ -643,13 +633,6 @@ fi
   chown "${mapped_uid}:${mapped_gid}" "${secure_volume_path}/.ssh"
   chmod 700 "${secure_volume_path}/.ssh"
 
-  # Setup SSH key persistence: symlink /home/lxc/.ssh -> /secure/.ssh
-  lxc-attach -n "${vm_id}" -- sh -c "\
-    rm -rf /home/lxc/.ssh && \
-    ln -sfn /secure/.ssh /home/lxc/.ssh && \
-    chown -h lxc:lxc /home/lxc/.ssh\
-  " >/dev/null 2>&1 || true
-
 # 7) Setup SSH access — all from host side via secure_volume_path
 echo "Step 7: Setting up SSH access..." >&2
 ssh_dir="${secure_volume_path}/.ssh"
@@ -718,10 +701,10 @@ echo "  SSH access configured" >&2
 # 8) Application startup note (no API configuration; app reads storagecontext.json)
 echo "Step 8: Application startup context ready (no API calls)" >&2
 
-# 9) Enable HTTPS via addon-reconfigure (optional)
+# 9) Enable HTTPS via reconfigure (optional)
 https_done=""
 if [ "$enable_https" = "true" ]; then
-  echo "Step 9: Enabling HTTPS via addon-reconfigure..." >&2
+  echo "Step 9: Enabling HTTPS via reconfigure..." >&2
 
   # Resolve container IP (use static_ip if set, otherwise query from container)
   container_ip=""
@@ -815,15 +798,8 @@ if [ "$enable_https" = "true" ]; then
           echo "  Domain suffix: $(printf '%s' "$suffix_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")" >&2
         fi
 
-        # Build params file for reinstall with SSL
-        # Uses installation task (not addon-reconfigure) like the UI does for deployer instances
-        # (see installed-list.ts:89 — deployer instances use reinstall mode)
-        params_json='{"application":"oci-lxc-deployer","task":"installation","params":['
-        if [ -n "$https_target_vmid" ]; then
-          params_json="${params_json}{\"name\":\"vm_id\",\"value\":${https_target_vmid}},"
-        fi
-        params_json="${params_json}{\"name\":\"previous_vm_id\",\"value\":${vm_id}}"
-        params_json="${params_json}],\"selectedAddons\":[\"addon-ssl\"]}"
+        # Enable SSL addon on the existing container
+        params_json="{\"application\":\"oci-lxc-deployer\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"source_vm_id\",\"value\":${vm_id}}],\"selectedAddons\":[\"addon-ssl\"]}"
 
         pct exec "${vm_id}" -- sh -c "printf '%s' '${params_json}' > /tmp/ssl-params.json"
 
@@ -855,10 +831,6 @@ if [ "$enable_https" = "true" ]; then
           echo "  Warning: HTTPS did not come up within 120s" >&2
         fi
 
-        # Update vm_id to target after reinstall
-        if [ -n "$https_target_vmid" ]; then
-          vm_id="$https_target_vmid"
-        fi
       fi
     fi
   fi

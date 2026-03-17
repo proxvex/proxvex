@@ -54,7 +54,7 @@
     {
       "name": "Enable SSL App Configuration",
       "script": "conf-enable-ssl-app.sh",
-      "outputs": ["ssl_app_enabled", "env_file", "compose_file"]
+      "outputs": ["ssl_app_enabled", {"id": "compose_file", "default": true}]
     }
   ]
 }

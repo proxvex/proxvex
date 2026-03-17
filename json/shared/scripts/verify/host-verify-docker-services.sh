@@ -13,7 +13,7 @@ VM_ID="{{ vm_id }}"
 # Check if docker is installed in the container
 if ! pct exec "$VM_ID" -- which docker >/dev/null 2>&1; then
     echo "VERIFY: services_up SKIPPED (docker not installed)" >&2
-    printf '[{"id":"verify_services","default":"skipped (no docker)"}]'
+    printf '[{"id":"verify_services","value":"skipped (no docker)"}]'
     exit 0
 fi
 
@@ -22,7 +22,7 @@ docker_ps=$(pct exec "$VM_ID" -- docker ps --format '{{.Names}}\t{{.Status}}' 2>
 
 if [ -z "$docker_ps" ]; then
     echo "VERIFY: services_up FAILED (no docker containers found)" >&2
-    printf '[{"id":"verify_services","default":"no containers found"}]'
+    printf '[{"id":"verify_services","value":"no containers found"}]'
     exit 1
 fi
 
@@ -42,9 +42,9 @@ not_up_services=$(echo "$docker_ps" | grep -v "	Up" || true)
 if [ -n "$not_up_services" ]; then
     echo "VERIFY: services_up FAILED" >&2
     echo "$not_up_services" >&2
-    printf '[{"id":"verify_services","default":"some services not up"}]'
+    printf '[{"id":"verify_services","value":"some services not up"}]'
     exit 1
 fi
 
 echo "VERIFY: services_up PASSED (all services are Up)" >&2
-printf '[{"id":"verify_services","default":"all services up"}]'
+printf '[{"id":"verify_services","value":"all services up"}]'

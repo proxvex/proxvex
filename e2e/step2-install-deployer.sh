@@ -222,15 +222,22 @@ if nested_ssh "pct status $DEPLOYER_VMID" &>/dev/null; then
         # Check if API is responding
         DEPLOYER_IP=$(nested_ssh "pct exec $DEPLOYER_VMID -- hostname -I 2>/dev/null" | awk '{print $1}')
         if [ -n "$DEPLOYER_IP" ]; then
-            if nested_ssh "curl -s http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
-                success "API is healthy at $DEPLOYER_IP:3080"
+            if nested_ssh "curl -s http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype" || \
+               nested_ssh "curl -sk https://$DEPLOYER_IP:3443/ 2>/dev/null" | grep -q "doctype"; then
+                # Detect protocol
+                if nested_ssh "curl -sk --connect-timeout 1 https://$DEPLOYER_IP:3443/ 2>/dev/null" | grep -q "doctype"; then
+                    DEPLOYER_PROTO="https://$DEPLOYER_IP:3443"
+                else
+                    DEPLOYER_PROTO="http://$DEPLOYER_IP:3080"
+                fi
+                success "API is healthy at $DEPLOYER_PROTO"
 
                 if [ "$UPDATE_ONLY" = "true" ]; then
                     info "--update-only: Skipping to local package deployment..."
                 else
                     echo ""
                     echo "Deployer already installed and running!"
-                    echo "API URL: http://$DEPLOYER_IP:3080"
+                    echo "API URL: $DEPLOYER_PROTO"
                     echo ""
                     echo "To deploy updated code: ./step2-install-deployer.sh --update-only"
                     exit 0
@@ -445,11 +452,9 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
             info "Domain suffix: $(echo "$SUFFIX_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")"
         fi
 
-        # Build params JSON for reinstall with SSL
-        # Uses installation task (not addon-reconfigure) — deployer instances use reinstall mode
-        # (see installed-list.ts:89)
+        # Enable SSL addon on the existing container via reconfigure
         # Write JSON on nested VM first, then pct push (avoids multi-layer shell escaping)
-        nested_ssh "printf '%s' '{\"application\":\"oci-lxc-deployer\",\"task\":\"installation\",\"params\":[{\"name\":\"vm_id\",\"value\":${DEPLOYER_VMID}},{\"name\":\"previous_vm_id\",\"value\":${TEMP_VMID}}],\"selectedAddons\":[\"addon-ssl\"]}' > /tmp/ssl-params.json"
+        nested_ssh "printf '%s' '{\"application\":\"oci-lxc-deployer\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"source_vm_id\",\"value\":${TEMP_VMID}}],\"selectedAddons\":[\"addon-ssl\"]}' > /tmp/ssl-params.json"
         nested_ssh "pct push ${TEMP_VMID} /tmp/ssl-params.json /tmp/ssl-params.json"
 
         # Run reinstall via oci-lxc-cli (installed in Phase 2)
@@ -495,15 +500,7 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
         done
         success "Container $DEPLOYER_VMID running"
 
-        # ─── Deploy local package to final container ───
-        # New container (from OCI image) needs the latest code too
-        header "Deploy Local Package to Final Container ($DEPLOYER_VMID)"
-        deploy_to_container "$DEPLOYER_VMID"
-
-        # Ensure /etc/hosts in final container
-        info "Setting up /etc/hosts in container $DEPLOYER_VMID..."
-        nested_ssh "pct exec $DEPLOYER_VMID -- sh -c 'grep -q \"${NESTED_HOSTNAME}.local\" /etc/hosts || echo \"$HOSTS_ENTRY\" >> /etc/hosts'"
-        success "Hosts entry configured in final container"
+        # Clone already contains the local package from Phase 2 — no second deploy needed
     else
         # --update-only: Deploy directly to DEPLOYER_VMID
         header "Deploying Local Package"

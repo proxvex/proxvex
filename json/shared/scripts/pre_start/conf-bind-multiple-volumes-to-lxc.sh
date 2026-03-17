@@ -477,7 +477,7 @@ if [ -n "$HOST_MOUNTPOINT" ] && [ "$HOST_MOUNTPOINT" != "" ]; then
 else
   SHARED_VOLPATH="/mnt"
 fi
-echo "{\"id\":\"shared_volpath\",\"default\":\"$SHARED_VOLPATH\"}"
+echo "{\"id\":\"shared_volpath\",\"value\":\"$SHARED_VOLPATH\"}"
 
 exit 0
 

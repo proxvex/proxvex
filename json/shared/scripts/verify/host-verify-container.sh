@@ -55,7 +55,7 @@ else
 fi
 
 # Output results
-printf '[{"id":"verify_results","default":"%s"}]' "$(echo "$results" | sed 's/"/\\"/g')"
+printf '[{"id":"verify_results","value":"%s"}]' "$(echo "$results" | sed 's/"/\\"/g')"
 
 if [ "$all_passed" = "false" ]; then
     exit 1

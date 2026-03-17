@@ -99,7 +99,7 @@
       "900-replace-ct.json"
     ]
   },
-  "addon-reconfigure": {
+  "reconfigure": {
     "image": [
       "012-host-docker-pull-in-existing.json"
     ],

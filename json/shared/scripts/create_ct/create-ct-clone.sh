@@ -1,5 +1,5 @@
 #!/bin/sh
-# Clone an existing LXC container for reconfigure/addon-reconfigure.
+# Clone an existing LXC container for reconfigure.
 #
 # Steps:
 # 1) Verify source container exists and was created by oci-lxc-deployer.

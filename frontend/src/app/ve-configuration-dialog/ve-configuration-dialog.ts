@@ -155,7 +155,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         }
 
         // Add hidden controls for presetValues not in unresolved parameters
-        // (e.g., vm_id is resolved by output but needed at runtime for addon-reconfigure)
+        // (e.g., vm_id is resolved by output but needed at runtime for reconfigure)
         for (const [key, value] of Object.entries(this.presetValues)) {
           if (!this.form.contains(key)) {
             this.form.addControl(key, new FormControl(value));
@@ -298,7 +298,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
         this.applyRequiredParametersFilter();
         this.addonsLoading.set(false);
 
-        // Pre-select installed addons (for addon-reconfigure mode)
+        // Pre-select installed addons (for reconfigure mode)
         if (this.installedAddons.length > 0) {
           for (const addonId of this.installedAddons) {
             const addon = this.availableAddons.find(a => a.id === addonId);

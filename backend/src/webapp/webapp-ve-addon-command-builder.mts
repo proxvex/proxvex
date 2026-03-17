@@ -29,9 +29,8 @@ export class WebAppVeAddonCommandBuilder {
     switch (task) {
       case "installation":
         return "installation";
-      case "addon-reconfigure":
-        return "reconfigure";
       case "reconfigure":
+        return "reconfigure";
       case "upgrade":
         return "upgrade";
       default:

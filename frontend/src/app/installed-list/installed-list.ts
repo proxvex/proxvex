@@ -66,7 +66,7 @@ export class InstalledList implements OnInit {
 
   editAddons(installation: IManagedOciContainer) {
     // Deployer instances use reinstall mode (new container + cleanup old)
-    // because addon-reconfigure would stop the deployer's own API
+    // because reconfigure would stop the deployer's own API
     const isReinstall = !!installation.is_deployer_instance;
 
     // Build query params from all available container data

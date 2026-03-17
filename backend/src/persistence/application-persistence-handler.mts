@@ -701,23 +701,6 @@ export class ApplicationPersistenceHandler {
       }
     }
 
-    // addon-reconfigure uses category-based format: { image, pre_start, start, post_start }
-    const addonReconfigure = (appData as any)["addon-reconfigure"];
-    if (addonReconfigure && typeof addonReconfigure === "object" && !Array.isArray(addonReconfigure)) {
-      let taskEntry = opts.taskTemplates.find((t) => t.task === "addon-reconfigure");
-      if (!taskEntry) {
-        taskEntry = { task: "addon-reconfigure", templates: [] };
-        opts.taskTemplates.push(taskEntry);
-      }
-
-      for (const category of installationCategories) {
-        const list = addonReconfigure[category];
-        if (Array.isArray(list)) {
-          this.processTemplateList(list, taskEntry, "addon-reconfigure", opts, category);
-        }
-      }
-    }
-
     // upgrade, reconfigure: support both array (flat) and object (category-based) format
     for (const key of ["upgrade", "reconfigure"] as const) {
       const value = (appData as any)[key];

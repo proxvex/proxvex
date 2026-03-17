@@ -503,13 +503,13 @@ describe("WebAppVE Addon Integration", () => {
       expect(response.status).not.toBe(400);
     });
 
-    it("should use post_start phase for addon-reconfigure task", async () => {
-      // Create application with addon-reconfigure task
+    it("should use post_start phase for reconfigure task", async () => {
+      // Create application with reconfigure task
       helper.writeApplication("testapp2", {
         name: "Test App 2",
-        description: "Test application with addon-reconfigure",
+        description: "Test application with reconfigure",
         installation: { post_start: ["set-parameters.json"] },
-        "addon-reconfigure": { post_start: ["reconfig.json"] },
+        reconfigure: { post_start: ["reconfig.json"] },
       } as any);
 
       helper.writeTemplate("testapp2", "set-parameters.json", {
@@ -573,7 +573,7 @@ describe("WebAppVE Addon Integration", () => {
       const response = await request(app)
         .post(url)
         .send({
-          task: "addon-reconfigure",
+          task: "reconfigure",
           params: [],
           changedParams: [],
           selectedAddons: ["reconfig-addon"],
@@ -903,7 +903,7 @@ describe("WebAppVE Addon Integration", () => {
       helper.writeApplication("testapp", {
         name: "Test App",
         description: "Test application",
-        "addon-reconfigure": { post_start: ["set-parameters.json"] },
+        reconfigure: { post_start: ["set-parameters.json"] },
       });
 
       helper.writeTemplate("testapp", "set-parameters.json", {
@@ -980,7 +980,7 @@ describe("WebAppVE Addon Integration", () => {
       const response = await request(app)
         .post(url)
         .send({
-          task: "addon-reconfigure",
+          task: "reconfigure",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           disabledAddons: ["test-disable-addon"],
@@ -998,7 +998,7 @@ describe("WebAppVE Addon Integration", () => {
       helper.writeApplication("testapp", {
         name: "Test App",
         description: "Test application",
-        "addon-reconfigure": { post_start: ["set-parameters.json"] },
+        reconfigure: { post_start: ["set-parameters.json"] },
       });
 
       helper.writeTemplate("testapp", "set-parameters.json", {
@@ -1028,7 +1028,7 @@ describe("WebAppVE Addon Integration", () => {
       const response = await request(app)
         .post(url)
         .send({
-          task: "addon-reconfigure",
+          task: "reconfigure",
           params: [{ name: "hostname", value: "testhost" }],
           changedParams: [{ name: "hostname", value: "testhost" }],
           disabledAddons: ["non-existent-addon"],
