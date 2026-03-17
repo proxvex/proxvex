@@ -217,6 +217,16 @@ else
   nginx >&2
 fi
 
+# --- Create reload_certificates hook for ACME renewal ---
+RELOAD_SCRIPT="/etc/lxc-oci-deployer/reload_certificates"
+cat > "$RELOAD_SCRIPT" <<'RELOADEOF'
+#!/bin/sh
+# Reload nginx to pick up renewed certificates
+nginx -s reload >&2
+RELOADEOF
+chmod 755 "$RELOAD_SCRIPT"
+echo "Created certificate reload hook: $RELOAD_SCRIPT" >&2
+
 echo "SSL proxy setup complete (HTTPS on port ${HTTPS_PORT})" >&2
 SSLEOF
 
