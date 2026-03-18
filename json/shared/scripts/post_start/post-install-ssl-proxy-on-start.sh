@@ -8,7 +8,7 @@
 # - Native/certs mode: exit (app handles HTTPS itself or only certs needed)
 #
 # Requires:
-#   - ssl.mode: "proxy", "native", or "certs"
+#   - ssl_mode: "proxy", "native", or "certs"
 #   - http_port: Application HTTP port
 #   - https_port: HTTPS port for nginx proxy
 #   - alpine_mirror: (optional) Alpine mirror URL
@@ -16,7 +16,7 @@
 #
 # Output: errors to stderr only
 
-SSL_MODE="{{ ssl.mode }}"
+SSL_MODE="{{ ssl_mode }}"
 HTTP_PORT="{{ http_port }}"
 HTTPS_PORT="{{ https_port }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"

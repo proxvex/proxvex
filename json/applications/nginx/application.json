@@ -36,28 +36,6 @@
       "description": "Environment variables to substitute in initial_command.",
       "template": "107-conf-oci-lxc-configuration.json",
       "templatename": "Configure LXC for OCI"
-    },
-    {
-      "id": "rootfs_storage",
-      "name": "Rootfs Storage",
-      "type": "enum",
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage for the container rootfs",
-      "advanced": true,
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "local-zfs"
-    },
-    {
-      "id": "volume_storage",
-      "name": "Volume Storage",
-      "type": "enum",
-      "required": true,
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage ID for data volumes",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "local-zfs"
     }
   ],
   "properties": [
@@ -77,11 +55,6 @@
     { "id": "oidc_callback_path", "value": "/oauth2/callback" },
     { "id": "oidc_required_role", "value": "" }
   ],
-  "installation": {
-    "post_start": [
-      "post-setup-acme-cloudflare.json"
-    ]
-  },
   "url": "https://github.com/nginx/docker-nginx-unprivileged",
   "source": "https://github.com/nginx/docker-nginx-unprivileged",
   "tags": [

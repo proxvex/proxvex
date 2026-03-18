@@ -73,7 +73,7 @@
       "value": "root"
     },
     {
-      "id": "ssl.mode",
+      "id": "ssl_mode",
       "value": "native"
     }
   ],

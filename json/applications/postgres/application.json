@@ -51,7 +51,7 @@
       "value": "postgres"
     },
     {
-      "id": "ssl.mode",
+      "id": "ssl_mode",
       "value": "certs"
     },
     {

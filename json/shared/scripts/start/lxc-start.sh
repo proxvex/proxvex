@@ -35,6 +35,13 @@ if [ "$CONTAINER_STATUS" = "running" ]; then
   exit 0
 fi
 
+# Truncate LXC console log before start (ensures clean hookscript markers)
+HOSTNAME_FOR_LOG=$(pct config "$VMID" 2>/dev/null | awk '/^hostname:/{print $2}')
+if [ -n "$HOSTNAME_FOR_LOG" ]; then
+  LOG_PATH="/var/log/lxc/${HOSTNAME_FOR_LOG}-${VMID}.log"
+  : > "$LOG_PATH" 2>/dev/null || true
+fi
+
 # Try to start the container
 echo "Attempting to start container $VMID..." >&2
 if ! pct start "$VMID" >/dev/null 2>&1; then

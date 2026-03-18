@@ -94,8 +94,11 @@
       "additionalProperties": false
     }
   },
-  "required": [
-    "installation"
-  ],
+  "if": {
+    "not": { "required": ["extends"] }
+  },
+  "then": {
+    "required": ["installation"]
+  },
   "unevaluatedProperties": false
 }

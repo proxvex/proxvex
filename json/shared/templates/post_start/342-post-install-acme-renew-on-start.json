@@ -2,24 +2,24 @@
   "execute_on": "lxc",
   "name": "Install ACME Cert Renewal",
   "description": "Installs a drop-in script that handles ACME certificate issuance and renewal via acme.sh with Cloudflare DNS on each container start.",
-  "skip_if_all_missing": ["acme.cf_api_token"],
+  "skip_if_all_missing": ["CF_TOKEN"],
   "parameters": [
     {
-      "id": "acme.cf_api_token",
+      "id": "CF_TOKEN",
       "name": "Cloudflare API Token",
       "type": "string",
       "required": true,
       "description": "Cloudflare API token with DNS edit permissions"
     },
     {
-      "id": "acme.domain",
+      "id": "acme_domain",
       "name": "Domain",
       "type": "string",
       "required": true,
       "description": "Fully qualified domain name for the certificate"
     },
     {
-      "id": "acme.email",
+      "id": "acme_email",
       "name": "Email",
       "type": "string",
       "default": "",

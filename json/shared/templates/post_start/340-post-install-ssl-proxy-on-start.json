@@ -2,10 +2,10 @@
   "execute_on": "lxc",
   "name": "Install SSL Proxy On-Start",
   "description": "Installs a drop-in script that handles nginx reverse proxy setup and iptables rules on each container start.",
-  "skip_if_all_missing": ["ssl.mode"],
+  "skip_if_all_missing": ["ssl_mode"],
   "parameters": [
     {
-      "id": "ssl.mode",
+      "id": "ssl_mode",
       "name": "SSL Mode",
       "type": "string",
       "required": true,

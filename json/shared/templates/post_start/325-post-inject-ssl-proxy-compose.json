@@ -12,7 +12,7 @@
       "description": "Docker-Compose project name"
     },
     {
-      "id": "ssl.mode",
+      "id": "ssl_mode",
       "name": "SSL Mode",
       "type": "string",
       "required": true,

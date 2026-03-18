@@ -55,6 +55,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
+      "106-set-project-parameters.json",
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
@@ -68,7 +69,8 @@
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
       "320-post-upload-docker-compose-files.json",
-      "330-svc-start-docker-compose.json"
+      "330-svc-start-docker-compose.json",
+      "350-host-check-hook-log.json"
     ]
   },
   "upgrade": {
@@ -83,6 +85,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
+      "106-set-project-parameters.json",
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
@@ -95,7 +98,8 @@
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
       "320-post-upload-docker-compose-files.json",
-      "330-svc-start-docker-compose.json"
+      "330-svc-start-docker-compose.json",
+      "350-host-check-hook-log.json"
     ],
     "replace_ct": [
       "900-replace-ct.json"
@@ -109,6 +113,7 @@
       "100-create-ct-clone.json"
     ],
     "pre_start": [
+      "106-set-project-parameters.json",
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
@@ -122,7 +127,8 @@
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
       "320-post-upload-docker-compose-files.json",
-      "330-svc-start-docker-compose.json"
+      "330-svc-start-docker-compose.json",
+      "350-host-check-hook-log.json"
     ],
     "replace_ct": [
       "900-replace-ct.json"

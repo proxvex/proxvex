@@ -1,0 +1,36 @@
+{
+  "name": "Set Project Parameters",
+  "description": "Project-specific default parameters for ohnewarum.de",
+  "parameters": [
+    {
+      "id": "oidc_issuer_url",
+      "name": "OIDC Issuer URL",
+      "type": "string",
+      "default": "https://auth.ohnewarum.de",
+      "advanced": true,
+      "description": "External OIDC issuer URL"
+    },
+    {
+      "id": "acme_san",
+      "name": "SAN (Subject Alternative Names)",
+      "type": "string",
+      "default": "{{ hostname }}.ohnewarum.de",
+      "advanced": true,
+      "description": "Domain(s) for the ACME certificate"
+    }
+  ],
+  "commands": [
+    {
+      "properties": {
+        "id": "oidc_issuer_url",
+        "default": "https://auth.ohnewarum.de"
+      }
+    },
+    {
+      "properties": {
+        "id": "acme_san",
+        "default": "{{ hostname }}.ohnewarum.de"
+      }
+    }
+  ]
+}

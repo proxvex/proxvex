@@ -7,12 +7,12 @@
 #
 # Requires:
 #   - vm_id: Container VMID
-#   - ssl.mode: "proxy", "native", or "certs"
+#   - ssl_mode: "proxy", "native", or "certs"
 #
 # Output: [{"id": "ssl_capabilities_set", "value": "true/false"}]
 
 VM_ID="{{ vm_id }}"
-SSL_MODE="{{ ssl.mode }}"
+SSL_MODE="{{ ssl_mode }}"
 
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
 

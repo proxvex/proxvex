@@ -2,7 +2,7 @@
   "name": "oci-image",
   "description": "Base application for OCI image based services",
   "icon": "icon.png",
-  "supported_addons": ["addon-ssl", "samba-shares"],
+  "supported_addons": ["addon-ssl", "addon-acme", "samba-shares"],
   "installation": {
     "image": [
       "011-host-get-oci-image.json"
@@ -12,6 +12,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
+      "106-set-project-parameters.json",
       "107-conf-oci-lxc-configuration.json",
       "160-conf-bind-multiple-volumes-to-lxc.json",
       "185-host-resolve-dependency-hosts.json"
@@ -21,7 +22,8 @@
       "210-wait-for-container-ready.json"
     ],
     "post_start": [
-      "305-post-set-pkg-mirror.json"
+      "305-post-set-pkg-mirror.json",
+      "350-host-check-hook-log.json"
     ]
   },
   "upgrade": {
@@ -33,6 +35,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
+      "106-set-project-parameters.json",
       "107-conf-oci-lxc-configuration.json",
       "160-conf-bind-multiple-volumes-to-lxc.json"
     ],
@@ -41,7 +44,8 @@
       "210-wait-for-container-ready.json"
     ],
     "post_start": [
-      "305-post-set-pkg-mirror.json"
+      "305-post-set-pkg-mirror.json",
+      "350-host-check-hook-log.json"
     ],
     "replace_ct": [
       "900-replace-ct.json"
@@ -52,6 +56,7 @@
       "100-create-ct-clone.json"
     ],
     "pre_start": [
+      "106-set-project-parameters.json",
       "set-reconfigure-defaults.json",
       "160-conf-bind-multiple-volumes-to-lxc.json",
       "185-host-resolve-dependency-hosts.json"
@@ -59,6 +64,9 @@
     "start": [
       "200-start-lxc.json",
       "210-wait-for-container-ready.json"
+    ],
+    "post_start": [
+      "350-host-check-hook-log.json"
     ],
     "replace_ct": [
       "900-replace-ct.json"

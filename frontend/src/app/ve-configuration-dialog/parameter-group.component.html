@@ -113,7 +113,7 @@
 	@switch (param.type) {
 		@case ('boolean') {
 			<div class="param-field param-toggle">
-				<mat-slide-toggle [formControlName]="param.id" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
+				<mat-slide-toggle [formControl]="$any(form.controls[param.id])" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
 					{{ param.name }}
 				</mat-slide-toggle>
 				@if (hasExpandableHelp(param)) {
@@ -126,7 +126,7 @@
 		@case ('enum') {
 			<mat-form-field appearance="outline" class="param-field">
 				<mat-label>{{ param.name }}</mat-label>
-				<mat-select [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
+				<mat-select [formControl]="$any(form.controls[param.id])" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above">
 					@for (option of param.enumValues; track option) {
 						<mat-option [value]="getEnumOptionValue(option)">{{ getEnumOptionLabel(option) }}</mat-option>
 					}
@@ -162,9 +162,9 @@
 				<mat-form-field appearance="outline" class="param-field" [class.param-field-multiline]="param.multiline">
 					<mat-label>{{ param.name }}</mat-label>
 					@if (param.multiline) {
-						<textarea matInput rows="5" [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above"></textarea>
+						<textarea matInput rows="5" [formControl]="$any(form.controls[param.id])" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above"></textarea>
 					} @else {
-						<input matInput [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
+						<input matInput [formControl]="$any(form.controls[param.id])" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
 					}
 					@if (hasExpandableHelp(param)) {
 						<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
@@ -177,7 +177,7 @@
 		@case ('number') {
 			<mat-form-field appearance="outline" class="param-field">
 				<mat-label>{{ param.name }}</mat-label>
-				<input matInput type="number" [formControlName]="param.id" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
+				<input matInput type="number" [formControl]="$any(form.controls[param.id])" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
 				@if (hasExpandableHelp(param)) {
 					<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
 						<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>

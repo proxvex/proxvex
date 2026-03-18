@@ -186,7 +186,20 @@ export class ParameterFormManager {
     const params: VeConfigurationParam[] = [];
     const changedParams: VeConfigurationParam[] = [];
 
-    for (const [paramId, currentValue] of Object.entries(this.form.value) as [string, IParameterValue][]) {
+    // Flatten form value: addon FormGroups are merged into flat params (skip addon ID key)
+    const flatValues: Record<string, IParameterValue> = {};
+    for (const [key, value] of Object.entries(this.form.value)) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        // Addon FormGroup — flatten its controls (skip the addon ID level)
+        for (const [paramId, paramValue] of Object.entries(value as Record<string, IParameterValue>)) {
+          flatValues[paramId] = paramValue;
+        }
+      } else {
+        flatValues[key] = value as IParameterValue;
+      }
+    }
+
+    for (const [paramId, currentValue] of Object.entries(flatValues)) {
       const processedValue = this.extractBase64Content(currentValue);
       const initialValue = this.initialValues.get(paramId);
 

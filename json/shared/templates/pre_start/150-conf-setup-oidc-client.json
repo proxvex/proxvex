@@ -50,11 +50,11 @@
       "description": "Domain suffix for constructing URLs"
     },
     {
-      "id": "OIDC_PROJECT_NAME",
+      "id": "oidc_project_name",
       "name": "OIDC Project Name",
       "type": "string",
       "required": true,
-      "description": "Name of the Zitadel project (from oidc stack variable)"
+      "description": "Name of the Zitadel project"
     },
     {
       "id": "oidc_issuer_url",

@@ -20,7 +20,7 @@
 
 VMID="{{ vm_id }}"
 HOOK_PATH="/var/lib/vz/snippets/lxc-oci-deployer-hook.sh"
-NEW_VERSION=2
+NEW_VERSION=4
 
 # The hookscript body (everything below the header)
 HOOK_BODY='
@@ -35,7 +35,12 @@ case $phase in
     CONF_FILE="/etc/pve/lxc/${vmid}.conf"
     APP_UID=$(awk -F"[: ]+" "/^lxc\\.init\\.uid:/{print \$2}" "$CONF_FILE" 2>/dev/null)
     APP_GID=$(awk -F"[: ]+" "/^lxc\\.init\\.gid:/{print \$2}" "$CONF_FILE" 2>/dev/null)
-    pct exec "$vmid" -- /etc/lxc-oci-deployer/on_start_container "${APP_UID:-0}" "${APP_GID:-0}" 2>/dev/null || true
+    LOG_FILE=$(awk -F": " "/^lxc\\.console\\.logfile:/{print \$2}" "$CONF_FILE" 2>/dev/null)
+    if [ -n "$LOG_FILE" ]; then
+      pct exec "$vmid" -- /etc/lxc-oci-deployer/on_start_container "${APP_UID:-0}" "${APP_GID:-0}" >> "$LOG_FILE" 2>&1 || true
+    else
+      pct exec "$vmid" -- /etc/lxc-oci-deployer/on_start_container "${APP_UID:-0}" "${APP_GID:-0}" || true
+    fi
     ;;
 esac
 

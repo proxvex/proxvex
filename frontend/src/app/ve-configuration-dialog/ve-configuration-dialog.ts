@@ -62,6 +62,8 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   availableAddons: IAddonWithParameters[] = [];
   selectedAddons = signal<string[]>([]);
   expandedAddons = signal<string[]>([]);
+  /** Pre-created FormGroups per addon (initialized when addons load) */
+  addonFormGroups = new Map<string, FormGroup>();
   addonsLoading = signal(false);
 
   // Dependency check state
@@ -295,6 +297,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.configService.getCompatibleAddons(this.data.app.id, this.installedAddons).subscribe({
       next: (res) => {
         this._allCompatibleAddons = res.addons;
+        this.initAddonFormGroups(res.addons);
         this.applyRequiredParametersFilter();
         this.addonsLoading.set(false);
 
@@ -323,9 +326,59 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   /** All addons from backend before required_parameters filtering */
   private _allCompatibleAddons: IAddonWithParameters[] = [];
 
-  /** Apply addon filtering. required_parameters is checked by the backend. */
+  /** Pre-create a flat FormGroup for each addon with all its parameter controls.
+   *  Project-level defaults from unresolvedParameters take precedence over addon defaults. */
+  private initAddonFormGroups(addons: IAddonWithParameters[]): void {
+    for (const addon of addons) {
+      if (!addon.parameters?.length) continue;
+      const controls: Record<string, FormControl> = {};
+      for (const param of addon.parameters) {
+        const validators = param.required ? [Validators.required] : [];
+        // Project default (from template 106) takes precedence over addon default
+        const projectParam = this.unresolvedParameters.find(p => p.id === param.id);
+        const defaultValue = projectParam?.default ?? param.default ?? '';
+        controls[param.id] = new FormControl(defaultValue, validators);
+      }
+      this.addonFormGroups.set(addon.id, new FormGroup(controls));
+    }
+  }
+
+  /** Apply addon filtering. required_parameters is checked by the backend.
+   *  Also removes addon-owned parameters from groupedParameters to avoid
+   *  duplicate/invisible form controls blocking the install button. */
   applyRequiredParametersFilter(): void {
     this.availableAddons = this._allCompatibleAddons;
+
+    // Re-initialize addon FormGroups with project defaults from unresolvedParameters
+    if (this._allCompatibleAddons.length > 0 && this.unresolvedParameters.length > 0) {
+      this.initAddonFormGroups(this._allCompatibleAddons);
+    }
+
+    // Collect all parameter IDs owned by addons
+    const addonParamIds = new Set<string>();
+    for (const addon of this._allCompatibleAddons) {
+      if (addon.parameters) {
+        for (const p of addon.parameters) {
+          addonParamIds.add(p.id);
+        }
+      }
+    }
+
+    // Remove addon-owned parameters from groupedParameters and form
+    if (addonParamIds.size > 0) {
+      for (const group in this.groupedParameters) {
+        this.groupedParameters[group] = this.groupedParameters[group].filter(p => {
+          if (addonParamIds.has(p.id)) {
+            this.form.removeControl(p.id);
+            return false;
+          }
+          return true;
+        });
+        if (this.groupedParameters[group].length === 0) {
+          delete this.groupedParameters[group];
+        }
+      }
+    }
   }
 
   private loadStacks(): void {
@@ -431,21 +484,22 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   private applyAddonToggle(addonId: string, checked: boolean, addon?: IAddonWithParameters): void {
     if (checked) {
       this.selectedAddons.update(addons => [...addons, addonId]);
-      // Add form controls for addon parameters via manager
-      if (addon?.parameters) {
-        this.formManager.addAddonControls(addon.parameters);
-        // Auto-expand if addon has required parameters
-        if (addon.parameters.some(p => p.required)) {
-          this.expandedAddons.update(addons => [...addons, addonId]);
-        }
+      // Add pre-created addon FormGroup to main form
+      const addonFg = this.addonFormGroups.get(addonId);
+      if (addonFg) {
+        this.form.addControl(addonId, addonFg);
+      }
+      // Auto-expand if addon has required parameters
+      if (addon?.parameters?.some(p => p.required)) {
+        this.expandedAddons.update(addons => [...addons, addonId]);
       }
     } else {
       this.selectedAddons.update(addons => addons.filter(id => id !== addonId));
       // Collapse addon when deselected
       this.expandedAddons.update(addons => addons.filter(id => id !== addonId));
-      // Remove form controls for addon parameters via manager
-      if (addon?.parameters) {
-        this.formManager.removeAddonControls(addon.parameters);
+      // Remove addon FormGroup from main form
+      if (this.form.contains(addonId)) {
+        this.form.removeControl(addonId);
       }
     }
     // Update manager's addon list for install()

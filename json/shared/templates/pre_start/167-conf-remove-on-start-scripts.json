@@ -1,0 +1,27 @@
+{
+  "execute_on": "ve",
+  "name": "Remove On-Start Scripts",
+  "description": "Removes addon on_start.d drop-in scripts from the host-side volume directory when an addon is disabled.",
+  "parameters": [
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "required": true,
+      "description": "Host-side base path for volumes"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    }
+  ],
+  "commands": [
+    {
+      "script": "conf-remove-on-start-scripts.sh",
+      "description": "Remove ssl-proxy.sh, acme-renew.sh, and compose overlay from on_start.d"
+    }
+  ]
+}

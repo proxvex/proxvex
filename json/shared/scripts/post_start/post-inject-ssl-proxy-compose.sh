@@ -12,7 +12,7 @@
 #
 # Requires:
 #   - compose_project: Docker-Compose project name
-#   - ssl.mode: "proxy", "native", or "certs"
+#   - ssl_mode: "proxy", "native", or "certs"
 #   - http_port: Application HTTP port
 #   - https_port: HTTPS port for nginx proxy
 #   - uid/gid: Application user (for cert file access in nginx container)
@@ -20,7 +20,7 @@
 # Output: errors to stderr only
 
 COMPOSE_PROJECT="{{ compose_project }}"
-SSL_MODE="{{ ssl.mode }}"
+SSL_MODE="{{ ssl_mode }}"
 HTTP_PORT="{{ http_port }}"
 HTTPS_PORT="{{ https_port }}"
 UID_VALUE="{{ uid }}"

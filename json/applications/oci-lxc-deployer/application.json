@@ -41,7 +41,7 @@
     { "id": "https_port", "value": "{{https_port}}" },
     { "id": "volume_backup", "value": "true" },
     { "id": "volumes", "value": "config=/config\nsecure=/secure,0700" },
-    { "id": "ssl.mode", "value": "native" },
+    { "id": "ssl_mode", "value": "native" },
     { "id": "oidc_callback_path", "value": "/api/auth/callback" },
     { "id": "oidc_required_role", "value": "admin" }
   ],

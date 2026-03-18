@@ -1,0 +1,27 @@
+{
+  "execute_on": "ve",
+  "name": "Check Hook Log",
+  "description": "Waits for hookscript completion after container start and displays on_start.d output. Skipped if no hooks were written.",
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "Container ID",
+      "type": "string",
+      "required": true,
+      "description": "LXC container ID"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    }
+  ],
+  "commands": [
+    {
+      "script": "host-check-hook-log.sh",
+      "description": "Read hookscript output from LXC console log"
+    }
+  ]
+}

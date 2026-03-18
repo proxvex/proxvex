@@ -69,7 +69,7 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
                       <app-parameter-group
                         [groupName]="addon.name"
                         [groupedParameters]="getAddonGroupedParameters(addon.name, param)"
-                        [form]="form"
+                        [form]="getAddonFormGroup(addon.id)"
                         [showAdvanced]="showAdvanced"
                         [availableStacks]="availableStacks"
                         (stackSelected)="stackSelected.emit($event)"
@@ -187,6 +187,9 @@ export class AddonSectionComponent {
   /** Form group for addon parameters */
   @Input() form!: FormGroup;
 
+  /** Pre-created FormGroups per addon (keyed by addon ID) */
+  @Input() addonFormGroups = new Map<string, FormGroup>();
+
   /** Whether to show advanced parameters */
   @Input() showAdvanced = false;
 
@@ -261,6 +264,10 @@ export class AddonSectionComponent {
   /**
    * Groups a single parameter for display in ParameterGroupComponent
    */
+  getAddonFormGroup(addonId: string): FormGroup {
+    return this.addonFormGroups.get(addonId) ?? this.form;
+  }
+
   getAddonGroupedParameters(groupName: string, param: IParameter): Record<string, IParameter[]> {
     return { [groupName]: [param] };
   }

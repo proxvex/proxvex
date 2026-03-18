@@ -8,9 +8,9 @@
 # - Calling /etc/lxc-oci-deployer/reload_certificates after renewal
 #
 # Requires:
-#   - acme.cf_api_token: Cloudflare API token
-#   - acme.domain: Domain for the certificate
-#   - acme.email: (optional) Email for LE registration
+#   - CF_TOKEN: Cloudflare API token
+#   - acme_domain: Domain for the certificate
+#   - acme_email: (optional) Email for LE registration
 #   - acme.cert_dir: Certificate directory in container
 #   - acme.needs_server_cert: Whether to issue server cert
 #   - acme.needs_ca_cert: Whether to write CA/intermediate cert
@@ -19,9 +19,9 @@
 #
 # Output: errors to stderr only
 
-CF_API_TOKEN="{{ acme.cf_api_token }}"
-ACME_DOMAIN="{{ acme.domain }}"
-ACME_EMAIL="{{ acme.email }}"
+CF_API_TOKEN="{{ CF_TOKEN }}"
+ACME_DOMAIN="{{ acme_domain }}"
+ACME_EMAIL="{{ acme_email }}"
 CERT_DIR="{{ acme.cert_dir }}"
 NEEDS_SERVER_CERT="{{ acme.needs_server_cert }}"
 NEEDS_CA_CERT="{{ acme.needs_ca_cert }}"

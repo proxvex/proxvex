@@ -71,8 +71,9 @@ export class WebAppVeAddonCommandBuilder {
       // Get templates for the phase from the appropriate addon key
       let templateRefs;
       if (addonKey === "upgrade") {
-        // upgrade is flat (only has one phase)
-        templateRefs = phase === "post_start" ? addon.upgrade : undefined;
+        // upgrade is flat — load for both pre_start and post_start phases
+        // (templates may be in either category directory)
+        templateRefs = (phase === "pre_start" || phase === "post_start") ? addon.upgrade : undefined;
       } else {
         // installation and reconfigure have nested structure
         const addonConfig = addon[addonKey];
@@ -133,13 +134,30 @@ export class WebAppVeAddonCommandBuilder {
           typeof templateRef === "string" ? templateRef : templateRef.name;
 
         try {
-          const template = repositories.getTemplate({
+          // For upgrade templates, try the phase category first, then fallback
+          // to the other category (upgrade templates may be in pre_start or post_start)
+          let template = repositories.getTemplate({
             name: templateName,
             scope: "shared",
             category,
           }) as ITemplate | null;
 
+          if (!template && addonKey === "upgrade") {
+            const fallbackCategory = category === "post_start" ? "pre_start" : "post_start";
+            template = repositories.getTemplate({
+              name: templateName,
+              scope: "shared",
+              category: fallbackCategory,
+            }) as ITemplate | null;
+          }
+
           if (template && template.commands) {
+            // Determine the actual category where the template was found
+            // (may differ from phase for upgrade templates with fallback)
+            const resolvedCategory = repositories.getTemplate({
+              name: templateName, scope: "shared", category,
+            }) ? category : (category === "post_start" ? "pre_start" : "post_start");
+
             for (const cmd of template.commands) {
               const command: ICommand = { ...cmd };
 
@@ -158,7 +176,7 @@ export class WebAppVeAddonCommandBuilder {
               if (cmd.script && !cmd.scriptContent) {
                 const appId = application?.id ?? "";
                 if (appId) {
-                  const resolved = resolver.resolveScriptContent(appId, cmd.script, category);
+                  const resolved = resolver.resolveScriptContent(appId, cmd.script, resolvedCategory);
                   if (resolved.content) {
                     command.scriptContent = resolved.content;
                   }
@@ -166,7 +184,7 @@ export class WebAppVeAddonCommandBuilder {
                   const scriptContent = repositories.getScript({
                     name: cmd.script,
                     scope: "shared",
-                    category,
+                    category: resolvedCategory,
                   });
                   if (scriptContent) {
                     command.scriptContent = scriptContent;

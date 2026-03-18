@@ -2,10 +2,10 @@
   "execute_on": "ve",
   "name": "Add SSL Capabilities",
   "description": "Adds net_admin capability to the LXC container configuration for the SSL proxy (iptables).",
-  "skip_if_all_missing": ["ssl.mode"],
+  "skip_if_all_missing": ["ssl_mode"],
   "parameters": [
     { "id": "vm_id", "name": "VM ID", "type": "string", "required": true },
-    { "id": "ssl.mode", "name": "SSL Mode", "type": "string", "required": true }
+    { "id": "ssl_mode", "name": "SSL Mode", "type": "string", "required": true }
   ],
   "commands": [{
     "name": "Add SSL Capabilities",

@@ -226,7 +226,8 @@ export class ParameterGroupComponent implements OnInit {
 
   isVisible(param: IParameter): boolean {
     // Don't render if form control doesn't exist
-    if (!this.form.get(param.id)) return false;
+    // Use controls[] instead of get() because get() treats dots as path separators
+    if (!this.form.controls[param.id]) return false;
     if (param.advanced && !this.showAdvanced) return false;
     // Check 'if' condition
     if (param.if && !this.evaluateCondition(param.if)) return false;

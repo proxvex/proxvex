@@ -53,7 +53,7 @@
       "value": "alpine"
     },
     {
-      "id": "ssl.mode",
+      "id": "ssl_mode",
       "value": "native"
     },
     {

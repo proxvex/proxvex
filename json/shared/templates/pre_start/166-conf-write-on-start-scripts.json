@@ -1,0 +1,125 @@
+{
+  "execute_on": "ve",
+  "name": "Write On-Start Scripts",
+  "description": "Writes the on_start_container dispatcher and drop-in scripts (acme-renew, ssl-proxy) to the host-side volume directory. Files appear inside the container at /etc/lxc-oci-deployer/ via bind mount.",
+  "parameters": [
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "required": true,
+      "description": "Host-side base path for volumes"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    },
+    {
+      "id": "ssl_mode",
+      "name": "SSL Mode",
+      "type": "string",
+      "default": "",
+      "description": "SSL mode: proxy, native, or certs"
+    },
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "default": "",
+      "description": "Application HTTP port for proxy mode"
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "default": "",
+      "description": "HTTPS port to listen on"
+    },
+    {
+      "id": "CF_TOKEN",
+      "name": "Cloudflare API Token",
+      "type": "string",
+      "default": "",
+      "description": "Cloudflare API token from stack"
+    },
+    {
+      "id": "acme_san",
+      "name": "SAN Domains",
+      "type": "string",
+      "default": "",
+      "description": "Comma-separated domain(s) for certificate"
+    },
+    {
+      "id": "acme_email",
+      "name": "ACME Email",
+      "type": "string",
+      "default": "",
+      "description": "Email for Let's Encrypt registration"
+    },
+    {
+      "id": "acme.cert_dir",
+      "name": "Certificate Directory",
+      "type": "string",
+      "default": "/etc/ssl/addon",
+      "description": "Container path where certificates are stored"
+    },
+    {
+      "id": "acme.needs_server_cert",
+      "name": "Needs Server Cert",
+      "type": "string",
+      "default": "true",
+      "description": "Whether to issue server certificate"
+    },
+    {
+      "id": "acme.needs_ca_cert",
+      "name": "Needs CA Cert",
+      "type": "string",
+      "default": "false",
+      "description": "Whether to write CA/intermediate certificate"
+    },
+    {
+      "id": "alpine_mirror",
+      "name": "Alpine Mirror",
+      "type": "string",
+      "default": "",
+      "description": "Alpine Linux mirror URL"
+    },
+    {
+      "id": "debian_mirror",
+      "name": "Debian Mirror",
+      "type": "string",
+      "default": "",
+      "description": "Debian/Ubuntu mirror URL"
+    },
+    {
+      "id": "compose_project",
+      "name": "Compose Project",
+      "type": "string",
+      "default": "",
+      "description": "Docker Compose project name"
+    },
+    {
+      "id": "uid",
+      "name": "UID",
+      "type": "string",
+      "default": "0",
+      "description": "Application user ID"
+    },
+    {
+      "id": "gid",
+      "name": "GID",
+      "type": "string",
+      "default": "0",
+      "description": "Application group ID"
+    }
+  ],
+  "commands": [
+    {
+      "script": "conf-write-on-start-scripts.sh",
+      "description": "Write dispatcher and on_start.d scripts to host-side volume"
+    }
+  ]
+}
