@@ -64,15 +64,19 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
               </div>
               @if (isAddonSelected(addon.id) && isAddonExpanded(addon.id) && addon.parameters) {
                 <div class="addon-parameters-inline">
-                  <app-parameter-group
-                    [groupName]="addon.name"
-                    [groupedParameters]="getAddonGroupedParametersAll(addon)"
-                    [form]="getAddonFormGroup(addon.id)"
-                    [showAdvanced]="showAdvanced"
-                    [availableStacks]="availableStacks"
-                    (stackSelected)="stackSelected.emit($event)"
-                    (createStackRequested)="createStackRequested.emit()"
-                  />
+                  @for (param of addon.parameters; track param.id) {
+                    @if (!param.advanced || showAdvanced) {
+                      <app-parameter-group
+                        [groupName]="addon.name"
+                        [groupedParameters]="getAddonGroupedParameters(addon.name, param)"
+                        [form]="form"
+                        [showAdvanced]="showAdvanced"
+                        [availableStacks]="availableStacks"
+                        (stackSelected)="stackSelected.emit($event)"
+                        (createStackRequested)="createStackRequested.emit()"
+                      />
+                    }
+                  }
                 </div>
               }
             </div>
