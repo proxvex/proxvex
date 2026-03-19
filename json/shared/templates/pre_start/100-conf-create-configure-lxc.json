@@ -127,6 +127,30 @@
       "default": "",
       "advanced": true,
       "description": "Optional: CPU architecture for pct create (amd64, arm64, armhf, i386). Only used for OCI images. For regular LXC templates, Proxmox auto-detects the architecture."
+    },
+    {
+      "id": "startup_order",
+      "name": "Startup Order",
+      "type": "string",
+      "default": "100",
+      "advanced": true,
+      "description": "Optional: Boot order for the container. Lower values start first (e.g. 10 for databases, 20 for auth providers). Default 100 for normal apps. Maps to Proxmox --startup order=N."
+    },
+    {
+      "id": "startup_up",
+      "name": "Startup Up Delay",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Optional: Seconds to wait after starting this container before starting the next one. Maps to Proxmox --startup up=N."
+    },
+    {
+      "id": "startup_down",
+      "name": "Startup Down Delay",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Optional: Seconds to wait after shutting down this container before stopping the next one. Maps to Proxmox --startup down=N."
     }
   ],
   "commands": [

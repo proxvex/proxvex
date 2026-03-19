@@ -112,6 +112,26 @@ if [ -n "$HOST_NS" ]; then
   echo "Using host nameserver: $HOST_NS" >&2
 fi
 
+# Build --startup argument from startup_order, startup_up, startup_down
+STARTUP_ARG=""
+_startup_order="{{ startup_order }}"
+_startup_up="{{ startup_up }}"
+_startup_down="{{ startup_down }}"
+_startup_parts=""
+if [ -n "$_startup_order" ] && [ "$_startup_order" != "NOT_DEFINED" ]; then
+  _startup_parts="order=${_startup_order}"
+fi
+if [ -n "$_startup_up" ] && [ "$_startup_up" != "NOT_DEFINED" ]; then
+  _startup_parts="${_startup_parts:+${_startup_parts},}up=${_startup_up}"
+fi
+if [ -n "$_startup_down" ] && [ "$_startup_down" != "NOT_DEFINED" ]; then
+  _startup_parts="${_startup_parts:+${_startup_parts},}down=${_startup_down}"
+fi
+if [ -n "$_startup_parts" ]; then
+  STARTUP_ARG="--startup ${_startup_parts}"
+  echo "Using startup config: $_startup_parts" >&2
+fi
+
 # Create the container
 # Note: The error "newuidmap: uid range [0-65536) -> [100000-165536) not allowed"
 # occurs because Proxmox tries to use idmap during template extraction.
@@ -126,7 +146,8 @@ pct create "$VMID" "$TEMPLATE_PATH" \
   --unprivileged 1 \
   --onboot 1 \
   $NS_ARG \
-  $ARCH_ARG >&2
+  $ARCH_ARG \
+  $STARTUP_ARG >&2
 RC=$? 
 if [ $RC -ne 0 ]; then
   echo "Failed to create LXC container!" >&2

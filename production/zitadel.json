@@ -7,6 +7,6 @@
     { "name": "static_gw", "value": "192.168.4.1" },
     { "name": "nameserver", "value": "192.168.4.1" }
   ],
-  "selectedAddons": ["addon-ssl"],
+  "selectedAddons": ["addon-acme"],
   "stackId": "production"
 }

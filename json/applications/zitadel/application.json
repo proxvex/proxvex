@@ -67,6 +67,14 @@
     {
       "id": "ssl.needs_ca_cert",
       "value": "true"
+    },
+    {
+      "id": "startup_order",
+      "value": "20"
+    },
+    {
+      "id": "startup_up",
+      "value": "15"
     }
   ],
   "dependencies": [

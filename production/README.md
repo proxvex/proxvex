@@ -27,7 +27,7 @@ ssh root@router sh dns.sh
 
 ### 2. oci-lxc-deployer installieren (auf PVE-Host)
 
-Das Install-Script wird direkt auf dem Proxmox-Host ausgeführt:
+Das Install-Script wird **ohne `--https`** ausgeführt. HTTPS wird in Schritt 3 per ACME eingerichtet.
 
 ```bash
 # Auf pve1.cluster:
@@ -35,19 +35,20 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
   --vm-id-start 300 \
   --static-ip 192.168.4.39/24 \
   --gateway 192.168.4.1 \
-  --nameserver 192.168.4.1 \
-  --https
+  --nameserver 192.168.4.1
 ```
 
-### 2b. vm_id_start auf 500 setzen
+### 2b. Local Templates setzen
 
-Das Template `099-set-vm-id-start.json` ins Local-Verzeichnis des Deployers legen, damit alle weiteren Apps ab VM-ID 500 vergeben werden:
+Auf dem PVE-Host die Default-Templates ins Local-Verzeichnis des Deployers schreiben:
 
 ```bash
 # Auf pve1.cluster:
-mkdir -p /rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config/shared/templates/create_ct
+SHARED_VOL="/rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config/shared/templates"
 
-cat > /rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config/shared/templates/create_ct/099-set-vm-id-start.json << 'EOF'
+# vm_id_start auf 500 setzen (alle weiteren Apps ab VM-ID 500)
+mkdir -p "${SHARED_VOL}/create_ct"
+cat > "${SHARED_VOL}/create_ct/099-set-vm-id-start.json" << 'EOF'
 {
   "name": "Set VM ID Start",
   "description": "Default start index for auto-assigned VM IDs. Override in local/shared/templates/create_ct/.",
@@ -61,17 +62,52 @@ cat > /rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deploye
   ]
 }
 EOF
+
+# OIDC Issuer URL setzen (öffentliche URL, über lokalen DNS auf Zitadel-IP gemappt)
+mkdir -p "${SHARED_VOL}/pre_start"
+cat > "${SHARED_VOL}/pre_start/106-set-oidc-issuer-url.json" << 'EOF'
+{
+  "name": "Set OIDC Issuer URL",
+  "commands": [
+    {
+      "properties": {
+        "id": "oidc_issuer_url",
+        "default": "https://auth.ohnewarum.de"
+      }
+    }
+  ]
+}
+EOF
 ```
 
-### 3. Postgres und Zitadel deployen
+### 3. ACME einrichten und Deployer auf HTTPS umstellen
+
+Das Script erstellt den Production-Stack mit Cloudflare-Credentials und reconfiguriert den Deployer mit addon-acme (Let's Encrypt).
+
+Voraussetzungen:
+- Cloudflare API Token mit Permission `Zone:DNS:Edit` ([Dashboard](https://dash.cloudflare.com/profile/api-tokens))
+- Zone ID der Domain (Cloudflare Dashboard → Domain → Overview → rechte Seite)
+
+```bash
+CF_TOKEN=xxx CF_ZONE_ID=yyy ./production/setup-acme.sh
+```
+
+Das Script:
+- Wartet auf die Deployer API (HTTP)
+- Generiert CA-Zertifikat (für self-signed bei Postgres etc.)
+- Setzt die Domain-Suffix
+- Erstellt den Production-Stack mit `cloudflare` Stacktype + Credentials
+- Reconfiguriert den Deployer mit `addon-acme` → HTTPS auf Port 3443
+
+### 4. Postgres und Zitadel deployen
 
 Zitadel wird als OIDC-Provider benötigt, bevor die anderen Apps mit OIDC konfiguriert werden können.
 
 ```bash
-./production/deploy.sh zitadel      # deployt postgres + zitadel
+./production/deploy.sh zitadel      # deployt postgres + zitadel (mit addon-acme)
 ```
 
-### 4. Zitadel Service User anlegen
+### 5. Zitadel Service User anlegen
 
 Service User für CLI-Authentifizierung einrichten.
 Das PAT wird automatisch aus dem laufenden Zitadel-Container gelesen.
@@ -86,25 +122,23 @@ Das Script erstellt:
 - Client Credentials (client_id + client_secret)
 - Datei `production/.env` mit den Credentials
 
-### 5. oci-lxc-deployer auf OIDC umstellen
+### 6. oci-lxc-deployer auf OIDC umstellen
 
-Das Backend mit OIDC-Umgebungsvariablen neu konfigurieren:
-
-```
-OIDC_ENABLED=true
-OIDC_ISSUER_URL=http://zitadel:8080
-OIDC_CLIENT_ID=<backend-client-id>
-OIDC_CLIENT_SECRET=<backend-client-secret>
-OIDC_CALLBACK_URL=https://deployer:3443/api/auth/callback
-```
-
-### 6. Restliche Apps mit OIDC deployen
-
-Sobald `production/.env` existiert und OIDC am Backend aktiv ist, werden alle weiteren Apps mit OIDC-Authentifizierung deployed:
+Reconfiguriert den Deployer mit `addon-oidc`. Das Addon erstellt automatisch einen OIDC-Client in Zitadel und konfiguriert die Umgebungsvariablen.
 
 ```bash
-./production/deploy.sh nginx        # nginx (ohne OIDC-Dependency)
-./production/deploy.sh gitea        # gitea (mit addon-oidc)
+./production/setup-deployer-oidc.sh
+```
+
+Das Script reconfiguriert den Deployer mit `addon-acme` + `addon-oidc` (beide aktiv).
+
+### 7. Restliche Apps mit OIDC deployen
+
+Sobald `production/.env` existiert und OIDC am Backend aktiv ist, werden alle weiteren Apps mit OIDC-Authentifizierung und ACME-Zertifikaten deployed:
+
+```bash
+./production/deploy.sh nginx        # nginx mit addon-acme
+./production/deploy.sh gitea        # gitea mit addon-oidc + addon-acme
 ```
 
 Oder alle auf einmal (bereits installierte werden übersprungen):
@@ -113,53 +147,141 @@ Oder alle auf einmal (bereits installierte werden übersprungen):
 ./production/deploy.sh all
 ```
 
-## OIDC Issuer URL anpassen
 
-Die externe OIDC Issuer URL (z.B. `https://auth.ohnewarum.de`) wird zentral über ein Template gesteuert und gilt für alle OIDC-fähigen Apps.
+## Zertifikatsstrategie
 
-Das Template `106-set-oidc-issuer-url.json` liegt im Local-Verzeichnis des Deployers (`/config/shared/templates/pre_start/`). Dort wird der Default für `oidc_issuer_url` gesetzt, den alle Apps beim OIDC-Setup verwenden.
+### Grundregel
 
-Um die URL zu ändern, die Datei auf dem PVE-Host bearbeiten:
+Jede Verbindung wird verschlüsselt. Es gibt zwei Zertifikatstypen:
 
-```bash
-# Pfad: <shared_volpath>/volumes/oci-lxc-deployer/config/shared/templates/pre_start/106-set-oidc-issuer-url.json
-{
-  "name": "Set OIDC Issuer URL",
-  "commands": [
-    {
-      "properties": {
-        "id": "oidc_issuer_url",
-        "default": "https://auth.ohnewarum.de"
-      }
-    }
-  ]
+| Zertifikatstyp | Einsatz | Addon |
+|----------------|---------|-------|
+| **ACME** (Let's Encrypt) | Jede App mit Browser-Zugang | `addon-acme` |
+| **Self-signed** (interne CA) | Nur Nicht-HTTP-Dienste (DB, MQTT) | `addon-ssl` |
+
+### ACME für alle Browser-Apps
+
+Das ACME-Addon generiert und erneuert Zertifikate automatisch via Cloudflare DNS-Challenge. Da kein A-Record nötig ist (DNS-01 Challenge nutzt TXT-Records), können auch rein interne Apps ACME-Certs bekommen.
+
+| App | Addon | SSL-Mode | Zugang |
+|-----|-------|----------|--------|
+| Nginx (Reverse Proxy) | `addon-acme` | `native` | Öffentlich |
+| Zitadel | `addon-acme` | `native` | Öffentlich (via Nginx) + Lokal direkt |
+| Gitea | `addon-acme` | `proxy` | Öffentlich (via Nginx) + Lokal direkt |
+| oci-lxc-deployer | `addon-acme` | `native` | Nur Lokal |
+| Node-RED | `addon-acme` | `proxy` | Nur Lokal |
+| PostgREST | `addon-acme` | `proxy` | Nur Lokal |
+| Weitere Browser-Apps | `addon-acme` | `proxy`/`native` | Je nach App |
+
+**Vorteil:** Kein self-signed CA-Trust in Browsern nötig. Jeder Browser sieht ein vertrauenswürdiges Let's Encrypt Cert.
+
+### Self-Signed nur für Nicht-HTTP-Dienste
+
+| App | Protokoll | Addon | SSL-Mode |
+|-----|-----------|-------|----------|
+| Postgres | PostgreSQL TLS | `addon-ssl` | `certs` |
+| MQTT (Mosquitto) | MQTT over TLS | `addon-ssl` | `certs` |
+
+DB- und MQTT-Clients vertrauen der internen CA direkt (`chain.pem`). Kein Browser involviert.
+
+### Datenfluss
+
+```
+Öffentlicher Zugang (nur ~5 Apps):
+  Browser → Internet → [ACME] Nginx (:443)
+    ├── auth.domain.com  → [ACME] Zitadel (:8443)
+    ├── git.domain.com   → [ACME] Gitea (:443)
+    └── ...
+
+Lokaler Zugang (alle Apps, direkt ohne Nginx):
+  Browser (LAN) → DNS: app.domain.com → lokale App-IP
+    ├── deployer.domain.com → [ACME] oci-lxc-deployer (:3443)
+    ├── nodered.domain.com  → [ACME] Node-RED (:443)
+    └── auth.domain.com     → [ACME] Zitadel (:8443)
+
+OIDC-Validierung (intern):
+  App → DNS: auth.domain.com → lokale Zitadel-IP → [ACME-Cert]
+  (Vertrauenswürdig, kein CA-Trust in Apps nötig)
+
+DB/MQTT (kein Browser):
+  Zitadel →[self-signed, sslmode=verify-ca]→ Postgres (:5432)
+  IoT-Clients →[self-signed TLS, CA-Trust]→ Mosquitto (:8883)
+```
+
+### Nginx: Nur öffentlicher Reverse Proxy
+
+Nginx mapped ausschließlich öffentliche Apps. Interne Apps sind nur über LAN direkt erreichbar.
+
+```nginx
+# Default: unbekannte Domains ablehnen
+server {
+    listen 443 ssl default_server;
+    ssl_certificate /etc/ssl/acme/fullchain.pem;
+    ssl_certificate_key /etc/ssl/acme/privkey.pem;
+    return 444;
+}
+
+# Nur öffentliche Apps (max. 5)
+server {
+    server_name auth.domain.com;
+    location / { proxy_pass https://zitadel-host:8443; }
+}
+server {
+    server_name git.domain.com;
+    location / { proxy_pass https://gitea-host:443; }
 }
 ```
 
-Ohne diese Datei wird automatisch die interne Zitadel-URL (`http://zitadel:8080`) verwendet.
+Nginx vertraut den Backend-ACME-Certs automatisch (Let's Encrypt CA ist im System-Trust-Store).
 
-## Let's Encrypt Wildcard-Zertifikat
+### Zugriffskontrolle
 
-Der nginx-Container kann automatisch ein Let's Encrypt Wildcard-Zertifikat via Cloudflare DNS-01 Challenge ausstellen. Das ersetzt die selbstsignierten Zertifikate des SSL-Addons.
+| App | Öffentlich (via Nginx) | Lokal (direkt) | Cert |
+|-----|------------------------|----------------|------|
+| Zitadel | ✓ auth.domain.com | ✓ direkt :8443 | ACME |
+| Gitea | ✓ git.domain.com | ✓ direkt :443 | ACME |
+| oci-lxc-deployer | ✗ | ✓ direkt :3443 | ACME |
+| Node-RED | ✗ | ✓ direkt :443 | ACME |
+| Postgres | ✗ | ✓ nur DB-Clients | Self-signed |
+| MQTT | ✗ | ✓ nur MQTT-Clients | Self-signed |
 
-### Voraussetzungen
+**Schutz:**
+1. **Nginx** mapped nur öffentliche Apps → interne Apps nicht von außen erreichbar
+2. **Lokaler DNS** (`*.domain.com` → lokale IPs) → lokaler Direktzugriff auf alle Apps
+3. **Firewall** (optional) → zusätzliche Absicherung auf Proxmox-Ebene
+
+### ACME Voraussetzungen
 
 1. **Cloudflare API Token** mit Permission `Zone:DNS:Edit` erstellen ([Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens))
 2. **Zone ID** der Domain kopieren (Cloudflare Dashboard → Domain → Overview → rechte Seite)
 
-### Konfiguration
+Die Credentials werden per `setup-acme.sh` (Schritt 3) im Production-Stack hinterlegt. Ohne Cloudflare-Credentials im Stack wird das ACME-Addon übersprungen.
 
-Im Deployer-UI unter **Stacks → production**:
-- Stacktype `cloudflare` hinzufügen
-- `CF_TOKEN` und `CF_ZONE_ID` manuell eintragen
+### Verworfene Alternativen
 
-Beim nächsten nginx-Deploy wird automatisch:
-- `acme.sh` im Container installiert
-- Wildcard-Zertifikat für `*.{domain_suffix}` ausgestellt
-- Zertifikat nach `/etc/ssl/addon/` deployed (überschreibt self-signed)
-- Auto-Renewal Daemon eingerichtet (prüft täglich bei Container-Start)
+Vor der Entscheidung für "ACME überall" wurden zwei andere Ansätze evaluiert und verworfen:
 
-Ohne Cloudflare-Stack wird das Template übersprungen und die self-signed Zertifikate bleiben aktiv.
+**1. ACME-Wildcard nur auf Nginx, self-signed intern**
+
+Idee: Ein einziges ACME-Wildcard-Zertifikat (`*.domain.com`) auf dem Nginx Reverse Proxy. Alle anderen Apps bekommen self-signed Certs aus einer internen CA. Browser sehen nur das ACME-Cert von Nginx, nie die self-signed Certs.
+
+Verworfen weil:
+- Alle Apps müssten über Nginx laufen (auch rein interne wie der Deployer), sonst sehen Browser im LAN self-signed Certs
+- Die interne CA müsste auf allen Browsern im LAN installiert werden (2 Stück), sobald man doch mal direkt auf eine App zugreift
+- Nginx müsste der internen CA vertrauen (`proxy_ssl_trusted_certificate`) — zusätzliche Konfiguration
+- Mehr Komplexität (zwei Zertifikatssysteme, CA-Trust-Management) ohne Mehrwert gegenüber ACME auf jeder App
+
+**2. ACME extern (Nginx), self-signed intern (alle anderen)**
+
+Idee: Nur öffentliche Apps (hinter Nginx) bekommen ACME. Interne Apps bekommen self-signed und werden nur über Nginx angesprochen, nie direkt.
+
+Verworfen weil:
+- Erzwingt, dass ALLE Browser-Zugriffe über Nginx laufen — auch für Administration im LAN
+- Kein direkter Zugriff auf interne Apps möglich (z.B. `https://deployer:3443`) ohne CA-Trust
+- OIDC-Issuer-URL müsste immer über Nginx geroutet werden, da interne Apps sonst dem self-signed Cert nicht vertrauen
+- Das ACME-Addon erledigt Generierung und Renewal automatisch — der Mehraufwand pro App ist minimal (nur `addon-acme` statt `addon-ssl` in der Config)
+
+**Fazit:** ACME auf jeder Browser-App ist einfacher (ein Addon, kein CA-Trust-Management) und flexibler (direkter LAN-Zugriff mit vertrauenswürdigem Cert). Self-signed bleibt nur für Nicht-HTTP-Dienste (Postgres, MQTT), wo kein Browser involviert ist.
 
 ## Destroy
 
@@ -178,6 +300,8 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 | `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
 | `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
 | `dns.sh`                         | DNS-Einträge auf OpenWrt (uci + dnsmasq)   |
+| `setup-acme.sh`                  | ACME Setup: Cloudflare-Stack + Deployer HTTPS |
+| `setup-deployer-oidc.sh`         | Deployer OIDC via addon-oidc aktivieren    |
 | `setup-zitadel-service-user.sh`  | Zitadel Service User + Client Credentials  |
-| `*.json`                         | CLI-Parameter pro App                      |
+| `*.json`                         | CLI-Parameter pro App (addon-acme/addon-ssl) |
 | `.env`                           | OIDC Credentials (git-ignored)             |

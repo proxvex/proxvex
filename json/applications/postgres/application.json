@@ -57,6 +57,14 @@
     {
       "id": "ssl.addon_volumes",
       "value": "certs=/certs,0700,70:70"
+    },
+    {
+      "id": "startup_order",
+      "value": "10"
+    },
+    {
+      "id": "startup_up",
+      "value": "15"
     }
   ],
   "installation": {},
