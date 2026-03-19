@@ -20,7 +20,7 @@
 
 VMID="{{ vm_id }}"
 HOOK_PATH="/var/lib/vz/snippets/lxc-oci-deployer-hook.sh"
-NEW_VERSION=15
+NEW_VERSION=16
 
 # The hookscript body (everything below the header)
 HOOK_BODY='
@@ -33,9 +33,10 @@ case $phase in
     CONF_FILE="/etc/pve/lxc/${vmid}.conf"
     APP_UID=$(awk -F"[: ]+" "/^lxc\\.init\\.uid:/{print \$2}" "$CONF_FILE" 2>/dev/null)
     APP_GID=$(awk -F"[: ]+" "/^lxc\\.init\\.gid:/{print \$2}" "$CONF_FILE" 2>/dev/null)
+    LOG_FILE=$(awk -F": " "/^lxc\\.console\\.logfile:/{print \$2}" "$CONF_FILE" 2>/dev/null)
     # Run on_start scripts in background via systemd-run (survives hookscript exit)
     systemctl stop "lxc-hook-${vmid}" 2>/dev/null || true
-    systemd-run --no-block --unit="lxc-hook-${vmid}" pct exec "$vmid" -- sh -c "nohup /etc/lxc-oci-deployer/on_start_container ${APP_UID:-0} ${APP_GID:-0} >/etc/lxc-oci-deployer/hook.log 2>&1 </dev/null &"
+    systemd-run --no-block --unit="lxc-hook-${vmid}" sh -c "pct exec ${vmid} -- /etc/lxc-oci-deployer/on_start_container ${APP_UID:-0} ${APP_GID:-0} >>${LOG_FILE:-/dev/null} 2>&1"
     ;;
 esac
 

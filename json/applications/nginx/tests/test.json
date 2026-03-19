@@ -1,4 +1,8 @@
 {
   "default": { "wait_seconds": 30 },
+  "acme": {
+    "wait_seconds": 120,
+    "description": "ACME addon without CF credentials - verifies hookscript and dispatcher setup"
+  },
   "production": { "wait_seconds": 30 }
 }
