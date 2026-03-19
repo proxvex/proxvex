@@ -9,7 +9,12 @@ const logger = createLogger("auth");
 const ZITADEL_ROLES_CLAIM_PREFIX = "urn:zitadel:iam:org:project:";
 
 // Paths that are always public (no auth required)
-const PUBLIC_PATHS = ["/api/auth/config", "/api/auth/login", "/api/auth/callback"];
+const PUBLIC_PATHS = [
+  "/api/auth/config",
+  "/api/auth/login",
+  "/api/auth/callback",
+  "/api/validate",
+];
 
 interface AuthSession {
   authenticated?: boolean;

@@ -60,6 +60,9 @@ cat > "${SHARED_VOL}/create_ct/050-set-project-parameters.json" << 'EOF'
   ]
 }
 EOF
+
+# Validierung (optional)
+curl -s http://oci-lxc-deployer:3080/api/validate
 ```
 
 Ein Beispiel mit Werten liegt unter `examples/shared/templates/create_ct/050-set-project-parameters.json`.

@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volkmar Nissen — Senior Software Architect & AI-Augmented Development</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Cinzel:wght@400;500;600&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #f5f0e8;
+    --dark: #1a1410;
+    --dark2: #221c17;
+    --dark3: #2c241e;
+    --gold: #b8965a;
+    --gold-light: #d4b07a;
+    --gold-dim: rgba(184,150,90,0.25);
+    --muted: rgba(245,240,232,0.45);
+    --rule: rgba(184,150,90,0.2);
+    --mono: 'IBM Plex Mono', monospace;
+    --serif: 'Cormorant Garamond', serif;
+    --display: 'Cinzel', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--dark);
+    color: var(--cream);
+    font-family: var(--serif);
+    font-weight: 300;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.5;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 500;
+    padding: 1.2rem 5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(26,20,16,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .nav-name {
+    font-family: var(--display);
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 2.5rem;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--gold-light); }
+
+  /* ── HERO ── */
+  header {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* warm glow */
+  header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 70% at 30% 50%, rgba(100,70,30,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .header-left {
+    padding: 7rem 3rem 4rem 5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+  }
+
+  .header-right {
+    background: var(--dark2);
+    border-left: 1px solid var(--rule);
+    position: relative;
+    overflow: hidden;
+    z-index: 2;
+  }
+
+  .header-right::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 3px,
+      rgba(184,150,90,0.03) 3px,
+      rgba(184,150,90,0.03) 4px
+    );
+  }
+
+  .header-right-inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem 3.5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--display);
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.2s forwards;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(3rem, 5.5vw, 5rem);
+    font-weight: 300;
+    line-height: 1.05;
+    letter-spacing: 0.02em;
+    font-style: italic;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.4s forwards;
+  }
+
+  h1 strong {
+    font-style: normal;
+    font-weight: 600;
+    display: block;
+    font-family: var(--display);
+    font-size: 0.55em;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    margin-bottom: 0.3em;
+  }
+
+  .tagline {
+    margin-top: 2rem;
+    font-size: 1.1rem;
+    font-weight: 300;
+    color: rgba(245,240,232,0.65);
+    max-width: 42ch;
+    line-height: 1.75;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.6s forwards;
+  }
+
+  .header-stats {
+    margin-top: 3rem;
+    display: flex;
+    gap: 3rem;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.8s forwards;
+  }
+
+  .stat-number {
+    font-family: var(--serif);
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--gold-light);
+    line-height: 1;
+    display: block;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 0.3rem;
+    display: block;
+  }
+
+  .cta-row {
+    margin-top: 3rem;
+    display: flex;
+    gap: 1rem;
+    opacity: 0;
+    animation: fadeUp 0.8s 1s forwards;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.8rem;
+    font-family: var(--display);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: all 0.25s;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-primary {
+    background: var(--gold);
+    color: var(--dark);
+  }
+  .btn-primary:hover { background: var(--gold-light); transform: translateY(-2px); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--cream);
+    border: 1px solid var(--rule);
+  }
+  .btn-outline:hover { border-color: var(--gold); color: var(--gold-light); transform: translateY(-2px); }
+
+  /* right side */
+  .right-label {
+    font-family: var(--display);
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+  }
+
+  .tech-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 3rem;
+  }
+
+  .tech-tag {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--rule);
+    color: rgba(245,240,232,0.55);
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+  .tech-tag:hover { border-color: var(--gold); color: var(--gold-light); }
+
+  .gold-rule {
+    width: 3rem;
+    height: 1px;
+    background: linear-gradient(to right, var(--gold), transparent);
+    margin-bottom: 2rem;
+  }
+
+  .right-quote {
+    font-family: var(--serif);
+    font-size: 1.35rem;
+    font-style: italic;
+    color: rgba(245,240,232,0.8);
+    line-height: 1.6;
+  }
+  .right-quote em {
+    font-style: normal;
+    color: var(--gold-light);
+  }
+
+  /* ── SECTIONS ── */
+  section {
+    padding: 6rem 5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .section-label {
+    font-family: var(--display);
+    font-size: 0.6rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(2.2rem, 4vw, 3.2rem);
+    font-weight: 300;
+    font-style: italic;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    margin-bottom: 2.5rem;
+    color: var(--cream);
+  }
+
+  hr.section-rule {
+    border: none;
+    border-top: 1px solid var(--rule);
+    margin: 0 5rem;
+  }
+
+  /* ── ABOUT ── */
+  .about-grid {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 5rem;
+    align-items: start;
+  }
+
+  .about-text p {
+    font-size: 1.15rem;
+    line-height: 1.85;
+    color: rgba(245,240,232,0.8);
+    margin-bottom: 1.4rem;
+  }
+
+  .about-text strong { font-weight: 600; color: var(--gold-light); font-style: normal; }
+
+  .about-aside {
+    border-left: 1px solid var(--rule);
+    padding-left: 2.5rem;
+  }
+
+  .aside-block { margin-bottom: 2.2rem; }
+
+  .aside-label {
+    font-family: var(--display);
+    font-size: 0.58rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+  }
+
+  .aside-value {
+    font-size: 1rem;
+    color: rgba(245,240,232,0.7);
+    line-height: 1.65;
+  }
+
+  /* ── SERVICES ── */
+  .services-section {
+    background: var(--dark2);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 6rem 5rem;
+  }
+
+  .services-section .section-label { color: var(--gold); }
+  .services-section h2 { color: var(--cream); }
+
+  .services-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    margin-top: 3rem;
+  }
+
+  .service-card {
+    background: var(--dark2);
+    padding: 2.5rem;
+    transition: background 0.2s;
+    position: relative;
+  }
+  .service-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(to right, var(--gold), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .service-card:hover { background: var(--dark3); }
+  .service-card:hover::before { opacity: 1; }
+
+  .service-number {
+    font-family: var(--display);
+    font-size: 0.58rem;
+    color: var(--gold);
+    letter-spacing: 0.3em;
+    margin-bottom: 1.5rem;
+  }
+
+  .service-card h3 {
+    font-family: var(--serif);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--cream);
+    margin-bottom: 1rem;
+    line-height: 1.3;
+  }
+
+  .service-card p {
+    font-size: 0.95rem;
+    color: var(--muted);
+    line-height: 1.75;
+  }
+
+  /* ── PROJECTS ── */
+  .projects-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+  }
+
+  .project-card {
+    border: 1px solid var(--rule);
+    padding: 2.2rem;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative;
+    background: var(--dark2);
+  }
+  .project-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 2.5rem;
+    height: 1px;
+    background: var(--gold);
+  }
+  .project-card:hover { border-color: var(--gold); transform: translateY(-3px); }
+
+  .project-card h3 {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 400;
+    margin-bottom: 1rem;
+    color: var(--gold-light);
+  }
+
+  .project-card p {
+    font-size: 1rem;
+    color: var(--muted);
+    line-height: 1.75;
+    margin-bottom: 1.2rem;
+  }
+
+  .project-link {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-decoration: none;
+    color: var(--gold);
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .project-link:hover { color: var(--gold-light); }
+
+  /* ── TIMELINE ── */
+  .timeline { margin-top: 1rem; position: relative; }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 7rem;
+    top: 0.5rem; bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--gold), transparent);
+    opacity: 0.3;
+  }
+
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 7rem 1fr;
+    gap: 2.5rem;
+    margin-bottom: 2.8rem;
+    position: relative;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: calc(7rem - 3px);
+    top: 0.5rem;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 8px var(--gold-dim);
+  }
+
+  .timeline-year {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-align: right;
+    padding-top: 0.3rem;
+    letter-spacing: 0.05em;
+  }
+
+  .timeline-content h3 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--cream);
+    margin-bottom: 0.2rem;
+  }
+
+  .timeline-content .company {
+    font-family: var(--display);
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    margin-bottom: 0.6rem;
+    text-transform: uppercase;
+  }
+
+  .timeline-content p {
+    font-size: 1rem;
+    color: var(--muted);
+    line-height: 1.75;
+  }
+
+  /* ── CONTACT ── */
+  .contact-wrap {
+    border-top: 1px solid var(--rule);
+    padding: 6rem 5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .contact-left p {
+    font-size: 1.05rem;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 2.5rem;
+  }
+
+  .contact-detail {
+    display: flex;
+    align-items: baseline;
+    gap: 1.2rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .contact-detail-label {
+    font-family: var(--display);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    min-width: 5rem;
+  }
+
+  .contact-detail-value {
+    font-size: 1rem;
+    color: rgba(245,240,232,0.75);
+  }
+
+  .contact-cta-box {
+    background: var(--dark2);
+    border: 1px solid var(--rule);
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .contact-cta-box p {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 1.5rem;
+    color: rgba(245,240,232,0.85);
+    line-height: 1.5;
+    margin: 1rem 0 2rem;
+  }
+
+  /* ── LANG ── */
+  .lang-toggle { display: flex; gap: 0.5rem; margin-bottom: 2.5rem; }
+
+  .lang-btn {
+    font-family: var(--display);
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--rule);
+    background: transparent;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .lang-btn.active { background: var(--gold); color: var(--dark); border-color: var(--gold); }
+
+  .lang-en { display: none; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--dark);
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    padding: 2rem 5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 900px) {
+    header { grid-template-columns: 1fr; }
+    .header-right { min-height: 50vh; }
+    nav { padding: 1rem 2rem; }
+    section { padding: 4rem 2rem; }
+    .services-section { padding: 4rem 2rem; }
+    .about-grid, .projects-grid, .contact-wrap { grid-template-columns: 1fr; }
+    .services-grid { grid-template-columns: 1fr; }
+    hr.section-rule { margin: 0 2rem; }
+    footer { flex-direction: column; gap: 1rem; text-align: center; padding: 2rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-name">Volkmar Nissen</span>
+  <ul class="nav-links">
+    <li><a href="#about">Profil</a></li>
+    <li><a href="#services">Leistungen</a></li>
+    <li><a href="#projects">Projekte</a></li>
+    <li><a href="#cv">Erfahrung</a></li>
+    <li><a href="#contact">Kontakt</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<header>
+  <div class="header-left">
+    <div class="eyebrow">Senior Software Architect · Mannheim / Remote</div>
+    <h1>
+      <strong>Volkmar Nissen</strong>
+      Software,<br>der man<br>vertrauen kann.
+    </h1>
+    <p class="tagline">30 Jahre Erfahrung. KI-gestützte Entwicklung. Die Tiefe, die den Unterschied macht.</p>
+    <div class="header-stats">
+      <div>
+        <span class="stat-number">30+</span>
+        <span class="stat-label">Jahre Dev</span>
+      </div>
+      <div>
+        <span class="stat-number">20</span>
+        <span class="stat-label">Jahre SAP</span>
+      </div>
+      <div>
+        <span class="stat-number">2</span>
+        <span class="stat-label">Open-Source-Projekte</span>
+      </div>
+    </div>
+    <div class="cta-row">
+      <a href="#contact" class="btn btn-primary">Kontakt aufnehmen</a>
+      <a href="#cv" class="btn btn-outline">Erfahrung ansehen</a>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="header-right-inner">
+      <div class="right-label">Tech-Stack</div>
+      <div class="tech-stack">
+        <span class="tech-tag">Angular</span>
+        <span class="tech-tag">TypeScript</span>
+        <span class="tech-tag">Java</span>
+        <span class="tech-tag">Python</span>
+        <span class="tech-tag">Node.js</span>
+        <span class="tech-tag">C / C++</span>
+        <span class="tech-tag">SQL / PL-SQL</span>
+        <span class="tech-tag">Perl</span>
+        <span class="tech-tag">Docker / LXC</span>
+        <span class="tech-tag">Proxmox</span>
+        <span class="tech-tag">OIDC / ZITADEL</span>
+        <span class="tech-tag">Nginx</span>
+        <span class="tech-tag">ZFS</span>
+        <span class="tech-tag">OpenWrt</span>
+        <span class="tech-tag">CI/CD</span>
+        <span class="tech-tag">Claude / LLM-APIs</span>
+      </div>
+      <div class="gold-rule"></div>
+      <p class="right-quote">
+        "Ich beherrsche KI-Tools nicht nur —<br>
+        ich weiß, <em>wann sie falsch liegen</em>,<br>
+        und wie man sie korrigiert."
+      </p>
+    </div>
+  </div>
+</header>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="section-label">// 01 — Profil</div>
+
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('de')">DE</button>
+    <button class="lang-btn" onclick="setLang('en')">EN</button>
+  </div>
+
+  <div class="about-grid">
+    <div class="about-text">
+      <div class="lang-de">
+        <h2>Erfahrung, die zählt.<br>Geschwindigkeit, die überzeugt.</h2>
+        <p><strong>30+ Jahre Entwicklung.</strong> 20 davon als Software-Architekt bei SAP. Davor Consultant bei Commerzbank, Mercedes-Benz und BASF. Jetzt freiberuflich — mit allem, was ich in dieser Zeit gelernt habe.</p>
+        <p>Was mich antreibt: analytisches Denken, das Systeme durchdringt — und die Kreativität, daraus etwas Neues zu bauen. Beides zusammen ist der Grund, warum KI-gestützte Entwicklung bei mir funktioniert: Ich erkenne, was das Modell leistet, und ich weiß, wohin ich damit will.</p>
+        <p>Besonders stark bin ich bei Legacy-Systemen: KI hilft mir, fremden Code schnell zu durchdringen — was die Einarbeitung drastisch verkürzt und den Einstieg ins Projekt beschleunigt.</p>
+        <p>Ich habe Backend- und Backoffice-Systeme gebaut, die Unternehmen seit Dekaden tragen. Dabei habe ich gelernt: Die gefährlichste Zeile Code ist die, die niemand versteht — und die beste ist die, die nicht geschrieben werden muss.</p>
+        <p>Ich arbeite <strong>remote oder im Raum Rhein-Neckar</strong>, ausschließlich selbstständig, und bevorzuge direkte, ehrliche Zusammenarbeit — ohne Overhead.</p>
+      </div>
+      <div class="lang-en">
+        <h2>Experience that counts.<br>Speed that convinces.</h2>
+        <p><strong>30+ years of development.</strong> 20 of them as a Software Architect at SAP. Before that, consultant at Commerzbank, Mercedes-Benz and BASF. Now freelance — with everything I've learned along the way.</p>
+        <p>What drives me: analytical thinking that cuts through complexity — and the creativity to build something new from it. That combination is precisely why AI-augmented development works for me: I understand what the model delivers, and I know where I want to take it.</p>
+        <p>I'm particularly strong with legacy systems: AI helps me get inside unfamiliar code quickly — dramatically reducing ramp-up time and accelerating project onboarding.</p>
+        <p>I've built backend and back-office systems that have kept companies running for decades. Along the way I've learned: the most dangerous line of code is the one nobody understands — and the best one is the one that never needs to be written.</p>
+        <p>I work <strong>remotely or in the Rhine-Neckar region</strong>, exclusively as a freelancer, and prefer direct, honest collaboration — without overhead.</p>
+      </div>
+    </div>
+
+    <div class="about-aside">
+      <div class="aside-block">
+        <div class="aside-label">Verfügbarkeit</div>
+        <div class="aside-value">Ab sofort · Remote bevorzugt<br>Vor Ort: Raum Rhein-Neckar</div>
+      </div>
+      <div class="aside-block">
+        <div class="aside-label">Sprachen</div>
+        <div class="aside-value">Deutsch (Muttersprache)<br>Englisch (fließend)</div>
+      </div>
+      <div class="aside-block">
+        <div class="aside-label">Spezialisierung</div>
+        <div class="aside-value">KI-gestützte Entwicklung<br>Software-Architektur<br>Full-Stack & DevOps<br>Angular · Java · Python</div>
+      </div>
+      <div class="aside-block">
+        <div class="aside-label">GitHub</div>
+        <div class="aside-value"><a href="https://github.com/modbus2mqtt" style="color:var(--gold);">github.com/modbus2mqtt</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-rule">
+
+<!-- SERVICES -->
+<div class="services-section" id="services">
+  <div style="max-width:1200px; margin:0 auto;">
+    <div class="section-label">// 02 — Leistungen</div>
+    <h2>Was ich für Sie tue.</h2>
+    <div class="services-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="service-card">
+        <div class="service-number">01</div>
+        <h3>KI-gestützte Entwicklung</h3>
+        <p>LLM-Tools (Claude, GPT, Copilot) direkt in Ihren Entwicklungsprozess integriert — nicht als Experiment, sondern als produktiver Workflow. Weniger Routine, mehr Fokus auf komplexe Probleme, schnellere Lieferzeiten.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-number">02</div>
+        <h3>Angular & Frontend-Architektur</h3>
+        <p>Skalierbare Angular-Anwendungen mit modernem State-Management (Signals), OIDC-Integration und sauberem Komponentendesign. Von der ersten Story bis zum produktiven Deployment.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-number">03</div>
+        <h3>Backend & API-Entwicklung</h3>
+        <p>REST- und GraphQL-APIs in Java, Node.js oder Python. Datenbankdesign mit SQL, Oracle und modernen NoSQL-Ansätzen. Jahrzehnte Erfahrung in Enterprise-Systemen.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-number">04</div>
+        <h3>Software-Architektur & Review</h3>
+        <p>Analyse bestehender Systeme, Identifikation von Schwachstellen, Entwurf von Migrationspfaden. 20 Jahre SAP-Architekturerfahrung: Die meisten Fehler habe ich schon gesehen — und weiß, wie man sie vermeidet.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-number">05</div>
+        <h3>DevOps & Infrastruktur</h3>
+        <p>Container-Deployments (Docker, LXC, Proxmox), CI/CD-Pipelines, Reverse-Proxy-Setups, OIDC/SSO-Integration. Infrastruktur, die ich selbst betreibe — und die deshalb funktioniert.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-number">06</div>
+        <h3>Legacy-Modernisierung</h3>
+        <p>Jahrzehnte Erfahrung mit gewachsenen Systemen — kombiniert mit KI-gestützter Code-Analyse. Was früher Wochen Einarbeitung kostete, geht heute in Tagen. Ich verstehe alte Systeme schnell, bewerte Risiken realistisch und modernisiere ohne Big-Bang.</p>
+      </div>
+      <div class="service-card" style="grid-column: 1 / -1; max-width: 50%; margin: 0 auto; width: 100%;">
+        <div class="service-number">07</div>
+        <h3>Testautomatisierung & Qualität</h3>
+        <p>Reproduzierbare Tests — Unit, Integration, End-to-End — sind für mich kein Overhead, sondern Grundlage. Ich schreibe sie seit 1995. Der eigentliche Effizienzgewinn entsteht im Zusammenspiel mit KI: Automatisierte Tests erlauben es der KI, Debugging und Korrekturen selbstständig zu iterieren — ohne dass ein Mensch jeden Schritt begleiten muss.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROJECTS -->
+<section id="projects">
+  <div class="section-label">// 03 — Open Source</div>
+  <h2>Projekte, die ich<br>selbst benutze.</h2>
+  <div class="projects-grid">
+    <div class="project-card">
+      <h3>oci-lxc-deployer</h3>
+      <p>Deployt OCI-Images aus Docker-Compose-Dateien als LXC-Container auf Proxmox — via API und CLI. Deklaratives Application-Modell mit automatischer OIDC-, PostgreSQL- und Reverse-Proxy-Integration. Entstanden aus echtem Bedarf: so läuft mein gesamtes Homelab.</p>
+      <a href="https://github.com/modbus2mqtt/oci-lxc-deployer" class="project-link" target="_blank">→ github.com/modbus2mqtt/oci-lxc-deployer</a>
+    </div>
+    <div class="project-card">
+      <h3>modbus2mqtt</h3>
+      <p>Bridge zwischen Modbus-Geräten und MQTT-Brokern. Ermöglicht die Integration von industriellen Sensoren und Steuerungen in moderne IoT-Infrastrukturen. Produktiv eingesetzt, aktiv weiterentwickelt.</p>
+      <a href="https://github.com/modbus2mqtt/modbus2mqtt" class="project-link" target="_blank">→ github.com/modbus2mqtt/modbus2mqtt</a>
+    </div>
+  </div>
+</section>
+
+<hr class="section-rule">
+
+<!-- CV -->
+<section id="cv">
+  <div class="section-label">// 04 — Erfahrung</div>
+  <h2>30 Jahre.<br>Kein Umweg.</h2>
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="timeline-year">2025 →</div>
+      <div class="timeline-content">
+        <h3>Freiberuflicher Software-Entwickler & Architekt</h3>
+        <div class="company">Selbstständig · Mannheim / Remote</div>
+        <p>KI-gestützte Entwicklung, Angular-Frontend-Projekte, Infrastruktur-Beratung. Schwerpunkt: Agenturen und Produktteams, die schnell und solide entwickeln wollen.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-year">~2005–2025</div>
+      <div class="timeline-content">
+        <h3>Software-Architekt</h3>
+        <div class="company">SAP SE · Walldorf</div>
+        <p>20 Jahre Entwicklung und Architektur an Enterprise-Produkten. Design verteilter Systeme, API-Strategien, Technologieentscheidungen für große Produktlinien. Zuletzt verantwortlich für Architektur in komplexen Multi-Team-Kontexten.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-year">~1995–2005</div>
+      <div class="timeline-content">
+        <h3>Senior Consultant / Software-Entwickler</h3>
+        <div class="company">Commerzbank · Mercedes-Benz · BASF</div>
+        <p>Angestellter Consultant in verschiedenen Branchen: Finanzwesen, Automotive, Chemie. Entwicklung und Integration von Enterprise-Systemen, Datenbankarchitekturen, Backend-Entwicklung in Java, C, PL/SQL und Perl.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-year">ab ~1993</div>
+      <div class="timeline-content">
+        <h3>Entwickler — erste Jahre</h3>
+        <div class="company">Berufseinstieg</div>
+        <p>Beginn mit systemnaher Entwicklung in C. Aufbau eines breiten Fundaments über Sprachen, Paradigmen und Plattformen hinweg — das bis heute trägt.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-rule">
+
+<!-- CONTACT -->
+<div class="contact-wrap" id="contact">
+  <div class="contact-left">
+    <div class="section-label">// 05 — Kontakt</div>
+    <h2>Projekt in Sicht?</h2>
+    <p>Direkte Anfragen von Agenturen und Produktteams sind willkommen. Eine kurze Beschreibung der Aufgabe reicht für ein erstes Gespräch.</p>
+    <div class="contact-detail">
+      <span class="contact-detail-label">E-Mail</span>
+      <span class="contact-detail-value"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="bdcbd2d1d6d0dccf93d3d4ceced8d3fdd2d5d3d8cadccfc8d093d9d8">[email&#160;protected]</a></span>
+    </div>
+    <div class="contact-detail">
+      <span class="contact-detail-label">LinkedIn</span>
+      <span class="contact-detail-value">linkedin.com/in/volkmar-nissen</span>
+    </div>
+    <div class="contact-detail">
+      <span class="contact-detail-label">GitHub</span>
+      <span class="contact-detail-value">github.com/modbus2mqtt</span>
+    </div>
+    <div class="contact-detail">
+      <span class="contact-detail-label">Region</span>
+      <span class="contact-detail-value">Raum Rhein-Neckar · Remote</span>
+    </div>
+  </div>
+  <div class="contact-cta-box">
+    <div class="section-label">Für Agenturen</div>
+    <p>"Ich springe ein, wo es klemmt — und bringe mit, was es dafür braucht."</p>
+    <a href="/cdn-cgi/l/email-protection#e99f86858284889bc787809a9a8c87a98681878c9e889b9c84c78d8c" class="btn btn-primary">Jetzt anfragen</a>
+  </div>
+</div>
+
+<footer>
+  <span>© 2025 Volkmar Nissen · Freiberuflicher Software-Entwickler</span>
+  <span>ohnewarum.de · Mannheim</span>
+</footer>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+function setLang(lang) {
+  document.querySelectorAll('.lang-de').forEach(el => el.style.display = lang === 'de' ? '' : 'none');
+  document.querySelectorA
