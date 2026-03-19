@@ -21,8 +21,7 @@ import { AddonSectionComponent } from '../../shared/components/addon-section/add
     MatIconModule,
     MatProgressSpinnerModule,
     ParameterGroupComponent,
-    StackSelectorComponent,
-    AddonSectionComponent
+    StackSelectorComponent
   ],
   template: `
     <div class="step-content">

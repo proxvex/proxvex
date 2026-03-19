@@ -9,19 +9,12 @@
       "type": "string",
       "required": true,
       "description": "LXC container ID"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
     }
   ],
   "commands": [
     {
       "script": "host-check-hook-log.sh",
-      "description": "Read hookscript output from LXC console log"
+      "description": "Read hookscript output from hook.log in volume"
     }
   ]
 }

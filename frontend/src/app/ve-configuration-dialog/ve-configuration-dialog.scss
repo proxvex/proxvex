@@ -46,6 +46,48 @@ h2, p {
   }
 }
 
+/* Secrets selectors - compact inline row */
+.secrets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+
+  .secrets-selector {
+    flex: 0 1 auto;
+    max-width: 16rem;
+  }
+}
+
+/* Parameter groups - 2 column masonry layout */
+.group-container {
+  column-count: 2;
+  column-gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 16rem);
+  scrollbar-width: thin;
+  scrollbar-color: #667eea33 transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #667eea44;
+    border-radius: 3px;
+  }
+
+  > * {
+    display: block;
+    break-inside: avoid;
+    margin-bottom: 0.75rem;
+  }
+
+}
+
 /* Missing stacks error */
 .missing-stacks-error {
   margin: 0 1rem 1rem 1rem;
@@ -98,28 +140,7 @@ h2, p {
   vertical-align: middle;
 }
 
-/* Parameter groups — vertical stack, full width */
-.group-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 0.5rem 1rem;
-  overflow-y: auto;
-  max-height: calc(85vh - 220px);
-  scrollbar-width: thin;
-  scrollbar-color: #667eea33 transparent;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: #667eea44;
-    border-radius: 3px;
-  }
-}
+/* Parameter groups — merged into grid definition above */
 
 /* Secrets selector */
 .secrets-selector {

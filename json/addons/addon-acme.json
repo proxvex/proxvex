@@ -37,14 +37,28 @@
       "default": "",
       "advanced": true,
       "description": "The HTTPS port to listen on."
+    },
+    {
+      "id": "acme_needs_server_cert",
+      "name": "Server Certificate",
+      "type": "boolean",
+      "default": true,
+      "advanced": true,
+      "description": "Install server certificate files (privkey.pem, cert.pem, fullchain.pem)."
+    },
+    {
+      "id": "acme_needs_ca_cert",
+      "name": "CA Certificate",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
+      "description": "Install CA chain certificate (chain.pem)."
     }
   ],
 
   "properties": [
     { "id": "acme.addon_volumes", "value": "certs=/etc/ssl/addon,0700,0:0\noci_deployer=/etc/lxc-oci-deployer,0755,0:0" },
-    { "id": "acme.needs_server_cert", "default": "true" },
-    { "id": "acme.needs_ca_cert", "default": "false" },
-    { "id": "acme.cert_dir", "default": "/etc/ssl/addon" },
+    { "id": "acme.cert_dir", "value": "/etc/ssl/addon" },
     { "id": "has_on_start_hooks", "value": "true" }
   ],
 

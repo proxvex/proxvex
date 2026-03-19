@@ -1,6 +1,14 @@
 @import '@angular/material/prebuilt-themes/indigo-pink.css';
 /* You can add global styles to this file, and also import other style files */
 
+// VE Configuration Dialog - uniform margin around the dialog
+.ve-config-dialog-panel {
+  max-width: none !important;
+  width: calc(100vw - 8rem) !important;
+  height: calc(100vh - 8rem) !important;
+  max-height: calc(100vh - 8rem) !important;
+}
+
 // Make multiline textareas wider and taller globally
 mat-form-field {
   &:has(textarea.mat-mdc-input-element) {

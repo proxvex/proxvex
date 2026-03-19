@@ -64,19 +64,15 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
               </div>
               @if (isAddonSelected(addon.id) && isAddonExpanded(addon.id) && addon.parameters) {
                 <div class="addon-parameters-inline">
-                  @for (param of addon.parameters; track param.id) {
-                    @if (!param.advanced || showAdvanced) {
-                      <app-parameter-group
-                        [groupName]="addon.name"
-                        [groupedParameters]="getAddonGroupedParameters(addon.name, param)"
-                        [form]="getAddonFormGroup(addon.id)"
-                        [showAdvanced]="showAdvanced"
-                        [availableStacks]="availableStacks"
-                        (stackSelected)="stackSelected.emit($event)"
-                        (createStackRequested)="createStackRequested.emit()"
-                      />
-                    }
-                  }
+                  <app-parameter-group
+                    [groupName]="addon.name"
+                    [groupedParameters]="getAddonGroupedParametersAll(addon)"
+                    [form]="getAddonFormGroup(addon.id)"
+                    [showAdvanced]="showAdvanced"
+                    [availableStacks]="availableStacks"
+                    (stackSelected)="stackSelected.emit($event)"
+                    (createStackRequested)="createStackRequested.emit()"
+                  />
                 </div>
               }
             </div>
@@ -88,6 +84,8 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
   styles: [`
     .addons-section {
       margin-bottom: 1rem;
+      max-height: 40vh;
+      overflow-y: auto;
     }
 
     .addons-section h3 {
@@ -158,9 +156,10 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
     }
 
     .addon-parameters-inline {
-      margin-top: 1rem;
-      padding-top: 1rem;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
       border-top: 1px solid #e0e0e0;
+      max-width: 60%;
     }
 
     .addons-loading {
@@ -270,5 +269,10 @@ export class AddonSectionComponent {
 
   getAddonGroupedParameters(groupName: string, param: IParameter): Record<string, IParameter[]> {
     return { [groupName]: [param] };
+  }
+
+  getAddonGroupedParametersAll(addon: IAddonWithParameters): Record<string, IParameter[]> {
+    const params = (addon.parameters ?? []).filter(p => !p.advanced || this.showAdvanced);
+    return { [addon.name]: params };
   }
 }

@@ -51,7 +51,7 @@ export class ApplicationsList implements OnInit {
 
   openProxmoxConfigDialog(app: IApplicationWebIntern) {
     const dialogData: VeConfigurationDialogData = { app, task: 'installation' };
-    this.dialog.open(VeConfigurationDialog, { data: dialogData });
+    this.dialog.open(VeConfigurationDialog, { data: dialogData, panelClass: 've-config-dialog-panel' });
   }
 
   showErrors(app: IApplicationWebIntern) {
@@ -128,7 +128,7 @@ export class ApplicationsList implements OnInit {
       existingMountPoints,
       installedAddons,
     };
-    const dialogRef = this.dialog.open(VeConfigurationDialog, { data: dialogData });
+    const dialogRef = this.dialog.open(VeConfigurationDialog, { data: dialogData, panelClass: 've-config-dialog-panel' });
 
     dialogRef.afterClosed().subscribe(result => {
       if (!result) {
@@ -180,7 +180,7 @@ export class ApplicationsList implements OnInit {
       existingMountPoints,
       installedAddons,
     };
-    const dialogRef = this.dialog.open(VeConfigurationDialog, { data: dialogData });
+    const dialogRef = this.dialog.open(VeConfigurationDialog, { data: dialogData, panelClass: 've-config-dialog-panel' });
 
     // Navigate back when dialog is closed without submission
     dialogRef.afterClosed().subscribe(result => {

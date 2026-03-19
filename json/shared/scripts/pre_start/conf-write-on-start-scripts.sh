@@ -32,8 +32,8 @@ CF_API_TOKEN="{{ CF_TOKEN }}"
 ACME_SAN="{{ acme_san }}"
 ACME_EMAIL="{{ acme_email }}"
 CERT_DIR="{{ acme.cert_dir }}"
-NEEDS_SERVER_CERT="{{ acme.needs_server_cert }}"
-NEEDS_CA_CERT="{{ acme.needs_ca_cert }}"
+NEEDS_SERVER_CERT="{{ acme_needs_server_cert }}"
+NEEDS_CA_CERT="{{ acme_needs_ca_cert }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
 COMPOSE_PROJECT="{{ compose_project }}"
@@ -128,6 +128,7 @@ EOF
 
 APP_UID="${1:-0}"
 APP_GID="${2:-0}"
+export HOME="/root"
 ACME_HOME="/root/.acme.sh"
 RELOAD_SCRIPT="/etc/lxc-oci-deployer/reload_certificates"
 
@@ -136,17 +137,6 @@ if pgrep -f "acme-renew-loop" >/dev/null 2>&1; then
   echo "ACME renewal loop already running" >&2
   exit 0
 fi
-
-# --- Wait for network/DNS (container may not have network immediately after start) ---
-DNS_WAIT=0
-while [ $DNS_WAIT -lt 30 ]; do
-  if nslookup alpine.org >/dev/null 2>&1 || ping -c1 -W1 8.8.8.8 >/dev/null 2>&1; then
-    break
-  fi
-  echo "Waiting for network..." >&2
-  sleep 2
-  DNS_WAIT=$((DNS_WAIT + 2))
-done
 
 # --- Parse SAN: extract primary domain and build -d flags ---
 PRIMARY_DOMAIN=$(echo "$ACME_SAN" | cut -d',' -f1)
@@ -169,7 +159,7 @@ elif command -v apt-get >/dev/null 2>&1; then
   OS_TYPE="debian"
 fi
 
-# --- Install curl and openssl if not present ---
+# --- Install curl and openssl if not present (with network retry) ---
 if ! command -v curl >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1; then
   echo "Installing curl and openssl..." >&2
   case "$OS_TYPE" in
@@ -203,7 +193,16 @@ MIRROREOF
         echo "Set Debian mirror: $DEBIAN_MIRROR" >&2
       fi
       export DEBIAN_FRONTEND=noninteractive
-      apt-get update -qq >&2
+      # Retry apt-get update until network is available (up to 2 min)
+      PKG_ATTEMPT=0
+      while [ $PKG_ATTEMPT -lt 24 ]; do
+        if apt-get update -qq >&2 2>&1; then
+          break
+        fi
+        PKG_ATTEMPT=$((PKG_ATTEMPT + 1))
+        echo "Waiting for package repository (attempt $PKG_ATTEMPT/24)..." >&2
+        sleep 5
+      done
       apt-get install -y --no-install-recommends curl openssl >&2
       ;;
   esac
