@@ -20,7 +20,7 @@
 
 VMID="{{ vm_id }}"
 HOOK_PATH="/var/lib/vz/snippets/lxc-oci-deployer-hook.sh"
-NEW_VERSION=16
+NEW_VERSION=17
 
 # The hookscript body (everything below the header)
 HOOK_BODY='
@@ -49,14 +49,14 @@ NEW_CHECKSUM=$(printf '%s' "$HOOK_BODY" | md5sum | cut -d' ' -f1)
 write_hookscript() {
   echo "Creating hookscript at $HOOK_PATH (v${NEW_VERSION})" >&2
   mkdir -p "$(dirname "$HOOK_PATH")"
-  cat > "$HOOK_PATH" << HOOKEOF
-#!/bin/sh
-# oci-lxc-deployer hookscript
-# OCI_LXC_DEPLOYER_HOOK_VERSION=${NEW_VERSION}
-# OCI_LXC_DEPLOYER_HOOK_CHECKSUM=${NEW_CHECKSUM}
-# --- DO NOT MODIFY ABOVE THIS LINE ---
-${HOOK_BODY}
-HOOKEOF
+  # Write header with expanded variables, then body via printf to preserve
+  # backslash escapes (unquoted heredoc would strip them, breaking the checksum)
+  printf '#!/bin/sh\n' > "$HOOK_PATH"
+  printf '# oci-lxc-deployer hookscript\n' >> "$HOOK_PATH"
+  printf '# OCI_LXC_DEPLOYER_HOOK_VERSION=%s\n' "$NEW_VERSION" >> "$HOOK_PATH"
+  printf '# OCI_LXC_DEPLOYER_HOOK_CHECKSUM=%s\n' "$NEW_CHECKSUM" >> "$HOOK_PATH"
+  printf '# --- DO NOT MODIFY ABOVE THIS LINE ---\n' >> "$HOOK_PATH"
+  printf '%s\n' "$HOOK_BODY" >> "$HOOK_PATH"
   chmod +x "$HOOK_PATH"
 }
 
