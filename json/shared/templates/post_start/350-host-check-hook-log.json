@@ -14,7 +14,7 @@
   "commands": [
     {
       "script": "host-check-hook-log.sh",
-      "description": "Read hookscript output from hook.log in volume"
+      "description": "Read hookscript output from LXC console log"
     }
   ]
 }
