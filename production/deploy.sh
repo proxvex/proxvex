@@ -5,10 +5,16 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PVE_HOST="pve1.cluster"
 DEPLOYER_HOST="oci-lxc-deployer"
-PORT_DEPLOYER_HTTPS=3443
 
-SERVER="https://${DEPLOYER_HOST}:${PORT_DEPLOYER_HTTPS}"
 CLI="npx tsx $PROJECT_ROOT/cli/src/oci-lxc-cli.mts"
+
+# Auto-detect: HTTPS (port 3443) or HTTP (port 3080)
+if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then
+  SERVER="https://${DEPLOYER_HOST}:3443"
+else
+  SERVER="http://${DEPLOYER_HOST}:3080"
+fi
+echo "Using deployer at ${SERVER}"
 
 # Load OIDC credentials if available (optional — without .env, CLI runs without auth)
 ENV_FILE="$SCRIPT_DIR/.env"

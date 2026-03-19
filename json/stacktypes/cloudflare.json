@@ -1,8 +1,7 @@
 {
   "name": "Cloudflare",
-  "description": "Cloudflare API credentials for DNS-01 ACME challenge (Let's Encrypt)",
+  "description": "Cloudflare API credentials for DNS-01 ACME challenge (Let's Encrypt). acme.sh dns_cf resolves zones automatically — no Zone ID needed.",
   "variables": [
-    { "name": "CF_TOKEN", "external": true },
-    { "name": "CF_ZONE_ID", "external": true }
+    { "name": "CF_TOKEN", "external": true }
   ]
 }

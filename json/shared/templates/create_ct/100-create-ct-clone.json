@@ -29,7 +29,7 @@
   ],
   "commands": [
     {
-      "template": "099-set-vm-id-start.json"
+      "template": "050-set-project-parameters.json"
     },
     {
       "name": "Clone Container",

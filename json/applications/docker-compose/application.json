@@ -51,11 +51,10 @@
       "096-host-load-kernel-modules.json"
     ],
     "create_ct": [
-      { "name": "099-set-vm-id-start.json", "category": "create_ct" },
+      { "name": "050-set-project-parameters.json", "category": "create_ct" },
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
-      "106-set-project-parameters.json",
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
@@ -81,11 +80,10 @@
       "096-host-load-kernel-modules.json"
     ],
     "create_ct": [
-      { "name": "099-set-vm-id-start.json", "category": "create_ct" },
+      { "name": "050-set-project-parameters.json", "category": "create_ct" },
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
-      "106-set-project-parameters.json",
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
@@ -113,7 +111,6 @@
       "100-create-ct-clone.json"
     ],
     "pre_start": [
-      "106-set-project-parameters.json",
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",

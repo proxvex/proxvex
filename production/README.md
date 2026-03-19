@@ -27,7 +27,7 @@ ssh root@router sh dns.sh
 
 ### 2. oci-lxc-deployer installieren (auf PVE-Host)
 
-Das Install-Script wird **ohne `--https`** ausgeführt. HTTPS wird in Schritt 3 per ACME eingerichtet.
+Das Install-Script wird **ohne `--https`** ausgeführt. HTTPS wird in Schritt 5 per ACME eingerichtet.
 
 ```bash
 # Auf pve1.cluster:
@@ -38,68 +38,84 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
   --nameserver 192.168.4.1
 ```
 
-### 2b. Local Templates setzen
+### 2b. Projekt-Defaults setzen
 
-Auf dem PVE-Host die Default-Templates ins Local-Verzeichnis des Deployers schreiben:
+Auf dem PVE-Host das Projekt-Template ins Local-Verzeichnis des Deployers kopieren. Dieses eine Template setzt alle projektweiten Defaults (vm_id_start, OIDC, ACME, Mirrors):
 
 ```bash
 # Auf pve1.cluster:
 SHARED_VOL="/rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config/shared/templates"
 
-# vm_id_start auf 500 setzen (alle weiteren Apps ab VM-ID 500)
 mkdir -p "${SHARED_VOL}/create_ct"
-cat > "${SHARED_VOL}/create_ct/099-set-vm-id-start.json" << 'EOF'
+cat > "${SHARED_VOL}/create_ct/050-set-project-parameters.json" << 'EOF'
 {
-  "name": "Set VM ID Start",
-  "description": "Default start index for auto-assigned VM IDs. Override in local/shared/templates/create_ct/.",
+  "name": "Set Project Parameters",
+  "description": "Project-specific defaults for ohnewarum.de",
   "commands": [
-    {
-      "properties": {
-        "id": "vm_id_start",
-        "default": "500"
-      }
-    }
-  ]
-}
-EOF
-
-# OIDC Issuer URL setzen (öffentliche URL, über lokalen DNS auf Zitadel-IP gemappt)
-mkdir -p "${SHARED_VOL}/pre_start"
-cat > "${SHARED_VOL}/pre_start/106-set-oidc-issuer-url.json" << 'EOF'
-{
-  "name": "Set OIDC Issuer URL",
-  "commands": [
-    {
-      "properties": {
-        "id": "oidc_issuer_url",
-        "default": "https://auth.ohnewarum.de"
-      }
-    }
+    { "properties": { "id": "vm_id_start", "default": "500" } },
+    { "properties": { "id": "oidc_issuer_url", "default": "https://auth.ohnewarum.de" } },
+    { "properties": { "id": "acme_san", "default": "{{ hostname }}.ohnewarum.de" } },
+    { "properties": { "id": "alpine_mirror", "default": "https://mirror1.hs-esslingen.de/Mirrors/alpine/" } },
+    { "properties": { "id": "debian_mirror", "default": "http://mirror.23m.com/debian/" } }
   ]
 }
 EOF
 ```
 
-### 3. ACME einrichten und Deployer auf HTTPS umstellen
+Ein Beispiel mit Werten liegt unter `examples/shared/templates/create_ct/050-set-project-parameters.json`.
 
-Das Script erstellt den Production-Stack mit Cloudflare-Credentials und reconfiguriert den Deployer mit addon-acme (Let's Encrypt).
+### 3. ACME-Voraussetzungen einrichten
+
+Das Script erstellt den Production-Stack mit Cloudflare-Credentials, generiert das CA-Zertifikat und setzt die Domain-Suffix. Der Deployer selbst bleibt auf HTTP — HTTPS wird erst später eingerichtet.
 
 Voraussetzungen:
-- Cloudflare API Token mit Permission `Zone:DNS:Edit` ([Dashboard](https://dash.cloudflare.com/profile/api-tokens))
-- Zone ID der Domain (Cloudflare Dashboard → Domain → Overview → rechte Seite)
+- Cloudflare API Token mit Permission `Zone:DNS:Edit` für alle relevanten Domains ([Dashboard](https://dash.cloudflare.com/profile/api-tokens))
+- Keine Zone ID nötig — `acme.sh` (`dns_cf`) löst die Zone automatisch auf
 
 ```bash
-CF_TOKEN=xxx CF_ZONE_ID=yyy ./production/setup-acme.sh
+CF_TOKEN=xxx ./production/setup-acme.sh
 ```
 
 Das Script:
 - Wartet auf die Deployer API (HTTP)
 - Generiert CA-Zertifikat (für self-signed bei Postgres etc.)
 - Setzt die Domain-Suffix
-- Erstellt den Production-Stack mit `cloudflare` Stacktype + Credentials
-- Reconfiguriert den Deployer mit `addon-acme` → HTTPS auf Port 3443
+- Erstellt den Production-Stack mit `cloudflare` Stacktype + CF_TOKEN
 
-### 4. Postgres und Zitadel deployen
+### 4. Nginx deployen (mit ACME + Homepage)
+
+Nginx wird als erstes deployed, um den öffentlichen Zugang zu verifizieren. Der Deployer läuft noch auf HTTP — `deploy.sh` erkennt das automatisch.
+
+```bash
+./production/deploy.sh nginx
+```
+
+Danach Virtual Hosts und Homepage einrichten:
+
+```bash
+# Auf pve1.cluster:
+./production/setup-nginx.sh
+```
+
+Das Script:
+- Schreibt pro Site eine nginx-Config nach `conf.d/` (ohnewarum, nebenkosten, auth, git)
+- Kopiert die Homepage in den Container
+- Setzt Ownership (uid 101 für nginx-unprivileged)
+- Reload nginx
+
+**Zwischenergebnis:** Öffentlicher Zugang funktioniert — `https://ohnewarum.de` zeigt die Homepage.
+
+### 5. Deployer auf HTTPS umstellen (ACME)
+
+Jetzt den Deployer mit addon-acme reconfigurieren:
+
+```bash
+./production/setup-deployer-acme.sh
+```
+
+Ab hier läuft der Deployer auf HTTPS (Port 3443). `deploy.sh` erkennt das automatisch.
+
+### 6. Postgres und Zitadel deployen
 
 Zitadel wird als OIDC-Provider benötigt, bevor die anderen Apps mit OIDC konfiguriert werden können.
 
@@ -107,7 +123,7 @@ Zitadel wird als OIDC-Provider benötigt, bevor die anderen Apps mit OIDC konfig
 ./production/deploy.sh zitadel      # deployt postgres + zitadel (mit addon-acme)
 ```
 
-### 5. Zitadel Service User anlegen
+### 7. Zitadel Service User anlegen
 
 Service User für CLI-Authentifizierung einrichten.
 Das PAT wird automatisch aus dem laufenden Zitadel-Container gelesen.
@@ -122,7 +138,7 @@ Das Script erstellt:
 - Client Credentials (client_id + client_secret)
 - Datei `production/.env` mit den Credentials
 
-### 6. oci-lxc-deployer auf OIDC umstellen
+### 8. oci-lxc-deployer auf OIDC umstellen
 
 Reconfiguriert den Deployer mit `addon-oidc`. Das Addon erstellt automatisch einen OIDC-Client in Zitadel und konfiguriert die Umgebungsvariablen.
 
@@ -132,12 +148,11 @@ Reconfiguriert den Deployer mit `addon-oidc`. Das Addon erstellt automatisch ein
 
 Das Script reconfiguriert den Deployer mit `addon-acme` + `addon-oidc` (beide aktiv).
 
-### 7. Restliche Apps mit OIDC deployen
+### 9. Restliche Apps mit OIDC deployen
 
 Sobald `production/.env` existiert und OIDC am Backend aktiv ist, werden alle weiteren Apps mit OIDC-Authentifizierung und ACME-Zertifikaten deployed:
 
 ```bash
-./production/deploy.sh nginx        # nginx mit addon-acme
 ./production/deploy.sh gitea        # gitea mit addon-oidc + addon-acme
 ```
 
@@ -165,7 +180,7 @@ Das ACME-Addon generiert und erneuert Zertifikate automatisch via Cloudflare DNS
 
 | App | Addon | SSL-Mode | Zugang |
 |-----|-------|----------|--------|
-| Nginx (Reverse Proxy) | `addon-acme` | `native` | Öffentlich |
+| Nginx (Static-Host + Reverse Proxy) | `addon-acme` | `native` | Öffentlich |
 | Zitadel | `addon-acme` | `native` | Öffentlich (via Nginx) + Lokal direkt |
 | Gitea | `addon-acme` | `proxy` | Öffentlich (via Nginx) + Lokal direkt |
 | oci-lxc-deployer | `addon-acme` | `native` | Nur Lokal |
@@ -187,10 +202,12 @@ DB- und MQTT-Clients vertrauen der internen CA direkt (`chain.pem`). Kein Browse
 ### Datenfluss
 
 ```
-Öffentlicher Zugang (nur ~5 Apps):
-  Browser → Internet → [ACME] Nginx (:443)
-    ├── auth.domain.com  → [ACME] Zitadel (:8443)
-    ├── git.domain.com   → [ACME] Gitea (:443)
+Öffentlicher Zugang:
+  Browser → Internet → [ACME: *.ohnewarum.de] Nginx (:443)
+    ├── ohnewarum.de              → Statische Homepage (nginx lokal)
+    ├── nebenkosten.ohnewarum.de  → Frontend-App (nginx lokal, OIDC client-seitig)
+    ├── auth.ohnewarum.de         → [ACME] Zitadel (:8443)
+    ├── git.ohnewarum.de          → [ACME] Gitea (:443)
     └── ...
 
 Lokaler Zugang (alle Apps, direkt ohne Nginx):
@@ -208,27 +225,67 @@ DB/MQTT (kein Browser):
   IoT-Clients →[self-signed TLS, CA-Trust]→ Mosquitto (:8883)
 ```
 
-### Nginx: Nur öffentlicher Reverse Proxy
+### Nginx: Static-Host + öffentlicher Reverse Proxy
 
-Nginx mapped ausschließlich öffentliche Apps. Interne Apps sind nur über LAN direkt erreichbar.
+Nginx hat zwei Rollen:
+1. **Static-Host**: Hostet statische Websites direkt (Homepage, nebenkosten)
+2. **Reverse Proxy**: Leitet öffentliche Apps an Backend-Container weiter (Zitadel, Gitea)
+
+Wildcard-Zertifikat: `acme_san = ohnewarum.de,*.ohnewarum.de`
+
+Interne Apps sind nur über LAN direkt erreichbar.
+
+#### Gehostete Sites
+
+| Site | Domain | Typ | OIDC |
+|------|--------|-----|------|
+| Homepage | `ohnewarum.de` | Statische HTML-Seite | Nein (öffentlich) |
+| Nebenkosten | `nebenkosten.ohnewarum.de` | Frontend-App (PostgREST) | Ja (client-seitig, PKCE → Zitadel) |
+
+OIDC für nebenkosten läuft client-seitig: Das Frontend-JS leitet beim Öffnen zu Zitadel weiter (PKCE Flow, kein Client-Secret). JWT-Token werden als Bearer-Header an PostgREST gesendet. PostgREST validiert JWT + Row-Level Security. Nginx selbst braucht kein OIDC — es liefert nur statische Dateien aus.
+
+Weitere Domains (z.B. `carcam360.de`) bekommen eigene Container mit eigenem ACME-Zertifikat.
+
+#### Konfiguration pro Site (conf.d/)
+
+Pro gehostete Site eine eigene Datei im `conf`-Volume (`/etc/nginx/conf.d`). Nginx ist rootless und lauscht auf Port 8080 (ohne SSL). Das ACME-Addon (`ssl_mode: proxy`) stellt einen SSL-Proxy davor, der auf Port 443 terminiert und an 8080 weiterleitet.
 
 ```nginx
-# Default: unbekannte Domains ablehnen
+# default.conf — unbekannte Domains ablehnen
 server {
-    listen 443 ssl default_server;
-    ssl_certificate /etc/ssl/acme/fullchain.pem;
-    ssl_certificate_key /etc/ssl/acme/privkey.pem;
+    listen 8080 default_server;
     return 444;
 }
 
-# Nur öffentliche Apps (max. 5)
+# ohnewarum.conf — öffentliche Homepage
 server {
-    server_name auth.domain.com;
-    location / { proxy_pass https://zitadel-host:8443; }
+    listen 8080;
+    server_name ohnewarum.de;
+    root /usr/share/nginx/html/ohnewarum;
+    index index.html;
 }
+
+# nebenkosten.conf — Frontend-App (OIDC client-seitig)
 server {
-    server_name git.domain.com;
-    location / { proxy_pass https://gitea-host:443; }
+    listen 8080;
+    server_name nebenkosten.ohnewarum.de;
+    root /usr/share/nginx/html/nebenkosten;
+    index index.html;
+    try_files $uri $uri/ /index.html;
+}
+
+# auth.conf — Reverse Proxy zu Zitadel
+server {
+    listen 8080;
+    server_name auth.ohnewarum.de;
+    location / { proxy_pass https://zitadel:8443; }
+}
+
+# git.conf — Reverse Proxy zu Gitea
+server {
+    listen 8080;
+    server_name git.ohnewarum.de;
+    location / { proxy_pass https://gitea:443; }
 }
 ```
 
@@ -236,14 +293,16 @@ Nginx vertraut den Backend-ACME-Certs automatisch (Let's Encrypt CA ist im Syste
 
 ### Zugriffskontrolle
 
-| App | Öffentlich (via Nginx) | Lokal (direkt) | Cert |
-|-----|------------------------|----------------|------|
-| Zitadel | ✓ auth.domain.com | ✓ direkt :8443 | ACME |
-| Gitea | ✓ git.domain.com | ✓ direkt :443 | ACME |
-| oci-lxc-deployer | ✗ | ✓ direkt :3443 | ACME |
-| Node-RED | ✗ | ✓ direkt :443 | ACME |
-| Postgres | ✗ | ✓ nur DB-Clients | Self-signed |
-| MQTT | ✗ | ✓ nur MQTT-Clients | Self-signed |
+| App | Öffentlich (via Nginx) | Lokal (direkt) | Cert | OIDC |
+|-----|------------------------|----------------|------|------|
+| Homepage | ✓ ohnewarum.de | — | Nginx-ACME | Nein |
+| Nebenkosten | ✓ nebenkosten.ohnewarum.de | — | Nginx-ACME | Client-seitig (PKCE) |
+| Zitadel | ✓ auth.ohnewarum.de | ✓ direkt :8443 | ACME | — |
+| Gitea | ✓ git.ohnewarum.de | ✓ direkt :443 | ACME | addon-oidc |
+| oci-lxc-deployer | ✗ | ✓ direkt :3443 | ACME | addon-oidc |
+| Node-RED | ✗ | ✓ direkt :443 | ACME | — |
+| Postgres | ✗ | ✓ nur DB-Clients | Self-signed | — |
+| MQTT | ✗ | ✓ nur MQTT-Clients | Self-signed | — |
 
 **Schutz:**
 1. **Nginx** mapped nur öffentliche Apps → interne Apps nicht von außen erreichbar
@@ -252,10 +311,11 @@ Nginx vertraut den Backend-ACME-Certs automatisch (Let's Encrypt CA ist im Syste
 
 ### ACME Voraussetzungen
 
-1. **Cloudflare API Token** mit Permission `Zone:DNS:Edit` erstellen ([Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens))
-2. **Zone ID** der Domain kopieren (Cloudflare Dashboard → Domain → Overview → rechte Seite)
+1. **Cloudflare API Token** mit Permission `Zone:DNS:Edit` für alle relevanten Domains erstellen ([Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens))
 
-Die Credentials werden per `setup-acme.sh` (Schritt 3) im Production-Stack hinterlegt. Ohne Cloudflare-Credentials im Stack wird das ACME-Addon übersprungen.
+Keine Zone ID nötig — `acme.sh` (`dns_cf`) löst die Zone automatisch anhand des Domainnamens auf. Ein Token mit Zugriff auf mehrere Zonen reicht für beliebig viele Domains.
+
+Das CF_TOKEN wird per `setup-acme.sh` (Schritt 3) im Production-Stack hinterlegt. Ohne Cloudflare-Credentials im Stack wird das ACME-Addon übersprungen.
 
 ### Verworfene Alternativen
 
@@ -300,8 +360,11 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 | `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
 | `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
 | `dns.sh`                         | DNS-Einträge auf OpenWrt (uci + dnsmasq)   |
-| `setup-acme.sh`                  | ACME Setup: Cloudflare-Stack + Deployer HTTPS |
+| `setup-acme.sh`                  | ACME-Voraussetzungen: Cloudflare-Stack + CA + Domain-Suffix |
+| `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten  |
+| `setup-deployer-acme.sh`         | Deployer auf HTTPS umstellen (addon-acme)  |
 | `setup-deployer-oidc.sh`         | Deployer OIDC via addon-oidc aktivieren    |
+| `ohnewarum_startseite.html`      | Homepage für nginx                         |
 | `setup-zitadel-service-user.sh`  | Zitadel Service User + Client Credentials  |
 | `*.json`                         | CLI-Parameter pro App (addon-acme/addon-ssl) |
 | `.env`                           | OIDC Credentials (git-ignored)             |

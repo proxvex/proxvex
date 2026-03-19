@@ -8,11 +8,10 @@
       "011-host-get-oci-image.json"
     ],
     "create_ct": [
-      { "name": "099-set-vm-id-start.json", "category": "create_ct" },
+      { "name": "050-set-project-parameters.json", "category": "create_ct" },
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
-      "106-set-project-parameters.json",
       "107-conf-oci-lxc-configuration.json",
       "160-conf-bind-multiple-volumes-to-lxc.json",
       "185-host-resolve-dependency-hosts.json"
@@ -31,11 +30,10 @@
       "011-host-get-oci-image.json"
     ],
     "create_ct": [
-      { "name": "099-set-vm-id-start.json", "category": "create_ct" },
+      { "name": "050-set-project-parameters.json", "category": "create_ct" },
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
-      "106-set-project-parameters.json",
       "107-conf-oci-lxc-configuration.json",
       "160-conf-bind-multiple-volumes-to-lxc.json"
     ],
@@ -56,7 +54,6 @@
       "100-create-ct-clone.json"
     ],
     "pre_start": [
-      "106-set-project-parameters.json",
       "set-reconfigure-defaults.json",
       "160-conf-bind-multiple-volumes-to-lxc.json",
       "185-host-resolve-dependency-hosts.json"

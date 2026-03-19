@@ -1,0 +1,36 @@
+{
+  "name": "Set Project Parameters",
+  "description": "Project-specific defaults for ohnewarum.de",
+  "commands": [
+    {
+      "properties": {
+        "id": "vm_id_start",
+        "default": "500"
+      }
+    },
+    {
+      "properties": {
+        "id": "oidc_issuer_url",
+        "default": "https://auth.ohnewarum.de"
+      }
+    },
+    {
+      "properties": {
+        "id": "acme_san",
+        "default": "{{ hostname }}.ohnewarum.de"
+      }
+    },
+    {
+      "properties": {
+        "id": "alpine_mirror",
+        "default": "https://mirror1.hs-esslingen.de/Mirrors/alpine/"
+      }
+    },
+    {
+      "properties": {
+        "id": "debian_mirror",
+        "default": "http://mirror.23m.com/debian/"
+      }
+    }
+  ]
+}
