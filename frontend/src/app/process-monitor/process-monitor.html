@@ -5,7 +5,12 @@
     @for (group of messages; track group.application + group.task) {
       <mat-expansion-panel [expanded]="shouldBeExpanded(group)">
         <mat-expansion-panel-header>
-          <mat-panel-title>{{ group.application }} / {{ group.task }}</mat-panel-title>
+          <mat-panel-title>
+            {{ group.application }} / {{ group.task }}
+            @if (group.plannedSteps) {
+              <span class="step-counter">({{ getCompletedCount(group) }} / {{ group.plannedSteps.length }})</span>
+            }
+          </mat-panel-title>
         </mat-expansion-panel-header>
         <ng-container *ngTemplateOutlet="groupContent; context: { group: group }"></ng-container>
       </mat-expansion-panel>
@@ -31,6 +36,12 @@
           }
         </li>
       }
+    }
+    @for (step of getPendingSteps(group); track step.name) {
+      <li class="pending">
+        <span class="pending-icon">○</span>
+        <span class="command-text pending-text">{{ step.name }}</span>
+      </li>
     }
   </ul>
 

@@ -151,6 +151,17 @@ export class SshConfigPage implements OnInit {
     return !!cur?.permissionOk;
   }
 
+  get hostUnreachable(): boolean {
+    const cur = this.ssh.find(s => s.current) ?? this.ssh[0];
+    if (!cur || cur.permissionOk) return false;
+    const stderr = (cur.stderr || '').toLowerCase();
+    return stderr.includes('connection refused') ||
+      stderr.includes('no route to host') ||
+      stderr.includes('operation timed out') ||
+      stderr.includes('timed out') ||
+      stderr.includes('network is unreachable');
+  }
+
   refreshPermission(index: number) {
     const sel = this.ssh[index];
     if (sel?.host) {

@@ -278,8 +278,10 @@ export class CliApiClient {
 
   async getExecuteMessages(
     veCtx: string,
+    since?: number,
   ): Promise<IVeExecuteMessagesResponse> {
-    return this.request("GET", `/api/${veCtx}/ve/execute`);
+    const query = since !== undefined ? `?since=${since}` : "";
+    return this.request("GET", `/api/${veCtx}/ve/execute${query}`);
   }
 
   async getValidation(): Promise<{ valid: boolean; [key: string]: any }> {

@@ -52,6 +52,26 @@
   }
 }
 
+.pending {
+  opacity: 0.5;
+}
+
+.pending-icon {
+  color: #9e9e9e;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.pending-text {
+  color: #757575;
+}
+
+.step-counter {
+  margin-left: 8px;
+  font-size: 0.85em;
+  color: #757575;
+}
+
 .success-icon {
   color: #4caf50;
   font-weight: bold;

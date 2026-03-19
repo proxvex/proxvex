@@ -55,6 +55,18 @@
       @else if (permissionOk) {
         <div class="ok-banner"><mat-icon class="ok-icon">verified</mat-icon> SSH access is working. No further action required.</div>
       }
+      @else if (hostUnreachable) {
+        <div class="warn-banner emphasized">
+          <div class="warn-text">
+            <mat-icon class="warn-icon">cloud_off</mat-icon>
+            <span>The Proxmox host is not reachable. Please check that the host is running and the network connection is available.</span>
+          </div>
+          <button mat-flat-button color="primary" type="button" (click)="refreshCurrentPermission()" class="refresh-btn">
+            <mat-icon>refresh</mat-icon>
+            <span>Check Again</span>
+          </button>
+        </div>
+      }
       @else {
         <div class="warn-banner emphasized">
           <div class="warn-text">

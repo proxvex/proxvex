@@ -185,8 +185,9 @@ export class VeConfigurationService {
       catchError((err) => this.handleError(err))
     );
   }
-  getExecuteMessages(): Observable<IVeExecuteMessagesResponse> {
-    return  this.get<IVeExecuteMessagesResponse>(ApiUri.VeExecute);
+  getExecuteMessages(since?: number): Observable<IVeExecuteMessagesResponse> {
+    const url = since !== undefined ? `${ApiUri.VeExecute}?since=${since}` : ApiUri.VeExecute;
+    return  this.get<IVeExecuteMessagesResponse>(url);
   }
 
   restartExecution(restartKey: string): Observable<IPostVeConfigurationResponse> {

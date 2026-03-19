@@ -11,6 +11,8 @@ export interface ProgressOptions {
 
 export class CliProgress {
   private seenMessages = 0;
+  private lastSeenIndex = -1;
+  private totalSteps?: number;
   private startTime = Date.now();
 
   constructor(
@@ -27,10 +29,21 @@ export class CliProgress {
     while (Date.now() < deadline) {
       let messages: IVeExecuteMessage[];
       try {
-        const response = await this.client.getExecuteMessages(this.veContext);
+        const since = this.lastSeenIndex >= 0 ? this.lastSeenIndex : undefined;
+        const response = await this.client.getExecuteMessages(this.veContext, since);
         // Response is array of ISingleExecuteMessagesResponse
         const latest = response[response.length - 1];
         messages = latest?.messages ?? [];
+        // Capture total steps from plannedSteps on first response
+        if (this.totalSteps === undefined && latest?.plannedSteps) {
+          this.totalSteps = latest.plannedSteps.length;
+        }
+        // Track highest seen index for delta-polling
+        for (const msg of messages) {
+          if (msg.index !== undefined && msg.index > this.lastSeenIndex) {
+            this.lastSeenIndex = msg.index;
+          }
+        }
         retryCount = 0;
       } catch (err) {
         retryCount++;
@@ -39,10 +52,10 @@ export class CliProgress {
         continue;
       }
 
-      // Process new messages
-      for (let i = this.seenMessages; i < messages.length; i++) {
-        const msg = messages[i]!;
-        this.renderMessage(msg, i);
+      // With delta-polling, all returned messages are new
+      for (const msg of messages) {
+        this.renderMessage(msg, this.seenMessages);
+        this.seenMessages++;
 
         if (msg.finished) {
           const success = msg.exitCode === 0;
@@ -62,7 +75,6 @@ export class CliProgress {
           return result;
         }
       }
-      this.seenMessages = messages.length;
 
       await sleep(3000);
     }
@@ -85,7 +97,7 @@ export class CliProgress {
     if (msg.partial) return;
 
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
-    const step = `[${index + 1}]`;
+    const step = this.totalSteps ? `[${index + 1}/${this.totalSteps}]` : `[${index + 1}]`;
     const status =
       msg.exitCode === 0
         ? "OK"

@@ -367,10 +367,16 @@ export interface IDependencyCheckResponse {
   dependencies: IDependencyStatus[];
 }
 
+export interface IPlannedStep {
+  name: string;
+  description?: string;
+}
+
 export interface ISingleExecuteMessagesResponse {
   application: string;
   task: string;
   messages: IVeExecuteMessage[];
+  plannedSteps?: IPlannedStep[];
   restartKey?: string;
   vmInstallKey?: string;
 }

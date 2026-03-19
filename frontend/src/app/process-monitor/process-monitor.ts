@@ -5,7 +5,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { CommonModule } from '@angular/common';
-import { IVeExecuteMessagesResponse, ISingleExecuteMessagesResponse, IParameterValue, IVeExecuteMessage } from '../../shared/types';
+import { IVeExecuteMessagesResponse, ISingleExecuteMessagesResponse, IParameterValue, IVeExecuteMessage, IPlannedStep } from '../../shared/types';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { StderrDialogComponent } from './stderr-dialog.component';
 
@@ -29,6 +29,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private zone = inject(NgZone);
   private dialog = inject(MatDialog);
+  private lastSeenIndex = -1;
   private storedParams: Record<string, { name: string; value: IParameterValue }[]> = {};
   private storedVmInstallKeys: Record<string, string> = {}; // Map from restartKey to vmInstallKey
 
@@ -75,7 +76,8 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   }
 
   private fetchMessages() {
-    this.veConfigurationService.getExecuteMessages().subscribe({
+    const since = this.lastSeenIndex >= 0 ? this.lastSeenIndex : undefined;
+    this.veConfigurationService.getExecuteMessages(since).subscribe({
       next: (msgs) => {
         if (msgs && msgs.length > 0) {
           this.zone.run(() => {
@@ -141,6 +143,15 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       }
     }
 
+    // Track highest seen index for delta-polling
+    for (const group of newMsgs) {
+      for (const msg of group.messages) {
+        if (msg.index !== undefined && msg.index > this.lastSeenIndex) {
+          this.lastSeenIndex = msg.index;
+        }
+      }
+    }
+
     if (!this.messages) {
       this.messages = [...newMsgs];
       return;
@@ -154,16 +165,17 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       if (!newGroup) {
         return existing;
       }
-      // Merge new messages
-      const existingIndices = new Set(existing.messages.map(m => m.index));
-      const newMessages = newGroup.messages.filter(m => !existingIndices.has(m.index));
-      if (newMessages.length === 0 && !newGroup.vmInstallKey) {
+      // With delta-polling, new messages are guaranteed to be new — just append
+      const hasNewMessages = newGroup.messages.length > 0;
+      const hasNewPlannedSteps = newGroup.plannedSteps && !existing.plannedSteps;
+      if (!hasNewMessages && !newGroup.vmInstallKey && !hasNewPlannedSteps) {
         return existing;
       }
       return {
         ...existing,
+        plannedSteps: newGroup.plannedSteps || existing.plannedSteps,
         vmInstallKey: newGroup.vmInstallKey || existing.vmInstallKey,
-        messages: [...existing.messages, ...newMessages]
+        messages: [...existing.messages, ...newGroup.messages]
       };
     });
 
@@ -216,6 +228,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
             g => !(g.application === group.application && g.task === group.task)
           );
         }
+        this.lastSeenIndex = -1;
         this.resumePolling();
       },
       error: (err) => {
@@ -249,6 +262,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
             g => !(g.application === group.application && g.task === group.task)
           );
         }
+        this.lastSeenIndex = -1;
         this.resumePolling();
       },
       error: (err) => {
@@ -269,6 +283,18 @@ export class ProcessMonitor implements OnInit, OnDestroy {
         exitCode: msg.exitCode
       }
     });
+  }
+
+  getPendingSteps(group: ISingleExecuteMessagesResponse): IPlannedStep[] {
+    if (!group.plannedSteps) return [];
+    const completedNames = new Set(
+      group.messages.filter(m => m.exitCode === 0 || m.partial).map(m => m.command)
+    );
+    return group.plannedSteps.filter(step => !completedNames.has(step.name));
+  }
+
+  getCompletedCount(group: ISingleExecuteMessagesResponse): number {
+    return group.messages.filter(m => m.exitCode === 0 && !m.finished).length;
   }
 
   close(): void {

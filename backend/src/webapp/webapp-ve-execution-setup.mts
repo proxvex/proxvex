@@ -43,6 +43,13 @@ export class WebAppVeExecutionSetup {
     messageManager.clearMessagesForApplication(application, task);
     messageManager.cleanupOldMessages();
 
+    // Pre-populate planned steps so the frontend can show all steps immediately
+    const group = messageManager.findOrCreateMessageGroup(application, task, restartKey);
+    group.plannedSteps = commands.map(c => ({
+      name: c.name,
+      ...(c.description && { description: c.description }),
+    }));
+
     exec.on("message", (msg: IVeExecuteMessage) => {
       messageManager.handleExecutionMessage(msg, application, task, restartKey);
     });

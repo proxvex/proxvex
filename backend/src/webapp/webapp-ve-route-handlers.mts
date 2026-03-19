@@ -517,7 +517,7 @@ export class WebAppVeRouteHandlers {
   /**
    * Handles GET /api/ve/execute/:veContext
    */
-  handleGetMessages(veContext: IVEContext): IVeExecuteMessagesResponse {
+  handleGetMessages(veContext: IVEContext, since?: number): IVeExecuteMessagesResponse {
     // Add vmInstallKey to each message group if it exists
     const messages = this.messageManager.messages.map((group) => {
       // If vmInstallKey is already set, keep it
@@ -541,6 +541,14 @@ export class WebAppVeRouteHandlers {
 
       return group;
     });
+
+    // Delta-polling: if since is provided, only return messages with index > since
+    if (since !== undefined && !isNaN(since)) {
+      return messages.map(group => ({
+        ...group,
+        messages: group.messages.filter(m => m.index !== undefined && m.index > since),
+      }));
+    }
     return messages;
   }
 

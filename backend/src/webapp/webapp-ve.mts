@@ -195,7 +195,8 @@ export class WebAppVE {
         return;
       }
 
-      const messages = this.routeHandlers.handleGetMessages(veContext);
+      const since = req.query.since !== undefined ? Number(req.query.since) : undefined;
+      const messages = this.routeHandlers.handleGetMessages(veContext, since);
       this.returnResponse<IVeExecuteMessagesResponse>(res, messages);
     });
 
