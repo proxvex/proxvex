@@ -2,6 +2,7 @@ import express, { RequestHandler } from "express";
 import {
   ApiUri,
   IVeConfigurationResponse,
+  IVeExecuteMessage,
   IVeExecuteMessagesResponse,
   IPostVeConfigurationBody,
   TaskType,
@@ -198,6 +199,50 @@ export class WebAppVE {
       const since = req.query.since !== undefined ? Number(req.query.since) : undefined;
       const messages = this.routeHandlers.handleGetMessages(veContext, since);
       this.returnResponse<IVeExecuteMessagesResponse>(res, messages);
+    });
+
+    // GET /api/ve/execute/stream/:veContext — Server-Sent Events for real-time updates
+    this.app.get<{ veContext: string }>(ApiUri.VeExecuteStream, (req, res) => {
+      const storageContext = this.pm.getContextManager();
+      const veContext = storageContext.getVEContextByKey(req.params.veContext);
+      if (!veContext) {
+        res.status(404).json({ error: "VE context not found" });
+        return;
+      }
+
+      // SSE headers
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+
+      // Send existing messages as initial snapshot
+      const snapshot = this.routeHandlers.handleGetMessages(veContext);
+      res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`);
+
+      // Listen for new messages
+      const listener = (
+        msg: IVeExecuteMessage,
+        application: string,
+        task: string,
+      ) => {
+        const payload = { application, task, message: msg };
+        res.write(`event: message\ndata: ${JSON.stringify(payload)}\n\n`);
+      };
+
+      this.messageManager.addListener(listener);
+
+      // Heartbeat to detect dead connections
+      const heartbeat = setInterval(() => {
+        res.write(": heartbeat\n\n");
+      }, 30000);
+
+      req.on("close", () => {
+        clearInterval(heartbeat);
+        this.messageManager.removeListener(listener);
+      });
     });
 
     // POST /api/ve/restart/:restartKey/:veContext

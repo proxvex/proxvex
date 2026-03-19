@@ -185,6 +185,7 @@ export enum ApiUri {
   VeRestart = "/api/:veContext/ve/restart/:restartKey",
   VeRestartInstallation = "/api/:veContext/ve/restart-installation/:vmInstallKey",
   VeExecute = "/api/:veContext/ve/execute",
+  VeExecuteStream = "/api/:veContext/ve/execute/stream",
   VeLogs = "/api/:veContext/ve/logs/:vmId",
   VeLogsHostname = "/api/:veContext/ve/logs/:vmId/hostname",
   VeDockerLogs = "/api/:veContext/ve/logs/:vmId/docker",

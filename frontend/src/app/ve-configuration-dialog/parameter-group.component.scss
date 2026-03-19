@@ -7,6 +7,13 @@
   background: #fafbfc;
   box-shadow: 0 2px 8px 0 #0001;
   box-sizing: border-box;
+
+  &.param-group-plain {
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
 }
 
 .group-title {

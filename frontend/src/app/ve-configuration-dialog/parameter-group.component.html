@@ -1,6 +1,8 @@
 @if (isGroupVisible()) {
-	<div class="param-group" [formGroup]="form">
-		<div class="group-title">{{ groupName }}</div>
+	<div class="param-group" [class.param-group-plain]="hideGroupName" [formGroup]="form">
+		@if (!hideGroupName) {
+			<div class="group-title">{{ groupName }}</div>
+		}
 		<div class="group-fields">
 			@for (param of params; track param) {
 				@if (isVisible(param)) {

@@ -47,6 +47,7 @@ export class ParameterGroupComponent implements OnInit {
   @Input({ required: true }) groupedParameters!: Record<string, IParameter[]>;
   @Input({ required: true }) form!: FormGroup;
   @Input({ required: true }) showAdvanced!: boolean;
+  @Input() hideGroupName = false;
 
   // Classification inputs/outputs (create-application only)
   @Input() showClassification = false;

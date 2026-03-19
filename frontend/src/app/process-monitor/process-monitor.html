@@ -22,10 +22,10 @@
 
 <!-- Shared template for group content -->
 <ng-template #groupContent let-group="group">
-  <!-- Successful commands as compact list -->
   <ul class="success-list">
     @for (msg of group.messages; track msg.index) {
-      @if (msg.exitCode === 0) {
+      <!-- Completed step -->
+      @if (msg.exitCode === 0 && !msg.partial) {
         <li>
           <span class="success-icon">✓</span>
           <span class="command-text">{{ msg.command }}</span>
@@ -36,7 +36,66 @@
           }
         </li>
       }
+      <!-- Currently running step with live stderr -->
+      @if (msg.partial) {
+        <li class="running-item">
+          <span class="running-icon">⟳</span>
+          <span class="command-text">{{ msg.command }}</span>
+        </li>
+        @if (msg.stderr) {
+          <li class="running-stderr-item">
+            <pre class="running-stderr">{{ msg.stderr }}</pre>
+          </li>
+        }
+      }
+      <!-- Failed step -->
+      @if (msg.exitCode !== 0 && !msg.finished && !msg.partial) {
+        <li class="error-item">
+          <div class="error-block" data-testid="installation-error">
+            <div class="error-header">
+              <span class="error-icon">✗</span>
+              <strong>{{ msg.command }}</strong>
+              <span class="exit-code">Exit code: {{ msg.exitCode }}</span>
+            </div>
+            @if (msg.error?.message) {
+              <div class="error-message">{{ msg.error.message }}</div>
+            }
+            @if (msg.stderr) {
+              <pre class="error-stderr">{{ msg.stderr }}</pre>
+            }
+            @if (group.restartKey) {
+              <div class="restart-buttons">
+                <button class="restart-btn" (click)="triggerRestart(group)" title="Restart from last successful step">
+                  ↻ Restart
+                </button>
+                <button class="restart-full-btn" (click)="triggerRestartFull(group)" title="Restart installation from beginning with same parameters">
+                  ↻↻ Restart from Beginning
+                </button>
+              </div>
+            }
+          </div>
+        </li>
+      }
+      <!-- Finished (success summary) -->
+      @if (msg.finished) {
+        <li class="finished-item">
+          <div class="success-block" data-testid="installation-success">
+            <span class="success-icon-large">✓</span>
+            <strong>{{ msg.result }}</strong>
+            @if (msg.redirectUrl) {
+              <div class="redirect-info">
+                <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>
+                <a [href]="msg.redirectUrl" class="redirect-link">{{ msg.redirectUrl }}</a>
+                <button class="back-btn" type="button" (click)="redirectNow()">Jetzt weiterleiten</button>
+              </div>
+            } @else {
+              <button class="back-btn" type="button" (click)="close()">Schließen</button>
+            }
+          </div>
+        </li>
+      }
     }
+    <!-- Pending steps -->
     @for (step of getPendingSteps(group); track step.name) {
       <li class="pending">
         <span class="pending-icon">○</span>
@@ -44,52 +103,4 @@
       </li>
     }
   </ul>
-
-  <!-- Success message when all completed -->
-  @for (msg of group.messages; track msg.index) {
-    @if (msg.finished) {
-      <div class="success-block" data-testid="installation-success">
-        <span class="success-icon-large">✓</span>
-        <strong>{{ msg.result }}</strong>
-        @if (msg.redirectUrl) {
-          <div class="redirect-info">
-            <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>
-            <a [href]="msg.redirectUrl" class="redirect-link">{{ msg.redirectUrl }}</a>
-            <button class="back-btn" type="button" (click)="redirectNow()">Jetzt weiterleiten</button>
-          </div>
-        } @else {
-          <button class="back-btn" type="button" (click)="close()">Schließen</button>
-        }
-      </div>
-    }
-  }
-
-  <!-- Error displayed prominently with restart button -->
-  @for (msg of group.messages; track msg.index) {
-    @if (msg.exitCode !== 0 && !msg.finished) {
-      <div class="error-block" data-testid="installation-error">
-        <div class="error-header">
-          <span class="error-icon">✗</span>
-          <strong>{{ msg.command }}</strong>
-          <span class="exit-code">Exit code: {{ msg.exitCode }}</span>
-        </div>
-        @if (msg.error?.message) {
-          <div class="error-message">{{ msg.error.message }}</div>
-        }
-        @if (msg.stderr) {
-          <pre class="error-stderr">{{ msg.stderr }}</pre>
-        }
-        @if (group.restartKey) {
-          <div class="restart-buttons">
-            <button class="restart-btn" (click)="triggerRestart(group)" title="Restart from last successful step">
-              ↻ Restart
-            </button>
-            <button class="restart-full-btn" (click)="triggerRestartFull(group)" title="Restart installation from beginning with same parameters">
-              ↻↻ Restart from Beginning
-            </button>
-          </div>
-        }
-      </div>
-    }
-  }
 </ng-template>

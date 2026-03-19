@@ -10,9 +10,38 @@ const MESSAGE_RETENTION_MS = 30 * 60 * 1000; // 30 minutes
  * Manages execution messages, including partial and final message handling,
  * message grouping, and cleanup of old messages.
  */
+export type MessageListener = (
+  msg: IVeExecuteMessage,
+  application: string,
+  task: string,
+) => void;
+
 export class WebAppVeMessageManager {
   messages: IVeExecuteMessagesResponse = [];
   private messageTimestamps: Map<string, number> = new Map(); // key: "app/task"
+  private listeners: Set<MessageListener> = new Set();
+
+  addListener(fn: MessageListener): void {
+    this.listeners.add(fn);
+  }
+
+  removeListener(fn: MessageListener): void {
+    this.listeners.delete(fn);
+  }
+
+  private notifyListeners(
+    msg: IVeExecuteMessage,
+    application: string,
+    task: string,
+  ): void {
+    for (const fn of this.listeners) {
+      try {
+        fn(msg, application, task);
+      } catch {
+        // Ignore listener errors
+      }
+    }
+  }
 
   /**
    * Cleans up messages older than MESSAGE_RETENTION_MS.
@@ -201,16 +230,21 @@ export class WebAppVeMessageManager {
 
     // Try to handle as partial message first
     if (this.handlePartialMessage(msg, existing)) {
+      this.notifyListeners(msg, application, task);
       return; // Message was handled
     }
 
     // Try to handle as final message
     if (this.handleFinalMessage(msg, existing)) {
+      this.notifyListeners(msg, application, task);
       return; // Message was handled
     }
 
     // Common: Add as new message if not handled yet
     existing.messages.push(msg);
+
+    // Notify all SSE listeners
+    this.notifyListeners(msg, application, task);
   }
 
   /**

@@ -1,6 +1,6 @@
 //
 
-import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus, IPostGenerateCertBody, IGenerateCertResponse, IDependencyCheckResponse } from '../shared/types';
+import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IVeExecuteMessage, ISingleExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus, IPostGenerateCertBody, IGenerateCertResponse, IDependencyCheckResponse } from '../shared/types';
 import { ICreateStackResponse } from '../shared/types-frontend';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -188,6 +188,44 @@ export class VeConfigurationService {
   getExecuteMessages(since?: number): Observable<IVeExecuteMessagesResponse> {
     const url = since !== undefined ? `${ApiUri.VeExecute}?since=${since}` : ApiUri.VeExecute;
     return  this.get<IVeExecuteMessagesResponse>(url);
+  }
+
+  /**
+   * SSE stream for real-time execution message updates.
+   * Emits 'snapshot' (full state) on connect, then 'message' for each new message.
+   */
+  streamExecuteMessages(): Observable<
+    | { type: 'snapshot'; data: IVeExecuteMessagesResponse }
+    | { type: 'message'; data: { application: string; task: string; message: IVeExecuteMessage } }
+  > {
+    return new Observable(subscriber => {
+      const baseUrl = this.veContextKey
+        ? ApiUri.VeExecuteStream.replace(':veContext', this.veContextKey)
+        : ApiUri.VeExecuteStream;
+      const eventSource = new EventSource(baseUrl);
+
+      eventSource.addEventListener('snapshot', (event: MessageEvent) => {
+        try {
+          const parsed = JSON.parse(event.data) as IVeExecuteMessagesResponse;
+          subscriber.next({ type: 'snapshot', data: parsed });
+        } catch { /* ignore parse errors */ }
+      });
+
+      eventSource.addEventListener('message', (event: MessageEvent) => {
+        try {
+          const parsed = JSON.parse(event.data) as { application: string; task: string; message: IVeExecuteMessage };
+          subscriber.next({ type: 'message', data: parsed });
+        } catch { /* ignore parse errors */ }
+      });
+
+      eventSource.onerror = () => {
+        if (eventSource.readyState === EventSource.CLOSED) {
+          subscriber.complete();
+        }
+      };
+
+      return () => eventSource.close();
+    });
   }
 
   restartExecution(restartKey: string): Observable<IPostVeConfigurationResponse> {
