@@ -29,8 +29,8 @@ interface StoredServerCert {
 export class CertificateAuthorityService {
   constructor(private contextManager: ContextManager) {}
 
-  private contextKey(veContextKey: string): string {
-    return `ca_${veContextKey}`;
+  private contextKey(_veContextKey: string): string {
+    return "ca_global";
   }
 
   getCA(veContextKey: string): { key: string; cert: string } | null {

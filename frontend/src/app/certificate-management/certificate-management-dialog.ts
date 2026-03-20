@@ -4,7 +4,6 @@ import { MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -12,10 +11,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { FormsModule } from '@angular/forms';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
-import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../../shared/types';
+import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewalStatus } from '../../shared/types';
 
 @Component({
   selector: 'app-certificate-management-dialog',
@@ -26,7 +26,6 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
     MatButtonModule,
     MatIconModule,
     MatChipsModule,
-    MatCheckboxModule,
     MatProgressSpinnerModule,
     MatTableModule,
     MatTooltipModule,
@@ -34,6 +33,7 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
     MatInputModule,
     MatTabsModule,
     MatCardModule,
+    MatSlideToggleModule,
     FormsModule,
   ],
   template: `
@@ -60,9 +60,9 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
                     <span class="label">Days remaining:</span>
                     <span>
                       {{ caInfo()?.days_remaining }}
-                      <span class="status-chip" [class]="caInfo()!.days_remaining! <= 30 ? 'status-warning' : 'status-ok'">
-                        {{ caInfo()!.days_remaining! <= 30 ? 'WARNING' : 'OK' }}
-                      </span>
+                      @if (caInfo()!.days_remaining! <= 30) {
+                        <mat-icon class="status-icon status-warning inline-icon">warning</mat-icon>
+                      }
                     </span>
                   </div>
                 } @else {
@@ -155,9 +155,13 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
                     <span>{{ pveStatus()?.expiry_date | date:'mediumDate' }}</span>
                     <span class="label">Status:</span>
                     <span>
-                      <span class="status-chip" [class]="'status-' + pveStatus()?.status">
-                        {{ pveStatus()?.status | uppercase }}
-                      </span>
+                      @if (pveStatus()?.status === 'expired') {
+                        <mat-icon class="status-icon status-expired inline-icon">error</mat-icon> Expired
+                      } @else if (pveStatus()?.status === 'warning') {
+                        <mat-icon class="status-icon status-warning inline-icon">warning</mat-icon> Expiring
+                      } @else {
+                        OK
+                      }
                     </span>
                   </div>
                 } @else {
@@ -174,6 +178,28 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
               </mat-card-actions>
             </mat-card>
 
+            <!-- Auto-Renewal -->
+            <mat-card appearance="outlined">
+              <mat-card-content>
+                <div class="auto-renewal-row">
+                  <mat-slide-toggle [checked]="autoRenewalEnabled()" (change)="toggleAutoRenewal($event.checked)">
+                    Auto-renew expiring certificates
+                  </mat-slide-toggle>
+                  <span class="auto-renewal-info">
+                    @if (autoRenewalStatus()?.last_check) {
+                      <span class="hint-text">Last check: {{ autoRenewalStatus()?.last_check | date:'medium' }}</span>
+                    }
+                    @if (autoRenewalStatus()?.last_renewed_date) {
+                      <span class="hint-text">Last renewal: {{ autoRenewalStatus()?.last_renewed_date | date:'medium' }}</span>
+                    }
+                    @if (autoRenewalStatus()?.last_error) {
+                      <span class="hint-text warn">{{ autoRenewalStatus()?.last_error }}</span>
+                    }
+                  </span>
+                </div>
+              </mat-card-content>
+            </mat-card>
+
             <!-- Deployed Certificates -->
             <mat-card appearance="outlined">
               <mat-card-header>
@@ -186,23 +212,9 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
                   <p class="hint-text">No certificates found.</p>
                 } @else {
                   <table mat-table [dataSource]="certificates()" class="cert-table">
-                    <ng-container matColumnDef="select">
-                      <th mat-header-cell *matHeaderCellDef>
-                        <mat-checkbox (change)="toggleAllSelection($event.checked)" [checked]="allSelected()"></mat-checkbox>
-                      </th>
-                      <td mat-cell *matCellDef="let cert">
-                        <mat-checkbox [checked]="isSelected(cert)" (change)="toggleSelection(cert)"></mat-checkbox>
-                      </td>
-                    </ng-container>
-
-                    <ng-container matColumnDef="hostname">
-                      <th mat-header-cell *matHeaderCellDef>Hostname</th>
-                      <td mat-cell *matCellDef="let cert">{{ cert.hostname }}</td>
-                    </ng-container>
-
-                    <ng-container matColumnDef="certtype">
-                      <th mat-header-cell *matHeaderCellDef>Type</th>
-                      <td mat-cell *matCellDef="let cert">{{ cert.certtype }}</td>
+                    <ng-container matColumnDef="host">
+                      <th mat-header-cell *matHeaderCellDef>Host</th>
+                      <td mat-cell *matCellDef="let cert">{{ cert.host }}</td>
                     </ng-container>
 
                     <ng-container matColumnDef="subject">
@@ -216,29 +228,19 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
                     </ng-container>
 
                     <ng-container matColumnDef="status">
-                      <th mat-header-cell *matHeaderCellDef>Status</th>
+                      <th mat-header-cell *matHeaderCellDef></th>
                       <td mat-cell *matCellDef="let cert">
-                        <span class="status-chip" [class]="'status-' + cert.status">
-                          {{ cert.status | uppercase }}
-                        </span>
+                        @if (cert.status === 'expired') {
+                          <mat-icon class="status-icon status-expired" matTooltip="Expired">error</mat-icon>
+                        } @else if (cert.status === 'warning') {
+                          <mat-icon class="status-icon status-warning" matTooltip="Expires within 30 days">warning</mat-icon>
+                        }
                       </td>
                     </ng-container>
 
                     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
                     <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
                   </table>
-
-                  <div class="renewal-actions">
-                    <button mat-stroked-button (click)="renewSelected()" [disabled]="selectedCerts().length === 0 || !caInfo()?.exists">
-                      <mat-icon>autorenew</mat-icon>
-                      Renew Selected ({{ selectedCerts().length }})
-                    </button>
-                    <button mat-stroked-button (click)="renewExpiring()" [disabled]="!caInfo()?.exists"
-                      matTooltip="Renew all certificates expiring within 30 days">
-                      <mat-icon>warning</mat-icon>
-                      Renew All Expiring
-                    </button>
-                  </div>
                 }
               </mat-card-content>
             </mat-card>
@@ -311,30 +313,39 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse } from '../.
       }
     }
 
-    .status-chip {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
+    .status-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
 
-      &.status-ok {
-        background: #e8f5e9;
-        color: #2e7d32;
-      }
       &.status-warning {
-        background: #fff3e0;
         color: #e65100;
       }
       &.status-expired {
-        background: #ffebee;
         color: #c62828;
+      }
+      &.inline-icon {
+        vertical-align: middle;
+        margin-right: 2px;
       }
     }
 
     .cert-table {
       width: 100%;
       margin-bottom: 0.75rem;
+    }
+
+    .auto-renewal-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .auto-renewal-info {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
 
     .renewal-actions {
@@ -358,7 +369,9 @@ export class CertificateManagementDialog implements OnInit {
   domainSuffix = signal('.local');
   pveStatus = signal<ICertificateStatus | null>(null);
   certificates = signal<ICertificateStatus[]>([]);
-  selectedCerts = signal<ICertificateStatus[]>([]);
+
+  autoRenewalStatus = signal<IAutoRenewalStatus | null>(null);
+  autoRenewalEnabled = signal(false);
 
   generateHostname = signal('');
   generatingCert = signal(false);
@@ -367,12 +380,13 @@ export class CertificateManagementDialog implements OnInit {
   loadingPve = signal(false);
   loadingCerts = signal(false);
 
-  displayedColumns = ['select', 'hostname', 'certtype', 'subject', 'expiry', 'status'];
+  displayedColumns = ['host', 'subject', 'expiry', 'status'];
 
   ngOnInit(): void {
     this.loadCaInfo();
     this.loadPveStatus();
     this.loadCertificates();
+    this.loadAutoRenewalStatus();
   }
 
   private loadCaInfo(): void {
@@ -399,9 +413,42 @@ export class CertificateManagementDialog implements OnInit {
 
   private loadCertificates(): void {
     this.loadingCerts.set(true);
-    this.configService.getCertificateStatus().subscribe({
-      next: (res) => { this.certificates.set(res.certificates); this.loadingCerts.set(false); },
+    this.configService.getAllCertificates().subscribe({
+      next: (res) => {
+        const serverCerts = res.certificates.filter(c =>
+          c.certtype === 'server' || (c.certtype === 'ca' && c.status !== 'ok')
+        );
+        const statusOrder: Record<string, number> = { expired: 0, warning: 1, ok: 2 };
+        const sorted = serverCerts.sort((a, b) =>
+          (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3)
+        );
+        this.certificates.set(sorted);
+        this.loadingCerts.set(false);
+      },
       error: () => { this.loadingCerts.set(false); }
+    });
+  }
+
+  private loadAutoRenewalStatus(): void {
+    this.configService.getAutoRenewalStatus().subscribe({
+      next: (status) => {
+        this.autoRenewalStatus.set(status);
+        this.autoRenewalEnabled.set(status.enabled);
+      },
+      error: () => { /* ignore if not available */ }
+    });
+  }
+
+  toggleAutoRenewal(enabled: boolean): void {
+    this.configService.setAutoRenewalEnabled(enabled).subscribe({
+      next: (status) => {
+        this.autoRenewalStatus.set(status);
+        this.autoRenewalEnabled.set(status.enabled);
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Failed to toggle auto-renewal', err);
+        this.autoRenewalEnabled.set(!enabled);
+      }
     });
   }
 
@@ -528,60 +575,6 @@ export class CertificateManagementDialog implements OnInit {
       error: (err) => {
         this.errorHandler.handleError('Failed to provision PVE certificate', err);
         this.loadingPve.set(false);
-      }
-    });
-  }
-
-  isSelected(cert: ICertificateStatus): boolean {
-    return this.selectedCerts().some(c => c.hostname === cert.hostname && c.file === cert.file);
-  }
-
-  allSelected(): boolean {
-    return this.certificates().length > 0 && this.selectedCerts().length === this.certificates().length;
-  }
-
-  toggleSelection(cert: ICertificateStatus): void {
-    const current = this.selectedCerts();
-    if (this.isSelected(cert)) {
-      this.selectedCerts.set(current.filter(c => !(c.hostname === cert.hostname && c.file === cert.file)));
-    } else {
-      this.selectedCerts.set([...current, cert]);
-    }
-  }
-
-  toggleAllSelection(checked: boolean): void {
-    this.selectedCerts.set(checked ? [...this.certificates()] : []);
-  }
-
-  renewSelected(): void {
-    const hostnames = [...new Set(this.selectedCerts().map(c => c.hostname))];
-    this.doRenew(hostnames);
-  }
-
-  renewExpiring(): void {
-    const hostnames = [...new Set(
-      this.certificates()
-        .filter(c => c.status === 'warning' || c.status === 'expired')
-        .map(c => c.hostname)
-    )];
-    if (hostnames.length === 0) {
-      this.errorHandler.handleError('No expiring certificates found', new Error('Nothing to renew'));
-      return;
-    }
-    this.doRenew(hostnames);
-  }
-
-  private doRenew(hostnames: string[]): void {
-    this.loadingCerts.set(true);
-    this.configService.postCertificateRenew({ hostnames }).subscribe({
-      next: () => {
-        this.loadingCerts.set(false);
-        this.selectedCerts.set([]);
-        this.loadCertificates();
-      },
-      error: (err) => {
-        this.errorHandler.handleError('Failed to renew certificates', err);
-        this.loadingCerts.set(false);
       }
     });
   }

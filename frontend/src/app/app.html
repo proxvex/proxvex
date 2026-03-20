@@ -15,25 +15,23 @@
         </button>
       </mat-form-field>
     }
-    <button class="create-app-btn header-btn" type="button" aria-label="Create Application" routerLink="/create-application" matTooltip="Create Application">
+    <button class="header-btn" type="button" aria-label="Create Application" routerLink="/create-application" matTooltip="Create Application">
       <mat-icon aria-hidden="true">add_circle</mat-icon>
     </button>
-    <button class="apps-btn header-btn" type="button" aria-label="Applications" routerLink="/applications" matTooltip="Applications">
-      <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect x="3" y="3" width="8" height="8" rx="2" fill="#3949AB"/>
-        <rect x="13" y="3" width="8" height="8" rx="2" fill="#1E88E5"/>
-        <rect x="3" y="13" width="8" height="8" rx="2" fill="#43A047"/>
-        <rect x="13" y="13" width="8" height="8" rx="2" fill="#FB8C00"/>
-      </svg>
+    <button class="header-btn" type="button" aria-label="Applications" routerLink="/applications" matTooltip="Applications">
+      <mat-icon aria-hidden="true">apps</mat-icon>
     </button>
-    <button class="installed-btn header-btn" type="button" aria-label="Installations" routerLink="/installations" matTooltip="Installed Containers">
-      <span aria-hidden="true">📦</span>
+    <button class="header-btn" type="button" aria-label="Installations" routerLink="/installations" matTooltip="Installed Containers">
+      <mat-icon aria-hidden="true">inventory_2</mat-icon>
     </button>
-    <button class="secrets-btn header-btn" type="button" aria-label="Secrets" routerLink="/stacks" matTooltip="Secrets">
+    <button class="header-btn" type="button" aria-label="Secrets" routerLink="/stacks" matTooltip="Secrets">
       <mat-icon aria-hidden="true">key</mat-icon>
     </button>
-    <button class="monitor-btn header-btn" type="button" aria-label="Process Monitor" routerLink="/monitor" matTooltip="Process Monitor">
-      <span aria-hidden="true">📊</span>
+    <button class="header-btn" type="button" aria-label="Certificates" (click)="openCertificateManagement()" matTooltip="Certificates">
+      <mat-icon aria-hidden="true">verified_user</mat-icon>
+    </button>
+    <button class="header-btn" type="button" aria-label="Process Monitor" routerLink="/monitor" matTooltip="Process Monitor">
+      <mat-icon aria-hidden="true">monitoring</mat-icon>
     </button>
     @if (auth.isOidcEnabled && auth.isAuthenticated) {
       <span class="auth-user" matTooltip="Logged in as {{ auth.user?.name || auth.user?.email || 'User' }}">

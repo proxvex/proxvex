@@ -1,6 +1,6 @@
 //
 
-import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IVeExecuteMessage, ISingleExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus, IPostGenerateCertBody, IGenerateCertResponse, IDependencyCheckResponse } from '../shared/types';
+import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IVeExecuteMessage, ISingleExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus, IPostGenerateCertBody, IGenerateCertResponse, IAutoRenewalStatus, IDependencyCheckResponse } from '../shared/types';
 import { ICreateStackResponse } from '../shared/types-frontend';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -367,6 +367,22 @@ export class VeConfigurationService {
 
   postGenerateCert(hostname: string): Observable<IGenerateCertResponse> {
     return this.post<IGenerateCertResponse, IPostGenerateCertBody>(ApiUri.CertificateGenerate, { hostname });
+  }
+
+  getAllCertificates(): Observable<ICertificateStatusResponse> {
+    return this.get<ICertificateStatusResponse>(ApiUri.CertificatesAll);
+  }
+
+  getAutoRenewalStatus(): Observable<IAutoRenewalStatus> {
+    return this.get<IAutoRenewalStatus>(ApiUri.CertificateAutoRenewal);
+  }
+
+  setAutoRenewalEnabled(enabled: boolean): Observable<IAutoRenewalStatus> {
+    return this.post<IAutoRenewalStatus, { enabled: boolean }>(ApiUri.CertificateAutoRenewal, { enabled });
+  }
+
+  triggerAutoRenewalCheck(): Observable<IAutoRenewalStatus> {
+    return this.post<IAutoRenewalStatus, object>(ApiUri.CertificateAutoRenewalCheck, {});
   }
 
   checkDependencies(applicationId: string, addons?: string[], stackId?: string): Observable<IDependencyCheckResponse> {

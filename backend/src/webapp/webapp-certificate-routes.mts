@@ -12,15 +12,23 @@ import {
 } from "@src/types.mjs";
 import { ContextManager } from "../context-manager.mjs";
 import { CertificateAuthorityService } from "../services/certificate-authority-service.mjs";
+import { CertificateAutoRenewalService } from "../services/certificate-auto-renewal-service.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { VeExecution } from "../ve-execution/ve-execution.mjs";
 import { determineExecutionMode } from "../ve-execution/ve-execution-constants.mjs";
 import { sendErrorResponse } from "./webapp-error-utils.mjs";
 
+let autoRenewalService: CertificateAutoRenewalService | null = null;
+
+export function getAutoRenewalService(): CertificateAutoRenewalService | null {
+  return autoRenewalService;
+}
+
 export function registerCertificateRoutes(
   app: express.Application,
   storageContext: ContextManager,
 ): void {
+  autoRenewalService = new CertificateAutoRenewalService(storageContext);
   const pm = PersistenceManager.getInstance();
 
   // GET /api/ve/certificates/ca/:veContext - CA info (no private key)
@@ -487,6 +495,69 @@ export function registerCertificateRoutes(
       await ve.run(null);
 
       res.status(200).json({ success: true });
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // GET /api/certificates - List all certificates across all VE contexts
+  app.get(ApiUri.CertificatesAll, async (_req, res) => {
+    try {
+      const certificates = await autoRenewalService!.listAllCertificates();
+
+      // Add CA certificate to the list if it exists
+      const caService = new CertificateAuthorityService(storageContext);
+      const caInfo = caService.getCaInfo("");
+      if (caInfo.exists) {
+        certificates.unshift({
+          hostname: "CA",
+          host: "",
+          file: "",
+          certtype: "ca",
+          subject: caInfo.subject!,
+          issuer: caInfo.subject!,
+          expiry_date: caInfo.expiry_date!,
+          days_remaining: caInfo.days_remaining!,
+          status: caInfo.days_remaining! <= 0 ? "expired" : caInfo.days_remaining! <= 30 ? "warning" : "ok",
+        });
+      }
+
+      res.status(200).json({ certificates });
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // GET /api/certificates/auto-renewal - Auto-renewal status (global)
+  app.get(ApiUri.CertificateAutoRenewal, (_req, res) => {
+    try {
+      res.status(200).json(autoRenewalService!.getStatus());
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // POST /api/certificates/auto-renewal - Enable/disable auto-renewal (global)
+  app.post(ApiUri.CertificateAutoRenewal, express.json(), (req, res) => {
+    try {
+      const { enabled } = req.body as { enabled: boolean };
+      if (typeof enabled !== "boolean") {
+        res.status(400).json({ error: "Missing or invalid 'enabled' (boolean)" });
+        return;
+      }
+
+      autoRenewalService!.setEnabled(enabled);
+      res.status(200).json(autoRenewalService!.getStatus());
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // POST /api/certificates/auto-renewal/check - Trigger manual check (global)
+  app.post(ApiUri.CertificateAutoRenewalCheck, express.json(), async (_req, res) => {
+    try {
+      const result = await autoRenewalService!.checkAndRenew();
+      res.status(200).json(result);
     } catch (err: any) {
       sendErrorResponse(res, err);
     }

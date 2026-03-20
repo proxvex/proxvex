@@ -155,6 +155,9 @@ async function startWebApp(
   const shutdown = (signal: string) => {
     logger.info("Shutdown initiated", { signal });
 
+    // Stop certificate auto-renewal timer
+    webApp.stopAutoRenewal();
+
     // Close PersistenceManager (FileWatchers)
     try {
       PersistenceManager.getInstance().close();

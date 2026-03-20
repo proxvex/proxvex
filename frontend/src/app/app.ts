@@ -5,6 +5,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { VeConfigurationService } from './ve-configuration.service';
@@ -12,6 +13,7 @@ import { AuthService } from './auth/auth.service';
 import { take, filter } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
 import { CacheService } from './shared/services/cache.service';
+import { CertificateManagementDialog } from './certificate-management/certificate-management-dialog';
 import { ISsh } from '../shared/types';
 
 @Component({
@@ -24,6 +26,7 @@ export class App implements OnInit, OnDestroy {
   private cfg = inject(VeConfigurationService);
   private router = inject(Router);
   private cacheService = inject(CacheService);
+  private dialog = inject(MatDialog);
   auth = inject(AuthService);
   private routerSub?: Subscription;
   private previousUrl = '';
@@ -134,6 +137,13 @@ export class App implements OnInit, OnDestroy {
   
   ngOnDestroy(): void {
     this.routerSub?.unsubscribe();
+  }
+
+  openCertificateManagement(): void {
+    this.dialog.open(CertificateManagementDialog, {
+      width: '900px',
+      maxHeight: '90vh',
+    });
   }
 
   getHostDisplay(ssh: ISsh): string {
