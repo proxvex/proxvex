@@ -4,7 +4,7 @@
 #
 # Prerequisites:
 #   - nginx container is deployed (deploy.sh nginx)
-#   - ACME certificates are provisioned
+#   - ACME wildcard certificate is provisioned
 #
 # Usage (on pve1.cluster):
 #   ./production/setup-nginx.sh
@@ -73,6 +73,8 @@ server {
     server_name auth.ohnewarum.de;
     location / {
         proxy_pass https://zitadel:8443;
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate ${CERT_DIR}/chain.pem;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -88,6 +90,8 @@ server {
     client_max_body_size 512m;
     location / {
         proxy_pass https://gitea:443;
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate ${CERT_DIR}/chain.pem;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;

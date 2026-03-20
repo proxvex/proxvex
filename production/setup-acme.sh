@@ -1,12 +1,9 @@
 #!/bin/bash
-# Set up ACME prerequisites: production stack with Cloudflare credentials,
-# CA certificate, and domain suffix.
-#
-# The deployer itself is NOT reconfigured to HTTPS here — that happens later
-# (after nginx is deployed and public access is verified).
+# Set up production stack: Cloudflare credentials and domain suffix.
+# ACME is only used for the nginx wildcard certificate.
 #
 # Prerequisites:
-#   - oci-lxc-deployer is installed and running (HTTP on port 3080)
+#   - oci-lxc-deployer is installed and running (HTTPS on port 3443)
 #   - Cloudflare API token with Zone:DNS:Edit permission for all relevant domains
 #
 # Usage:
@@ -15,7 +12,7 @@
 # What this script does:
 #   1. Waits for the deployer API to be ready
 #   2. Resolves VE context and verifies SSH
-#   3. Generates CA certificate and sets domain suffix
+#   3. Sets domain suffix
 #   4. Creates the production stack with cloudflare stacktype + credentials
 
 set -e
@@ -25,9 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # --- Configuration ---
 PVE_HOST="pve1.cluster"
 DEPLOYER_HOST="oci-lxc-deployer"
-DEPLOYER_VMID=300
 DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-.ohnewarum.de}"
-DEPLOYER_API="http://${DEPLOYER_HOST}:3080"
+DEPLOYER_API="https://${DEPLOYER_HOST}:3443"
 
 # --- Cloudflare credentials ---
 CF_TOKEN="${CF_TOKEN:-}"
@@ -46,7 +42,7 @@ fi
 echo "=== Step 1: Waiting for deployer API at ${DEPLOYER_API} ==="
 RETRIES=30
 while [ $RETRIES -gt 0 ]; do
-  if curl -sf "${DEPLOYER_API}/api/applications" >/dev/null 2>&1; then
+  if curl -sk "${DEPLOYER_API}/api/applications" >/dev/null 2>&1; then
     echo "  Deployer API is ready."
     break
   fi
@@ -63,7 +59,7 @@ fi
 echo ""
 echo "=== Step 2: Resolve VE context ==="
 
-ve_key=$(curl -sf "${DEPLOYER_API}/api/ssh/config/${PVE_HOST}" | \
+ve_key=$(curl -sk "${DEPLOYER_API}/api/ssh/config/${PVE_HOST}" | \
   python3 -c "import sys,json; print(json.load(sys.stdin)['key'])" 2>/dev/null || echo "")
 
 if [ -z "$ve_key" ]; then
@@ -76,7 +72,7 @@ echo "  VE context: ${ve_key}"
 echo "  Verifying SSH connection to PVE host..."
 ssh_ok=""
 for i in $(seq 1 5); do
-  ssh_check=$(curl -s --max-time 5 \
+  ssh_check=$(curl -sk --max-time 5 \
     "${DEPLOYER_API}/api/ssh/check?host=${PVE_HOST}&port=22" 2>/dev/null || echo "")
   if printf '%s' "$ssh_check" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('permissionOk') else 1)" 2>/dev/null; then
     ssh_ok="true"
@@ -91,20 +87,11 @@ if [ "$ssh_ok" != "true" ]; then
 fi
 echo "  SSH connection verified."
 
-# --- Step 3: Generate CA certificate and set domain suffix ---
+# --- Step 3: Set domain suffix ---
 echo ""
-echo "=== Step 3: Generate CA certificate and set domain suffix ==="
+echo "=== Step 3: Set domain suffix ==="
 
-ca_resp=$(curl -s -X POST "${DEPLOYER_API}/api/${ve_key}/ve/certificates/ca/generate" 2>/dev/null || echo "")
-ca_msg=$(printf '%s' "$ca_resp" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-if d.get('success'): print('generated')
-else: print(d.get('error','already exists or failed'))
-" 2>/dev/null || echo "see response")
-echo "  CA certificate: ${ca_msg}"
-
-suffix_resp=$(curl -s -X POST -H "Content-Type: application/json" \
+suffix_resp=$(curl -sk -X POST -H "Content-Type: application/json" \
   -d "{\"domain_suffix\":\"${DOMAIN_SUFFIX}\"}" \
   "${DEPLOYER_API}/api/${ve_key}/ve/certificates/domain-suffix" 2>/dev/null || echo "")
 suffix_ok=$(printf '%s' "$suffix_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
@@ -124,7 +111,7 @@ curl -sk -X DELETE "${DEPLOYER_API}/api/stack/production" -o /dev/null 2>/dev/nu
 # Escape CF_TOKEN for JSON (handle special characters)
 CF_TOKEN_ESCAPED=$(printf '%s' "$CF_TOKEN" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 
-STACK_RESP=$(curl -s -X POST "${DEPLOYER_API}/api/stacks" \
+STACK_RESP=$(curl -sk -X POST "${DEPLOYER_API}/api/stacks" \
   -H "Content-Type: application/json" \
   -d "{
     \"name\": \"production\",
@@ -144,9 +131,8 @@ else
 fi
 
 echo ""
-echo "=== ACME setup complete ==="
+echo "=== Setup complete ==="
 echo "  Production stack with Cloudflare credentials is ready."
-echo "  CA certificate generated, domain suffix set to ${DOMAIN_SUFFIX}"
+echo "  Domain suffix set to ${DOMAIN_SUFFIX}"
 echo ""
-echo "  Next: deploy nginx with addon-acme to verify public access."
-echo "  The deployer itself stays on HTTP for now — reconfigure it later."
+echo "  Next: deploy nginx with addon-acme (wildcard certificate)."

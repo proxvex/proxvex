@@ -2,7 +2,7 @@
 # Reconfigure oci-lxc-deployer to enable OIDC authentication via addon-oidc.
 #
 # Prerequisites:
-#   - oci-lxc-deployer is running with HTTPS (after setup-acme.sh)
+#   - oci-lxc-deployer is running with HTTPS (after setup-deployer-ssl.sh)
 #   - Zitadel is deployed and running (deploy.sh zitadel)
 #
 # Usage:
@@ -47,7 +47,7 @@ if [ -z "$DEPLOYER_VMID" ]; then
 fi
 echo "  VM ID: ${DEPLOYER_VMID}"
 
-# --- Step 2: Reconfigure with addon-acme + addon-oidc ---
+# --- Step 2: Reconfigure with addon-ssl + addon-oidc ---
 echo ""
 echo "=== Step 2: Reconfigure with addon-oidc ==="
 
@@ -59,12 +59,12 @@ cat > "$PARAMS_FILE" <<EOF
   "params": [
     { "name": "previouse_vm_id", "value": ${DEPLOYER_VMID} }
   ],
-  "selectedAddons": ["addon-acme", "addon-oidc"],
+  "selectedAddons": ["addon-ssl", "addon-oidc"],
   "stackId": "production"
 }
 EOF
 
-echo "  Running reconfigure with addon-acme + addon-oidc..."
+echo "  Running reconfigure with addon-ssl + addon-oidc..."
 NODE_TLS_REJECT_UNAUTHORIZED=0 $CLI remote \
   --server "$SERVER" \
   --ve "$PVE_HOST" \
