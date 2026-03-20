@@ -93,9 +93,7 @@ echo "PAT loaded from ${PAT_FILE}" >&2
 echo "Waiting for Zitadel to be ready..." >&2
 RETRIES=30
 while [ $RETRIES -gt 0 ]; do
-  _ready_host_hdr=""
-  if [ -n "$ZITADEL_HOST_HEADER" ]; then _ready_host_hdr="-H Host:${ZITADEL_HOST_HEADER}"; fi
-  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null)
+  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${ZITADEL_URL}/debug/ready" 2>/dev/null)
   if [ "$STATUS" = "200" ]; then
     echo "Zitadel is ready" >&2
     break
