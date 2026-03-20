@@ -58,7 +58,7 @@
 
 .header-btn {
 	background: #fff;
-	color: #222;
+	color: #555;
 	border: none;
 	border-radius: 4px;
 	width: 32px;
@@ -69,51 +69,17 @@
 	vertical-align: middle;
 	cursor: pointer;
 	transition: background 0.2s;
+
+	mat-icon {
+		font-size: 20px;
+		width: 20px;
+		height: 20px;
+		line-height: 20px;
+	}
 }
 .header-btn:hover {
 	background: #e0e0e0;
-}
-
-.create-app-btn {
-	background: #fff;
 	color: #222;
-	border: none;
-	border-radius: 4px;
-	padding: 0;
-	margin-right: 4px;
-	cursor: pointer;
-	transition: background 0.2s;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-}
-.create-app-btn:hover { background: #e0e0e0; }
-.create-app-btn mat-icon {
-	font-size: 20px;
-	width: 20px;
-	height: 20px;
-	line-height: 20px;
-}
-
-.apps-btn {
-	background: #fff;
-	color: #222;
-	border: none;
-	border-radius: 4px;
-	padding: 0;
-	margin-right: 4px;
-	cursor: pointer;
-	transition: background 0.2s;
-}
-.apps-btn:hover { background: #e0e0e0; }
-
-.settings-btn .gear {
-	display: block;
-	width: 20px;
-	height: 20px;
-	font-size: 18px;
-	line-height: 20px;
-	text-align: center;
 }
 
 .auth-user {
@@ -138,8 +104,3 @@
 	white-space: nowrap;
 }
 
-.logout-btn mat-icon {
-	font-size: 18px;
-	width: 18px;
-	height: 18px;
-}

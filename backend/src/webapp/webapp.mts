@@ -15,7 +15,7 @@ import { registerVersionRoutes } from "./webapp-version-routes.mjs";
 import { setupStaticRoutes } from "./webapp-static.mjs";
 import { WebAppVE } from "./webapp-ve.mjs";
 import { WebAppStack } from "./webapp-stack-routes.mjs";
-import { registerCertificateRoutes } from "./webapp-certificate-routes.mjs";
+import { registerCertificateRoutes, getAutoRenewalService } from "./webapp-certificate-routes.mjs";
 import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
 import { registerDependencyCheckRoutes } from "./webapp-dependency-check-routes.mjs";
 import { registerTestQueueRoutes } from "./webapp-test-queue-routes.mjs";
@@ -49,6 +49,20 @@ export class VEWebApp {
   private constructor(private storageContext: ContextManager) {
     this.app = express();
     this.httpServer = http.createServer(this.app);
+  }
+
+  private startAutoRenewalIfEnabled(): void {
+    const autoRenewal = getAutoRenewalService();
+    if (!autoRenewal) return;
+
+    if (autoRenewal.isEnabled()) {
+      autoRenewal.startTimer();
+    }
+  }
+
+  stopAutoRenewal(): void {
+    const autoRenewal = getAutoRenewalService();
+    if (autoRenewal) autoRenewal.stop();
   }
 
   static async create(storageContext: ContextManager): Promise<VEWebApp> {
@@ -122,6 +136,9 @@ export class VEWebApp {
 
     const webAppStack = new WebAppStack(this.app, this.storageContext);
     webAppStack.init();
+
+    // Start certificate auto-renewal timer if enabled
+    this.startAutoRenewalIfEnabled();
 
     // Catch-all route for Angular routing - must be after all API routes
     // This ensures that routes like /ssh-config work correctly.

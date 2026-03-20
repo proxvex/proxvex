@@ -231,6 +231,9 @@ export enum ApiUri {
   CertificateDomainSuffix = "/api/:veContext/ve/certificates/domain-suffix",
   CertificateCaDownload = "/api/:veContext/ve/certificates/ca/download",
   CertificateGenerate = "/api/:veContext/ve/certificates/generate",
+  CertificatesAll = "/api/certificates",
+  CertificateAutoRenewal = "/api/certificates/auto-renewal",
+  CertificateAutoRenewalCheck = "/api/certificates/auto-renewal/check",
   // Dependency check
   DependencyCheck = "/api/:veContext/dependency-check/:application",
 
@@ -740,9 +743,11 @@ export interface IPostAddonInstallBody {
 // Certificate management interfaces
 export interface ICertificateStatus {
   hostname: string;
+  host?: string | undefined;
   file: string;
   certtype: string;
   subject: string;
+  issuer: string;
   expiry_date: string;
   days_remaining: number;
   status: "ok" | "warning" | "expired";
@@ -785,4 +790,13 @@ export interface IGenerateCertResponse {
   fqdn: string;
   key: string;       // Base64 PEM
   fullchain: string; // Base64 PEM
+}
+
+export interface IAutoRenewalStatus {
+  enabled: boolean;
+  last_check?: string | undefined;
+  next_check?: string | undefined;
+  last_renewed?: string[] | undefined;
+  last_renewed_date?: string | undefined;
+  last_error?: string | undefined;
 }

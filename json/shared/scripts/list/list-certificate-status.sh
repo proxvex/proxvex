@@ -54,6 +54,7 @@ for VOLUMES_DIR in $VOLUMES_DIRS; do
       fi
 
       SUBJECT=$(openssl x509 -in "$CRT_FILE" -noout -subject 2>/dev/null | sed 's/^subject= *//')
+      ISSUER=$(openssl x509 -in "$CRT_FILE" -noout -issuer 2>/dev/null | sed 's/^issuer= *//')
       END_DATE_STR=$(openssl x509 -in "$CRT_FILE" -noout -enddate 2>/dev/null | sed 's/^notAfter=//')
       END_EPOCH=$(date -d "$END_DATE_STR" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$END_DATE_STR" +%s 2>/dev/null || echo 0)
       NOW_EPOCH=$(date +%s)
@@ -86,7 +87,7 @@ for VOLUMES_DIR in $VOLUMES_DIRS; do
         RESULT="${RESULT},"
       fi
 
-      RESULT="${RESULT}{\"hostname\":\"${HOSTNAME}\",\"file\":\"${REL_FILE}\",\"certtype\":\"${CERTTYPE}\",\"subject\":\"${SUBJECT}\",\"expiry_date\":\"${END_DATE_STR}\",\"days_remaining\":${DAYS_REMAINING},\"status\":\"${STATUS}\"}"
+      RESULT="${RESULT}{\"hostname\":\"${HOSTNAME}\",\"file\":\"${REL_FILE}\",\"certtype\":\"${CERTTYPE}\",\"subject\":\"${SUBJECT}\",\"issuer\":\"${ISSUER}\",\"expiry_date\":\"${END_DATE_STR}\",\"days_remaining\":${DAYS_REMAINING},\"status\":\"${STATUS}\"}"
     done
   done
 done 
