@@ -1,0 +1,18 @@
+{
+  "name": "Publish SSL Connection Info",
+  "description": "Publishes protocol and port as stack provides when SSL addon is active.",
+  "execute_on": "ve",
+  "skip_if_all_missing": ["ssl_mode"],
+  "parameters": [
+    { "id": "ssl_mode", "name": "SSL Mode", "type": "string", "required": true },
+    { "id": "hostname", "name": "Hostname", "type": "string", "required": true },
+    { "id": "domain_suffix", "name": "Domain Suffix", "type": "string", "default": ".local", "advanced": true },
+    { "id": "http_port", "name": "HTTP Port", "type": "string", "default": "", "advanced": true },
+    { "id": "https_port", "name": "HTTPS Port", "type": "string", "default": "", "advanced": true }
+  ],
+  "commands": [{
+    "name": "Publish SSL Connection Info",
+    "script": "conf-publish-ssl-provides.sh",
+    "outputs": []
+  }]
+}

@@ -20,6 +20,7 @@
 #   oidc_client_secret - OIDC client secret
 
 ZITADEL_HOST="{{ ZITADEL_HOST }}"
+ZITADEL_URL_INPUT="{{ ZITADEL_URL }}"
 HOSTNAME="{{ hostname }}"
 SHARED_VOLPATH="{{ shared_volpath }}"
 OIDC_APP_NAME="{{ oidc_app_name }}"
@@ -43,9 +44,14 @@ if [ -z "$OIDC_APP_NAME" ]; then
   OIDC_APP_NAME="$HOSTNAME"
 fi
 
-ZITADEL_URL="http://${ZITADEL_HOST}${DOMAIN_SUFFIX}:8080"
+# Build Zitadel URL: prefer stack provides (ZITADEL_URL), fall back to hostname-based construction
+if [ -n "$ZITADEL_URL_INPUT" ] && [ "$ZITADEL_URL_INPUT" != "NOT_DEFINED" ]; then
+  ZITADEL_URL="$ZITADEL_URL_INPUT"
+else
+  ZITADEL_URL="http://${ZITADEL_HOST}${DOMAIN_SUFFIX}:8080"
+fi
 
-# Use provided issuer URL if set, otherwise default to internal Zitadel URL
+# Use provided issuer URL if set, otherwise default to Zitadel URL
 if [ -n "$OIDC_ISSUER_URL_INPUT" ] && [ "$OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then
   ISSUER_URL="$OIDC_ISSUER_URL_INPUT"
 else

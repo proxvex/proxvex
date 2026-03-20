@@ -333,4 +333,47 @@ describe("Stack API", () => {
       expect(String(autoSecret!.value).length).toBe(32); // default length
     });
   });
+
+  describe("Stack provides", () => {
+    it("stores and retrieves provides on a stack", async () => {
+      // Create stack
+      await request(app).post(ApiUri.Stacks).send({
+        name: "provides-test",
+        stacktype: "music",
+        entries: [],
+      });
+
+      // Manually set provides on the stack (simulates what backend does after execution)
+      const stack = setup.ctx.getStack("provides-test");
+      expect(stack).not.toBeNull();
+      stack!.provides = [
+        { name: "PROTO", value: "https", application: "myapp" },
+        { name: "PORT", value: "8443", application: "myapp" },
+      ];
+      setup.ctx.set(`stack_provides-test`, stack);
+
+      // Retrieve and verify
+      const url = ApiUri.Stack.replace(":id", "provides-test");
+      const res = await request(app).get(url);
+      expect(res.status).toBe(200);
+      expect(res.body.stack.provides).toHaveLength(2);
+      expect(res.body.stack.provides[0].name).toBe("PROTO");
+      expect(res.body.stack.provides[0].value).toBe("https");
+      expect(res.body.stack.provides[0].application).toBe("myapp");
+    });
+
+    it("provides are empty by default", async () => {
+      await request(app).post(ApiUri.Stacks).send({
+        name: "no-provides",
+        stacktype: "music",
+        entries: [],
+      });
+
+      const url = ApiUri.Stack.replace(":id", "no-provides");
+      const res = await request(app).get(url);
+      expect(res.status).toBe(200);
+      // provides should be undefined or empty
+      expect(res.body.stack.provides ?? []).toHaveLength(0);
+    });
+  });
 });

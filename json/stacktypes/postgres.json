@@ -7,6 +7,11 @@
     { "name": "JWT_SECRET", "length": 64 },
     { "name": "PGADMIN_DEFAULT_PASSWORD" }
   ],
+  "provides": [
+    { "name": "POSTGRES_HOST", "description": "Hostname of the PostgreSQL container" },
+    { "name": "POSTGRES_PORT", "description": "PostgreSQL port (default: 5432)" },
+    { "name": "POSTGRES_SSLMODE", "description": "SSL mode: disable, require, verify-ca, verify-full" }
+  ],
   "dependencies": [
     { "application": "postgres" }
   ]

@@ -8,7 +8,7 @@ import {
   storageKey as storageContextKey,
 } from "./backend-types.mjs";
 import { TemplateProcessor } from "./templates/templateprocessor.mjs";
-import { ISsh, TaskType, IStack, IStackEntry } from "./types.mjs";
+import { ISsh, TaskType, IStack, IStackEntry, IStackProvides } from "./types.mjs";
 import { Context } from "./context.mjs";
 import { Ssh } from "./ssh.mjs";
 import {
@@ -54,12 +54,14 @@ export class StackContext implements IStack {
   name: string;
   stacktype: string | string[];
   entries: IStackEntry[];
+  provides?: IStackProvides[] | undefined;
 
   constructor(data: IStack) {
     this.id = data.id;
     this.name = data.name;
     this.stacktype = data.stacktype;
     this.entries = data.entries || [];
+    this.provides = data.provides;
   }
 
   getKey(): string {

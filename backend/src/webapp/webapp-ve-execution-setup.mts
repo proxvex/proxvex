@@ -68,6 +68,7 @@ export class WebAppVeExecutionSetup {
     restartKey: string,
     restartManager: WebAppVeRestartManager,
     fallbackRestartInfo: IRestartInfo,
+    onComplete?: (exec: VeExecution) => void,
   ): void {
     exec
       .run(null)
@@ -78,6 +79,7 @@ export class WebAppVeExecutionSetup {
         } else {
           restartManager.storeRestartInfo(restartKey, fallbackRestartInfo);
         }
+        if (onComplete) onComplete(exec);
       })
       .catch((err: Error) => {
         console.error("Execution error:", err.message);

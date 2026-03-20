@@ -21,7 +21,9 @@ import {
 import { PersistenceManager } from "@src/persistence/persistence-manager.mjs";
 import { getErrorStatusCode, serializeError } from "./webapp-error-utils.mjs";
 import { buildInfo } from "./webapp-version-routes.mjs";
-import { VMInstallContext } from "@src/context-manager.mjs";
+import { VMInstallContext, type ContextManager } from "@src/context-manager.mjs";
+import { createLogger } from "@src/logger/index.mjs";
+import type { VeExecution } from "@src/ve-execution/ve-execution.mjs";
 import {
   determineExecutionMode,
   ExecutionMode,
@@ -35,6 +37,7 @@ export class WebAppVeRouteHandlers {
   private pm: PersistenceManager;
   private addonCommandBuilder: WebAppVeAddonCommandBuilder;
   private certificateInjector: WebAppVeCertificateInjector;
+  private logger = createLogger("ve-route-handlers");
 
   constructor(
     private messageManager: WebAppVeMessageManager,
@@ -50,6 +53,55 @@ export class WebAppVeRouteHandlers {
   /**
    * Builds a standardized error result object for handler methods.
    */
+  /**
+   * Collect provides_* outputs from a completed execution and store them in the stack.
+   */
+  private collectAndStoreProvides(
+    exec: VeExecution,
+    stackIds: string[],
+    applicationId: string,
+    storageContext: ContextManager,
+  ): void {
+    const provides: Array<{ name: string; value: string }> = [];
+    for (const [key, value] of exec.outputs) {
+      if (key.startsWith("provides_") && value !== undefined && value !== null && String(value) !== "NOT_DEFINED") {
+        provides.push({
+          name: key.replace(/^provides_/, "").toUpperCase(),
+          value: String(value),
+        });
+      }
+    }
+    if (provides.length === 0 || stackIds.length === 0) return;
+
+    const firstStackId = stackIds[0]!;
+    const stack = storageContext.getStack(firstStackId);
+    if (!stack) return;
+
+    const existingProvides = stack.provides ?? [];
+    let changed = false;
+
+    for (const p of provides) {
+      const existing = existingProvides.find((e) => e.name === p.name);
+      if (existing) {
+        if (existing.value !== p.value) {
+          this.logger.warn(`Stack provides changed: ${p.name} (${existing.value} → ${p.value})`, { application: applicationId, stack: firstStackId });
+          existing.value = p.value;
+          existing.application = applicationId;
+          changed = true;
+        }
+      } else {
+        existingProvides.push({ name: p.name, value: p.value, application: applicationId });
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      stack.provides = existingProvides;
+      storageContext.set(`stack_${stack.name}`, stack);
+      this.logger.info("Stack provides updated", { stack: firstStackId, provides: provides.map((p) => p.name) });
+    }
+  }
+
   private buildErrorResult(err: unknown): {
     success: false;
     error: string;
@@ -295,6 +347,14 @@ export class WebAppVeRouteHandlers {
               defaults.set(entry.name, entry.value);
             }
           }
+          // Load provides as defaults (connection info from providers)
+          if (stack.provides) {
+            for (const p of stack.provides) {
+              if (!defaults.has(p.name)) {
+                defaults.set(p.name, p.value);
+              }
+            }
+          }
         }
       }
 
@@ -450,6 +510,10 @@ export class WebAppVeRouteHandlers {
         restartKey,
         this.restartManager,
         fallbackRestartInfo,
+        // Collect provides_* outputs and write to stack after execution
+        (completedExec) => {
+          this.collectAndStoreProvides(completedExec, allStackIds, application, storageContext);
+        },
       );
 
       return {

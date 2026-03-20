@@ -6,6 +6,12 @@
     { "name": "ZITADEL_DB_PASSWORD" },
     { "name": "ZITADEL_ADMIN_PASSWORD" }
   ],
+  "provides": [
+    { "name": "ZITADEL_HOST", "description": "Hostname of the Zitadel container" },
+    { "name": "ZITADEL_PORT", "description": "Zitadel API port" },
+    { "name": "ZITADEL_PROTO", "description": "Protocol: http or https" },
+    { "name": "ZITADEL_URL", "description": "Full URL to Zitadel API (e.g. https://zitadel:8443)" }
+  ],
   "dependencies": [
     { "application": "zitadel" }
   ]

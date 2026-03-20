@@ -649,12 +649,19 @@ export interface IStacktypeDependency {
   task?: string; // default: "installation"
 }
 
+// Stacktype provides definition (connection info that providers publish)
+export interface IStacktypeProvides {
+  name: string;
+  description?: string;
+}
+
 // Stacktype entry (aggregated from json/stacktypes/*.json)
 export interface IStacktypeEntry {
   name: string; // derived from filename (e.g. "postgres", "oidc")
   displayName?: string; // human-readable name from JSON "name" field
   description?: string;
   entries: IStacktypeVariable[];
+  provides?: IStacktypeProvides[]; // Connection info that providers can publish
   dependencies?: IStacktypeDependency[];
 }
 
@@ -664,12 +671,20 @@ export interface IStackEntry {
   value: string | number | boolean;
 }
 
+// Stack provides entry (runtime connection info published by providers)
+export interface IStackProvides {
+  name: string;
+  value: string;
+  application?: string | undefined; // Which app provided this value
+}
+
 // Stack (from stack.schema.json)
 export interface IStack {
   id: string;
   name: string;
   stacktype: string | string[];
   entries: IStackEntry[];
+  provides?: IStackProvides[] | undefined; // Runtime connection info (URLs, ports, protocols)
 }
 
 // API Response types for stacks

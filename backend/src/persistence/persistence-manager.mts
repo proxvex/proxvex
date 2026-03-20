@@ -288,6 +288,7 @@ export class PersistenceManager {
         ...(parsed.name ? { displayName: parsed.name } : {}),
         ...(parsed.description ? { description: parsed.description } : {}),
         entries: (parsed.variables ?? []) as { name: string }[],
+        ...(parsed.provides ? { provides: parsed.provides } : {}),
         dependencies: parsed.dependencies,
       };
     });
