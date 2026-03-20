@@ -76,6 +76,14 @@ def main() -> None:
         print(json.dumps([]))
         return
 
+    if not stack_name and needed:
+        print(
+            "ERROR: Dependencies require a stack_name but none is set. "
+            "Ensure the application or its addons define a stacktype and a matching stack is selected.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     base_dir = Path(os.environ.get("LXC_MANAGER_PVE_LXC_DIR", "/etc/pve/lxc"))
 
     # Phase 1: Scan configs for matching containers

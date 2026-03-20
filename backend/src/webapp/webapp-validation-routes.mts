@@ -2,7 +2,7 @@ import type { Application } from "express";
 import express from "express";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { ParameterValidator } from "../parameter-validator.mjs";
-import { type TaskType, normalizeStacktype } from "../types.mjs";
+import type { TaskType } from "../types.mjs";
 import { VEConfigurationError } from "../backend-types.mjs";
 import { validateAllJson, ValidationError } from "../validateAllJson.mjs";
 
@@ -87,8 +87,23 @@ export function registerValidationRoutes(app: Application): void {
         // Load compatible addons
         const availableAddons = addonService.getCompatibleAddonsWithParameters(appObj);
 
-        // Load stacks if app has stacktype
-        const stacktypes = normalizeStacktype(appObj.stacktype);
+        // Load stacks if app or selected addons have stacktype
+        const stacktypes = appObj.stacktype
+          ? (Array.isArray(appObj.stacktype) ? appObj.stacktype : [appObj.stacktype])
+          : [];
+        if (body.selectedAddons) {
+          for (const addonId of body.selectedAddons) {
+            try {
+              const addon = addonService.getAddon(addonId);
+              if (addon.stacktype) {
+                const addonTypes = Array.isArray(addon.stacktype) ? addon.stacktype : [addon.stacktype];
+                for (const st of addonTypes) {
+                  if (!stacktypes.includes(st)) stacktypes.push(st);
+                }
+              }
+            } catch { /* addon not found */ }
+          }
+        }
         const availableStacks = stacktypes.length > 0
           ? stacktypes.flatMap((st) => contextManager.listStacks(st))
           : [];

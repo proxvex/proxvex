@@ -94,6 +94,8 @@ export class RemoteCli {
     }
 
     // 6. Fetch stacks and detect stacktype
+    // Effective stacktypes (app + addon) are computed server-side during validation.
+    // CLI only needs stacks for auto-creation and --generate-template.
     let stacks: IStack[] = [];
     let appStacktype: string | string[] | undefined;
     try {
@@ -102,6 +104,23 @@ export class RemoteCli {
         (a) => a.name === application || a.id === application,
       );
       appStacktype = app?.stacktype;
+      // Also include addon stacktypes for stack resolution
+      const selectedAddonIds = paramsInput?.selectedAddons ?? [];
+      for (const addonId of selectedAddonIds) {
+        const addon = addons.find(a => a.id === addonId);
+        if (addon?.stacktype) {
+          const addonTypes = Array.isArray(addon.stacktype) ? addon.stacktype : [addon.stacktype];
+          if (!appStacktype) {
+            appStacktype = addonTypes;
+          } else {
+            const current = Array.isArray(appStacktype) ? appStacktype : [appStacktype];
+            for (const st of addonTypes) {
+              if (!current.includes(st)) current.push(st);
+            }
+            appStacktype = current;
+          }
+        }
+      }
       if (appStacktype) {
         const stacktypes = Array.isArray(appStacktype) ? appStacktype : [appStacktype];
         for (const st of stacktypes) {
