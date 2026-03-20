@@ -60,15 +60,16 @@ scp -r production root@pve1.cluster:
 
 Danach liegen alle Scripts und JSON-Configs unter `~/production/` auf dem PVE-Host.
 
-### 1b. DNS auf OpenWrt Router (einmalig)
+### 1b. DNS und NAT auf OpenWrt Router (einmalig)
 
-DNS-Einträge auf dem Router: Öffentliche Domains (`*.ohnewarum.de`) zeigen direkt auf die Nginx-Container-IP. Interne Hostnamen zeigen auf die jeweiligen Container-IPs.
+DNS-Einträge und Port-Forwarding auf dem OpenWrt Router konfigurieren. Öffentliche Domains (`*.ohnewarum.de`) zeigen auf die Router-IP — der Router leitet Port 443 an Nginx:8443 weiter (DNAT). Dadurch funktioniert `https://auth.ohnewarum.de` sowohl im LAN als auch von extern.
 
 ```bash
-scp production/dns.sh root@router:
-ssh root@router sh dns.sh
+scp production/dns.sh production/router-nat.sh root@router:
+ssh root@router "sh dns.sh && sh router-nat.sh"
 ```
 
+Für Persistenz der NAT-Regeln über Reboots: Die Ausgabe von `router-nat.sh` zeigt die uci-Befehle.
 
 ### 2. oci-lxc-deployer installieren (auf PVE-Host)
 
@@ -403,6 +404,7 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 | `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
 | `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
 | `dns.sh`                         | DNS-Einträge auf OpenWrt (uci + dnsmasq)   |
+| `router-nat.sh`                  | NAT Port 443 → Nginx:8443 auf OpenWrt      |
 | `setup-acme.sh`                  | Production-Stack: Cloudflare + Domain-Suffix |
 | `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten  |
 | `setup-deployer-ssl.sh`          | Deployer auf HTTPS umstellen (addon-ssl)   |
