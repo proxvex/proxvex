@@ -107,7 +107,7 @@ Ein Beispiel mit Werten liegt unter `examples/shared/templates/create_ct/050-set
 
 ### 3. Production-Stack und CA einrichten
 
-Das Script erstellt den Production-Stack mit Cloudflare-Credentials (für Nginx ACME-Wildcard), generiert die globale CA (für self-signed Zertifikate aller internen Apps) und setzt die Domain-Suffix.
+Das Script erstellt den Production-Stack mit Cloudflare-Credentials (für Nginx ACME-Wildcard) und setzt die Domain-Suffix.
 
 Voraussetzungen:
 - Cloudflare API Token mit Permission `Zone:DNS:Edit` für alle relevanten Domains ([Dashboard](https://dash.cloudflare.com/profile/api-tokens))
@@ -237,7 +237,7 @@ Alle anderen Apps bekommen self-signed Zertifikate aus der globalen CA. Der Depl
     ├── auth.ohnewarum.de         → [self-signed] Zitadel (:8443)
     ├── git.ohnewarum.de          → [self-signed] Gitea (:443)
     └── ...
-    (Nginx proxy_ssl_verify off — vertraut self-signed Backends)
+    (Nginx vertraut self-signed Backends via proxy_ssl_trusted_certificate)
 
 Lokaler Zugang (LAN, CA auf Browser installiert):
   Browser (LAN) → DNS: hostname → lokale App-IP
@@ -393,7 +393,7 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 | `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
 | `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
 | `dns.sh`                         | DNS-Einträge auf OpenWrt (uci + dnsmasq)   |
-| `setup-acme.sh`                  | ACME-Voraussetzungen: Cloudflare-Stack + CA + Domain-Suffix |
+| `setup-acme.sh`                  | Production-Stack: Cloudflare + Domain-Suffix |
 | `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten  |
 | `setup-deployer-ssl.sh`          | Deployer auf HTTPS umstellen (addon-ssl)   |
 | `setup-deployer-oidc.sh`         | Deployer OIDC via addon-oidc aktivieren    |

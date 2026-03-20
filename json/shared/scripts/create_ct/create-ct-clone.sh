@@ -4,7 +4,7 @@
 # Steps:
 # 1) Verify source container exists and was created by oci-lxc-deployer.
 # 2) Determine target VMID (explicit, vm_id_start-based, or next free).
-# 3) Clone source to target using pct clone --full.
+# 3) Clone source to target using vzdump + pct restore.
 # 4) Output target VMID, source VMID, and installed addons.
 #
 # Inputs (templated):
@@ -87,17 +87,39 @@ pct config "$SOURCE_VMID" | while IFS= read -r line; do
   esac
 done
 
-# Clone using snapshot to allow cloning a running container (e.g. deployer reconfiguring itself)
-SNAP_NAME="oci-clone-$$"
-log "Creating snapshot $SNAP_NAME of container $SOURCE_VMID..."
-pct snapshot "$SOURCE_VMID" "$SNAP_NAME" >&2 || fail "Failed to create snapshot of container $SOURCE_VMID"
+# Clone via vzdump + pct restore (workaround for PVE bug: pct snapshot fails
+# with "snapshot feature is not available" when bind mounts are configured on ZFS subvol,
+# even after temporarily removing them — see docs/pve-snapshot-bind-mount-bug.md)
+DUMP_STORAGE="local"
+log "Creating backup of container $SOURCE_VMID via vzdump..."
+DUMP_OUTPUT=$(vzdump "$SOURCE_VMID" --storage "$DUMP_STORAGE" --compress zstd 2>&1) || fail "vzdump failed: $DUMP_OUTPUT"
+echo "$DUMP_OUTPUT" >&2
 
-log "Cloning container $SOURCE_VMID to $TARGET_VMID (from snapshot $SNAP_NAME)..."
+# Extract dump file path from vzdump output
+DUMP_FILE=$(echo "$DUMP_OUTPUT" | grep -o "/var/lib/vz/dump/vzdump-lxc-${SOURCE_VMID}-[^ ]*\.tar\.zst" | tail -1)
+if [ -z "$DUMP_FILE" ] || [ ! -f "$DUMP_FILE" ]; then
+  # Fallback: find most recent dump
+  DUMP_FILE=$(ls -t /var/lib/vz/dump/vzdump-lxc-${SOURCE_VMID}-*.tar.zst 2>/dev/null | head -1)
+fi
+if [ -z "$DUMP_FILE" ] || [ ! -f "$DUMP_FILE" ]; then
+  fail "Could not find vzdump file for container $SOURCE_VMID"
+fi
+log "Dump file: $DUMP_FILE"
+
+# Detect rootfs storage from source container config
+ROOTFS_STORAGE=$(pct config "$SOURCE_VMID" | grep "^rootfs:" | sed 's/^rootfs: *//; s/:.*//')
+if [ -z "$ROOTFS_STORAGE" ]; then
+  ROOTFS_STORAGE="local-zfs"
+fi
+log "Restoring to storage: $ROOTFS_STORAGE"
+
+log "Restoring container $SOURCE_VMID backup as $TARGET_VMID..."
 clone_ok=true
-pct clone "$SOURCE_VMID" "$TARGET_VMID" --snapname "$SNAP_NAME" --full >&2 || clone_ok=false
+pct restore "$TARGET_VMID" "$DUMP_FILE" --storage "$ROOTFS_STORAGE" >&2 || clone_ok=false
 
-log "Removing snapshot $SNAP_NAME..."
-pct delsnapshot "$SOURCE_VMID" "$SNAP_NAME" >&2 || log "Warning: failed to remove snapshot $SNAP_NAME"
+# Clean up dump file
+rm -f "$DUMP_FILE"
+log "Dump file removed"
 
 # Restore bind mounts on source (and target if clone succeeded)
 if [ -s "$BIND_MOUNTS_FILE" ]; then
