@@ -28,14 +28,14 @@ add_dns nginx       192.168.4.41
 add_dns zitadel     192.168.4.42
 add_dns gitea       192.168.4.43
 
-# Public domains → Nginx container IP
-# PVE host DNAT maps 443 → 8443, so https://auth.ohnewarum.de works in LAN
-NGINX_IP="192.168.4.41"
-add_dns ohnewarum.de              "$NGINX_IP"
-add_dns www.ohnewarum.de          "$NGINX_IP"
-add_dns auth.ohnewarum.de         "$NGINX_IP"
-add_dns git.ohnewarum.de          "$NGINX_IP"
-add_dns nebenkosten.ohnewarum.de  "$NGINX_IP"
+# Public domains → Router-IP (OpenWrt DNAT forwards 443 → nginx:8443)
+# This ensures https://auth.ohnewarum.de works both in LAN and from WAN
+ROUTER_IP="192.168.4.1"
+add_dns ohnewarum.de              "$ROUTER_IP"
+add_dns www.ohnewarum.de          "$ROUTER_IP"
+add_dns auth.ohnewarum.de         "$ROUTER_IP"
+add_dns git.ohnewarum.de          "$ROUTER_IP"
+add_dns nebenkosten.ohnewarum.de  "$ROUTER_IP"
 
 uci commit dhcp
 /etc/init.d/dnsmasq restart
