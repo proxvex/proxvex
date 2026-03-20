@@ -77,8 +77,12 @@ export class WebAppVeRouteHandlers {
     const stack = storageContext.getStack(firstStackId);
     if (!stack) return;
 
-    const existingProvides = stack.provides ?? [];
-    let changed = false;
+    // Remove stale provides from this application (keys may have changed)
+    const newNames = new Set(provides.map((p) => p.name));
+    let existingProvides = (stack.provides ?? []).filter(
+      (e) => e.application !== applicationId || newNames.has(e.name),
+    );
+    let changed = existingProvides.length !== (stack.provides ?? []).length;
 
     for (const p of provides) {
       const existing = existingProvides.find((e) => e.name === p.name);

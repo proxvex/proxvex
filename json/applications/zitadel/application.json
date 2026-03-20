@@ -57,6 +57,10 @@
       "value": "native"
     },
     {
+      "id": "https_port",
+      "value": "8443"
+    },
+    {
       "id": "ssl.addon_volumes",
       "value": "certs=certs,0755,0:0"
     },
