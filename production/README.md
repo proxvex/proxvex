@@ -6,15 +6,51 @@ Reproduzierbares Setup für oci-lxc-deployer, postgres, nginx, zitadel und gitea
 
 VMs werden per `vm_id_start` ab einem Startwert automatisch vergeben (nächste freie ID).
 
-| App              | vm_id_start | IP             | Hostname           |
-|------------------|-------------|----------------|--------------------|
-| oci-lxc-deployer | 300         | 192.168.4.39   | oci-lxc-deployer   |
-| postgres         | 500         | 192.168.4.40   | postgres           |
-| nginx            | 501         | 192.168.4.41   | nginx              |
-| zitadel          | 502         | 192.168.4.42   | zitadel            |
-| gitea            | 503         | 192.168.4.43   | gitea              |
+| App              | vm_id_start | Node      | IP             | Hostname           |
+|------------------|-------------|-----------|----------------|--------------------|
+| oci-lxc-deployer | 500         | pve1      | 192.168.4.39   | oci-lxc-deployer   |
+| postgres         | 500         | pve1      | 192.168.4.40   | postgres           |
+| nginx            | 500         | pve1      | 192.168.4.41   | nginx              |
+| zitadel          | 500         | pve1      | 192.168.4.42   | zitadel            |
+| gitea            | 600         | ubuntupve | 192.168.4.43   | gitea              |
 
 ## Step-by-Step Anleitung
+
+### 0. Proxmox-Cluster einrichten (einmalig)
+
+Voraussetzung: SSH-Verbindung zwischen den Nodes funktioniert ohne Passwort.
+
+```bash
+# SSH-Keys austauschen (von jedem Node zu jedem anderen)
+ssh-copy-id root@pve1
+ssh-copy-id root@pve2
+ssh-copy-id root@ubuntupve
+```
+
+Cluster erstellen und Nodes joinen:
+
+```bash
+# Auf pve1:
+pvecm create production
+
+# Auf pve2:
+pvecm add <pve1-IP>
+
+# Auf ubuntupve:
+pvecm add <pve1-IP>
+
+# Status prüfen:
+pvecm status
+pvecm nodes
+```
+
+VMID-Bereiche pro Node:
+
+| Node      | vm_id_start | Bereich |
+|-----------|-------------|---------|
+| pve1      | 500         | 500–599 |
+| ubuntupve | 600         | 600–699 |
+| pve2      | 700         | 700–799 |
 
 ### 1. DNS-Einträge auf OpenWrt Router anlegen (einmalig)
 
@@ -32,7 +68,7 @@ Das Install-Script wird **ohne `--https`** ausgeführt. HTTPS wird in Schritt 5 
 ```bash
 # Auf pve1.cluster:
 curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | sh -s -- \
-  --vm-id-start 300 \
+  --vm-id-start 500 \
   --static-ip 192.168.4.39/24 \
   --gateway 192.168.4.1 \
   --nameserver 192.168.4.1
