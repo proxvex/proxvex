@@ -321,6 +321,14 @@ nested_ssh "
         echo \"# Cleared to avoid duplicates with debian.sources\" > /etc/apt/sources.list
     fi
 
+    # Use European Debian mirror for faster downloads
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+        sed -i 's|URIs: http://deb.debian.org/debian|URIs: http://mirror.23m.com/debian|g' /etc/apt/sources.list.d/debian.sources
+    fi
+    if [ -s /etc/apt/sources.list ]; then
+        sed -i 's|deb.debian.org|mirror.23m.com|g' /etc/apt/sources.list
+    fi
+
     # Add Proxmox no-subscription repository (free)
     cat > /etc/apt/sources.list.d/pve-no-subscription.list << REPOEOF
 # Proxmox VE No-Subscription Repository (for testing/development)

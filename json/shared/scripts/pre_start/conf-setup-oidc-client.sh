@@ -20,7 +20,8 @@
 #   oidc_client_secret - OIDC client secret
 
 ZITADEL_HOST="{{ ZITADEL_HOST }}"
-ZITADEL_URL_INPUT="{{ ZITADEL_URL }}"
+ZITADEL_PROTO_INPUT="{{ ZITADEL_PROTO }}"
+ZITADEL_PORT_INPUT="{{ ZITADEL_PORT }}"
 HOSTNAME="{{ hostname }}"
 SHARED_VOLPATH="{{ shared_volpath }}"
 OIDC_APP_NAME="{{ oidc_app_name }}"
@@ -44,12 +45,17 @@ if [ -z "$OIDC_APP_NAME" ]; then
   OIDC_APP_NAME="$HOSTNAME"
 fi
 
-# Build Zitadel URL: prefer stack provides (ZITADEL_URL), fall back to hostname-based construction
-if [ -n "$ZITADEL_URL_INPUT" ] && [ "$ZITADEL_URL_INPUT" != "NOT_DEFINED" ]; then
-  ZITADEL_URL="$ZITADEL_URL_INPUT"
-else
-  ZITADEL_URL="http://${ZITADEL_HOST}${DOMAIN_SUFFIX}:8080"
+# Build Zitadel internal API URL from provides (proto, port) + hostname
+# Uses short hostname (not FQDN) because Zitadel's ExternalDomain is the hostname
+ZITADEL_PROTO="http"
+ZITADEL_PORT="8080"
+if [ -n "$ZITADEL_PROTO_INPUT" ] && [ "$ZITADEL_PROTO_INPUT" != "NOT_DEFINED" ]; then
+  ZITADEL_PROTO="$ZITADEL_PROTO_INPUT"
 fi
+if [ -n "$ZITADEL_PORT_INPUT" ] && [ "$ZITADEL_PORT_INPUT" != "NOT_DEFINED" ]; then
+  ZITADEL_PORT="$ZITADEL_PORT_INPUT"
+fi
+ZITADEL_URL="${ZITADEL_PROTO}://${ZITADEL_HOST}:${ZITADEL_PORT}"
 
 # Use provided issuer URL if set, otherwise default to Zitadel URL
 if [ -n "$OIDC_ISSUER_URL_INPUT" ] && [ "$OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then
@@ -87,7 +93,7 @@ echo "PAT loaded from ${PAT_FILE}" >&2
 echo "Waiting for Zitadel to be ready..." >&2
 RETRIES=30
 while [ $RETRIES -gt 0 ]; do
-  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${ZITADEL_URL}/debug/ready" 2>/dev/null)
+  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${ZITADEL_URL}/debug/ready" 2>/dev/null)
   if [ "$STATUS" = "200" ]; then
     echo "Zitadel is ready" >&2
     break
@@ -110,13 +116,13 @@ zitadel_api() {
   _body="$3"
 
   if [ -n "$_body" ]; then
-    curl -s -X "$_method" \
+    curl -sk -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       -d "$_body" \
       "${ZITADEL_URL}${_path}" 2>/dev/null
   else
-    curl -s -X "$_method" \
+    curl -sk -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       "${ZITADEL_URL}${_path}" 2>/dev/null
