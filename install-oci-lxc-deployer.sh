@@ -432,7 +432,10 @@ vm_id=$(execute_script_from_github \
   "oci_image=${resolved_oci_image}" \
   "oci_image_tag=${oci_image_tag}" \
   "ostype=${ostype}" \
-  "arch=${arch}")
+  "arch=${arch}" \
+  "startup_order=" \
+  "startup_up=" \
+  "startup_down=")
 
 if [ -z "$vm_id" ]; then
   echo "Error: Failed to create LXC container" >&2
