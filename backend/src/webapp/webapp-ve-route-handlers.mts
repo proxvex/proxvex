@@ -218,6 +218,15 @@ export class WebAppVeRouteHandlers {
         // Ignore - getApplication may fail for some apps
       }
 
+      // Pre-inject ca_key_b64 marker so skip_if_all_missing in template 156
+      // does not skip cert generation when addon-ssl is selected.
+      // The actual CA key is injected later by certificateInjector.
+      if ((body.selectedAddons ?? []).some((a: string) => a === "addon-ssl" || a === "addon-acme")) {
+        if (!initialInputs.some(p => p.id === "ca_key_b64")) {
+          initialInputs.push({ id: "ca_key_b64", value: "pending" });
+        }
+      }
+
       const loaded = await templateProcessor.loadApplication(
         application,
         task as TaskType,

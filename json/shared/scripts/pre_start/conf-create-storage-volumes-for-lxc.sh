@@ -528,8 +528,10 @@ while IFS= read -r line <&3; do
               fi
               OPTS="mp=$VOLUME_PATH"
               pct set "$VMID" -${EXISTING_MP_KEY} "${DEDICATED_PATH},${OPTS}" >&2
-              # Tell cert generation to use the dataset root directly
-              CERT_DIR_OVERRIDE="$DEDICATED_PATH"
+              # Tell cert generation to use the dataset root directly (only for cert volumes)
+              if [ "$VOLUME_PATH" = "/etc/ssl/addon" ]; then
+                CERT_DIR_OVERRIDE="$DEDICATED_PATH"
+              fi
               log "Mount updated to dedicated ZFS dataset: ${DEDICATED_PATH}"
             else
               log "Warning: Could not resolve dedicated ZFS dataset path"

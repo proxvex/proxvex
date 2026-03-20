@@ -1,0 +1,12 @@
+{
+  "application": "oci-lxc-deployer",
+  "task": "reconfigure",
+  "params": [
+    { "name": "previouse_vm_id", "value": 500 },
+    { "name": "vm_id_start", "value": 500 }
+  ],
+  "selectedAddons": ["addon-ssl"]
+}
+NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx cli/src/oci-lxc-cli.mts remote \
+  --server https://oci-lxc-deployer:3080 --ve pve1.cluster --insecure \
+  --timeout 600 oci-lxc-deployer.json

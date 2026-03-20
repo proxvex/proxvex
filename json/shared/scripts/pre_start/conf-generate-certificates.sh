@@ -47,15 +47,18 @@ CERT_DIR_OVERRIDE="{{ cert_dir_override }}"
 FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
 echo "Generating certificates for FQDN: ${FQDN}" >&2
 
-# Calculate effective UID/GID (prefer mapped values, then detect unprivileged offset)
+# Calculate effective UID/GID (prefer mapped values, then read lxc.init.uid, then offset)
 EFFECTIVE_UID="${UID_VAL}"
 EFFECTIVE_GID="${GID_VAL}"
 if [ -n "$MAPPED_UID" ] && [ "$MAPPED_UID" != "NOT_DEFINED" ]; then
   EFFECTIVE_UID="$MAPPED_UID"
 elif [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
-  # Detect unprivileged container and apply standard UID offset
   PCT_CFG=$(pct config "$VM_ID" 2>/dev/null || true)
-  if echo "$PCT_CFG" | grep -qE '^unprivileged:\s*1'; then
+  # Prefer lxc.init.uid (the actual UID the app runs as, already host-mapped)
+  INIT_UID=$(echo "$PCT_CFG" | grep -aE '^lxc\.init\.uid:' | awk '{print $2}' | head -1)
+  if [ -n "$INIT_UID" ]; then
+    EFFECTIVE_UID="$INIT_UID"
+  elif echo "$PCT_CFG" | grep -qE '^unprivileged:\s*1'; then
     EFFECTIVE_UID=$((100000 + UID_VAL))
   fi
 fi
@@ -63,7 +66,10 @@ if [ -n "$MAPPED_GID" ] && [ "$MAPPED_GID" != "NOT_DEFINED" ]; then
   EFFECTIVE_GID="$MAPPED_GID"
 elif [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
   PCT_CFG=$(pct config "$VM_ID" 2>/dev/null || true)
-  if echo "$PCT_CFG" | grep -qE '^unprivileged:\s*1'; then
+  INIT_GID=$(echo "$PCT_CFG" | grep -aE '^lxc\.init\.gid:' | awk '{print $2}' | head -1)
+  if [ -n "$INIT_GID" ]; then
+    EFFECTIVE_GID="$INIT_GID"
+  elif echo "$PCT_CFG" | grep -qE '^unprivileged:\s*1'; then
     EFFECTIVE_GID=$((100000 + GID_VAL))
   fi
 fi

@@ -329,15 +329,6 @@ REPOEOF
 " || error "Failed to configure repositories"
 success "Free Proxmox repositories configured"
 
-info "Running apt update && apt dist-upgrade (this may take a few minutes)..."
-nested_ssh "DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y -qq" || error "Failed to update packages"
-success "System packages updated"
-
-# Install tools needed for E2E testing
-info "Installing additional tools..."
-nested_ssh "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq jq curl netcat-openbsd" || error "Failed to install tools"
-success "Tools installed (jq, curl, netcat)"
-
 # Install helper scripts on nested VM
 info "Installing helper scripts..."
 nested_ssh "cat > /usr/local/bin/pct-cleanup << 'SCRIPTEOF'
@@ -564,7 +555,29 @@ info "This ensures port forwarding survives reboots and snapshot rollbacks..."
 PVE_HOST="$PVE_HOST" "$SCRIPT_DIR/scripts/setup-port-forwarding-service.sh"
 success "Persistent port forwarding service installed"
 
-# Step 12: Create baseline snapshot (VM must be stopped for clean snapshot)
+# Step 12: System update and tools (after networking is fully configured)
+header "System Update and Tools"
+
+info "Running apt update && apt dist-upgrade (this may take a few minutes)..."
+# Retry with wait — first-boot or unattended-upgrades may hold the apt lock
+for _apt_try in 1 2 3; do
+  if nested_ssh "DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y -qq" 2>/dev/null; then
+    break
+  fi
+  if [ "$_apt_try" -lt 3 ]; then
+    info "apt lock held, waiting 30s... (attempt $_apt_try/3)"
+    sleep 30
+  else
+    error "Failed to update packages after 3 attempts"
+  fi
+done
+success "System packages updated"
+
+info "Installing additional tools..."
+nested_ssh "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq jq curl netcat-openbsd" || error "Failed to install tools"
+success "Tools installed (jq, curl, netcat)"
+
+# Step 13: Create baseline snapshot (VM must be stopped for clean snapshot)
 header "Creating Baseline Snapshot"
 info "Stopping VM $TEST_VMID for clean snapshot..."
 pve_ssh "qm shutdown $TEST_VMID --timeout 60"

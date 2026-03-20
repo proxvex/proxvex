@@ -1,12 +1,9 @@
 #!/bin/bash
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PVE_HOST="pve1.cluster"
 DEPLOYER_HOST="oci-lxc-deployer"
-
-CLI="npx tsx $PROJECT_ROOT/cli/src/oci-lxc-cli.mts"
 
 # Auto-detect: HTTPS (port 3443) or HTTP (port 3080)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then
@@ -16,17 +13,49 @@ else
 fi
 echo "Using deployer at ${SERVER}"
 
-# Load OIDC credentials if available (optional — without .env, CLI runs without auth)
-ENV_FILE="$SCRIPT_DIR/.env"
-if [ -f "$ENV_FILE" ]; then
-  set -a; . "$ENV_FILE"; set +a
-  echo "OIDC credentials loaded from $ENV_FILE"
+# Detect execution mode: PVE host (use pct exec) or dev machine (use npx tsx)
+DEPLOYER_VMID=""
+if command -v pct >/dev/null 2>&1; then
+  DEPLOYER_VMID=$(pct list 2>/dev/null | awk '/oci-lxc-deployer/{print $1}')
 fi
 
-# Build OIDC flags if credentials are set
-OIDC_FLAGS=""
-if [ -n "$OIDC_CLI_CLIENT_ID" ]; then
-  OIDC_FLAGS="--oidc-issuer $OIDC_ISSUER_URL --oidc-client-id $OIDC_CLI_CLIENT_ID --oidc-client-secret $OIDC_CLI_CLIENT_SECRET"
+if [ -n "$DEPLOYER_VMID" ]; then
+  echo "Running on PVE host (deployer container: $DEPLOYER_VMID)"
+  run_cli() {
+    local params_file="$1"
+    shift
+    # Push JSON file into container and run CLI from inside
+    pct push "$DEPLOYER_VMID" "$params_file" /tmp/deploy-params.json
+    pct exec "$DEPLOYER_VMID" -- oci-lxc-cli remote \
+      --server http://localhost:3080 --ve "$PVE_HOST" \
+      --insecure "$@" /tmp/deploy-params.json
+    pct exec "$DEPLOYER_VMID" -- rm -f /tmp/deploy-params.json
+  }
+else
+  echo "Running on dev machine (using npx tsx)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+  CLI="npx tsx $PROJECT_ROOT/cli/src/oci-lxc-cli.mts"
+
+  # Load OIDC credentials if available (optional — without .env, CLI runs without auth)
+  ENV_FILE="$SCRIPT_DIR/.env"
+  if [ -f "$ENV_FILE" ]; then
+    set -a; . "$ENV_FILE"; set +a
+    echo "OIDC credentials loaded from $ENV_FILE"
+  fi
+
+  # Build OIDC flags if credentials are set
+  OIDC_FLAGS=""
+  if [ -n "$OIDC_CLI_CLIENT_ID" ]; then
+    OIDC_FLAGS="--oidc-issuer $OIDC_ISSUER_URL --oidc-client-id $OIDC_CLI_CLIENT_ID --oidc-client-secret $OIDC_CLI_CLIENT_SECRET"
+  fi
+
+  run_cli() {
+    local params_file="$1"
+    shift
+    NODE_TLS_REJECT_UNAUTHORIZED=0 $CLI remote \
+      --server "$SERVER" --ve "$PVE_HOST" --insecure \
+      $OIDC_FLAGS "$@" "$params_file"
+  }
 fi
 
 ensure_stack() {
@@ -54,9 +83,7 @@ deploy_app() {
     echo "ERROR: $params not found"; exit 1
   fi
 
-  NODE_TLS_REJECT_UNAUTHORIZED=0 $CLI remote \
-    --server "$SERVER" --ve "$PVE_HOST" --insecure \
-    --timeout "$timeout" $OIDC_FLAGS "$params"
+  run_cli "$params" --timeout "$timeout"
 }
 
 ensure_stack
@@ -73,5 +100,19 @@ case "${1:-all}" in
     deploy_app zitadel 900
     deploy_app gitea
     ;;
-  *) echo "Usage: $0 [postgres|nginx|zitadel|gitea|all]"; exit 1 ;;
+  *.json)
+    if [ ! -f "$1" ]; then
+      # Try with SCRIPT_DIR prefix
+      if [ -f "$SCRIPT_DIR/$1" ]; then
+        echo "=== Deploying from $1 ==="
+        run_cli "$SCRIPT_DIR/$1" --timeout 600
+      else
+        echo "ERROR: $1 not found"; exit 1
+      fi
+    else
+      echo "=== Deploying from $1 ==="
+      run_cli "$1" --timeout 600
+    fi
+    ;;
+  *) echo "Usage: $0 [postgres|nginx|zitadel|gitea|all|<file.json>]"; exit 1 ;;
 esac

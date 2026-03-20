@@ -5,6 +5,14 @@
 
   "parameters": [
     {
+      "id": "ssl_mode",
+      "name": "SSL Mode",
+      "type": "string",
+      "default": "certs",
+      "certtype": "server",
+      "description": "SSL mode: proxy (nginx reverse proxy), native (app handles HTTPS), or certs (certificates only)."
+    },
+    {
       "id": "http_port",
       "name": "HTTP Port",
       "type": "string",
@@ -32,8 +40,9 @@
   "installation": {
     "pre_start": [
       { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "160-conf-bind-multiple-volumes-to-lxc.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "156-conf-generate-certificates.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
+      { "name": "166-conf-write-on-start-scripts.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
       { "name": "159-conf-enable-ssl-app.json", "after": "156-conf-generate-certificates.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
@@ -43,8 +52,9 @@
   "reconfigure": {
     "pre_start": [
       { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "160-conf-bind-multiple-volumes-to-lxc.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
+      { "name": "156-conf-generate-certificates.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
+      { "name": "166-conf-write-on-start-scripts.json", "after": "160-conf-bind-multiple-volumes-to-lxc.json" },
       { "name": "159-conf-enable-ssl-app.json", "after": "156-conf-generate-certificates.json" },
       { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }

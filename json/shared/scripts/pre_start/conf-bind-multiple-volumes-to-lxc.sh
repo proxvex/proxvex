@@ -471,8 +471,11 @@ fi
 echo "Successfully processed volumes for container $VMID" >&2
 
 # Output shared_volpath so downstream templates (e.g. cert generation) can locate volumes
-SHARED_VOLPATH=""
-if [ -n "$HOST_MOUNTPOINT" ] && [ "$HOST_MOUNTPOINT" != "" ]; then
+# Prefer existing shared_volpath from template 150 output; only compute if not set
+_existing_volpath="{{ shared_volpath }}"
+if [ -n "$_existing_volpath" ] && [ "$_existing_volpath" != "NOT_DEFINED" ] && ! echo "$_existing_volpath" | grep -q '{{'; then
+  SHARED_VOLPATH="$_existing_volpath"
+elif [ -n "$HOST_MOUNTPOINT" ] && [ "$HOST_MOUNTPOINT" != "" ]; then
   SHARED_VOLPATH="$HOST_MOUNTPOINT"
 else
   SHARED_VOLPATH="/mnt"

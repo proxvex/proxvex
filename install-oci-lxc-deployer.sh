@@ -802,7 +802,7 @@ if [ "$enable_https" = "true" ]; then
         fi
 
         # Enable SSL addon on the existing container
-        params_json="{\"application\":\"oci-lxc-deployer\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"previouse_vm_id\",\"value\":${vm_id}}],\"selectedAddons\":[\"addon-ssl\"]}"
+        params_json="{\"application\":\"oci-lxc-deployer\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"previouse_vm_id\",\"value\":${vm_id}},{\"name\":\"vm_id_start\",\"value\":${vm_id_start:-${vm_id}}}],\"selectedAddons\":[\"addon-ssl\"]}"
 
         pct exec "${vm_id}" -- sh -c "printf '%s' '${params_json}' > /tmp/ssl-params.json"
 

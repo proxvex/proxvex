@@ -52,7 +52,15 @@ VMID-Bereiche pro Node:
 | ubuntupve | 600         | 600–699 |
 | pve2      | 700         | 700–799 |
 
-### 1. DNS-Einträge auf OpenWrt Router anlegen (einmalig)
+### 1. Production-Dateien auf PVE-Host kopieren
+
+```bash
+scp -r production root@pve1.cluster:
+```
+
+Danach liegen alle Scripts und JSON-Configs unter `~/production/` auf dem PVE-Host.
+
+### 1b. DNS-Einträge auf OpenWrt Router anlegen (einmalig)
 
 Statische DNS-Einträge für die Hostnamen auf dem OpenWrt Router konfigurieren:
 
