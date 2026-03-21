@@ -93,7 +93,9 @@ echo "PAT loaded from ${PAT_FILE}" >&2
 echo "Waiting for Zitadel to be ready..." >&2
 RETRIES=30
 while [ $RETRIES -gt 0 ]; do
-  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${ZITADEL_URL}/debug/ready" 2>/dev/null)
+  _ready_host_hdr=""
+  if [ -n "$ZITADEL_HOST_HEADER" ]; then _ready_host_hdr="-H Host:${ZITADEL_HOST_HEADER}"; fi
+  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null)
   if [ "$STATUS" = "200" ]; then
     echo "Zitadel is ready" >&2
     break
@@ -110,21 +112,34 @@ if [ $RETRIES -eq 0 ]; then
 fi
 
 # --- Helper: API call ---
+# Uses Host header matching Zitadel's ExternalDomain when connecting via internal URL
+ZITADEL_HOST_HEADER=""
+if [ -n "$ISSUER_URL" ] && [ "$ISSUER_URL" != "$ZITADEL_URL" ]; then
+  # Extract hostname from issuer URL for Host header
+  ZITADEL_HOST_HEADER=$(echo "$ISSUER_URL" | sed 's|https\?://||; s|/.*||; s|:.*||')
+fi
+
 zitadel_api() {
   _method="$1"
   _path="$2"
   _body="$3"
+  _host_hdr=""
+  if [ -n "$ZITADEL_HOST_HEADER" ]; then
+    _host_hdr="-H Host:${ZITADEL_HOST_HEADER}"
+  fi
 
   if [ -n "$_body" ]; then
     curl -sk -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
+      $_host_hdr \
       -d "$_body" \
       "${ZITADEL_URL}${_path}" 2>/dev/null
   else
     curl -sk -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
+      $_host_hdr \
       "${ZITADEL_URL}${_path}" 2>/dev/null
   fi
 }

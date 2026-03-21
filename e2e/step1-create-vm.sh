@@ -461,6 +461,37 @@ RESOLVEOF
 " || error "Failed to configure dnsmasq"
 success "DHCP server configured on vmbr1 (10.0.0.100-200, DNS: 10.0.0.1)"
 
+# Step 10d2: Static DNS entries + DNAT for public domain testing
+info "Setting up static DNS entries and DNAT for test containers..."
+nested_ssh "
+    # Container hostnames → static IPs (used by dependency resolution)
+    grep -q '10.0.0.10.*postgres' /etc/hosts || echo '10.0.0.10 postgres' >> /etc/hosts
+    grep -q '10.0.0.11.*zitadel' /etc/hosts || echo '10.0.0.11 zitadel' >> /etc/hosts
+    grep -q '10.0.0.12.*oci-lxc-deployer-test' /etc/hosts || echo '10.0.0.12 oci-lxc-deployer-test' >> /etc/hosts
+    grep -q '10.0.0.13.*nginx' /etc/hosts || echo '10.0.0.13 nginx' >> /etc/hosts
+
+    # Public domains → container IPs (PVE host DNAT maps 443→8443)
+    if ! grep -q 'auth.e2e.local' /etc/dnsmasq.d/e2e-nat.conf; then
+        cat >> /etc/dnsmasq.d/e2e-nat.conf << 'PUBDNS'
+# Public domains → container IPs (port redirect 443→8443 via iptables)
+address=/auth.e2e.local/10.0.0.13
+address=/git.e2e.local/10.0.0.13
+PUBDNS
+    fi
+    systemctl restart dnsmasq
+
+    # Port redirects: 443→8443 on container IPs (rootless containers can't bind 443)
+    iptables -t nat -C PREROUTING -d 10.0.0.13 -p tcp --dport 443 \
+        -j DNAT --to-destination 10.0.0.13:8443 2>/dev/null || \
+        iptables -t nat -A PREROUTING -d 10.0.0.13 -p tcp --dport 443 \
+            -j DNAT --to-destination 10.0.0.13:8443
+    iptables -t nat -C PREROUTING -d 10.0.0.11 -p tcp --dport 443 \
+        -j DNAT --to-destination 10.0.0.11:8443 2>/dev/null || \
+        iptables -t nat -A PREROUTING -d 10.0.0.11 -p tcp --dport 443 \
+            -j DNAT --to-destination 10.0.0.11:8443
+" || error "Failed to configure DNS entries and port redirects"
+success "Static DNS + port redirects configured (443→8443 on container IPs)"
+
 # Step 10e: Reboot nested VM to apply kernel upgrade + load modules
 header "Rebooting Nested VM"
 info "Rebooting to apply kernel upgrade and load modules..."
