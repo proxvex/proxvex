@@ -69,16 +69,6 @@ scp production/dns.sh root@router:
 ssh root@router sh dns.sh
 ```
 
-### 1c. Port-Redirect auf PVE-Host (einmalig)
-
-Rootless LXC-Container können Port 443 nicht binden. Auf dem PVE-Host werden DNAT-Regeln gesetzt, die Port 443 auf den tatsächlichen Container-Port (8443) umleiten. Dadurch funktioniert `https://auth.ohnewarum.de` im LAN — der Traffic geht direkt zur Container-IP, der PVE-Host mappt transparent 443→8443.
-
-```bash
-# Auf pve1.cluster:
-./production/pve-nat.sh
-```
-
-Für Persistenz über Reboots: als `@reboot`-Cronjob oder in `/etc/network/interfaces` post-up.
 
 ### 2. oci-lxc-deployer installieren (auf PVE-Host)
 
@@ -260,13 +250,10 @@ Alle anderen Apps bekommen self-signed Zertifikate aus der globalen CA. Der Depl
 
 Lokaler Zugang (LAN, CA auf Browser installiert):
   Browser (LAN) → DNS: app-domain → Container-IP
-    ├── auth.ohnewarum.de  → Nginx-IP:443 → PVE DNAT → Nginx-IP:8443 → Zitadel
-    ├── oci-lxc-deployer   → [self-signed] oci-lxc-deployer (:3443)
-    ├── zitadel:443        → PVE DNAT → Zitadel (:8443) (direkt, ohne Nginx)
-    └── nodered            → [self-signed] Node-RED (:443)
-
-PVE-Host Port-Redirect (pve-nat.sh):
-  Container-IP:443 → Container-IP:8443 (transparent für LAN-Clients)
+    ├── auth.ohnewarum.de:1443  → Nginx → Zitadel
+    ├── oci-lxc-deployer:3443   → [self-signed] oci-lxc-deployer
+    ├── zitadel:1443            → [self-signed] Zitadel (direkt)
+    └── nodered:1443            → [self-signed] Node-RED
 
 DB/MQTT (kein Browser):
   Zitadel →[self-signed, sslmode=verify-ca]→ Postgres (:5432)
@@ -416,7 +403,6 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 | `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
 | `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
 | `dns.sh`                         | DNS-Einträge auf OpenWrt (uci + dnsmasq)   |
-| `pve-nat.sh`                     | Port-Redirect 443→8443 auf PVE-Host         |
 | `setup-acme.sh`                  | Production-Stack: Cloudflare + Domain-Suffix |
 | `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten  |
 | `setup-deployer-ssl.sh`          | Deployer auf HTTPS umstellen (addon-ssl)   |

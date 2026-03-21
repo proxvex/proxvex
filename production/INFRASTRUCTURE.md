@@ -15,11 +15,11 @@ graph TB
     end
 
     subgraph ubuntupve["ubuntupve - fast, not 24/7"]
-        gitea[gitea :1443]
+        gitea[gitea :443]
     end
 
     subgraph pve2["pve2 - reserved"]
-        future[fallback 700-799]
+        future[future 700-799]
     end
 
     pve1 --- ubuntupve
@@ -30,7 +30,7 @@ graph TB
 |------|------|------------|-----------|
 | **pve1.cluster** | Primary -runs core services | 500-599 | Yes |
 | **ubuntupve** | Secondary -runs dev/build workloads | 600-699 | No |
-| **pve2** | Fallback for pve1 | 700-799 | No |
+| **pve2** | Reserved for future expansion | 700-799 | -|
 
 All containers are **unprivileged LXC** managed by oci-lxc-deployer. Shared volumes on ZFS (`subvol-999999-oci-lxc-deployer-volumes`).
 
@@ -47,13 +47,15 @@ graph LR
         wan_fwd[WAN Port Forward]
     end
 
-    subgraph PVE["PVE Host - pve1.cluster"]
+    subgraph PVE["PVE Host"]
+        dnat[iptables DNAT :443 to :1443]
+
         subgraph Containers
-            nginx_c[nginx :1443 ACME wildcard]
+            nginx_c[nginx :1443 ACME]
             zitadel_c[zitadel :1443]
-            gitea_c[gitea :1443]
+            gitea_c[gitea :443]
             deployer_c[deployer :3443]
-            postgres_c[postgres :5432 TLS]
+            postgres_c[postgres :5432]
         end
     end
 
@@ -61,12 +63,14 @@ graph LR
         browser_lan["Browser / Apps"]
     end
 
-    browser_wan -->|":443"| wan_fwd
-    wan_fwd -->|":1443"| nginx_c
+    browser_wan -->|https| wan_fwd
+    wan_fwd --> nginx_c
     nginx_c -->|proxy_pass| zitadel_c
     nginx_c -->|proxy_pass| gitea_c
 
-    browser_lan -->|":1443"| nginx_c
+    browser_lan -->|":443"| dnat
+    dnat --> nginx_c
+    dnat --> zitadel_c
     browser_lan -->|":3443"| deployer_c
 ```
 
@@ -78,7 +82,7 @@ Rootless LXC containers cannot bind port 443. All proxy-mode apps use **port 144
 |-----|-----------|------|
 | nginx | :1443 | proxy - ACME SSL proxy |
 | zitadel | :1443 | native - Traefik |
-| gitea | :1443 | native - Gitea built-in |
+| gitea | :1443 | proxy |
 | oci-lxc-deployer | :3443 | native - Node.js |
 | postgres | :5432 | certs - TLS on app port |
 
@@ -89,110 +93,78 @@ URLs in LAN include the port: `https://auth.ohnewarum.de:1443`
 | Domain | Resolves To | Flow |
 |--------|-------------|------|
 | `ohnewarum.de` | nginx IP | Direct to nginx |
-| `auth.ohnewarum.de` | nginx IP | nginx :1443 proxies to zitadel :1443 |
-| `git.ohnewarum.de` | nginx IP | nginx :1443 proxies to gitea :1443 |
-| `nebenkosten.ohnewarum.de` | nginx IP | nginx :1443 serves static frontend |
+| `auth.ohnewarum.de` | nginx IP | PVE DNAT :443 to :1443, nginx proxies to zitadel |
+| `git.ohnewarum.de` | nginx IP | PVE DNAT :443 to :1443, nginx proxies to gitea |
+| `nebenkosten.ohnewarum.de` | nginx IP | PVE DNAT :443 to :1443, static frontend |
 | `postgres`, `zitadel`, ... | Container IPs | Internal, no DNAT needed |
 
 ## 3. Certificate Strategy
 
 ```mermaid
-graph LR
-    subgraph Nginx["nginx"]
-        acme_cert["ACME server cert<br/>*.ohnewarum.de"]
-        ca_client_n["Self-signed client cert"]
+graph TD
+    subgraph ACME["ACME - Lets Encrypt"]
+        cf[Cloudflare DNS-01]
+        wildcard["*.ohnewarum.de"]
     end
 
-    subgraph Others["zitadel, gitea, deployer, postgres"]
-        ca_cert["Self-signed server cert"]
+    subgraph CA["Global CA - self-signed"]
+        ca_gen[CA generated at install]
+        auto_renew[Auto Renewal - daily check]
     end
 
-    LE["Let's Encrypt<br/>via Cloudflare DNS-01"] -->|addon-acme| acme_cert
-    CA["Global CA<br/>OCI-LXC-Deployer"] -->|addon-ssl| ca_client_n
-    CA -->|addon-ssl| ca_cert
+    cf --> wildcard
+    wildcard --> nginx_cert[nginx]
 
-    acme_renewal["acme.sh in nginx<br/>every 60 days"] -.->|renews| acme_cert
-    deployer_renewal["oci-lxc-deployer<br/>daily check"] -.->|renews| ca_cert
+    ca_gen --> zitadel_cert[zitadel]
+    ca_gen --> gitea_cert[gitea]
+    ca_gen --> deployer_cert[deployer]
+    ca_gen --> postgres_cert[postgres]
 
-    style LE fill:#e8f5e9
+    auto_renew -.->|renews| zitadel_cert
+    auto_renew -.->|renews| gitea_cert
+    auto_renew -.->|renews| deployer_cert
+    auto_renew -.->|renews| postgres_cert
+
+    style ACME fill:#e8f5e9
     style CA fill:#fff3e0
 ```
 
-**How it works:**
+| Cert Type | Where | Addon | Renewal |
+|-----------|-------|-------|---------|
+| **ACME Wildcard** | Nginx only | `addon-acme` | Automatic (acme.sh, 60 days) |
+| **Self-signed** | All other apps | `addon-ssl` | Automatic (deployer, daily check) |
 
-- **Nginx** has two certificates: an ACME wildcard (`*.ohnewarum.de`) as server cert for browsers, and a self-signed cert for mTLS/client verification with backend services
-- **All other apps** have self-signed server certificates issued by the global CA
-- **Nginx → backend**: `proxy_ssl_trusted_certificate chain.pem` validates backend certs
-- **LAN browsers** must trust the global self-signed CA certificate. One-time install on 2 devices (Mac + iPad)
-
-| | Server Cert | Issued By | Addon | Renewal |
-|---|---|---|---|---|
-| **nginx** | `*.ohnewarum.de` | Let's Encrypt | `addon-acme` | acme.sh (60 days) |
-| **zitadel** | `zitadel.local` | Global CA | `addon-ssl` | deployer (daily) |
-| **gitea** | `gitea.local` | Global CA | `addon-ssl` | deployer (daily) |
-| **deployer** | `oci-lxc-deployer.local` | Global CA | `addon-ssl` | deployer (daily) |
-| **postgres** | `postgres.local` | Global CA | `addon-ssl` | deployer (daily) |
+**LAN browsers** must trust the global CA (installed once on 2 devices).
+Nginx trusts backend certs via `proxy_ssl_trusted_certificate chain.pem`.
 
 ## 4. OIDC Authentication
 
-| App | OIDC | Issuer URL |
-|-----|------|-----------|
-| oci-lxc-deployer | `addon-oidc` | `https://auth.ohnewarum.de:1443` |
-| Gitea | `addon-oidc` | `https://auth.ohnewarum.de:1443` |
-| Nebenkosten | Client-side PKCE | `https://auth.ohnewarum.de:1443` |
-| Homepage | None (public) | — |
-
-- **Zitadel** is the OIDC provider, running with `ZITADEL_EXTERNALDOMAIN=auth.ohnewarum.de`
-- **Server-to-server** calls (token exchange, OIDC setup) go directly to `https://zitadel:1443`, bypassing Nginx
-- **Browser redirects** go to `https://auth.ohnewarum.de:1443` (resolved to nginx by dnsmasq, proxied to zitadel)
-
-## 5. Addons & Stack System
-
-Cross-cutting concerns (HTTPS, authentication) are managed through **addons**, and shared credentials/connection info through **stacks**.
-
-### Addons
-
 ```mermaid
-graph LR
-    subgraph Addons
-        ssl[addon-ssl]
-        acme[addon-acme]
-        oidc[addon-oidc]
-    end
+sequenceDiagram
+    participant B as Browser
+    participant App as App
+    participant Z as Zitadel
 
-    ssl -->|self-signed certs + renewal| deployer_a[deployer]
-    ssl -->|self-signed certs + renewal| zitadel_a[zitadel]
-    ssl -->|self-signed certs + renewal| gitea_a[gitea]
-    ssl -->|self-signed certs + renewal| postgres_a[postgres]
-    acme -->|ACME wildcard cert| nginx_a[nginx]
-    ssl -->|CA chain for backends| nginx_a
-    oidc -->|OIDC client registration| deployer_a
-    oidc -->|OIDC client registration| gitea_a
+    B->>App: Open protected page
+    App->>B: 302 Redirect to Zitadel
+    B->>Z: Login username/password
+    Z->>B: 302 Redirect back with auth code
+    B->>App: Auth code
+    App->>Z: Exchange code for token
+    Z->>App: Access token + ID token
+    App->>B: Authenticated session
 ```
 
-| Addon | What it does |
-|-------|-------------|
-| **addon-ssl** | Generates self-signed server certs from global CA, configures TLS, auto-renewal via deployer (daily) |
-| **addon-acme** | Obtains Let's Encrypt wildcard cert via Cloudflare DNS-01, auto-renewal via acme.sh (60 days) |
-| **addon-oidc** | Registers OIDC client in Zitadel, configures app for SSO |
+| App | OIDC | Flow | Issuer URL |
+|-----|------|------|-----------|
+| oci-lxc-deployer | `addon-oidc` | Authorization Code | `https://auth.ohnewarum.de` |
+| Gitea | `addon-oidc` | Authorization Code | `https://auth.ohnewarum.de` |
+| Nebenkosten | Client-side | PKCE (no secret) | `https://auth.ohnewarum.de` |
+| Homepage | None | Public | -|
 
-Addons are selected per app at install/reconfigure time via `selectedAddons: ["addon-ssl", "addon-oidc"]`.
+Server-to-server calls (token exchange, OIDC setup) go directly to `https://zitadel:1443` with a `Host: auth.ohnewarum.de` header. This avoids routing through Nginx for internal traffic.
 
-### Stacks
-
-Stacks are shared credential stores that connect providers and consumers within an environment:
-
-```
-Stack "production" (stacktype: postgres + oidc + cloudflare)
-├── entries (secrets):     POSTGRES_PASSWORD, ZITADEL_DB_PASSWORD, CF_TOKEN, ...
-└── provides (connection): ZITADEL_URL, ZITADEL_PORT, POSTGRES_PORT, ...
-```
-
-- **Providers** (postgres, zitadel) publish connection info to the stack after deployment
-- **Consumers** read it automatically via template variables (`{{ ZITADEL_URL }}`)
-- When a provider is reconfigured (e.g. SSL added), its provides update — consumers may need reconfiguration
-
-## 6. Installation & Configuration
+## 5. Installation & Configuration
 
 ### oci-lxc-deployer
 
@@ -202,9 +174,9 @@ The management platform that deploys and configures all LXC containers. Runs on 
 - **Deploy**: `./production/deploy.sh <app|all>` (runs from PVE host or dev machine)
 - **Config**: Shared volumes at `/rpool/data/subvol-999999-oci-lxc-deployer-volumes/`
 
-### Nginx
+### Nginx Configuration
 
-Nginx serves as both **static host** and **reverse proxy**:
+Nginx serves as both **static host** and **reverse proxy**. Configuration via bind-mounted volume:
 
 ```
 /etc/nginx/conf.d/          ← Volume mount (persisted)
@@ -212,10 +184,22 @@ Nginx serves as both **static host** and **reverse proxy**:
 ├── ohnewarum.conf          ← Static homepage
 ├── nebenkosten.conf        ← Frontend SPA (try_files)
 ├── auth.conf               ← Reverse proxy → zitadel:1443
-└── git.conf                ← Reverse proxy → gitea:1443
+└── git.conf                ← Reverse proxy → gitea:443
 ```
 
-Rootless (uid 101), listens on port 8080 (HTTP) and 1443 (HTTPS via ACME wildcard cert). WAN access via OpenWrt port forward `:443 → :1443`. Managed by `setup-nginx.sh`.
+Managed by `setup-nginx.sh`. Nginx is rootless (uid 101), listens on port 8080. The ACME addon provides an SSL proxy on port 8443 (mapped to 443 via PVE DNAT).
+
+### Stack System
+
+Secrets and connection info are managed through **stacks** -shared credential stores per environment:
+
+```
+Stack "production" (stacktype: postgres + oidc + cloudflare)
+├── entries (secrets):     POSTGRES_PASSWORD, ZITADEL_DB_PASSWORD, CF_TOKEN, ...
+└── provides (connection): ZITADEL_URL, ZITADEL_PORT, POSTGRES_PORT, ...
+```
+
+Providers (postgres, zitadel) publish their connection info to the stack. Consumers read it automatically via template variables (`{{ ZITADEL_URL }}`).
 
 ---
 
