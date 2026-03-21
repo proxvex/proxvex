@@ -1,4 +1,4 @@
-import { NgZone, OnDestroy, Component, OnInit, inject } from '@angular/core';
+import { NgZone, OnDestroy, Component, OnInit, inject, ElementRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -30,6 +30,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private zone = inject(NgZone);
   private dialog = inject(MatDialog);
+  private el = inject(ElementRef);
   private lastSeenIndex = -1;
   private storedParams: Record<string, { name: string; value: IParameterValue }[]> = {};
   private storedVmInstallKeys: Record<string, string> = {}; // Map from restartKey to vmInstallKey
@@ -73,6 +74,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
             this.mergeSingleMessage(event.data.application, event.data.task, event.data.message);
           }
           this.checkAllFinished();
+          this.scrollToActivePanel();
         });
       },
       complete: () => {
@@ -400,6 +402,19 @@ export class ProcessMonitor implements OnInit, OnDestroy {
 
   getCompletedCount(group: ISingleExecuteMessagesResponse): number {
     return group.messages.filter(m => m.exitCode === 0 && !m.finished).length;
+  }
+
+  private scrollToActivePanel(): void {
+    setTimeout(() => {
+      const container = this.el.nativeElement as HTMLElement;
+      const runningItem = container.querySelector('.running-item');
+      if (!runningItem) return;
+      const panel = runningItem.closest('mat-expansion-panel');
+      const header = panel?.querySelector('mat-expansion-panel-header');
+      if (header) {
+        header.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
   }
 
   close(): void {
