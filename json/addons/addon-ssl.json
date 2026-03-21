@@ -26,9 +26,9 @@
       "name": "HTTPS Port",
       "type": "string",
       "required": false,
-      "default": "",
+      "default": "1443",
       "advanced": true,
-      "description": "The HTTPS port to listen on."
+      "description": "The HTTPS port to listen on (default: 1443, rootless containers cannot bind 443)."
     }
   ],
 

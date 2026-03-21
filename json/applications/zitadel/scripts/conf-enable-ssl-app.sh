@@ -14,6 +14,8 @@ set -eu
 SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 COMPOSE_B64="{{ compose_file }}"
+HTTPS_PORT="{{ https_port }}"
+[ -z "$HTTPS_PORT" ] || [ "$HTTPS_PORT" = "NOT_DEFINED" ] && HTTPS_PORT="1443"
 
 # Decode compose to temp file
 TMPFILE=$(mktemp)
@@ -35,11 +37,11 @@ sed -i 's/source: traefik-dynamic-http$/source: traefik-dynamic-https/' "$TMPFIL
 sed -i '/--entrypoints.web.address=:8080/a\
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"\
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"\
-      - "--entrypoints.websecure.address=:8443"' "$TMPFILE"
+      - "--entrypoints.websecure.address=:${HTTPS_PORT}"' "$TMPFILE"
 
 # 3. Add HTTPS port mapping after HTTP port
-sed -i '/"8080:8080"/a\
-      - "8443:8443"' "$TMPFILE"
+sed -i "/"8080:8080"/a\\
+      - \"${HTTPS_PORT}:${HTTPS_PORT}\"" "$TMPFILE"
 
 # 4. Add cert volume to traefik (before configs section)
 sed -i '/^    configs:$/i\
@@ -51,8 +53,8 @@ sed -i 's/--tlsMode disabled/--tlsMode external/' "$TMPFILE"
 
 # 6. Update env values for HTTPS
 sed -i 's/ZITADEL_EXTERNALSECURE: "false"/ZITADEL_EXTERNALSECURE: "true"/' "$TMPFILE"
-sed -i 's/ZITADEL_EXTERNALPORT: 8080/ZITADEL_EXTERNALPORT: 8443/' "$TMPFILE"
-sed -i 's|http://\([^:]*\):8080/ui/v2/login|https://\1:8443/ui/v2/login|g' "$TMPFILE"
+sed -i "s/ZITADEL_EXTERNALPORT: 8080/ZITADEL_EXTERNALPORT: ${HTTPS_PORT}/" "$TMPFILE"
+sed -i "s|http://\([^:]*\):8080/ui/v2/login|https://\1:${HTTPS_PORT}/ui/v2/login|g" "$TMPFILE"
 sed -i 's/X-Forwarded-Proto:http/X-Forwarded-Proto:https/' "$TMPFILE"
 sed -i 's/SSL_MODE: disable/SSL_MODE: require/g' "$TMPFILE"
 
