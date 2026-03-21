@@ -40,6 +40,8 @@ export interface IApplicationBase {
     properties?: IOutputObject[];
     /** Override name/description of parameters defined in templates */
     parameterOverrides?: IParameterOverride[];
+    /** If true, the application is not shown in the applications list but can appear in the installed list. */
+    hidden?: boolean;
 }
 export interface IApplicationWeb {
     name: string;
@@ -317,6 +319,8 @@ export interface IManagedOciContainer {
         target: string;
     }[];
     volumes?: string;
+    /** True for PVE host entries (not LXC containers). */
+    is_host?: boolean;
 }
 export type IInstallationsResponse = IManagedOciContainer[];
 

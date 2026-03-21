@@ -16,12 +16,17 @@
   <ng-template #cardTemplate let-it>
     <div class="card-header">
       <div class="header-info">
-        <h2>{{ it.vm_id }} ({{ it.hostname || 'CT' + it.vm_id }})</h2>
-        <p class="sub">
-          @if (it.application_id) {
-            <b>{{ it.application_id }}</b>@if (it.version) {<b> ({{ it.version }})</b>}
-          }
-        </p>
+        @if (it.is_host) {
+          <h2>{{ it.hostname || 'PVE Host' }}</h2>
+          <p class="sub"><b>{{ it.application_name || 'Proxmox VE' }}</b></p>
+        } @else {
+          <h2>{{ it.vm_id }} ({{ it.hostname || 'CT' + it.vm_id }})</h2>
+          <p class="sub">
+            @if (it.application_id) {
+              <b>{{ it.application_id }}</b>@if (it.version) {<b> ({{ it.version }})</b>}
+            }
+          </p>
+        }
       </div>
       @if (it.status) {
         <span class="status-badge" [class.running]="it.status === 'running'" [class.stopped]="it.status === 'stopped'">{{ it.status }}</span>
@@ -29,10 +34,12 @@
     </div>
 
     <div class="card-body">
-      <p>
-        <span class="label">OCI:</span>
-        <span class="value">{{ it.oci_image }}</span>
-      </p>
+      @if (!it.is_host) {
+        <p>
+          <span class="label">OCI:</span>
+          <span class="value">{{ it.oci_image }}</span>
+        </p>
+      }
       @if (it.addons?.length) {
         <p>
           <span class="label">Addons:</span>
@@ -42,9 +49,11 @@
     </div>
 
     <div class="card-actions">
-      <button type="button" (click)="startUpgrade(it)"
-        matTooltip="Creates a new container with the latest image, then replaces the old one"
-        matTooltipPosition="above">Upgrade</button>
+      @if (!it.is_host) {
+        <button type="button" (click)="startUpgrade(it)"
+          matTooltip="Creates a new container with the latest image, then replaces the old one"
+          matTooltipPosition="above">Upgrade</button>
+      }
       <button type="button" class="secondary" (click)="editAddons(it)">Reconfigure</button>
     </div>
   </ng-template>

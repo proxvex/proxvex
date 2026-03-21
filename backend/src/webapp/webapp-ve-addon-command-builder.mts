@@ -359,7 +359,11 @@ export class WebAppVeAddonCommandBuilder {
     // Add notes update commands BEFORE "Start LXC Container" (pre_start position).
     // Must run AFTER "Write LXC Notes" (from conf-create-configure-lxc) which is
     // already in the result array before the addon commands are inserted.
-    if (preStartCommands.length > 0 || postStartCommands.length > 0) {
+    // Skip for hidden apps (e.g. proxmox host) which have no LXC container notes.
+    if (
+      (preStartCommands.length > 0 || postStartCommands.length > 0) &&
+      !application?.hidden
+    ) {
       const notesIndex = this.findAddonInsertionIndex(result, "pre_start");
       this.addAddonNotesCommands(result, addonIds, notesIndex);
     }

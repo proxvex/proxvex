@@ -44,6 +44,8 @@ export interface IApplicationBase {
   parameterOverrides?: IParameterOverride[];
   verification?: IApplicationVerification | undefined;
   dependencies?: { application: string }[];
+  /** If true, the application is not shown in the applications list but can appear in the installed list. */
+  hidden?: boolean;
 }
 export interface IApplicationVerification {
   wait_seconds?: number;
@@ -411,6 +413,8 @@ export interface IManagedOciContainer {
   mount_points?: { source: string; target: string }[];
   volumes?: string;
   stack_name?: string;
+  /** True for PVE host entries (not LXC containers). */
+  is_host?: boolean;
 }
 
 export type IInstallationsResponse = IManagedOciContainer[];
