@@ -28,9 +28,14 @@ add_dns nginx       192.168.4.41
 add_dns zitadel     192.168.4.42
 add_dns gitea       192.168.4.43
 
-# External domain names
-add_dns auth.ohnewarum.de  192.168.4.42
-add_dns www.ohnewarum.de   192.168.4.41
+# Public domains → Nginx container IP
+# PVE host DNAT maps 443 → 8443, so https://auth.ohnewarum.de works in LAN
+NGINX_IP="192.168.4.41"
+add_dns ohnewarum.de              "$NGINX_IP"
+add_dns www.ohnewarum.de          "$NGINX_IP"
+add_dns auth.ohnewarum.de         "$NGINX_IP"
+add_dns git.ohnewarum.de          "$NGINX_IP"
+add_dns nebenkosten.ohnewarum.de  "$NGINX_IP"
 
 uci commit dhcp
 /etc/init.d/dnsmasq restart

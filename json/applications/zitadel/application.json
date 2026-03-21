@@ -58,7 +58,7 @@
     },
     {
       "id": "https_port",
-      "value": "8443"
+      "value": "1443"
     },
     {
       "id": "ssl.addon_volumes",

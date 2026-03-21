@@ -3,7 +3,8 @@
   "task": "reconfigure",
   "params": [
     { "name": "previouse_vm_id", "value": 500 },
-    { "name": "vm_id_start", "value": 500 }
+    { "name": "vm_id_start", "value": 500 },
+    { "name": "https_port", "value": 1443 }
   ],
   "selectedAddons": ["addon-ssl"]
 }

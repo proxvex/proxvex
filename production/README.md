@@ -60,14 +60,15 @@ scp -r production root@pve1.cluster:
 
 Danach liegen alle Scripts und JSON-Configs unter `~/production/` auf dem PVE-Host.
 
-### 1b. DNS-Einträge auf OpenWrt Router anlegen (einmalig)
+### 1b. DNS auf OpenWrt Router (einmalig)
 
-Statische DNS-Einträge für die Hostnamen auf dem OpenWrt Router konfigurieren:
+DNS-Einträge auf dem Router: Öffentliche Domains (`*.ohnewarum.de`) zeigen direkt auf die Nginx-Container-IP. Interne Hostnamen zeigen auf die jeweiligen Container-IPs.
 
 ```bash
 scp production/dns.sh root@router:
 ssh root@router sh dns.sh
 ```
+
 
 ### 2. oci-lxc-deployer installieren (auf PVE-Host)
 
@@ -248,10 +249,11 @@ Alle anderen Apps bekommen self-signed Zertifikate aus der globalen CA. Der Depl
     (Nginx vertraut self-signed Backends via proxy_ssl_trusted_certificate)
 
 Lokaler Zugang (LAN, CA auf Browser installiert):
-  Browser (LAN) → DNS: hostname → lokale App-IP
-    ├── oci-lxc-deployer → [self-signed] oci-lxc-deployer (:3443)
-    ├── nodered           → [self-signed] Node-RED (:443)
-    └── zitadel           → [self-signed] Zitadel (:8443)
+  Browser (LAN) → DNS: app-domain → Container-IP
+    ├── auth.ohnewarum.de:1443  → Nginx → Zitadel
+    ├── oci-lxc-deployer:3443   → [self-signed] oci-lxc-deployer
+    ├── zitadel:1443            → [self-signed] Zitadel (direkt)
+    └── nodered:1443            → [self-signed] Node-RED
 
 DB/MQTT (kein Browser):
   Zitadel →[self-signed, sslmode=verify-ca]→ Postgres (:5432)
@@ -338,10 +340,10 @@ Backends nutzen self-signed Zertifikate. Nginx verifiziert sie gegen die globale
 |-----|------------------------|----------------|------|------|
 | Homepage | ✓ ohnewarum.de | — | Nginx-ACME | Nein |
 | Nebenkosten | ✓ nebenkosten.ohnewarum.de | — | Nginx-ACME | Client-seitig (PKCE) |
-| Zitadel | ✓ auth.ohnewarum.de | ✓ direkt :8443 | Self-signed | — |
-| Gitea | ✓ git.ohnewarum.de | ✓ direkt :443 | Self-signed | addon-oidc |
+| Zitadel | ✓ auth.ohnewarum.de:1443 | ✓ direkt :1443 | Self-signed | — |
+| Gitea | ✓ git.ohnewarum.de:1443 | ✓ direkt :1443 | Self-signed | addon-oidc |
 | oci-lxc-deployer | ✗ | ✓ direkt :3443 | Self-signed | addon-oidc |
-| Node-RED | ✗ | ✓ direkt :443 | Self-signed | — |
+| Node-RED | ✗ | ✓ direkt :1443 | Self-signed | — |
 | Postgres | ✗ | ✓ nur DB-Clients | Self-signed | — |
 | MQTT | ✗ | ✓ nur MQTT-Clients | Self-signed | — |
 

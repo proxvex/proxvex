@@ -72,7 +72,7 @@ server {
     listen ${LISTEN_PORT};
     server_name auth.ohnewarum.de;
     location / {
-        proxy_pass https://zitadel:8443;
+        proxy_pass https://zitadel:1443;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate ${CERT_DIR}/chain.pem;
         proxy_set_header Host \$host;
