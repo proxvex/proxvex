@@ -60,16 +60,25 @@ scp -r production root@pve1.cluster:
 
 Danach liegen alle Scripts und JSON-Configs unter `~/production/` auf dem PVE-Host.
 
-### 1b. DNS und NAT auf OpenWrt Router (einmalig)
+### 1b. DNS auf OpenWrt Router (einmalig)
 
-DNS-Einträge und Port-Forwarding auf dem OpenWrt Router konfigurieren. Öffentliche Domains (`*.ohnewarum.de`) zeigen auf die Router-IP — der Router leitet Port 443 an Nginx:8443 weiter (DNAT). Dadurch funktioniert `https://auth.ohnewarum.de` sowohl im LAN als auch von extern.
+DNS-Einträge auf dem Router: Öffentliche Domains (`*.ohnewarum.de`) zeigen direkt auf die Nginx-Container-IP. Interne Hostnamen zeigen auf die jeweiligen Container-IPs.
 
 ```bash
-scp production/dns.sh production/router-nat.sh root@router:
-ssh root@router "sh dns.sh && sh router-nat.sh"
+scp production/dns.sh root@router:
+ssh root@router sh dns.sh
 ```
 
-Für Persistenz der NAT-Regeln über Reboots: Die Ausgabe von `router-nat.sh` zeigt die uci-Befehle.
+### 1c. Port-Redirect auf PVE-Host (einmalig)
+
+Rootless LXC-Container können Port 443 nicht binden. Auf dem PVE-Host werden DNAT-Regeln gesetzt, die Port 443 auf den tatsächlichen Container-Port (8443) umleiten. Dadurch funktioniert `https://auth.ohnewarum.de` im LAN — der Traffic geht direkt zur Container-IP, der PVE-Host mappt transparent 443→8443.
+
+```bash
+# Auf pve1.cluster:
+./production/pve-nat.sh
+```
+
+Für Persistenz über Reboots: als `@reboot`-Cronjob oder in `/etc/network/interfaces` post-up.
 
 ### 2. oci-lxc-deployer installieren (auf PVE-Host)
 
@@ -251,10 +260,13 @@ Alle anderen Apps bekommen self-signed Zertifikate aus der globalen CA. Der Depl
 
 Lokaler Zugang (LAN, CA auf Browser installiert):
   Browser (LAN) → DNS: app-domain → Container-IP
-    ├── auth.ohnewarum.de:1443  → Nginx → Zitadel
-    ├── oci-lxc-deployer:3443   → [self-signed] oci-lxc-deployer
-    ├── zitadel:1443            → [self-signed] Zitadel (direkt)
-    └── nodered:1443            → [self-signed] Node-RED
+    ├── auth.ohnewarum.de  → Nginx-IP:443 → PVE DNAT → Nginx-IP:8443 → Zitadel
+    ├── oci-lxc-deployer   → [self-signed] oci-lxc-deployer (:3443)
+    ├── zitadel:443        → PVE DNAT → Zitadel (:8443) (direkt, ohne Nginx)
+    └── nodered            → [self-signed] Node-RED (:443)
+
+PVE-Host Port-Redirect (pve-nat.sh):
+  Container-IP:443 → Container-IP:8443 (transparent für LAN-Clients)
 
 DB/MQTT (kein Browser):
   Zitadel →[self-signed, sslmode=verify-ca]→ Postgres (:5432)
@@ -404,7 +416,7 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 | `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
 | `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
 | `dns.sh`                         | DNS-Einträge auf OpenWrt (uci + dnsmasq)   |
-| `router-nat.sh`                  | NAT Port 443 → Nginx:8443 auf OpenWrt      |
+| `pve-nat.sh`                     | Port-Redirect 443→8443 auf PVE-Host         |
 | `setup-acme.sh`                  | Production-Stack: Cloudflare + Domain-Suffix |
 | `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten  |
 | `setup-deployer-ssl.sh`          | Deployer auf HTTPS umstellen (addon-ssl)   |
