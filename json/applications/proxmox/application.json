@@ -1,0 +1,11 @@
+{
+  "name": "Proxmox VE",
+  "description": "Proxmox Virtual Environment host management",
+  "hidden": true,
+  "icon": "icon.svg",
+  "tags": ["infrastructure"],
+  "supported_addons": ["addon-ssl", "addon-oidc"],
+  "reconfigure": {
+    "pre_start": []
+  }
+}
