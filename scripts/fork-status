@@ -1,0 +1,156 @@
+#!/bin/sh
+# Show which branches in a fork are ahead of upstream main,
+# including their commit messages and whether each commit
+# actually contributes to the net diff against upstream.
+#
+# Usage:
+#   ./scripts/fork-status                              # uses defaults from git remotes
+#   ./scripts/fork-status volkmarnissen modbus2mqtt     # explicit owner/upstream
+#   ./scripts/fork-status --repo oci-lxc-deployer      # override repo name
+#
+# Requires: gh (GitHub CLI), authenticated
+set -e
+
+DIM='\033[2m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+TMPDIR_SCRIPT=$(mktemp -d)
+trap 'rm -rf "$TMPDIR_SCRIPT"' EXIT
+
+# Detect repo name from git remote
+detect_repo() {
+  git remote get-url origin 2>/dev/null | sed -E 's|.*[:/]([^/]+)/([^/]+)$|\2|' | sed 's/\.git$//'
+}
+
+# Detect fork owner from origin remote
+detect_fork_owner() {
+  git remote get-url origin 2>/dev/null | sed -E 's|.*[:/]([^/]+)/([^/]+)$|\1|'
+}
+
+# Detect upstream owner from upstream remote
+detect_upstream_owner() {
+  git remote get-url upstream 2>/dev/null | sed -E 's|.*[:/]([^/]+)/([^/]+)$|\1|'
+}
+
+REPO=$(detect_repo)
+FORK_OWNER=""
+UPSTREAM_OWNER=""
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo)
+      REPO="$2"; shift 2 ;;
+    --help|-h)
+      echo "Usage: $(basename "$0") [fork-owner] [upstream-owner] [--repo name]"
+      echo ""
+      echo "Shows branches in a GitHub fork that are ahead of upstream/main."
+      echo "Commits that contribute to the net diff are marked with *."
+      echo "Commits already in upstream are shown dimmed."
+      echo "Defaults are detected from git remotes (origin = fork, upstream = upstream)."
+      exit 0 ;;
+    *)
+      if [ -z "$FORK_OWNER" ]; then
+        FORK_OWNER="$1"
+      elif [ -z "$UPSTREAM_OWNER" ]; then
+        UPSTREAM_OWNER="$1"
+      fi
+      shift ;;
+  esac
+done
+
+# Apply defaults from git remotes
+[ -z "$FORK_OWNER" ] && FORK_OWNER=$(detect_fork_owner)
+[ -z "$UPSTREAM_OWNER" ] && UPSTREAM_OWNER=$(detect_upstream_owner)
+
+if [ -z "$FORK_OWNER" ] || [ -z "$UPSTREAM_OWNER" ] || [ -z "$REPO" ]; then
+  echo "${RED}Could not detect fork/upstream owners or repo name.${NC}"
+  echo "Usage: $(basename "$0") [fork-owner] [upstream-owner] [--repo name]"
+  echo "Or configure git remotes: origin (fork) and upstream (upstream)."
+  exit 1
+fi
+
+echo "${BOLD}Fork:     ${CYAN}${FORK_OWNER}/${REPO}${NC}"
+echo "${BOLD}Upstream: ${CYAN}${UPSTREAM_OWNER}/${REPO}${NC} (main)"
+echo ""
+
+# Get all branches in the fork
+branches=$(gh api "repos/${FORK_OWNER}/${REPO}/branches" --paginate --jq '.[].name')
+
+found_ahead=0
+
+for branch in $branches; do
+  compare_file="${TMPDIR_SCRIPT}/compare.json"
+
+  # Compare upstream main -> fork branch
+  gh api "repos/${UPSTREAM_OWNER}/${REPO}/compare/main...${FORK_OWNER}:${REPO}:${branch}" \
+    > "$compare_file" 2>/dev/null || continue
+
+  ahead=$(python3 -c "import json; d=json.load(open('$compare_file')); print(d['ahead_by'])")
+  behind=$(python3 -c "import json; d=json.load(open('$compare_file')); print(d['behind_by'])")
+
+  # Skip branches that are not ahead
+  [ "$ahead" = "0" ] && continue
+
+  found_ahead=1
+
+  # Extract net diff files and commits from the cached response
+  python3 -c "
+import json
+d = json.load(open('$compare_file'))
+with open('${TMPDIR_SCRIPT}/net_files.txt', 'w') as f:
+    for fi in d.get('files', []):
+        f.write(fi['filename'] + '\n')
+with open('${TMPDIR_SCRIPT}/commits.txt', 'w') as f:
+    for c in d.get('commits', []):
+        f.write(c['sha'][:7] + '\t' + c['commit']['message'].split('\n')[0] + '\n')
+"
+
+  net_diff_count=$(wc -l < "${TMPDIR_SCRIPT}/net_files.txt" | tr -d ' ')
+
+  # Status indicator
+  if [ "$behind" = "0" ]; then
+    status_text="${GREEN}ready to merge${NC}"
+  else
+    status_text="${YELLOW}needs rebase${NC} (${behind} behind)"
+  fi
+
+  echo "${BOLD}${BLUE}${branch}${NC}  ${GREEN}+${ahead}${NC} ahead  ${status_text}  ${CYAN}${net_diff_count} files net diff${NC}"
+
+  # For each commit, check if its changed files overlap with the net diff
+  while IFS='	' read -r sha msg; do
+    [ -z "$sha" ] && continue
+
+    # Get files changed by this specific commit
+    commit_files=$(gh api "repos/${FORK_OWNER}/${REPO}/commits/${sha}" \
+      --jq '[.files[].filename] | join("\n")' 2>/dev/null) || continue
+
+    # Check overlap with net diff files
+    overlap_count=0
+    if [ -n "$commit_files" ]; then
+      # Write commit files to temp, then count matches
+      printf '%s\n' "$commit_files" > "${TMPDIR_SCRIPT}/commit_files.txt"
+      overlap_count=$(grep -cxFf "${TMPDIR_SCRIPT}/net_files.txt" "${TMPDIR_SCRIPT}/commit_files.txt" || true)
+      overlap_count=$(echo "$overlap_count" | tr -d '[:space:]')
+      [ -z "$overlap_count" ] && overlap_count=0
+    fi
+
+    if [ "$overlap_count" -gt 0 ]; then
+      echo "  ${GREEN}*${NC} ${sha} ${msg}  ${DIM}(${overlap_count} files in diff)${NC}"
+    else
+      echo "  ${DIM}  ${sha} ${msg}  (already in upstream)${NC}"
+    fi
+  done < "${TMPDIR_SCRIPT}/commits.txt"
+
+  echo ""
+done
+
+if [ "$found_ahead" = "0" ]; then
+  echo "${GREEN}All branches are up to date with upstream/main.${NC}"
+fi
