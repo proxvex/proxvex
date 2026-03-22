@@ -18,6 +18,7 @@ NC='\033[0m'
 # Rebase other local branches that are ahead of upstream/main.
 # Skips the current branch. On conflict: abort and warn.
 rebase_other_branches() {
+  set +e  # Errors in other branches must not abort the script
   current="$1"
   echo ""
   echo "${BLUE}==> Checking other branches...${NC}"
@@ -92,6 +93,7 @@ rebase_other_branches() {
     echo ""
     echo "  ${DIM}Checked: ${branches_checked}, rebased: ${branches_rebased}, conflicts: ${branches_conflict}${NC}"
   fi
+  set -e
 }
 
 # --- Main ---
