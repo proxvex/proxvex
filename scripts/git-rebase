@@ -18,7 +18,6 @@ NC='\033[0m'
 # Rebase other local branches that are ahead of upstream/main.
 # Skips the current branch. On conflict: abort and warn.
 rebase_other_branches() {
-  set +e  # Errors in other branches must not abort the script
   current="$1"
   echo ""
   echo "${BLUE}==> Checking other branches...${NC}"
@@ -50,7 +49,6 @@ rebase_other_branches() {
     echo "  ${branch}: +${ahead} ahead, ${label}"
 
     git checkout "$branch" --quiet 2>/dev/null
-    old_sha=$(git rev-parse HEAD)
 
     if [ "$diff_files" = "0" ]; then
       # No net diff — safe to reset (squash-merged commits can't be detected by rebase)
@@ -64,31 +62,18 @@ rebase_other_branches() {
       fi
     elif git rebase upstream/main --quiet 2>/dev/null; then
       # Normal rebase for branches with real changes
-      new_sha=$(git rev-parse HEAD)
-      if [ "$new_sha" != "$old_sha" ]; then
-        new_ahead=$(git rev-list --count "upstream/main..${branch}" 2>/dev/null)
+      new_ahead=$(git rev-list --count "upstream/main..${branch}" 2>/dev/null)
+      if [ "$new_ahead" != "$ahead" ]; then
         if git push --force-with-lease --quiet 2>/dev/null; then
-          echo "    ${GREEN}✓ Rebased and pushed${NC} (+${new_ahead} commits)"
+          echo "    ${GREEN}✓ Rebased and pushed${NC} (${ahead} → ${new_ahead} commits)"
           branches_rebased=$((branches_rebased + 1))
         else
           echo "    ${YELLOW}✓ Rebased locally, push failed${NC}"
           branches_rebased=$((branches_rebased + 1))
         fi
       else
-        # SHA unchanged after rebase, but remote might still be outdated
-        remote_sha=$(git rev-parse "origin/${branch}" 2>/dev/null || echo "")
-        if [ -n "$remote_sha" ] && [ "$remote_sha" != "$new_sha" ]; then
-          if git push --force-with-lease --quiet 2>/dev/null; then
-            echo "    ${GREEN}✓ Pushed pending rebase${NC}"
-            branches_rebased=$((branches_rebased + 1))
-          else
-            echo "    ${YELLOW}✓ Local is rebased, push failed${NC}"
-            branches_rebased=$((branches_rebased + 1))
-          fi
-        else
-          echo "    ${DIM}  Already up to date${NC}"
-          branches_skipped=$((branches_skipped + 1))
-        fi
+        echo "    ${DIM}  No change after rebase${NC}"
+        branches_skipped=$((branches_skipped + 1))
       fi
     else
       git rebase --abort 2>/dev/null || true
@@ -107,7 +92,6 @@ rebase_other_branches() {
     echo ""
     echo "  ${DIM}Checked: ${branches_checked}, rebased: ${branches_rebased}, conflicts: ${branches_conflict}${NC}"
   fi
-  set -e
 }
 
 # --- Main ---
