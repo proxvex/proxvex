@@ -75,8 +75,20 @@ rebase_other_branches() {
           branches_rebased=$((branches_rebased + 1))
         fi
       else
-        echo "    ${DIM}  Already up to date${NC}"
-        branches_skipped=$((branches_skipped + 1))
+        # SHA unchanged after rebase, but remote might still be outdated
+        remote_sha=$(git rev-parse "origin/${branch}" 2>/dev/null || echo "")
+        if [ -n "$remote_sha" ] && [ "$remote_sha" != "$new_sha" ]; then
+          if git push --force-with-lease --quiet 2>/dev/null; then
+            echo "    ${GREEN}✓ Pushed pending rebase${NC}"
+            branches_rebased=$((branches_rebased + 1))
+          else
+            echo "    ${YELLOW}✓ Local is rebased, push failed${NC}"
+            branches_rebased=$((branches_rebased + 1))
+          fi
+        else
+          echo "    ${DIM}  Already up to date${NC}"
+          branches_skipped=$((branches_skipped + 1))
+        fi
       fi
     else
       git rebase --abort 2>/dev/null || true
