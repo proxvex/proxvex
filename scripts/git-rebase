@@ -15,9 +15,12 @@ BLUE='\033[0;34m'
 DIM='\033[2m'
 NC='\033[0m'
 
-# Check if a branch is checked out in another worktree
-is_in_worktree() {
-  git worktree list --porcelain 2>/dev/null | grep -q "branch refs/heads/$1$"
+# Get worktree path for a branch, or empty if not in a worktree
+worktree_path_for() {
+  git worktree list --porcelain 2>/dev/null | awk -v branch="refs/heads/$1" '
+    /^worktree / { path = substr($0, 10) }
+    $0 == "branch " branch { print path; exit }
+  '
 }
 
 # Rebase other local branches that are ahead of upstream/main.
@@ -55,10 +58,31 @@ rebase_other_branches() {
 
     echo "  ${branch}: +${ahead} ahead, ${label}"
 
-    # Skip branches checked out in another worktree
-    if is_in_worktree "$branch"; then
-      echo "    ${YELLOW}⚠ Checked out in another worktree — skipped${NC}"
-      branches_skipped=$((branches_skipped + 1))
+    # Branch in another worktree — rebase via git -C
+    wt_path=$(worktree_path_for "$branch")
+    if [ -n "$wt_path" ]; then
+      old_sha=$(git -C "$wt_path" rev-parse HEAD)
+      if git -C "$wt_path" rebase upstream/main --quiet 2>/dev/null; then
+        new_sha=$(git -C "$wt_path" rev-parse HEAD)
+        if [ "$new_sha" != "$old_sha" ]; then
+          if git -C "$wt_path" push --force-with-lease --quiet 2>/dev/null; then
+            new_ahead=$(git -C "$wt_path" rev-list --count "upstream/main..HEAD" 2>/dev/null)
+            echo "    ${GREEN}✓ Rebased and pushed in ${wt_path}${NC} (+${new_ahead} commits)"
+            branches_rebased=$((branches_rebased + 1))
+          else
+            echo "    ${YELLOW}✓ Rebased in ${wt_path}, push failed${NC}"
+            branches_rebased=$((branches_rebased + 1))
+          fi
+        else
+          echo "    ${DIM}  Already up to date (${wt_path})${NC}"
+          branches_skipped=$((branches_skipped + 1))
+        fi
+      else
+        git -C "$wt_path" rebase --abort 2>/dev/null || true
+        echo "    ${RED}✗ Rebase conflict in ${wt_path}${NC}"
+        echo "    ${RED}  Open workspace ${wt_path} and run ./scripts/git-rebase --push${NC}"
+        branches_conflict=$((branches_conflict + 1))
+      fi
       continue
     fi
 
