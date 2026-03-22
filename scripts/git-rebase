@@ -15,8 +15,14 @@ BLUE='\033[0;34m'
 DIM='\033[2m'
 NC='\033[0m'
 
+# Check if a branch is checked out in another worktree
+is_in_worktree() {
+  git worktree list --porcelain 2>/dev/null | grep -q "branch refs/heads/$1$"
+}
+
 # Rebase other local branches that are ahead of upstream/main.
-# Skips the current branch. On conflict: abort and warn.
+# Skips the current branch and branches in other worktrees.
+# On conflict: abort and warn.
 rebase_other_branches() {
   set +e  # Errors in other branches must not abort the script
   current="$1"
@@ -48,6 +54,13 @@ rebase_other_branches() {
     fi
 
     echo "  ${branch}: +${ahead} ahead, ${label}"
+
+    # Skip branches checked out in another worktree
+    if is_in_worktree "$branch"; then
+      echo "    ${YELLOW}⚠ Checked out in another worktree — skipped${NC}"
+      branches_skipped=$((branches_skipped + 1))
+      continue
+    fi
 
     git checkout "$branch" --quiet 2>/dev/null
     old_sha=$(git rev-parse HEAD)
@@ -122,17 +135,26 @@ fi
 echo "${BLUE}==> Fetching upstream...${NC}"
 git fetch upstream
 
-echo "${BLUE}==> Rebasing on upstream/main...${NC}"
-if git rebase upstream/main; then
-  echo "${GREEN}✓ Rebased on upstream/main${NC}"
-else
-  echo "${RED}Rebase failed. Resolve conflicts, then:${NC}"
-  echo "  git rebase --continue"
-  echo "  git push --force-with-lease"
-  exit 1
-fi
-
+# Check if current branch has 0 net diff (all commits already in upstream)
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+current_ahead=$(git rev-list --count "upstream/main..${CURRENT_BRANCH}" 2>/dev/null || echo "0")
+current_diff=$(git diff --name-only "upstream/main...${CURRENT_BRANCH}" 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "$current_ahead" -gt 0 ] && [ "$current_diff" = "0" ]; then
+  echo "${BLUE}==> Current branch has only stale commits (0 net diff) — resetting to upstream/main${NC}"
+  git reset --hard upstream/main
+  echo "${GREEN}✓ Reset to upstream/main${NC} (${current_ahead} stale commits removed)"
+else
+  echo "${BLUE}==> Rebasing on upstream/main...${NC}"
+  if git rebase upstream/main; then
+    echo "${GREEN}✓ Rebased on upstream/main${NC}"
+  else
+    echo "${RED}Rebase failed. Resolve conflicts, then:${NC}"
+    echo "  git rebase --continue"
+    echo "  git push --force-with-lease"
+    exit 1
+  fi
+fi
 
 if [ "$1" = "--push" ]; then
   echo "${BLUE}==> Pushing with --force-with-lease...${NC}"
