@@ -50,6 +50,7 @@ rebase_other_branches() {
     echo "  ${branch}: +${ahead} ahead, ${label}"
 
     git checkout "$branch" --quiet 2>/dev/null
+    old_sha=$(git rev-parse HEAD)
 
     if [ "$diff_files" = "0" ]; then
       # No net diff — safe to reset (squash-merged commits can't be detected by rebase)
@@ -63,17 +64,18 @@ rebase_other_branches() {
       fi
     elif git rebase upstream/main --quiet 2>/dev/null; then
       # Normal rebase for branches with real changes
-      new_ahead=$(git rev-list --count "upstream/main..${branch}" 2>/dev/null)
-      if [ "$new_ahead" != "$ahead" ]; then
+      new_sha=$(git rev-parse HEAD)
+      if [ "$new_sha" != "$old_sha" ]; then
+        new_ahead=$(git rev-list --count "upstream/main..${branch}" 2>/dev/null)
         if git push --force-with-lease --quiet 2>/dev/null; then
-          echo "    ${GREEN}✓ Rebased and pushed${NC} (${ahead} → ${new_ahead} commits)"
+          echo "    ${GREEN}✓ Rebased and pushed${NC} (+${new_ahead} commits)"
           branches_rebased=$((branches_rebased + 1))
         else
           echo "    ${YELLOW}✓ Rebased locally, push failed${NC}"
           branches_rebased=$((branches_rebased + 1))
         fi
       else
-        echo "    ${DIM}  No change after rebase${NC}"
+        echo "    ${DIM}  Already up to date${NC}"
         branches_skipped=$((branches_skipped + 1))
       fi
     else
