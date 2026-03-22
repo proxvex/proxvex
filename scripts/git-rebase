@@ -48,13 +48,22 @@ rebase_other_branches() {
 
     echo "  ${branch}: +${ahead} ahead, ${label}"
 
-    # Attempt rebase
     git checkout "$branch" --quiet 2>/dev/null
-    if git rebase upstream/main --quiet 2>/dev/null; then
-      # Check if rebase actually changed anything
+
+    if [ "$diff_files" = "0" ]; then
+      # No net diff — safe to reset (squash-merged commits can't be detected by rebase)
+      git reset --hard upstream/main --quiet 2>/dev/null
+      if git push --force-with-lease --quiet 2>/dev/null; then
+        echo "    ${GREEN}✓ Reset to upstream/main and pushed${NC} (${ahead} stale commits removed)"
+        branches_rebased=$((branches_rebased + 1))
+      else
+        echo "    ${YELLOW}✓ Reset locally, push failed${NC}"
+        branches_rebased=$((branches_rebased + 1))
+      fi
+    elif git rebase upstream/main --quiet 2>/dev/null; then
+      # Normal rebase for branches with real changes
       new_ahead=$(git rev-list --count "upstream/main..${branch}" 2>/dev/null)
       if [ "$new_ahead" != "$ahead" ]; then
-        # Push the rebased branch
         if git push --force-with-lease --quiet 2>/dev/null; then
           echo "    ${GREEN}✓ Rebased and pushed${NC} (${ahead} → ${new_ahead} commits)"
           branches_rebased=$((branches_rebased + 1))
