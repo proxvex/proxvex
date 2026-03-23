@@ -24,6 +24,8 @@ OIDC_CLIENT_SECRET="{{ oidc_client_secret }}"
 OIDC_REQUIRED_ROLE="{{ oidc_required_role }}"
 OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
 HTTP_PORT="{{ http_port }}"
+SSL_MODE="{{ ssl_mode }}"
+HTTPS_PORT="{{ https_port }}"
 
 CONF_FILE="/etc/pve/lxc/${VM_ID}.conf"
 
@@ -32,7 +34,16 @@ if [ ! -f "$CONF_FILE" ]; then
   exit 1
 fi
 
-CALLBACK_URL="http://${HOSTNAME}${DOMAIN_SUFFIX}:${HTTP_PORT}${OIDC_CALLBACK_PATH}"
+# Detect protocol and port based on SSL addon
+PROTOCOL="http"
+PORT="$HTTP_PORT"
+if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "NOT_DEFINED" ] && [ "$SSL_MODE" != "none" ]; then
+  PROTOCOL="https"
+  if [ -n "$HTTPS_PORT" ] && [ "$HTTPS_PORT" != "NOT_DEFINED" ]; then
+    PORT="$HTTPS_PORT"
+  fi
+fi
+CALLBACK_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}:${PORT}${OIDC_CALLBACK_PATH}"
 
 echo "Configuring OIDC for $HOSTNAME (VM $VM_ID, pre-start)" >&2
 echo "  Issuer: $OIDC_ISSUER_URL" >&2

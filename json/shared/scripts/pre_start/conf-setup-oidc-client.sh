@@ -29,6 +29,7 @@ OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_PROJECT_NAME="{{ oidc_project_name }}"
 OIDC_ISSUER_URL_INPUT="{{ oidc_issuer_url }}"
+SSL_MODE="{{ ssl_mode }}"
 
 # Guard against NOT_DEFINED
 if [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then DOMAIN_SUFFIX=""; fi
@@ -180,8 +181,13 @@ CLIENT_SECRET=""
 if [ -z "$APP_ID" ]; then
   echo "OIDC app not found, creating '${OIDC_APP_NAME}'..." >&2
 
-  CALLBACK_URL="http://${HOSTNAME}${DOMAIN_SUFFIX}${OIDC_CALLBACK_PATH}"
-  LOGOUT_URL="http://${HOSTNAME}${DOMAIN_SUFFIX}"
+  # Detect protocol based on SSL addon
+  PROTOCOL="http"
+  if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "NOT_DEFINED" ] && [ "$SSL_MODE" != "none" ]; then
+    PROTOCOL="https"
+  fi
+  CALLBACK_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}${OIDC_CALLBACK_PATH}"
+  LOGOUT_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
 
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
     "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"]}")

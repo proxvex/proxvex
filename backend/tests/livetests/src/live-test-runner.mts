@@ -456,19 +456,24 @@ async function apiFetch<T>(baseUrl: string, apiPath: string): Promise<T | null> 
 /** Tasks that use create_ct + replace_ct (old container must stay running) */
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
 
-/** Find an existing managed container by application_id via the installations API */
+/** Find an existing managed container by application_id or hostname prefix via the installations API */
 async function findExistingVm(
   apiUrl: string,
   veHost: string,
   applicationId: string,
+  hostname?: string,
 ): Promise<{ vm_id: number; addons?: string[] } | null> {
   const veContextKey = `ve_${veHost}`;
-  const containers = await apiFetch<Array<{ vm_id: number; application_id?: string; addons?: string[] }>>(
+  const containers = await apiFetch<Array<{ vm_id: number; application_id?: string; hostname?: string; addons?: string[] }>>(
     apiUrl,
     `/api/${veContextKey}/installations`,
   );
   if (!containers) return null;
-  return containers.find((c) => c.application_id === applicationId) ?? null;
+  // Match by application_id first, then fallback to hostname prefix
+  return containers.find((c) => c.application_id === applicationId)
+    ?? (hostname ? containers.find((c) => c.hostname === hostname) : null)
+    ?? containers.find((c) => c.hostname?.startsWith(`${applicationId}-`))
+    ?? null;
 }
 
 /**
@@ -1308,17 +1313,18 @@ async function executeScenarios(
       const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
 
       // For upgrade/reconfigure: find existing VM via installations API
+      let existingVm: { vm_id: number; addons?: string[] } | null = null;
       if (isReplaceCt) {
-        const existing = await findExistingVm(apiUrl, veHost, scenario.application);
-        if (!existing) {
+        existingVm = await findExistingVm(apiUrl, veHost, scenario.application);
+        if (!existingVm) {
           const errMsg = `No existing VM found for ${scenario.application} — cannot ${task}`;
           logFail(errMsg);
           result.errors.push(errMsg);
           result.failed++;
           break;
         }
-        buildResult.params.push({ name: "previouse_vm_id", value: String(existing.vm_id) });
-        logInfo(`Found existing VM ${existing.vm_id} for ${task} (previouse_vm_id)`);
+        buildResult.params.push({ name: "previouse_vm_id", value: String(existingVm.vm_id) });
+        logInfo(`Found existing VM ${existingVm.vm_id} for ${task} (previouse_vm_id)`);
       }
 
       // Resolve enum defaults (e.g. volume_storage) via API
@@ -1337,6 +1343,11 @@ async function executeScenarios(
 
       if (allAddons.length > 0) {
         paramsObj.selectedAddons = allAddons;
+      }
+      // For reconfigure: pass installed addons so route handler can compute delta
+      if (isReplaceCt && existingVm?.addons && existingVm.addons.length > 0) {
+        paramsObj.installedAddons = existingVm.addons;
+        logInfo(`Installed addons: ${existingVm.addons.join(", ")}`);
       }
       if (buildResult.stackId) {
         paramsObj.stackId = buildResult.stackId;

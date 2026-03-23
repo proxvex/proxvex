@@ -1,13 +1,28 @@
 #!/bin/sh
-# DNS-Einträge für Production-Umgebung auf OpenWrt anlegen
-# Ausführung: scp auf Router, dann sh dns.sh
+# DNS and NAT configuration for production environment on OpenWrt
+#
+# Strategy:
+#   - Internal apps (deployer, postgres, zitadel, gitea) use DHCP
+#     → dnsmasq resolves their hostnames automatically
+#   - External apps (nginx, mosquitto) have static IPs
+#     → manual DNS entries required
+#   - All public domains → Router alt IP (192.168.1.1)
+#     → one NAT rule forwards :443 → nginx:1443
+#     → avoids hairpin NAT (source and dest on different subnets)
+#
+# Usage: scp production/dns.sh root@router: && ssh root@router sh dns.sh
 
 set -e
+
+# --- Configuration ---
+NGINX_IP="192.168.4.41"
+MOSQUITTO_IP="192.168.4.44"
+ROUTER_ALT_IP="192.168.1.1"
 
 add_dns() {
   local name="$1"
   local ip="$2"
-  # Prüfen ob Eintrag schon existiert
+  # Check if entry already exists
   existing=$(uci show dhcp | grep "\.name='$name'" || true)
   if [ -n "$existing" ]; then
     echo "DNS entry '$name' already exists, skipping"
@@ -20,24 +35,81 @@ add_dns() {
   echo "Added DNS: $name → $ip"
 }
 
-# Container hostnames
-add_dns oci-lxc-deployer    192.168.4.39
+add_redirect() {
+  local name="$1"
+  local src_ip="$2"
+  local src_port="$3"
+  local dest_ip="$4"
+  local dest_port="$5"
+  existing=$(uci show firewall | grep "\.name='$name'" || true)
+  if [ -n "$existing" ]; then
+    echo "NAT redirect '$name' already exists, skipping"
+    return
+  fi
+  uci add firewall redirect
+  uci set "firewall.@redirect[-1].name=$name"
+  uci set "firewall.@redirect[-1].src=lan"
+  uci set "firewall.@redirect[-1].dest=lan"
+  uci set "firewall.@redirect[-1].src_dip=$src_ip"
+  uci set "firewall.@redirect[-1].src_dport=$src_port"
+  uci set "firewall.@redirect[-1].dest_ip=$dest_ip"
+  uci set "firewall.@redirect[-1].dest_port=$dest_port"
+  uci set "firewall.@redirect[-1].proto=tcp"
+  uci set "firewall.@redirect[-1].target=DNAT"
+  echo "Added NAT redirect: $src_ip:$src_port → $dest_ip:$dest_port"
+}
 
-add_dns postgres    192.168.4.40
-add_dns nginx       192.168.4.41
-add_dns zitadel     192.168.4.42
-add_dns gitea       192.168.4.43
+# === DNS ===
 
-# Public domains → Nginx container IP
-# PVE host DNAT maps 443 → 8443, so https://auth.ohnewarum.de works in LAN
-NGINX_IP="192.168.4.41"
-add_dns ohnewarum.de              "$NGINX_IP"
-add_dns www.ohnewarum.de          "$NGINX_IP"
-add_dns auth.ohnewarum.de         "$NGINX_IP"
-add_dns git.ohnewarum.de          "$NGINX_IP"
-add_dns nebenkosten.ohnewarum.de  "$NGINX_IP"
+echo "=== Configuring DNS entries ==="
+
+# External apps with static IPs (no DHCP → need manual DNS)
+add_dns nginx              "$NGINX_IP"
+add_dns eclipse-mosquitto  "$MOSQUITTO_IP"
+
+# Internal apps use DHCP — dnsmasq resolves hostnames automatically:
+#   oci-lxc-deployer, postgres, zitadel, gitea
+
+# Public domains → Router alt IP
+# All go through the same path: DNS → 192.168.1.1 → NAT → nginx:1443
+add_dns ohnewarum.de              "$ROUTER_ALT_IP"
+add_dns www.ohnewarum.de          "$ROUTER_ALT_IP"
+add_dns auth.ohnewarum.de         "$ROUTER_ALT_IP"
+add_dns git.ohnewarum.de          "$ROUTER_ALT_IP"
+add_dns nebenkosten.ohnewarum.de  "$ROUTER_ALT_IP"
+
+# MQTT domain → Router alt IP (LAN only, no WAN port forward)
+add_dns mqtt.ohnewarum.de         "$ROUTER_ALT_IP"
 
 uci commit dhcp
 /etc/init.d/dnsmasq restart
-
 echo "DNS entries configured."
+
+# === NAT ===
+
+echo ""
+echo "=== Configuring NAT redirects ==="
+
+# HTTPS: all *.ohnewarum.de → nginx
+# Works from LAN (hairpin-free) and WAN (via separate WAN port forward)
+add_redirect "public-https-to-nginx" \
+  "$ROUTER_ALT_IP" 443 "$NGINX_IP" 1443
+
+# MQTTS: mqtt.ohnewarum.de → mosquitto (LAN only)
+add_redirect "mqtts-to-mosquitto" \
+  "$ROUTER_ALT_IP" 8883 "$MOSQUITTO_IP" 8883
+
+uci commit firewall
+/etc/init.d/firewall restart
+
+echo ""
+echo "=== DNS and NAT setup complete ==="
+echo ""
+echo "Public domains (all → ${ROUTER_ALT_IP} → NAT → nginx:1443):"
+echo "  ohnewarum.de, auth, git, nebenkosten"
+echo ""
+echo "MQTT (${ROUTER_ALT_IP}:8883 → ${MOSQUITTO_IP}:8883, LAN only):"
+echo "  mqtt.ohnewarum.de"
+echo ""
+echo "Internal apps (DHCP, no manual DNS):"
+echo "  oci-lxc-deployer, postgres, zitadel, gitea"

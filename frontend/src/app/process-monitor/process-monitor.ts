@@ -417,6 +417,24 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     });
   }
 
+  downloadLogs(group: ISingleExecuteMessagesResponse): void {
+    const data = {
+      application: group.application,
+      task: group.task,
+      exportedAt: new Date().toISOString(),
+      status: this.hasError(group) ? 'error' : 'success',
+      plannedSteps: group.plannedSteps ?? [],
+      messages: group.messages,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${group.application}-${group.task}-logs.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   close(): void {
     window.history.back();
   }

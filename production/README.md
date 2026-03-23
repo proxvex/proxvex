@@ -6,13 +6,16 @@ Reproduzierbares Setup für oci-lxc-deployer, postgres, nginx, zitadel und gitea
 
 VMs werden per `vm_id_start` ab einem Startwert automatisch vergeben (nächste freie ID).
 
-| App              | vm_id_start | Node      | IP             | Hostname           |
-|------------------|-------------|-----------|----------------|--------------------|
-| oci-lxc-deployer | 500         | pve1      | 192.168.4.39   | oci-lxc-deployer   |
-| postgres         | 500         | pve1      | 192.168.4.40   | postgres           |
-| nginx            | 500         | pve1      | 192.168.4.41   | nginx              |
-| zitadel          | 500         | pve1      | 192.168.4.42   | zitadel            |
-| gitea            | 600         | ubuntupve | 192.168.4.43   | gitea              |
+| App              | vm_id_start | Node      | IP             | Hostname            |
+|------------------|-------------|-----------|----------------|---------------------|
+| oci-lxc-deployer | 500         | pve1      | DHCP           | oci-lxc-deployer    |
+| postgres         | 500         | pve1      | DHCP           | postgres            |
+| zitadel          | 500         | pve1      | DHCP           | zitadel             |
+| gitea            | 600         | ubuntupve | DHCP           | gitea               |
+| nginx            | 500         | pve1      | 192.168.4.41   | nginx               |
+| eclipse-mosquitto| 500         | pve1      | 192.168.4.44   | eclipse-mosquitto   |
+
+**IP-Strategie:** Interne Apps (deployer, postgres, zitadel, gitea) nutzen DHCP — dnsmasq auf dem Router löst Hostnamen automatisch auf. Externe Apps (nginx, mosquitto) brauchen statische IPs, weil sie NAT-Ziele sind oder von Clients außerhalb des Subnetzes erreichbar sein müssen.
 
 ## Step-by-Step Anleitung
 
@@ -60,9 +63,16 @@ scp -r production root@pve1.cluster:
 
 Danach liegen alle Scripts und JSON-Configs unter `~/production/` auf dem PVE-Host.
 
-### 1b. DNS auf OpenWrt Router (einmalig)
+### 1b. DNS und NAT auf OpenWrt Router (einmalig)
 
-DNS-Einträge auf dem Router: Öffentliche Domains (`*.ohnewarum.de`) zeigen direkt auf die Nginx-Container-IP. Interne Hostnamen zeigen auf die jeweiligen Container-IPs.
+**DNS-Strategie:**
+- **Interne Apps** (deployer, postgres, zitadel, gitea) nutzen DHCP — dnsmasq löst Hostnamen automatisch auf, keine manuellen Einträge nötig
+- **Externe Apps** (nginx, mosquitto) haben statische IPs und brauchen manuelle DNS-Einträge
+- **Alle öffentlichen Domains** (`*.ohnewarum.de`) zeigen auf die Router-IP eines anderen Segments (192.168.1.1) — NAT leitet von dort an nginx:1443 weiter. Da Source (192.168.4.x) und Destination (192.168.1.1) in unterschiedlichen Segmenten liegen, funktioniert das ohne Hairpin-NAT-Probleme.
+
+**NAT-Regeln:**
+- `:443 → nginx:1443` — für alle HTTPS-Domains (ohnewarum.de, auth, git, nebenkosten)
+- `:8883 → mosquitto:8883` — für MQTTS (nur LAN, kein WAN-Port-Forward)
 
 ```bash
 scp production/dns.sh root@router:
@@ -88,28 +98,14 @@ Ab sofort läuft der Deployer auf HTTPS (Port 3443). `deploy.sh` erkennt das aut
 
 ### 2b. Projekt-Defaults setzen
 
-Auf dem PVE-Host das Projekt-Template ins Local-Verzeichnis des Deployers kopieren. Dieses eine Template setzt alle projektweiten Defaults (vm_id_start, OIDC, Mirrors):
+Das Script kopiert ein Projekt-Template ins Deployer-Volume. Es setzt projektweite Defaults (vm_id_start, OIDC-Issuer, Mirrors), die für alle zukünftigen Installationen gelten:
 
 ```bash
-# Auf pve1.cluster:
-SHARED_VOL="/rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config/shared/templates"
+# Basis-Defaults (vm_id_start, Mirrors — ohne OIDC-Issuer):
+./production/project-v1.sh
 
-mkdir -p "${SHARED_VOL}/create_ct"
-cat > "${SHARED_VOL}/create_ct/050-set-project-parameters.json" << 'EOF'
-{
-  "name": "Set Project Parameters",
-  "description": "Project-specific defaults for ohnewarum.de",
-  "commands": [
-    { "properties": { "id": "vm_id_start", "default": "500" } },
-    { "properties": { "id": "oidc_issuer_url", "default": "https://auth.ohnewarum.de" } },
-    { "properties": { "id": "alpine_mirror", "default": "https://mirror1.hs-esslingen.de/Mirrors/alpine/" } },
-    { "properties": { "id": "debian_mirror", "default": "http://mirror.23m.com/debian/" } }
-  ]
-}
-EOF
-
-# Validierung (optional)
-curl -sk https://oci-lxc-deployer:3443/api/validate
+# Später (nach Nginx-Setup): mit oidc_issuer_url für öffentliches OIDC:
+./production/project.sh
 ```
 
 Ein Beispiel mit Werten liegt unter `examples/shared/templates/create_ct/050-set-project-parameters.json`.
@@ -239,25 +235,34 @@ Alle anderen Apps bekommen self-signed Zertifikate aus der globalen CA. Der Depl
 ### Datenfluss
 
 ```
-Öffentlicher Zugang:
-  Browser → Internet → [ACME: *.ohnewarum.de] Nginx (:443)
+Öffentlicher Zugang (WAN):
+  Browser → Internet → WAN Port Forward :443 → Nginx :1443
     ├── ohnewarum.de              → Statische Homepage (nginx lokal)
     ├── nebenkosten.ohnewarum.de  → Frontend-App (nginx lokal, OIDC client-seitig)
-    ├── auth.ohnewarum.de         → [self-signed] Zitadel (:8443)
-    ├── git.ohnewarum.de          → [self-signed] Gitea (:443)
+    ├── auth.ohnewarum.de         → [self-signed] Zitadel (:1443)
+    ├── git.ohnewarum.de          → [self-signed] Gitea (:1443)
     └── ...
     (Nginx vertraut self-signed Backends via proxy_ssl_trusted_certificate)
 
-Lokaler Zugang (LAN, CA auf Browser installiert):
-  Browser (LAN) → DNS: app-domain → Container-IP
-    ├── auth.ohnewarum.de:1443  → Nginx → Zitadel
+Lokaler Zugang (LAN, alle *.ohnewarum.de über gleichen Pfad):
+  Browser (LAN) → DNS → 192.168.1.1 → NAT :443 → Nginx :1443
+    ├── ohnewarum.de              → Statische Homepage
+    ├── auth.ohnewarum.de         → Zitadel (:1443)
+    ├── git.ohnewarum.de          → Gitea (:1443)
+    └── nebenkosten.ohnewarum.de  → Frontend-App
+
+Lokaler Direktzugang (LAN, CA auf Browser installiert):
+  Browser (LAN) → DNS (DHCP-Hostname) → Container-IP
     ├── oci-lxc-deployer:3443   → [self-signed] oci-lxc-deployer
     ├── zitadel:1443            → [self-signed] Zitadel (direkt)
     └── nodered:1443            → [self-signed] Node-RED
 
-DB/MQTT (kein Browser):
+MQTT (LAN only):
+  IoT-Clients → DNS → 192.168.1.1 → NAT :8883 → Mosquitto :8883
+  mqtt.ohnewarum.de:8883 → [self-signed TLS, CA-Trust]
+
+DB (intern):
   Zitadel →[self-signed, sslmode=verify-ca]→ Postgres (:5432)
-  IoT-Clients →[self-signed TLS, CA-Trust]→ Mosquitto (:8883)
 ```
 
 ### Nginx: Static-Host + öffentlicher Reverse Proxy
@@ -314,7 +319,7 @@ server {
     listen 8080;
     server_name auth.ohnewarum.de;
     location / {
-        proxy_pass https://zitadel:8443;
+        proxy_pass https://zitadel:1443;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate /etc/ssl/addon/chain.pem;
     }
@@ -340,8 +345,8 @@ Backends nutzen self-signed Zertifikate. Nginx verifiziert sie gegen die globale
 |-----|------------------------|----------------|------|------|
 | Homepage | ✓ ohnewarum.de | — | Nginx-ACME | Nein |
 | Nebenkosten | ✓ nebenkosten.ohnewarum.de | — | Nginx-ACME | Client-seitig (PKCE) |
-| Zitadel | ✓ auth.ohnewarum.de:1443 | ✓ direkt :1443 | Self-signed | — |
-| Gitea | ✓ git.ohnewarum.de:1443 | ✓ direkt :1443 | Self-signed | addon-oidc |
+| Zitadel | ✓ auth.ohnewarum.de | ✓ direkt :1443 | Self-signed | — |
+| Gitea | ✓ git.ohnewarum.de | ✓ direkt :1443 | Self-signed | addon-oidc |
 | oci-lxc-deployer | ✗ | ✓ direkt :3443 | Self-signed | addon-oidc |
 | Node-RED | ✗ | ✓ direkt :1443 | Self-signed | — |
 | Postgres | ✗ | ✓ nur DB-Clients | Self-signed | — |
@@ -402,7 +407,9 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 |----------------------------------|--------------------------------------------|
 | `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
 | `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
-| `dns.sh`                         | DNS-Einträge auf OpenWrt (uci + dnsmasq)   |
+| `project-v1.sh`                  | Basis-Defaults (vm_id_start, Mirrors)          |
+| `project.sh`                     | Volle Defaults (+ oidc_issuer_url)             |
+| `dns.sh`                         | DNS-Einträge + NAT auf OpenWrt              |
 | `setup-acme.sh`                  | Production-Stack: Cloudflare + Domain-Suffix |
 | `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten  |
 | `setup-deployer-ssl.sh`          | Deployer auf HTTPS umstellen (addon-ssl)   |

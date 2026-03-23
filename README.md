@@ -55,7 +55,41 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
     --static-ip 192.168.4.100/24 --static-gw 192.168.4.1 \
     --static-ip6 fd00::50/64 --static-gw6 fd00::1
 ```
+## Internal HTTPS — Certificate Authority Setup
 
+`oci-lxc-deployer` automatically issues HTTPS certificates for all deployed containers
+using an internal Certificate Authority (CA). This is a one-time setup.
+
+### On the server
+
+During initial setup, `oci-lxc-deployer` generates a CA certificate and private key.
+The public CA certificate is available for download at the web UI under **Settings → Certificate Authority → Download CA**.
+
+### On every client machine
+
+To make your browser and local tools trust the internal certificates,
+install [mkcert](https://github.com/FiloSottile/mkcert) and register the CA:
+
+```bash
+# 1. Download the CA certificate
+curl -o rootCA.pem https://<your-deployer>/api/ca/cert
+
+# 2. Point mkcert to the downloaded certificate
+export CAROOT=$(pwd)
+
+# 3. Install into the system trust store
+mkcert -install
+```
+
+For installation instructions per platform (macOS, Linux, Windows) and further details,
+refer to the [official mkcert documentation](https://github.com/FiloSottile/mkcert).
+
+> **Note for Node.js:** Node.js does not use the system trust store.
+> Set the following environment variable in addition to `mkcert -install`:
+> 
+> ```bash
+> export NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem"
+> ```
 ## Access the Web UI
 - Open `http://oci-lxc-deployer:3080` from your network (or replace `oci-lxc-deployer` with the container's IP/hostname you configured).
 - If Proxmox VE is behind a firewall, ensure port `3080/tcp` is reachable from the browser.
