@@ -53,11 +53,29 @@ if [ -z "$VMID" ] || [ -z "$HOSTNAME" ]; then
 fi
 
 # Merge addon_volumes with base volumes BEFORE the empty check,
-# otherwise addon-only volumes are silently ignored
+# otherwise addon-only volumes are silently ignored.
+# Application volumes take precedence — addon entries with duplicate keys are skipped with a warning.
 if [ -n "$ADDON_VOLUMES" ] && [ "$ADDON_VOLUMES" != "" ]; then
   if [ -n "$VOLUMES" ]; then
-    VOLUMES="$VOLUMES
-$ADDON_VOLUMES"
+    _base_keys=""
+    _IFS="$IFS"; IFS='
+'
+    for _bline in $VOLUMES; do
+      _bkey=$(echo "$_bline" | cut -d'=' -f1)
+      [ -n "$_bkey" ] && _base_keys="$_base_keys $_bkey "
+    done
+    IFS="$_IFS"
+    _IFS="$IFS"; IFS='
+'
+    for _aline in $ADDON_VOLUMES; do
+      _akey=$(echo "$_aline" | cut -d'=' -f1)
+      case "$_base_keys" in
+        *" $_akey "*) ;;
+        *) VOLUMES="$VOLUMES
+$_aline" ;;
+      esac
+    done
+    IFS="$_IFS"
   else
     VOLUMES="$ADDON_VOLUMES"
   fi
