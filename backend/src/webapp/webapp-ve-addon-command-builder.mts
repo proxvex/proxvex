@@ -298,7 +298,6 @@ export class WebAppVeAddonCommandBuilder {
       }
     }
 
-    // Fallback: append at the end
     return commands.length;
   }
 
