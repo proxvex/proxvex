@@ -7,7 +7,10 @@
   ],
   "settings": {
     "window.title": "${activeEditorShort} - oci-lxc-deployer [GREEN]",
-
+    "workbench.colorCustomizations": {
+    // Hintergrund des Editors
+    "activityBar.background": "#71e971",
+    "activityBar.foreground": "#130d03",},
     "claudeCode.allowDangerouslySkipPermissions": true,
     "terminal.integrated.env.osx": {
       "DEPLOYER_PORT": "3201",
