@@ -63,16 +63,19 @@
             @if (msg.stderr) {
               <pre class="error-stderr">{{ msg.stderr }}</pre>
             }
-            @if (group.restartKey) {
-              <div class="restart-buttons">
+            <div class="restart-buttons">
+              @if (group.restartKey) {
                 <button class="restart-btn" (click)="triggerRestart(group)" title="Restart from last successful step">
                   ↻ Restart
                 </button>
                 <button class="restart-full-btn" (click)="triggerRestartFull(group)" title="Restart installation from beginning with same parameters">
                   ↻↻ Restart from Beginning
                 </button>
-              </div>
-            }
+              }
+              <button class="download-logs-btn" (click)="downloadLogs(group)" title="Download execution data as JSON for analysis">
+                ⬇ Download Logs
+              </button>
+            </div>
           </div>
         </li>
       }
@@ -90,6 +93,9 @@
               </div>
             } @else {
               <button class="back-btn" type="button" (click)="close()">Schließen</button>
+              <button class="download-logs-btn" (click)="downloadLogs(group)" title="Download execution data as JSON for analysis">
+                ⬇ Download Logs
+              </button>
             }
           </div>
         </li>

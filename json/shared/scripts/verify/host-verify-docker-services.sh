@@ -18,7 +18,11 @@ if ! pct exec "$VM_ID" -- which docker >/dev/null 2>&1; then
 fi
 
 # Get docker ps output from inside the container
-docker_ps=$(pct exec "$VM_ID" -- docker ps --format '{{.Names}}\t{{.Status}}' 2>/dev/null || true)
+# Build format string via shell variable to avoid {{ }} being treated as template variables
+LB='{''{'
+RB='}''}'
+DOCKER_FMT="${LB}.Names${RB}\t${LB}.Status${RB}"
+docker_ps=$(pct exec "$VM_ID" -- docker ps --format "$DOCKER_FMT" 2>/dev/null || true)
 
 if [ -z "$docker_ps" ]; then
     echo "VERIFY: services_up FAILED (no docker containers found)" >&2

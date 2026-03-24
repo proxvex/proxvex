@@ -129,7 +129,7 @@ describe("ApplicationLoader.readApplicationJson", () => {
     expect(templateNames).toContain("my-template.json");
   });
 
-  it("3. localPath application has a template with {before: extends application template}", () => {
+  it("3. localPath application has a template with {position: start} in same category", () => {
     persistenceHelper.writeJsonSync(
       Volume.JsonApplications,
       "baseapp/application.json",
@@ -146,7 +146,7 @@ describe("ApplicationLoader.readApplicationJson", () => {
         extends: "baseapp",
         installation: {
           post_start: [
-            { name: "my-template.json", before: "base-template.json" },
+            { name: "my-template.json", position: "start" },
           ],
         },
       },
@@ -161,12 +161,12 @@ describe("ApplicationLoader.readApplicationJson", () => {
       (t) => t.task === "installation",
     )?.templates;
     expect(templates).toBeDefined();
-    // Parent template first, then child template inserted with "before"
-    expect(getTemplateName(templates, 1)).toBe("base-template.json");
+    // Child template inserted at start of category, before parent template
     expect(getTemplateName(templates, 0)).toBe("my-template.json");
+    expect(getTemplateName(templates, 1)).toBe("base-template.json");
   });
 
-  it("4. extends application has 2 templates, localPath application with after", () => {
+  it("4. extends application has 2 templates, localPath application appends at end of category", () => {
     persistenceHelper.writeJsonSync(
       Volume.JsonApplications,
       "baseapp/application.json",
@@ -181,7 +181,7 @@ describe("ApplicationLoader.readApplicationJson", () => {
       {
         name: "myapp",
         extends: "baseapp",
-        installation: { post_start: [{ name: "my-template.json", after: "base1.json" }] },
+        installation: { post_start: ["my-template.json"] },
       },
     );
     const opts: IReadApplicationOptions = {
@@ -194,10 +194,10 @@ describe("ApplicationLoader.readApplicationJson", () => {
       (t) => t.task === "installation",
     )?.templates;
     expect(templates).toBeDefined();
-    // Parent templates first, then child template appended when "after" target is not reordered
+    // Parent templates first, then child template appended at end of category
     expect(getTemplateName(templates, 0)).toBe("base1.json");
-    expect(getTemplateName(templates, 1)).toBe("my-template.json");
-    expect(getTemplateName(templates, 2)).toBe("base2.json");
+    expect(getTemplateName(templates, 1)).toBe("base2.json");
+    expect(getTemplateName(templates, 2)).toBe("my-template.json");
   });
   it("5. recursion application extends itself", () => {
     persistenceHelper.writeJsonSync(

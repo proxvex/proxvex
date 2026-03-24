@@ -688,7 +688,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   async downloadInstallationFiles(): Promise<void> {
     const data = this.collectInstallationData();
 
-    const output: Record<string, unknown> = { params: data.params };
+    const output: Record<string, unknown> = { task: this.task, params: data.params };
     if (data.addons) output['selectedAddons'] = data.addons;
     if (data.stackIds) output['stackIds'] = data.stackIds;
 
@@ -711,6 +711,107 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     a.download = `${this.data.app.id}-installation.zip`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  loadParameterFile(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const json = JSON.parse(reader.result as string);
+          if (!Array.isArray(json.params)) {
+            window.alert('Invalid parameter file: missing "params" array.');
+            return;
+          }
+          this.applyParameterFile(json);
+        } catch {
+          window.alert('Failed to parse JSON file.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
+  private applyParameterFile(json: { task?: string; params: { name: string; value: string | number | boolean }[]; selectedAddons?: string[]; stackIds?: string[] }): void {
+    const applyValues = () => {
+      for (const p of json.params) {
+        const control = this.form.get(p.name);
+        if (control) {
+          control.setValue(p.value);
+        }
+      }
+      // Select addons if specified
+      if (json.selectedAddons) {
+        for (const addonId of json.selectedAddons) {
+          if (!this.selectedAddons().includes(addonId)) {
+            this.toggleAddon(addonId, true);
+          }
+        }
+      }
+      // Select stacks if specified
+      if (json.stackIds) {
+        for (const stackId of json.stackIds) {
+          const stack = this.availableStacks().find(s => s.id === stackId);
+          if (stack) {
+            this.onStackSelected(stack);
+          }
+        }
+      }
+    };
+
+    // If task changed, reload parameters with new task first
+    if (json.task && json.task !== this.task) {
+      this.task = json.task;
+      this.loading.set(true);
+      this.configService.getUnresolvedParameters(this.data.app.id, this.task).subscribe({
+        next: (res) => {
+          this.unresolvedParameters = res.unresolvedParameters;
+          this.groupedParameters = {};
+          // Remove old controls
+          for (const key of Object.keys(this.form.controls)) {
+            this.form.removeControl(key);
+          }
+          for (const param of this.unresolvedParameters) {
+            if (param.id.startsWith('addon_')) continue;
+            const group = param.templatename || 'General';
+            if (!this.groupedParameters[group]) this.groupedParameters[group] = [];
+            this.groupedParameters[group].push(param);
+            const validators = param.required ? [Validators.required] : [];
+            const defaultValue = param.default !== undefined ? param.default : '';
+            this.form.addControl(param.id, new FormControl(defaultValue, validators));
+          }
+          this.form.markAllAsTouched();
+          this.loading.set(false);
+          this.loadEnumValues();
+          applyValues();
+        },
+        error: (err: unknown) => {
+          this.errorHandler.handleError('Failed to reload parameters for task', err);
+          this.loading.set(false);
+        }
+      });
+    } else {
+      applyValues();
+    }
+  }
+
+  get taskLabel(): string {
+    const labels: Record<string, string> = {
+      installation: 'Install',
+      reconfigure: 'Reconfigure',
+      upgrade: 'Upgrade',
+      update: 'Update',
+      backup: 'Backup',
+      restore: 'Restore',
+      uninstall: 'Uninstall',
+    };
+    return labels[this.task] ?? 'Execute';
   }
 
   saveAsTestData(): void {

@@ -12,6 +12,7 @@ graph TB
         postgres[postgres :5432]
         nginx[nginx :1443]
         zitadel[zitadel :1443]
+        mosquitto[mosquitto :8883]
     end
 
     subgraph ubuntupve["ubuntupve - fast, not 24/7"]
@@ -36,39 +37,75 @@ All containers are **unprivileged LXC** managed by oci-lxc-deployer. Shared volu
 
 ## 2. Network & Public Access
 
+### IP Strategy
+
+| Type | Apps | IP | DNS Resolution |
+|------|------|----|----------------|
+| **DHCP** (internal) | deployer, postgres, zitadel, gitea | Automatic | dnsmasq learns hostname via DHCP |
+| **Static** (external) | nginx, mosquitto | Fixed | Manual DNS entries in dnsmasq |
+
+Internal apps need no static IPs — dnsmasq on the OpenWrt router resolves their hostnames automatically from DHCP leases. External apps need static IPs because they are NAT targets or must be reachable from outside the subnet.
+
+### Routing Overview
+
 ```mermaid
 graph LR
     subgraph WAN["Internet"]
         browser_wan["Browser"]
     end
 
-    subgraph Router["OpenWrt Router"]
-        dns[dnsmasq]
-        wan_fwd[WAN Port Forward]
+    subgraph Router["OpenWrt Router (192.168.1.1)"]
+        dns["dnsmasq<br/>*.ohnewarum.de → 192.168.1.1"]
+        wan_fwd["WAN :443 forward"]
+        nat_https["NAT :443 → nginx:1443"]
+        nat_mqtt["NAT :8883 → mosquitto:8883"]
     end
 
     subgraph PVE["PVE Host - pve1.cluster"]
-        subgraph Containers
-            nginx_c[nginx :1443 ACME wildcard]
-            zitadel_c[zitadel :1443]
-            gitea_c[gitea :1443]
-            deployer_c[deployer :3443]
-            postgres_c[postgres :5432 TLS]
+        subgraph External["External (static IP)"]
+            nginx_c["nginx :1443<br/>192.168.4.41<br/>ACME wildcard"]
+            mosquitto_c["mosquitto :8883<br/>192.168.4.44"]
+        end
+        subgraph Internal["Internal (DHCP)"]
+            zitadel_c["zitadel :1443"]
+            gitea_c["gitea :1443"]
+            deployer_c["deployer :3443"]
+            postgres_c["postgres :5432"]
         end
     end
 
     subgraph LAN["LAN"]
-        browser_lan["Browser / Apps"]
+        browser_lan["Browser"]
+        iot["IoT Devices"]
     end
 
     browser_wan -->|":443"| wan_fwd
-    wan_fwd -->|":1443"| nginx_c
+    wan_fwd --> nat_https
+    nat_https --> nginx_c
+
+    browser_lan -->|"*.ohnewarum.de"| dns
+    dns --> nat_https
     nginx_c -->|proxy_pass| zitadel_c
     nginx_c -->|proxy_pass| gitea_c
 
-    browser_lan -->|":1443"| nginx_c
-    browser_lan -->|":3443"| deployer_c
+    iot -->|"mqtt.ohnewarum.de:8883"| dns
+    dns --> nat_mqtt
+    nat_mqtt --> mosquitto_c
+
+    browser_lan -->|"hostname:port"| deployer_c
 ```
+
+### Hairpin-NAT Avoidance
+
+All public domains (`*.ohnewarum.de`) resolve to `192.168.1.1` — the router's IP on a **different subnet**. Since source (192.168.4.x) and destination (192.168.1.1) are on different segments, DNAT works without hairpin-NAT problems.
+
+```
+LAN client (192.168.4.x) → DNS *.ohnewarum.de → 192.168.1.1
+  → OpenWrt DNAT :443 → nginx (192.168.4.41):1443
+  → nginx proxies to backend (zitadel, gitea, ...)
+```
+
+This ensures `https://auth.ohnewarum.de` (port 443) works identically from LAN and WAN — required for OIDC issuer URL consistency.
 
 ### HTTPS Port Convention
 
@@ -81,18 +118,29 @@ Rootless LXC containers cannot bind port 443. All proxy-mode apps use **port 144
 | gitea | :1443 | native - Gitea built-in |
 | oci-lxc-deployer | :3443 | native - Node.js |
 | postgres | :5432 | certs - TLS on app port |
+| mosquitto | :8883 | certs - TLS on MQTTS port |
 
-URLs in LAN include the port: `https://auth.ohnewarum.de:1443`
+URLs in LAN include the port (e.g. `https://zitadel:1443` for direct access). Public domains are accessible on standard port 443 via NAT redirect through 192.168.1.1.
 
 ### DNS (OpenWrt Router - dnsmasq)
 
 | Domain | Resolves To | Flow |
 |--------|-------------|------|
-| `ohnewarum.de` | nginx IP | Direct to nginx |
-| `auth.ohnewarum.de` | nginx IP | nginx :1443 proxies to zitadel :1443 |
-| `git.ohnewarum.de` | nginx IP | nginx :1443 proxies to gitea :1443 |
-| `nebenkosten.ohnewarum.de` | nginx IP | nginx :1443 serves static frontend |
-| `postgres`, `zitadel`, ... | Container IPs | Internal, no DNAT needed |
+| `ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → static homepage |
+| `auth.ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → zitadel :1443 |
+| `git.ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → gitea :1443 |
+| `nebenkosten.ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → static frontend |
+| `mqtt.ohnewarum.de` | 192.168.1.1 | NAT :8883 → mosquitto :8883 (LAN only) |
+| Internal hostnames | DHCP IP | dnsmasq auto-resolves from DHCP leases |
+
+### NAT Rules
+
+| Rule | Source | Port | Destination | Port | Scope |
+|------|--------|------|-------------|------|-------|
+| HTTPS | 192.168.1.1 | :443 | nginx (192.168.4.41) | :1443 | LAN + WAN |
+| MQTTS | 192.168.1.1 | :8883 | mosquitto (192.168.4.44) | :8883 | LAN only |
+
+WAN access requires an additional port forward on the WAN interface (:443 → nginx:1443). MQTTS has no WAN port forward — IoT devices connect only from LAN.
 
 ## 3. Certificate Strategy
 
@@ -137,14 +185,14 @@ graph LR
 
 | App | OIDC | Issuer URL |
 |-----|------|-----------|
-| oci-lxc-deployer | `addon-oidc` | `https://auth.ohnewarum.de:1443` |
-| Gitea | `addon-oidc` | `https://auth.ohnewarum.de:1443` |
-| Nebenkosten | Client-side PKCE | `https://auth.ohnewarum.de:1443` |
+| oci-lxc-deployer | `addon-oidc` | `https://auth.ohnewarum.de` |
+| Gitea | `addon-oidc` | `https://auth.ohnewarum.de` |
+| Nebenkosten | Client-side PKCE | `https://auth.ohnewarum.de` |
 | Homepage | None (public) | — |
 
-- **Zitadel** is the OIDC provider, running with `ZITADEL_EXTERNALDOMAIN=auth.ohnewarum.de`
+- **Zitadel** is the OIDC provider, running with `ZITADEL_EXTERNALDOMAIN=auth.ohnewarum.de` and `ZITADEL_EXTERNALPORT=443`
 - **Server-to-server** calls (token exchange, OIDC setup) go directly to `https://zitadel:1443`, bypassing Nginx
-- **Browser redirects** go to `https://auth.ohnewarum.de:1443` (resolved to nginx by dnsmasq, proxied to zitadel)
+- **Browser redirects** go to `https://auth.ohnewarum.de` (port 443 — resolved to 192.168.1.1 by dnsmasq, NAT to nginx:1443, proxied to zitadel)
 
 ## 5. Addons & Stack System
 

@@ -1,0 +1,9 @@
+{
+  "params": [
+    { "name": "envs", "append": "PGADMIN_DEFAULT_EMAIL", "value": "admin@example.com" },
+    { "name": "envs", "append": "PGADMIN_DEFAULT_PASSWORD", "value": "testpass123" }
+  ],
+  "selectedAddons": [
+    "addon-ssl"
+  ]
+}

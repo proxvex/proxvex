@@ -261,3 +261,18 @@
   }
 }
 
+.download-logs-btn {
+  background: #546e7a;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #455a64;
+  }
+}
+

@@ -9,6 +9,7 @@
         "properties": {
           "name": { "type": "string" },
           "category": { "type": "string" },
+          "position": { "type": "string", "enum": ["start", "end"] },
           "before": { "type": "string" },
           "after": { "type": "string" }
         },

@@ -57,8 +57,7 @@ export interface IApplication extends IApplicationSchema {
 export interface ITemplateReference {
   name: string;
   category?: string;
-  before?: string[];
-  after?: string[];
+  position?: "start" | "end";
 }
 
 export interface IReadApplicationOptions {

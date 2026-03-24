@@ -139,6 +139,10 @@
 				</div>
 			} @else {
 				<div class="dialog-actions">
+					<button mat-stroked-button type="button" class="load-btn" (click)="loadParameterFile()" [disabled]="loading()" matTooltip="Load parameters from a JSON file">
+						<mat-icon>upload_file</mat-icon>
+						Load
+					</button>
 					<button mat-stroked-button type="button" class="download-btn" (click)="downloadInstallationFiles()" [disabled]="loading()" matTooltip="Download parameters and files for CLI usage">
 						<mat-icon>download</mat-icon>
 						Download
@@ -151,7 +155,7 @@
 					}
 					<span class="action-spacer"></span>
 					<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
-					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="installDisabled">{{ taskKey === 'reconfigure' ? 'Reconfigure' : 'Install' }}</button>
+					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="installDisabled">{{ taskLabel }}</button>
 				</div>
 			}
 		}

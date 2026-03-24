@@ -1,0 +1,152 @@
+/* Video 1 - Ablauf Panel (right side, 30% width) */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  padding: 24px 20px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 1.1rem;
+  color: #8892b0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 28px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.steps {
+  list-style: none;
+  position: relative;
+}
+
+/* Vertical connector line */
+.steps::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: #2a2a4a;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  padding: 10px 12px 10px 42px;
+  border-radius: 8px;
+  position: relative;
+  transition: all 0.3s;
+}
+
+/* Step indicator circle */
+.step::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 14px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #2a2a4a;
+  background: #1a1a2e;
+  z-index: 1;
+}
+
+/* --- States --- */
+
+.step.completed {
+  opacity: 0.55;
+}
+.step.completed::before {
+  background: #4ecca3;
+  border-color: #4ecca3;
+}
+.step.completed::after {
+  content: '✓';
+  position: absolute;
+  left: 11px;
+  top: 12px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #1a1a2e;
+  z-index: 2;
+}
+
+.step.active {
+  background: rgba(78, 204, 163, 0.08);
+  border: 1px solid rgba(78, 204, 163, 0.25);
+}
+.step.active::before {
+  border-color: #4ecca3;
+  background: #4ecca3;
+  box-shadow: 0 0 8px rgba(78, 204, 163, 0.5);
+}
+.step.active::after {
+  content: '▶';
+  position: absolute;
+  left: 10px;
+  top: 12px;
+  font-size: 10px;
+  color: #1a1a2e;
+  z-index: 2;
+}
+
+.step.pending {
+  opacity: 0.35;
+}
+
+/* --- Content --- */
+
+.step-number {
+  font-size: 0.7rem;
+  color: #8892b0;
+  margin-bottom: 2px;
+}
+
+.step-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 3px;
+}
+.step.active .step-title {
+  color: #4ecca3;
+}
+
+.step-detail {
+  font-size: 0.78rem;
+  color: #8892b0;
+  line-height: 1.4;
+}
+.step.active .step-detail {
+  color: #a8b2c8;
+}
+
+.step-method {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(78, 204, 163, 0.15);
+  color: #4ecca3;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Layout hint at bottom */
+.layout-hint {
+  margin-top: 32px;
+  padding: 12px;
+  border: 1px dashed #2a2a4a;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  color: #555;
+  text-align: center;
+}

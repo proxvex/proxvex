@@ -772,59 +772,18 @@ export class ApplicationPersistenceHandler {
         if (category && !templateRef.category) {
           templateRef.category = category;
         }
-        // Handle before: support both string and array
-        const beforeValue = templateRef.before;
-        if (beforeValue) {
-          const beforeName =
-            Array.isArray(beforeValue) && beforeValue.length > 0
-              ? beforeValue[0]
-              : typeof beforeValue === "string"
-                ? beforeValue
-                : null;
-
-          if (beforeName) {
-            if (this.isTemplateDuplicate(taskEntry, name, taskName, opts)) {
-              return;
-            }
-            const existingTemplates = taskEntry.templates.map((t) =>
-              typeof t === "string" ? t : (t as ITemplateReference).name,
+        // Handle position: "start" inserts at the beginning of the category group
+        if (templateRef.position === "start") {
+          if (!this.isTemplateDuplicate(taskEntry, name, taskName, opts)) {
+            const startIdx = this.findCategoryStartIndex(
+              taskEntry.templates,
+              templateRef.category ?? category,
             );
-            const idx = existingTemplates.indexOf(beforeName);
-            if (idx !== -1) {
-              taskEntry.templates.splice(idx, 0, templateRef);
-            } else {
-              this.addTemplateToTask(templateRef, taskEntry, taskName, opts);
-            }
-            continue; // Template added, skip to next entry
+            taskEntry.templates.splice(startIdx, 0, templateRef);
           }
+          continue;
         }
-        // Handle after: support both string and array
-        const afterValue = templateRef.after;
-        if (afterValue) {
-          const afterName =
-            Array.isArray(afterValue) && afterValue.length > 0
-              ? afterValue[0]
-              : typeof afterValue === "string"
-                ? afterValue
-                : null;
-
-          if (afterName) {
-            if (this.isTemplateDuplicate(taskEntry, name, taskName, opts)) {
-              return;
-            }
-            const existingTemplates = taskEntry.templates.map((t) =>
-              typeof t === "string" ? t : (t as ITemplateReference).name,
-            );
-            const idx = existingTemplates.indexOf(afterName);
-            if (idx !== -1) {
-              taskEntry.templates.splice(idx + 1, 0, templateRef);
-            } else {
-              this.addTemplateToTask(templateRef, taskEntry, taskName, opts);
-            }
-            continue; // Template added, skip to next entry
-          }
-        }
-        // No before/after specified, add at end
+        // Default (position "end" or unspecified): add at end of category group
         this.addTemplateToTask(templateRef, taskEntry, taskName, opts);
       }
     }
@@ -911,5 +870,23 @@ export class ApplicationPersistenceHandler {
 
     // No later category found, append at end
     return templates.length;
+  }
+
+  /**
+   * Finds the index of the first template in the given category.
+   * Used for position: "start" to insert before existing templates of the same category.
+   * Falls back to findCategoryInsertIndex if no template of that category exists yet.
+   */
+  private findCategoryStartIndex(
+    templates: (ITemplateReference | string)[],
+    category: string,
+  ): number {
+    for (let i = 0; i < templates.length; i++) {
+      const t = templates[i];
+      const cat =
+        typeof t === "string" ? "root" : (t as ITemplateReference).category ?? "root";
+      if (cat === category) return i;
+    }
+    return this.findCategoryInsertIndex(templates, category);
   }
 }

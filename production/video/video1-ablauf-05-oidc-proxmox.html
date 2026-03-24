@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Video 1 – Ablauf</title>
+<link rel="stylesheet" href="ablauf-style.css">
+</head><body>
+<h1>Video 1 — Ablauf</h1>
+<ul class="steps">
+
+  <li class="step completed">
+    <div>
+      <div class="step-number">Schritt 1</div>
+      <div class="step-title">Deployer + Projekt-Defaults</div>
+      <div class="step-detail">curl … | sh + project-v1.sh ✓</div>
+    </div>
+  </li>
+
+  <li class="step completed">
+    <div>
+      <div class="step-number">Schritt 2</div>
+      <div class="step-title">Eclipse Mosquitto</div>
+      <div class="step-detail">MQTT-Broker läuft ✓</div>
+    </div>
+  </li>
+
+  <li class="step completed">
+    <div>
+      <div class="step-number">Schritt 3</div>
+      <div class="step-title">Zitadel + PostgreSQL</div>
+      <div class="step-detail">Postgres + Zitadel laufen ✓</div>
+    </div>
+  </li>
+
+  <li class="step completed">
+    <div>
+      <div class="step-number">Schritt 4</div>
+      <div class="step-title">OIDC für oci-lxc-deployer</div>
+      <div class="step-detail">HTTPS + Login via Zitadel ✓</div>
+    </div>
+  </li>
+
+  <li class="step active">
+    <div>
+      <div class="step-number">Schritt 5</div>
+      <div class="step-title">OIDC für Proxmox</div>
+      <div class="step-detail">SSO für Proxmox — gleiches Zitadel, gleicher Login</div>
+      <div class="step-method">Web UI + Proxmox UI</div>
+    </div>
+  </li>
+
+</ul>
+</body></html>

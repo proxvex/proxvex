@@ -278,32 +278,26 @@ export class WebAppVeAddonCommandBuilder {
 
   /**
    * Finds the insertion index for addon commands based on phase.
-   * pre_start commands go BEFORE "Start LXC Container" (the start phase).
-   * post_start commands go AFTER the last post_start command (at the end before completion).
+   * Uses command.category (set by TemplateProcessor) for reliable phase detection.
+   * pre_start: insert BEFORE the first "start" category command.
+   * post_start: insert BEFORE the first "replace_ct" category command (if present).
    */
   private findAddonInsertionIndex(
     commands: ICommand[],
     phase: "pre_start" | "post_start",
   ): number {
     if (phase === "pre_start") {
-      // Insert BEFORE "Start LXC Container" - this marks the start phase
       for (let i = 0; i < commands.length; i++) {
-        const cmd = commands[i];
-        if (!cmd) continue;
-        const name = cmd.name || "";
-
-        // Look for the start phase marker
-        if (
-          name.includes("Start LXC Container") ||
-          name.includes("Start LXC") ||
-          name === "Start LXC Container"
-        ) {
-          return i;
-        }
+        if (commands[i]?.category === "start") return i;
       }
     }
 
-    // For post_start, or if no start marker found: append at the end
+    if (phase === "post_start") {
+      for (let i = 0; i < commands.length; i++) {
+        if (commands[i]?.category === "replace_ct") return i;
+      }
+    }
+
     return commands.length;
   }
 
