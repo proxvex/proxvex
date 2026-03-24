@@ -92,7 +92,7 @@ echo "PAT loaded from ${PAT_FILE}" >&2
 
 # --- Wait for Zitadel ready ---
 echo "Waiting for Zitadel to be ready..." >&2
-RETRIES=30
+RETRIES=60
 while [ $RETRIES -gt 0 ]; do
   _ready_host_hdr=""
   if [ -n "$ZITADEL_HOST_HEADER" ]; then _ready_host_hdr="-H Host:${ZITADEL_HOST_HEADER}"; fi
