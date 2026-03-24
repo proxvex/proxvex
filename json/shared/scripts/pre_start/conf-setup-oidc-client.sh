@@ -101,6 +101,18 @@ while [ $RETRIES -gt 0 ]; do
     echo "Zitadel is ready" >&2
     break
   fi
+  # 301 means Traefik is redirecting HTTP→HTTPS — extract port from Location header
+  if [ "$STATUS" = "301" ] && [ "$ZITADEL_PROTO" = "http" ]; then
+    REDIRECT_LOC=$(curl -sk -D - -o /dev/null $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null | grep -i "^location:" | tr -d '\r')
+    REDIRECT_PORT=$(echo "$REDIRECT_LOC" | sed -n 's|.*://[^:/]*:\([0-9]*\).*|\1|p')
+    ZITADEL_PROTO="https"
+    if [ -n "$REDIRECT_PORT" ]; then
+      ZITADEL_PORT="$REDIRECT_PORT"
+    fi
+    ZITADEL_URL="${ZITADEL_PROTO}://${ZITADEL_HOST}:${ZITADEL_PORT}"
+    echo "Detected HTTP→HTTPS redirect, switching to ${ZITADEL_URL}" >&2
+    continue
+  fi
   RETRIES=$((RETRIES - 1))
   echo "Zitadel not ready yet (HTTP ${STATUS}), retrying... (${RETRIES} left)" >&2
   sleep 2
@@ -130,14 +142,14 @@ zitadel_api() {
   fi
 
   if [ -n "$_body" ]; then
-    curl -sk -X "$_method" \
+    curl -skL -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       $_host_hdr \
       -d "$_body" \
       "${ZITADEL_URL}${_path}" 2>/dev/null
   else
-    curl -sk -X "$_method" \
+    curl -skL -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       $_host_hdr \
