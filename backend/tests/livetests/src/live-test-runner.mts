@@ -26,6 +26,7 @@
  */
 
 import { execSync, spawn } from "node:child_process";
+import { SnapshotManager } from "./snapshot-manager.mjs";
 import {
   existsSync,
   mkdirSync,
@@ -109,6 +110,7 @@ interface E2EConfig {
     deployerPort?: string;
     veHost?: string;
     veSshPort?: number;
+    snapshot?: { enabled: boolean; parentHost: string; parentPort: number; nestedVmId: number };
   }>;
   defaults: Record<string, unknown>;
   ports: {
@@ -351,6 +353,7 @@ function loadConfig(instanceName?: string): {
   bridge: string;
   veHost: string;
   veSshPort: number;
+  snapshot: { enabled: boolean; parentHost: string; parentPort: number; nestedVmId: number } | undefined;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
   const configPath = path.join(projectRoot, "e2e/config.json");
@@ -396,6 +399,17 @@ function loadConfig(instanceName?: string): {
   const veHost = inst.veHost ? resolveEnv(inst.veHost) : pveHost;
   const veSshPort = inst.veSshPort ?? portPveSsh;
 
+  // Snapshot config (for VM-level snapshots)
+  let snapshot: { enabled: boolean; parentHost: string; parentPort: number; nestedVmId: number } | undefined;
+  if (inst.snapshot?.enabled) {
+    snapshot = {
+      enabled: true,
+      parentHost: resolveEnv(inst.snapshot.parentHost),
+      parentPort: inst.snapshot.parentPort,
+      nestedVmId: inst.snapshot.nestedVmId,
+    };
+  }
+
   return {
     instance,
     pveHost,
@@ -406,6 +420,7 @@ function loadConfig(instanceName?: string): {
     bridge: inst.bridge || "vmbr0",
     veHost,
     veSshPort,
+    snapshot,
   };
 }
 
@@ -1213,55 +1228,30 @@ async function executeScenarios(
   const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
-  // ZFS snapshot support for dependencies
+  // VM-level snapshot support for dependencies
   const depSteps = planned.filter((p) => p.isDependency && !p.skipExecution);
-  const nonDepSteps = planned.filter((p) => !p.isDependency);
-  const snapshotName = depSteps.length > 0
-    ? "livetest-deps-" + depSteps
-        .map((p) => p.scenario.id.replace(/\/default$/, "").replace(/\//g, "-"))
-        .join("-")
-        + (nonDepSteps.length > 0 ? "-" + nonDepSteps[0]!.stackName : "")
-    : "";
+  const snapMgr = config.snapshot?.enabled
+    ? new SnapshotManager(config.snapshot, config.portPveSsh, (msg) => logInfo(msg))
+    : null;
 
-  // Try to restore from ZFS snapshot (skip dependency installation)
+  // Try to restore from VM snapshot (skip dependency installation)
   let depsRestoredFromSnapshot = false;
-  if (snapshotName && depSteps.length > 0) {
-    try {
-      const checkSnap = nestedSsh(config.pveHost, config.portPveSsh,
-        `zfs list -t snapshot -o name -H | grep '@${snapshotName}$' | head -1`, 30000);
-      if (checkSnap.trim()) {
-        logStep("ZFS", `Restoring dependencies from snapshot @${snapshotName}`);
-        // Stop dependency containers
-        for (const dep of depSteps) {
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `pct stop ${dep.vmId} 2>/dev/null; true`, 30000);
-        }
-        // Rollback each dependency container's disk (recursive removes newer snapshots)
-        for (const dep of depSteps) {
-          const dataset = `rpool/data/subvol-${dep.vmId}-disk-0`;
-          nestedSshStrict(config.pveHost, config.portPveSsh,
-            `zfs rollback -r ${dataset}@${snapshotName}`, 60000);
-        }
-        // Also rollback the volumes dataset if it has the snapshot
-        nestedSsh(config.pveHost, config.portPveSsh,
-          `zfs rollback -r rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName} 2>/dev/null; true`, 30000);
-        // Start dependency containers
-        for (const dep of depSteps) {
-          nestedSshStrict(config.pveHost, config.portPveSsh,
-            `pct start ${dep.vmId}`, 30000);
-        }
-        // Wait for docker services in last dependency (if docker-compose app)
-        const lastDep = depSteps[depSteps.length - 1]!;
-        const lastDepMeta = appMetaMap.get(lastDep.scenario.application) ?? {};
-        if (lastDep.scenario.wait_seconds && lastDep.scenario.wait_seconds > 0 && lastDepMeta.extends === "docker-compose") {
-          await waitForServices(config.pveHost, config.portPveSsh,
-            lastDep.vmId, lastDep.scenario.wait_seconds);
-        }
+  if (snapMgr && depSteps.length > 0) {
+    const depIds = depSteps.map((p) => p.scenario.id);
+    const best = snapMgr.findBestSnapshot(depIds);
+    if (best) {
+      try {
+        logStep("Snapshot", `Restoring to @${best.name}`);
+        snapMgr.rollback(best.name);
         depsRestoredFromSnapshot = true;
-        logOk(`Dependencies restored from ZFS snapshot @${snapshotName}`);
+        // Mark all dependencies up to and including the snapshot as skipped
+        for (let j = 0; j <= best.index; j++) {
+          depSteps[j]!.skipExecution = true;
+        }
+        logOk(`Dependencies restored from VM snapshot @${best.name}`);
+      } catch (err) {
+        logInfo(`VM snapshot restore failed, will install normally: ${err}`);
       }
-    } catch (err) {
-      logInfo(`ZFS snapshot restore failed, will install normally: ${err}`);
     }
   }
 
@@ -1435,23 +1425,13 @@ async function executeScenarios(
       logInfo("Verifying...");
       await verifier.runAll(step.vmId, step.hostname, finalVerify, planned);
 
-      // Create ZFS snapshot after last dependency is installed and verified
-      const nextStep = planned[i + 1];
-      if (snapshotName && step.isDependency && nextStep && !nextStep.isDependency && !depsRestoredFromSnapshot) {
+      // Create VM snapshot after each dependency is installed and verified
+      if (snapMgr && step.isDependency && !step.skipExecution) {
         try {
-          logStep("ZFS", `Creating snapshot @${snapshotName}`);
-          // Snapshot each dependency container
-          for (const dep of depSteps) {
-            const dataset = `rpool/data/subvol-${dep.vmId}-disk-0`;
-            nestedSshStrict(config.pveHost, config.portPveSsh,
-              `zfs destroy ${dataset}@${snapshotName} 2>/dev/null; zfs snapshot ${dataset}@${snapshotName}`, 30000);
-          }
-          // Also snapshot the volumes dataset
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `zfs destroy rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName} 2>/dev/null; zfs snapshot rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName}`, 30000);
-          logOk(`ZFS snapshot @${snapshotName} created`);
+          const depSnapName = snapMgr.snapshotName(step.scenario.id);
+          snapMgr.create(depSnapName, `After ${step.scenario.id}`);
         } catch (err) {
-          logInfo(`ZFS snapshot creation failed (non-fatal): ${err}`);
+          logInfo(`VM snapshot creation failed (non-fatal): ${err}`);
         }
       }
     }

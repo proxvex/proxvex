@@ -11,7 +11,13 @@
       "bridge": "vmbr1",
       "filesystem": "zfs",
       "deployerHost": "localhost",
-      "deployerPort": "${DEPLOYER_PORT}"
+      "deployerPort": "${DEPLOYER_PORT}",
+      "snapshot": {
+        "enabled": true,
+        "parentHost": "${PVE_HOST:-ubuntupve}",
+        "parentPort": 22,
+        "nestedVmId": 9000
+      }
     },
     "local-test": {
       "description": "Local development testing",
