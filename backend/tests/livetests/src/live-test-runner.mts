@@ -1229,7 +1229,9 @@ async function executeScenarios(
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
   // VM-level snapshot support for dependencies
-  const depSteps = planned.filter((p) => p.isDependency && !p.skipExecution);
+  // A step is snapshot-worthy if another step in the plan depends on it
+  const allDepIds = new Set(planned.flatMap((p) => p.scenario.depends_on ?? []));
+  const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
   const snapMgr = config.snapshot?.enabled
     ? new SnapshotManager(config.snapshot, config.portPveSsh, (msg) => logInfo(msg))
     : null;
@@ -1426,7 +1428,7 @@ async function executeScenarios(
       await verifier.runAll(step.vmId, step.hostname, finalVerify, planned);
 
       // Create VM snapshot after each dependency is installed and verified
-      if (snapMgr && step.isDependency && !step.skipExecution) {
+      if (snapMgr && allDepIds.has(step.scenario.id) && !step.skipExecution) {
         try {
           const depSnapName = snapMgr.snapshotName(step.scenario.id);
           snapMgr.create(depSnapName, `After ${step.scenario.id}`);
