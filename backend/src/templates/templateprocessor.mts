@@ -128,6 +128,7 @@ export class TemplateProcessor extends EventEmitter {
     // Initialize resolvedParams with initialInputs (user-provided parameters)
     // This allows skip_if_all_missing to check user inputs
     const resolvedParams: IResolvedParam[] = [];
+    const pendingPropertyDefaults: import("./template-output-processor.mjs").PropertyDefaultEntry[] = [];
     if (initialInputs) {
       for (const input of initialInputs) {
         // Only add non-empty values to resolvedParams
@@ -235,11 +236,19 @@ export class TemplateProcessor extends EventEmitter {
         templateReferences,
         outputSources,
         templateCategory,
+        pendingPropertyDefaults,
       };
       if (veContext !== undefined) {
         ptOpts.veContext = veContext;
       }
       await this.#processTemplate(ptOpts);
+    }
+
+    // Apply deferred property defaults now that all parameters are collected.
+    // Property defaults from early templates (e.g. 050-set-project-parameters)
+    // can now find parameters defined in later templates (e.g. 100-conf-create-configure-lxc).
+    if (pendingPropertyDefaults.length > 0) {
+      this.outputProcessor.applyPropertyDefaults(pendingPropertyDefaults, outParameters);
     }
 
     // Look-ahead: conditionally skip create_ct and start categories
@@ -522,14 +531,10 @@ export class TemplateProcessor extends EventEmitter {
       tmplRef,
     );
 
-    // Apply property defaults to parameters
-    // This sets the default value on parameters without marking them as resolved,
-    // allowing them to appear as editable in the UI with pre-filled values
-    if (outputCollection.propertyDefaults.length > 0) {
-      this.outputProcessor.applyPropertyDefaults(
-        outputCollection.propertyDefaults,
-        opts.parameters,
-      );
+    // Collect property defaults for deferred application (after all templates are processed).
+    // Parameters from later templates may not exist yet at this point.
+    if (outputCollection.propertyDefaults.length > 0 && opts.pendingPropertyDefaults) {
+      opts.pendingPropertyDefaults.push(...outputCollection.propertyDefaults);
     }
 
     // Add commands or process nested templates

@@ -42,6 +42,7 @@ export interface IProcessTemplateOpts {
     string,
     { template: string; kind: "outputs" | "properties" }
   >; // Output provenance
+  pendingPropertyDefaults?: import("./template-output-processor.mjs").PropertyDefaultEntry[];
 }
 
 export interface IParameterWithTemplate extends IParameter {
