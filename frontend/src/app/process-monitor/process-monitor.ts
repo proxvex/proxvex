@@ -409,11 +409,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       const container = this.el.nativeElement as HTMLElement;
       const runningItem = container.querySelector('.running-item');
       if (!runningItem) return;
-      const panel = runningItem.closest('mat-expansion-panel');
-      const header = panel?.querySelector('mat-expansion-panel-header');
-      if (header) {
-        header.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      runningItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
 
