@@ -95,7 +95,7 @@ describe("WebApp Installations API", () => {
 
     const url = ApiUri.Installations.replace(":veContext", veContextKey);
     const res = await request(app).get(url);
-    if (res.status !== 200 || res.body.length !== 2) {
+    if (res.status !== 200 || res.body.length !== 3) {
       console.error("Response:", JSON.stringify(res.body, null, 2));
       // Debug: show what config files look like
       const lxcDir = process.env.LXC_MANAGER_PVE_LXC_DIR;
@@ -111,14 +111,20 @@ describe("WebApp Installations API", () => {
     }
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(2);
+    // 1 Proxmox host entry + 2 managed LXC containers
+    expect(res.body.length).toBe(3);
 
-    // Sorted by vm_id
-    expect(res.body[0].vm_id).toBe(101);
-    expect(res.body[1].vm_id).toBe(104);
+    // First entry is the Proxmox host (injected)
+    expect(res.body[0].vm_id).toBe(0);
+    expect(res.body[0].is_host).toBe(true);
+    expect(res.body[0].application_id).toBe("proxmox");
 
-    // Validate shape of entries
-    for (const entry of res.body) {
+    // Container entries sorted by vm_id
+    expect(res.body[1].vm_id).toBe(101);
+    expect(res.body[2].vm_id).toBe(104);
+
+    // Validate shape of container entries
+    for (const entry of res.body.slice(1)) {
       expect(typeof entry.vm_id).toBe("number");
       expect(typeof entry.oci_image).toBe("string");
       // Icon is currently empty string (placeholder for later notes parsing)

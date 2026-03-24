@@ -134,6 +134,11 @@ export class ApplicationPersistenceHandler {
         // Use lightweight version that doesn't process templates
         const app = this.readApplicationLightweight(applicationName, readOpts);
 
+        // Skip hidden applications (e.g. proxmox host)
+        if (app.hidden) {
+          continue;
+        }
+
         // Determine framework from extends chain
         const framework = this.determineFramework(readOpts.extendsChain || []);
 

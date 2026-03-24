@@ -1,0 +1,15 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Proxmox VE Icon">
+  <rect x="0" y="0" width="64" height="64" rx="12" fill="#2C3E50"/>
+  <!-- Server rack -->
+  <rect x="14" y="10" width="36" height="14" rx="3" fill="#E67E22" opacity="0.9"/>
+  <rect x="14" y="26" width="36" height="14" rx="3" fill="#E67E22" opacity="0.7"/>
+  <rect x="14" y="42" width="36" height="14" rx="3" fill="#E67E22" opacity="0.5"/>
+  <!-- Status LEDs -->
+  <circle cx="22" cy="17" r="2" fill="#2ECC71"/>
+  <circle cx="22" cy="33" r="2" fill="#2ECC71"/>
+  <circle cx="22" cy="49" r="2" fill="#2ECC71"/>
+  <!-- Drive slots -->
+  <rect x="30" y="14" width="16" height="6" rx="1" fill="#34495E"/>
+  <rect x="30" y="30" width="16" height="6" rx="1" fill="#34495E"/>
+  <rect x="30" y="46" width="16" height="6" rx="1" fill="#34495E"/>
+</svg>

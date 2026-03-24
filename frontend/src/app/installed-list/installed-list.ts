@@ -29,8 +29,9 @@ export class InstalledList implements OnInit {
   private router = inject(Router);
   private dialog = inject(MatDialog);
 
-  // Track by function
-  trackByInstallation = (_: number, item: IManagedOciContainer): number => item.vm_id;
+  // Track by function — use hostname for host entries (vm_id=0)
+  trackByInstallation = (_: number, item: IManagedOciContainer): string | number =>
+    item.is_host ? `host:${item.hostname}` : item.vm_id;
 
   ngOnInit(): void {
     this.cacheService.getInstallations().subscribe({
@@ -73,7 +74,10 @@ export class InstalledList implements OnInit {
       application_name: installation.application_name,
       oci_image: installation.oci_image,
       installed_addons: installation.addons?.join(',') || undefined,
-      previouse_vm_id: installation.vm_id
+      // Host entries (e.g. Proxmox) have no vm_id
+      ...(installation.is_host
+        ? { is_host: 'true', hostname: installation.hostname }
+        : { previouse_vm_id: installation.vm_id }),
     };
 
     // Filter out undefined values

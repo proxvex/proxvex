@@ -139,7 +139,19 @@ export class ApplicationsList implements OnInit {
 
   private openAddonDialog(params: Record<string, string>): void {
     const applicationId = params['application_id'];
-    const app = this.applications.find(a => a.id === applicationId);
+    let app: IApplicationWebIntern | undefined = this.applications.find(a => a.id === applicationId);
+
+    // Hidden apps (e.g. Proxmox host) are not in the applications list —
+    // create a minimal entry so the dialog can load addons from the backend.
+    if (!app && params['is_host'] === 'true') {
+      app = {
+        id: applicationId,
+        name: params['application_name'] || applicationId,
+        description: 'PVE Host',
+        source: 'json',
+      };
+    }
+
     if (!app) {
       this.error = `Application '${applicationId}' not found`;
       return;
@@ -147,7 +159,7 @@ export class ApplicationsList implements OnInit {
 
     // Build preset values from query params
     const presetValues: Record<string, string | number> = {};
-    const paramKeys = ['previouse_vm_id', 'application_id', 'application_name'];
+    const paramKeys = ['previouse_vm_id', 'application_id', 'application_name', 'hostname'];
     for (const key of paramKeys) {
       if (params[key] !== undefined) {
         // Convert numeric values

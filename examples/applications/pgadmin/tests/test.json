@@ -2,6 +2,18 @@
   "default": {
     "wait_seconds": 30
   },
+  "oidc": {
+    "depends_on": ["zitadel/default"],
+    "wait_seconds": 30,
+    "cli_timeout": 600
+  },
+  "reconf-oidc": {
+    "task": "reconfigure",
+    "depends_on": ["pgadmin/default", "zitadel/default"],
+    "wait_seconds": 30,
+    "cli_timeout": 600,
+    "description": "Reconfigure: enable OIDC on existing pgAdmin"
+  },
   "ssl": {
     "wait_seconds": 30,
     "verify": {
