@@ -303,7 +303,20 @@ export class WebAppVeAddonCommandBuilder {
       }
     }
 
-    // For post_start, or if no start marker found: append at the end
+    if (phase === "post_start") {
+      // Insert BEFORE "Replace Container" (replace_ct phase) if present.
+      // For reconfigure/upgrade tasks, replace_ct runs last and must stay last.
+      for (let i = 0; i < commands.length; i++) {
+        const cmd = commands[i];
+        if (!cmd) continue;
+        const name = cmd.name || "";
+        if (name.includes("Replace Container")) {
+          return i;
+        }
+      }
+    }
+
+    // Fallback: append at the end
     return commands.length;
   }
 
