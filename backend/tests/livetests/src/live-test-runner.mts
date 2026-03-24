@@ -68,7 +68,7 @@ export interface ResolvedScenario extends TestScenario {
 }
 
 /** Planned scenario ready for execution */
-interface PlannedScenario {
+export interface PlannedScenario {
   vmId: number;
   hostname: string;
   stackName: string;
@@ -1103,7 +1103,7 @@ async function waitForServices(
 
 // ── Planning: assign VM IDs and stack names ──
 
-function planScenarios(
+export function planScenarios(
   scenarios: ResolvedScenario[],
   appStacktypes: Map<string, string | string[]>,
 ): PlannedScenario[] {

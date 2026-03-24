@@ -3,7 +3,9 @@ import {
   collectWithDeps,
   selectScenarios,
   buildParams,
+  planScenarios,
   type ResolvedScenario,
+  type PlannedScenario,
 } from "./live-test-runner.mjs";
 
 // ── Tests ──
@@ -271,5 +273,132 @@ describe("buildParams", () => {
 
     const result = buildParams(scenario, [...defaultBase], defaultVars);
     expect(result.params.find((p) => p.name === "custom")!.value).toBe("host-200-test-host");
+  });
+});
+
+// ── planScenarios ──
+
+describe("planScenarios", () => {
+  function makeResolved(id: string, opts?: Partial<ResolvedScenario>): ResolvedScenario {
+    const [app] = id.split("/");
+    return { id, application: app!, description: `Test ${id}`, ...opts };
+  }
+
+  it("assigns sequential VM IDs starting at 200", () => {
+    const scenarios = [makeResolved("postgres/default"), makeResolved("zitadel/default")];
+    const result = planScenarios(scenarios, new Map());
+    expect(result[0]!.vmId).toBe(200);
+    expect(result[1]!.vmId).toBe(201);
+  });
+
+  it("uses explicit vm_id from scenario when set", () => {
+    const scenarios = [makeResolved("myapp/default", { vm_id: 500 })];
+    const result = planScenarios(scenarios, new Map());
+    expect(result[0]!.vmId).toBe(500);
+  });
+
+  it("generates hostname from app + variant", () => {
+    const scenarios = [makeResolved("postgres/ssl")];
+    const result = planScenarios(scenarios, new Map());
+    expect(result[0]!.hostname).toBe("postgres-ssl");
+  });
+
+  it("stack name is the scenario variant", () => {
+    const scenarios = [makeResolved("gitea/ssl")];
+    const result = planScenarios(scenarios, new Map());
+    expect(result[0]!.stackName).toBe("ssl");
+  });
+
+  it("detects hasStacktype from appStacktypes map", () => {
+    const stacktypes = new Map<string, string | string[]>([["postgres", "postgres"]]);
+    const scenarios = [makeResolved("postgres/default"), makeResolved("nginx/default")];
+    const result = planScenarios(scenarios, stacktypes);
+    expect(result[0]!.hasStacktype).toBe(true);
+    expect(result[1]!.hasStacktype).toBe(false);
+  });
+
+  it("initializes isDependency and skipExecution to false", () => {
+    const scenarios = [makeResolved("myapp/default")];
+    const result = planScenarios(scenarios, new Map());
+    expect(result[0]!.isDependency).toBe(false);
+    expect(result[0]!.skipExecution).toBe(false);
+  });
+});
+
+// ── Snapshot naming ──
+
+describe("snapshot naming", () => {
+  /** Reproduces the snapshot name logic from live-test-runner.mts */
+  function snapshotName(scenarioId: string): string {
+    return "dep-" + scenarioId.replace(/\//g, "-");
+  }
+
+  it("generates correct name for default scenario", () => {
+    expect(snapshotName("postgres/default")).toBe("dep-postgres-default");
+  });
+
+  it("generates correct name for ssl scenario", () => {
+    expect(snapshotName("zitadel/ssl")).toBe("dep-zitadel-ssl");
+  });
+
+  it("finds best snapshot: latest dependency in chain", () => {
+    // Given deps: postgres/default → zitadel/default
+    // If dep-zitadel-default exists, it's the best (includes postgres state)
+    const deps = ["postgres/default", "zitadel/default"];
+    const existingSnapshots = new Set(["dep-postgres-default", "dep-zitadel-default"]);
+
+    // Walk backwards to find the latest existing snapshot
+    let bestSnap: string | null = null;
+    for (let i = deps.length - 1; i >= 0; i--) {
+      const name = snapshotName(deps[i]!);
+      if (existingSnapshots.has(name)) {
+        bestSnap = name;
+        break;
+      }
+    }
+    expect(bestSnap).toBe("dep-zitadel-default");
+  });
+
+  it("falls back to earlier snapshot if latest missing", () => {
+    const deps = ["postgres/default", "zitadel/default"];
+    const existingSnapshots = new Set(["dep-postgres-default"]);
+
+    let bestSnap: string | null = null;
+    for (let i = deps.length - 1; i >= 0; i--) {
+      const name = snapshotName(deps[i]!);
+      if (existingSnapshots.has(name)) {
+        bestSnap = name;
+        break;
+      }
+    }
+    expect(bestSnap).toBe("dep-postgres-default");
+  });
+
+  it("returns null if no snapshot exists", () => {
+    const deps = ["postgres/default"];
+    const existingSnapshots = new Set<string>();
+
+    let bestSnap: string | null = null;
+    for (let i = deps.length - 1; i >= 0; i--) {
+      const name = snapshotName(deps[i]!);
+      if (existingSnapshots.has(name)) {
+        bestSnap = name;
+        break;
+      }
+    }
+    expect(bestSnap).toBeNull();
+  });
+
+  it("skip logic: all deps up to best snapshot are skipped", () => {
+    const deps = ["postgres/default", "zitadel/default", "gitea/default"];
+    const bestSnap = "dep-zitadel-default";
+
+    const skipped: string[] = [];
+    for (const dep of deps) {
+      skipped.push(dep);
+      if (snapshotName(dep) === bestSnap) break;
+    }
+    expect(skipped).toEqual(["postgres/default", "zitadel/default"]);
+    // gitea/default is NOT skipped — it needs to be installed
   });
 });
