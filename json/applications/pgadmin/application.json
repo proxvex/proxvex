@@ -8,7 +8,7 @@
     "image": [
       {
         "name": "pgadmin-parameters.json",
-        "before": "011-host-get-oci-image.json"
+        "position": "start"
       }
     ]
   },

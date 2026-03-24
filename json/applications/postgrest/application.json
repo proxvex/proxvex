@@ -39,10 +39,7 @@
   ],
   "installation": {
     "image": [
-      {
-        "name": "postgrest-parameters.json",
-        "before": "101-host-check-docker-image.json"
-      }
+      "postgrest-parameters.json"
     ]
   },
   "stacktype": "postgres",
