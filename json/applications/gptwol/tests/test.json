@@ -1,0 +1,9 @@
+{
+  "default": { "wait_seconds": 30 },
+  "reconf-oidc": {
+    "task": "reconfigure",
+    "depends_on": ["gptwol/default", "zitadel/default"],
+    "wait_seconds": 60,
+    "description": "Reconfigure: enable OIDC addon on existing container"
+  }
+}

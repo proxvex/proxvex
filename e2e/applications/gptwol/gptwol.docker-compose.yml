@@ -1,0 +1,31 @@
+services:
+  gptwol:
+    image: misterbabou/gptwol:latest
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      #PORT: 5000
+      #IP: 0.0.0.0
+      #LOG_LEVEL: INFO
+      #ENABLE_LOGIN: "false"
+      #USERNAME: admin
+      #PASSWORD: admin
+      #OIDC_ENABLED: "false"
+      #OIDC_ISSUER: https://auth.example.com
+      #OIDC_CLIENT_ID: oidcclientid
+      #OIDC_CLIENT_SECRET: oidcclientsecret
+      #OIDC_REDIRECT_URI: http://urlofyourgptwol:port
+      #SCRIPT_NAME: /my-app
+      #ENABLE_ADD_DEL: "true"
+      #ENABLE_REFRESH: "true"
+      #REFRESH_INTERVAL: 30
+      #PING_TIMEOUT: 300
+      #ARP_INTERFACE: eth0
+      #ARP_TIMEOUT: 300
+      #TCP_TIMEOUT: 1
+      #ENABLE_L2_WOL_PACKET: "false"
+      #L2_INTERFACE: eth0
+    volumes:
+      - ./appdata/db:/app/db
+      - ./appdata/cron:/etc/cron.d
