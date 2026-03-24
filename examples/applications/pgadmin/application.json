@@ -31,7 +31,7 @@
       "type": "string",
       "advanced": true,
       "multiline": true,
-      "default": "PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False\nPGADMIN_CONFIG_SERVER_MODE=True\nPGADMIN_DEFAULT_EMAIL=admin@local.dev\nPGADMIN_DEFAULT_PASSWORD={{ PGADMIN_DEFAULT_PASSWORD }}\nPGADMIN_EMAIL=admin@local.dev\nPGADMIN_ENABLE_TLS=True\nPGADMIN_PORT=5050\nPGADMIN_VERSION=latest",
+      "default": "PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False\nPGADMIN_CONFIG_SERVER_MODE=True\nPGADMIN_DEFAULT_EMAIL=admin@local.dev\nPGADMIN_DEFAULT_PASSWORD=admin\nPGADMIN_EMAIL=admin@local.dev\nPGADMIN_LISTEN_PORT=5050\nPGADMIN_VERSION=latest",
       "description": "Environment variables to substitute in initial_command.",
       "template": "107-conf-oci-lxc-configuration.json",
       "templatename": "Configure LXC for OCI"
@@ -44,11 +44,11 @@
     },
     {
       "id": "uid",
-      "value": "0"
+      "value": "5050"
     },
     {
       "id": "username",
-      "value": "root"
+      "value": "pgadmin"
     }
   ],
   "installation": {
@@ -57,6 +57,7 @@
       "1-upload-server-key.json"
     ]
   },
+  "supported_addons": ["addon-oidc"],
   "tags": [
     "database"
   ],
