@@ -47,14 +47,22 @@ if [ -z "$OIDC_APP_NAME" ]; then
 fi
 
 # Build Zitadel internal API URL from provides (proto, port) + hostname
-# Uses short hostname (not FQDN) because Zitadel's ExternalDomain is the hostname
+# Provides may use hostname-based prefix (ZITADEL_PROTO or ZITADEL_SSL_PROTO)
+# depending on whether the Zitadel instance has SSL enabled
 ZITADEL_PROTO="http"
 ZITADEL_PORT="8080"
+ZITADEL_SSL_PROTO_INPUT="{{ ZITADEL_SSL_PROTO }}"
+ZITADEL_SSL_PORT_INPUT="{{ ZITADEL_SSL_PORT }}"
+# Try standard provides first, then SSL-variant provides
 if [ -n "$ZITADEL_PROTO_INPUT" ] && [ "$ZITADEL_PROTO_INPUT" != "NOT_DEFINED" ]; then
   ZITADEL_PROTO="$ZITADEL_PROTO_INPUT"
+elif [ -n "$ZITADEL_SSL_PROTO_INPUT" ] && [ "$ZITADEL_SSL_PROTO_INPUT" != "NOT_DEFINED" ]; then
+  ZITADEL_PROTO="$ZITADEL_SSL_PROTO_INPUT"
 fi
 if [ -n "$ZITADEL_PORT_INPUT" ] && [ "$ZITADEL_PORT_INPUT" != "NOT_DEFINED" ]; then
   ZITADEL_PORT="$ZITADEL_PORT_INPUT"
+elif [ -n "$ZITADEL_SSL_PORT_INPUT" ] && [ "$ZITADEL_SSL_PORT_INPUT" != "NOT_DEFINED" ]; then
+  ZITADEL_PORT="$ZITADEL_SSL_PORT_INPUT"
 fi
 ZITADEL_URL="${ZITADEL_PROTO}://${ZITADEL_HOST}:${ZITADEL_PORT}"
 
@@ -92,7 +100,7 @@ echo "PAT loaded from ${PAT_FILE}" >&2
 
 # --- Wait for Zitadel ready ---
 echo "Waiting for Zitadel to be ready..." >&2
-RETRIES=30
+RETRIES=60
 while [ $RETRIES -gt 0 ]; do
   _ready_host_hdr=""
   if [ -n "$ZITADEL_HOST_HEADER" ]; then _ready_host_hdr="-H Host:${ZITADEL_HOST_HEADER}"; fi
@@ -100,6 +108,16 @@ while [ $RETRIES -gt 0 ]; do
   if [ "$STATUS" = "200" ]; then
     echo "Zitadel is ready" >&2
     break
+  fi
+  # 301/302 means Traefik is redirecting HTTP→HTTPS — extract target from Location header
+  if [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+    REDIRECT_LOC=$(curl -sk -D - -o /dev/null $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null | grep -i "^location:" | tr -d '\r')
+    REDIRECT_PORT=$(echo "$REDIRECT_LOC" | sed -n 's|.*://[^:/]*:\([0-9]*\).*|\1|p')
+    ZITADEL_PROTO="https"
+    [ -n "$REDIRECT_PORT" ] && ZITADEL_PORT="$REDIRECT_PORT"
+    ZITADEL_URL="${ZITADEL_PROTO}://${ZITADEL_HOST}:${ZITADEL_PORT}"
+    echo "Detected redirect, switching to ${ZITADEL_URL}" >&2
+    continue
   fi
   RETRIES=$((RETRIES - 1))
   echo "Zitadel not ready yet (HTTP ${STATUS}), retrying... (${RETRIES} left)" >&2
@@ -130,14 +148,14 @@ zitadel_api() {
   fi
 
   if [ -n "$_body" ]; then
-    curl -sk -X "$_method" \
+    curl -skL -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       $_host_hdr \
       -d "$_body" \
       "${ZITADEL_URL}${_path}" 2>/dev/null
   else
-    curl -sk -X "$_method" \
+    curl -skL -X "$_method" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       $_host_hdr \

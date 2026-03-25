@@ -26,6 +26,8 @@
  */
 
 import { execSync, spawn } from "node:child_process";
+import { SnapshotManager } from "./snapshot-manager.mjs";
+import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import {
   existsSync,
   mkdirSync,
@@ -68,7 +70,7 @@ export interface ResolvedScenario extends TestScenario {
 }
 
 /** Planned scenario ready for execution */
-interface PlannedScenario {
+export interface PlannedScenario {
   vmId: number;
   hostname: string;
   stackName: string;
@@ -109,6 +111,7 @@ interface E2EConfig {
     deployerPort?: string;
     veHost?: string;
     veSshPort?: number;
+    snapshot?: { enabled: boolean };
   }>;
   defaults: Record<string, unknown>;
   ports: {
@@ -201,6 +204,46 @@ export function collectWithDeps(
   }
 
   return ordered;
+}
+
+/**
+ * After a dependency fails, partition remaining scenarios into:
+ * - unaffected: scenarios that do NOT transitively depend on the failed dep
+ * - blocked: scenarios that DO transitively depend on the failed dep
+ *
+ * This allows running unaffected tests first, maximizing coverage.
+ */
+export function partitionAfterFailure(
+  failedDepId: string,
+  remaining: PlannedScenario[],
+  all: Map<string, ResolvedScenario>,
+): { unaffected: PlannedScenario[]; blocked: PlannedScenario[] } {
+  // Build transitive dependency set for each scenario
+  function getTransitiveDeps(id: string, visited = new Set<string>()): Set<string> {
+    if (visited.has(id)) return visited;
+    visited.add(id);
+    const scenario = all.get(id);
+    if (scenario) {
+      for (const dep of scenario.depends_on ?? []) {
+        getTransitiveDeps(dep, visited);
+      }
+    }
+    return visited;
+  }
+
+  const unaffected: PlannedScenario[] = [];
+  const blocked: PlannedScenario[] = [];
+
+  for (const step of remaining) {
+    const deps = getTransitiveDeps(step.scenario.id);
+    if (deps.has(failedDepId)) {
+      blocked.push(step);
+    } else {
+      unaffected.push(step);
+    }
+  }
+
+  return { unaffected, blocked };
 }
 
 /**
@@ -351,6 +394,7 @@ function loadConfig(instanceName?: string): {
   bridge: string;
   veHost: string;
   veSshPort: number;
+  snapshot: { enabled: boolean } | undefined;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
   const configPath = path.join(projectRoot, "e2e/config.json");
@@ -396,6 +440,9 @@ function loadConfig(instanceName?: string): {
   const veHost = inst.veHost ? resolveEnv(inst.veHost) : pveHost;
   const veSshPort = inst.veSshPort ?? portPveSsh;
 
+  // Snapshot config (for VM-level snapshots)
+  const snapshot = inst.snapshot?.enabled ? { enabled: true } : undefined;
+
   return {
     instance,
     pveHost,
@@ -406,6 +453,7 @@ function loadConfig(instanceName?: string): {
     bridge: inst.bridge || "vmbr0",
     veHost,
     veSshPort,
+    snapshot,
   };
 }
 
@@ -671,7 +719,12 @@ class Verifier {
       logWarn(`[${vmId}] Could not fetch docker logs via API`);
       return;
     }
-    const errorLines = content.split("\n").filter((l) => /error/i.test(l));
+    const errorLines = content.split("\n").filter((l) => {
+      if (!/error/i.test(l)) return false;
+      // Ignore known harmless Zitadel notification errors (missing protocol scheme for ExternalDomain)
+      if (/projections\.notifications.*missing protocol scheme/i.test(l)) return false;
+      return true;
+    });
     if (errorLines.length === 0) {
       logOk(`[${vmId}] Docker logs clean (no errors)`);
       this.passed++;
@@ -1103,7 +1156,7 @@ async function waitForServices(
 
 // ── Planning: assign VM IDs and stack names ──
 
-function planScenarios(
+export function planScenarios(
   scenarios: ResolvedScenario[],
   appStacktypes: Map<string, string | string[]>,
 ): PlannedScenario[] {
@@ -1199,6 +1252,7 @@ async function executeScenarios(
   veHost: string,
   projectRoot: string,
   appMetaMap: Map<string, AppMeta>,
+  resultWriter?: TestResultWriter,
   fixtureBaseDir?: string,
 ): Promise<TestResult> {
   const result: TestResult = {
@@ -1213,55 +1267,45 @@ async function executeScenarios(
   const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
 
+  // Fetch deployer version for test results
+  let deployerVersion = "unknown";
+  let deployerGitHash = "unknown";
+  try {
+    const vResp = await fetch(`${apiUrl}/api/version`, { signal: AbortSignal.timeout(5000) });
+    if (vResp.ok) {
+      const v = await vResp.json() as { version?: string; gitHash?: string };
+      deployerVersion = v.version ?? "unknown";
+      deployerGitHash = v.gitHash ?? "unknown";
+    }
+  } catch { /* ignore */ }
+
   // ZFS snapshot support for dependencies
-  const depSteps = planned.filter((p) => p.isDependency && !p.skipExecution);
-  const nonDepSteps = planned.filter((p) => !p.isDependency);
-  const snapshotName = depSteps.length > 0
-    ? "livetest-deps-" + depSteps
-        .map((p) => p.scenario.id.replace(/\/default$/, "").replace(/\//g, "-"))
-        .join("-")
-        + (nonDepSteps.length > 0 ? "-" + nonDepSteps[0]!.stackName : "")
-    : "";
+  // A step is snapshot-worthy if another step in the plan depends on it
+  const allDepIds = new Set(planned.flatMap((p) => p.scenario.depends_on ?? []));
+  const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
+  const snapMgr = config.snapshot?.enabled
+    ? new SnapshotManager(config.pveHost, config.portPveSsh, (msg) => logInfo(msg))
+    : null;
 
   // Try to restore from ZFS snapshot (skip dependency installation)
   let depsRestoredFromSnapshot = false;
-  if (snapshotName && depSteps.length > 0) {
-    try {
-      const checkSnap = nestedSsh(config.pveHost, config.portPveSsh,
-        `zfs list -t snapshot -o name -H | grep '@${snapshotName}$' | head -1`, 30000);
-      if (checkSnap.trim()) {
-        logStep("ZFS", `Restoring dependencies from snapshot @${snapshotName}`);
-        // Stop dependency containers
-        for (const dep of depSteps) {
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `pct stop ${dep.vmId} 2>/dev/null; true`, 30000);
-        }
-        // Rollback each dependency container's disk (recursive removes newer snapshots)
-        for (const dep of depSteps) {
-          const dataset = `rpool/data/subvol-${dep.vmId}-disk-0`;
-          nestedSshStrict(config.pveHost, config.portPveSsh,
-            `zfs rollback -r ${dataset}@${snapshotName}`, 60000);
-        }
-        // Also rollback the volumes dataset if it has the snapshot
-        nestedSsh(config.pveHost, config.portPveSsh,
-          `zfs rollback -r rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName} 2>/dev/null; true`, 30000);
-        // Start dependency containers
-        for (const dep of depSteps) {
-          nestedSshStrict(config.pveHost, config.portPveSsh,
-            `pct start ${dep.vmId}`, 30000);
-        }
-        // Wait for docker services in last dependency (if docker-compose app)
-        const lastDep = depSteps[depSteps.length - 1]!;
-        const lastDepMeta = appMetaMap.get(lastDep.scenario.application) ?? {};
-        if (lastDep.scenario.wait_seconds && lastDep.scenario.wait_seconds > 0 && lastDepMeta.extends === "docker-compose") {
-          await waitForServices(config.pveHost, config.portPveSsh,
-            lastDep.vmId, lastDep.scenario.wait_seconds);
-        }
+  if (snapMgr && depSteps.length > 0) {
+    const depIds = depSteps.map((p) => p.scenario.id);
+    const best = snapMgr.findBestSnapshot(depIds);
+    if (best) {
+      try {
+        const depVmIds = depSteps.slice(0, best.index + 1).map((p) => p.vmId);
+        logStep("Snapshot", `Restoring to @${best.name}`);
+        snapMgr.rollback(best.name, depVmIds);
         depsRestoredFromSnapshot = true;
-        logOk(`Dependencies restored from ZFS snapshot @${snapshotName}`);
+        // Mark all dependencies up to and including the snapshot as skipped
+        for (let j = 0; j <= best.index; j++) {
+          depSteps[j]!.skipExecution = true;
+        }
+        logOk(`Dependencies restored from ZFS snapshot @${best.name}`);
+      } catch (err) {
+        logInfo(`ZFS snapshot restore failed, will install normally: ${err}`);
       }
-    } catch (err) {
-      logInfo(`ZFS snapshot restore failed, will install normally: ${err}`);
     }
   }
 
@@ -1275,6 +1319,8 @@ async function executeScenarios(
         `${i + 1}/${planned.length}`,
         `${scenario.id} (${task}) [VM ${step.vmId}]`,
       );
+
+      const stepStartTime = new Date();
 
       // Skip dependencies restored from ZFS snapshot
       if (depsRestoredFromSnapshot && step.isDependency) {
@@ -1393,7 +1439,59 @@ async function executeScenarios(
           application: scenario.application, scenarioId: scenario.id,
           cliOutput: cliResult.output,
         });
-        break;
+
+        // Write failed test result
+        if (resultWriter) {
+          resultWriter.write(TestResultWriter.buildResult({
+            runId: resultWriter.getRunId(),
+            scenarioId: scenario.id,
+            application: scenario.application,
+            task,
+            status: "failed",
+            vmId: step.vmId,
+            hostname: step.hostname,
+            stackName: step.stackName,
+            addons: scenario.selectedAddons ?? [],
+            startedAt: stepStartTime,
+            finishedAt: new Date(),
+            deployerVersion,
+            deployerGitHash,
+            dependencies: [],
+            verifyResults: {},
+            errorMessage: errMsg,
+          }));
+        }
+
+        // If a dependency failed, partition remaining tests:
+        // run unaffected tests first, skip blocked tests
+        if (allDepIds.has(scenario.id)) {
+          const remaining = planned.slice(i + 1);
+          const allTests = new Map(planned.map((p) => [p.scenario.id, p.scenario]));
+          const { unaffected, blocked } = partitionAfterFailure(scenario.id, remaining, allTests);
+
+          if (unaffected.length > 0) {
+            logInfo(`Dependency ${scenario.id} failed — running ${unaffected.length} unaffected test(s) first`);
+            // Re-order: run unaffected tests in the remaining slots
+            for (let u = 0; u < unaffected.length; u++) {
+              planned[i + 1 + u] = unaffected[u]!;
+            }
+          }
+
+          // Mark blocked tests as skipped
+          for (const b of blocked) {
+            logWarn(`Skipping ${b.scenario.id} (blocked by failed dependency ${scenario.id})`);
+            b.skipExecution = true;
+            result.errors.push(`Skipped: ${b.scenario.id} (dependency ${scenario.id} failed)`);
+          }
+
+          // Append blocked (skipped) tests after unaffected
+          for (let b = 0; b < blocked.length; b++) {
+            planned[i + 1 + unaffected.length + b] = blocked[b]!;
+          }
+          continue; // Don't break — let the loop continue with reordered plan
+        }
+
+        break; // Non-dependency failure — stop execution
       }
 
       // For replace_ct tasks: discover the new VM ID (create_ct assigned a new one)
@@ -1435,21 +1533,50 @@ async function executeScenarios(
       logInfo("Verifying...");
       await verifier.runAll(step.vmId, step.hostname, finalVerify, planned);
 
-      // Create ZFS snapshot after last dependency is installed and verified
-      const nextStep = planned[i + 1];
-      if (snapshotName && step.isDependency && nextStep && !nextStep.isDependency && !depsRestoredFromSnapshot) {
+      // Write test result JSON
+      if (resultWriter) {
+        const depInfos: TestResultDependency[] = (scenario.depends_on ?? []).map((depId) => {
+          const depStep = planned.find((p) => p.scenario.id === depId);
+          return {
+            scenario_id: depId,
+            vm_id: depStep?.vmId ?? 0,
+            status: (depStep?.skipExecution ? "passed" : "passed") as "passed" | "failed" | "skipped",
+            version: "", // TODO: extract from container notes
+            snapshot_used: snapMgr?.snapshotName(depId) ?? null,
+            snapshot_date: null,
+          };
+        });
+        resultWriter.write(TestResultWriter.buildResult({
+          runId: resultWriter.getRunId(),
+          scenarioId: scenario.id,
+          application: scenario.application,
+          task,
+          status: "passed",
+          vmId: step.vmId,
+          hostname: step.hostname,
+          stackName: step.stackName,
+          addons: scenario.selectedAddons ?? [],
+          startedAt: stepStartTime,
+          finishedAt: new Date(),
+          deployerVersion,
+          deployerGitHash,
+          dependencies: depInfos,
+          verifyResults: Object.fromEntries(
+            Object.entries(finalVerify).map(([k, v]) => [k, v === true]),
+          ),
+        }));
+      }
+
+      // Create ZFS snapshot after each dependency is installed and verified
+      if (snapMgr && allDepIds.has(step.scenario.id) && !step.skipExecution) {
         try {
-          logStep("ZFS", `Creating snapshot @${snapshotName}`);
-          // Snapshot each dependency container
-          for (const dep of depSteps) {
-            const dataset = `rpool/data/subvol-${dep.vmId}-disk-0`;
-            nestedSshStrict(config.pveHost, config.portPveSsh,
-              `zfs destroy ${dataset}@${snapshotName} 2>/dev/null; zfs snapshot ${dataset}@${snapshotName}`, 30000);
-          }
-          // Also snapshot the volumes dataset
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `zfs destroy rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName} 2>/dev/null; zfs snapshot rpool/data/subvol-999999-oci-lxc-deployer-volumes@${snapshotName}`, 30000);
-          logOk(`ZFS snapshot @${snapshotName} created`);
+          const depSnapName = snapMgr.snapshotName(step.scenario.id);
+          // Collect all dep VM IDs installed so far (including this one)
+          const installedDepVmIds = planned
+            .filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution)
+            .filter((p) => planned.indexOf(p) <= i)
+            .map((p) => p.vmId);
+          snapMgr.create(depSnapName, installedDepVmIds);
         } catch (err) {
           logInfo(`ZFS snapshot creation failed (non-fatal): ${err}`);
         }
@@ -1860,7 +1987,8 @@ async function main() {
   const fixtureBaseDir = fixturesFlag
     ? path.join(projectRoot, "frontend/src/test-fixtures")
     : undefined;
-  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, fixtureBaseDir);
+  const resultWriter = new TestResultWriter(projectRoot, config.instance);
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, resultWriter, fixtureBaseDir);
   const allResults = [result];
 
   // Collect diagnostics before cleanup (VMs still running)
