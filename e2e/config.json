@@ -13,10 +13,7 @@
       "deployerHost": "localhost",
       "deployerPort": "${DEPLOYER_PORT}",
       "snapshot": {
-        "enabled": true,
-        "parentHost": "${PVE_HOST:-ubuntupve}",
-        "parentPort": 22,
-        "nestedVmId": 9000
+        "enabled": true
       }
     },
     "local-test": {

@@ -4,6 +4,7 @@ import {
   selectScenarios,
   buildParams,
   planScenarios,
+  partitionAfterFailure,
   type ResolvedScenario,
   type PlannedScenario,
 } from "./live-test-runner.mjs";
@@ -400,5 +401,79 @@ describe("snapshot naming", () => {
     }
     expect(skipped).toEqual(["postgres/default", "zitadel/default"]);
     // gitea/default is NOT skipped — it needs to be installed
+  });
+});
+
+// ── partitionAfterFailure ──
+
+describe("partitionAfterFailure", () => {
+  function makeResolved(id: string, opts?: Partial<ResolvedScenario>): ResolvedScenario {
+    const [app] = id.split("/");
+    return { id, application: app!, description: `Test ${id}`, ...opts };
+  }
+
+  function makePlanned(id: string, vmId: number, opts?: Partial<ResolvedScenario>): PlannedScenario {
+    return {
+      vmId,
+      hostname: id.replace("/", "-"),
+      stackName: id.split("/")[1] ?? "default",
+      scenario: makeResolved(id, opts),
+      hasStacktype: false,
+      isDependency: false,
+      skipExecution: false,
+    };
+  }
+
+  it("separates unaffected from blocked when a dependency fails", () => {
+    const all = new Map<string, ResolvedScenario>([
+      ["postgres/default", makeResolved("postgres/default")],
+      ["zitadel/default", makeResolved("zitadel/default", { depends_on: ["postgres/default"] })],
+      ["gitea/default", makeResolved("gitea/default", { depends_on: ["zitadel/default"] })],
+      ["nginx/default", makeResolved("nginx/default")],
+      ["postgrest/default", makeResolved("postgrest/default", { depends_on: ["postgres/default"] })],
+    ]);
+
+    const remaining = [
+      makePlanned("gitea/default", 203, { depends_on: ["zitadel/default"] }),
+      makePlanned("nginx/default", 204),
+      makePlanned("postgrest/default", 205, { depends_on: ["postgres/default"] }),
+    ];
+
+    // zitadel failed → gitea is blocked, nginx + postgrest are unaffected
+    const { unaffected, blocked } = partitionAfterFailure("zitadel/default", remaining, all);
+    expect(unaffected.map((p) => p.scenario.id)).toEqual(["nginx/default", "postgrest/default"]);
+    expect(blocked.map((p) => p.scenario.id)).toEqual(["gitea/default"]);
+  });
+
+  it("all tests blocked when root dependency fails", () => {
+    const all = new Map<string, ResolvedScenario>([
+      ["postgres/default", makeResolved("postgres/default")],
+      ["zitadel/default", makeResolved("zitadel/default", { depends_on: ["postgres/default"] })],
+      ["gitea/default", makeResolved("gitea/default", { depends_on: ["zitadel/default", "postgres/default"] })],
+    ]);
+
+    const remaining = [
+      makePlanned("zitadel/default", 201, { depends_on: ["postgres/default"] }),
+      makePlanned("gitea/default", 202, { depends_on: ["zitadel/default", "postgres/default"] }),
+    ];
+
+    const { unaffected, blocked } = partitionAfterFailure("postgres/default", remaining, all);
+    expect(unaffected).toHaveLength(0);
+    expect(blocked.map((p) => p.scenario.id)).toEqual(["zitadel/default", "gitea/default"]);
+  });
+
+  it("no tests blocked when independent scenario fails", () => {
+    const all = new Map<string, ResolvedScenario>([
+      ["nginx/default", makeResolved("nginx/default")],
+      ["postgres/default", makeResolved("postgres/default")],
+    ]);
+
+    const remaining = [
+      makePlanned("postgres/default", 201),
+    ];
+
+    const { unaffected, blocked } = partitionAfterFailure("nginx/default", remaining, all);
+    expect(unaffected.map((p) => p.scenario.id)).toEqual(["postgres/default"]);
+    expect(blocked).toHaveLength(0);
   });
 });

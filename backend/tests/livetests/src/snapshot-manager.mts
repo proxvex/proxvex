@@ -1,9 +1,9 @@
 /**
- * VM-level snapshot manager for live integration tests.
+ * ZFS snapshot manager for live integration tests.
  *
- * Snapshots the entire nested PVE VM (qm snapshot) instead of individual
- * LXC containers. This captures all containers, volumes, and state in one
- * atomic operation.
+ * Creates per-dependency ZFS snapshots of all container disks and the
+ * shared volumes dataset inside the nested PVE. Each snapshot captures
+ * the cumulative state of all dependencies installed up to that point.
  *
  * /etc/pve/lxc is on pmxcfs (FUSE) and NOT included in ZFS snapshots,
  * so we backup/restore it manually to the volumes dataset.
@@ -12,133 +12,137 @@ import { execSync } from "node:child_process";
 
 export interface SnapshotConfig {
   enabled: boolean;
-  parentHost: string;
-  parentPort: number;
-  nestedVmId: number;
-}
-
-/** SSH to the root Proxmox host (parent of the nested VM) */
-function parentSsh(config: SnapshotConfig, cmd: string, timeout = 30000): string {
-  return execSync(
-    `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p ${config.parentPort} root@${config.parentHost} ${JSON.stringify(cmd)}`,
-    { timeout, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
-  ).trim();
-}
-
-/** SSH to the nested PVE (inside the VM) */
-function nestedSsh(config: SnapshotConfig, nestedPort: number, cmd: string, timeout = 30000): string {
-  return execSync(
-    `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p ${nestedPort} root@${config.parentHost} ${JSON.stringify(cmd)}`,
-    { timeout, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
-  ).trim();
 }
 
 const PVE_LXC_BACKUP_DIR = "/rpool/data/subvol-999999-oci-lxc-deployer-volumes/.pve-lxc-backup";
+const VOLUMES_DATASET = "rpool/data/subvol-999999-oci-lxc-deployer-volumes";
 
 export class SnapshotManager {
   constructor(
-    private config: SnapshotConfig,
-    private nestedSshPort: number, // e.g. 1022
+    private pveHost: string,
+    private pveSshPort: number,
     private log: (msg: string) => void = console.log,
   ) {}
+
+  private ssh(cmd: string, timeout = 30000): string {
+    return execSync(
+      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p ${this.pveSshPort} root@${this.pveHost} ${JSON.stringify(cmd)}`,
+      { timeout, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+    ).trim();
+  }
 
   /** Generate snapshot name from scenario ID: dep-<app>-<variant> */
   snapshotName(scenarioId: string): string {
     return "dep-" + scenarioId.replace(/\//g, "-");
   }
 
-  /** Check if a snapshot exists on the parent Proxmox */
+  /** Check if a snapshot exists on the volumes dataset */
   exists(name: string): boolean {
     try {
-      const result = parentSsh(this.config,
-        `qm listsnapshot ${this.config.nestedVmId} | grep -q '${name}'`);
+      this.ssh(`zfs list -t snapshot -o name -H | grep -q '@${name}$'`);
       return true;
     } catch {
       return false;
     }
   }
 
-  /** List all dep-* snapshots */
-  listSnapshots(): string[] {
-    try {
-      const output = parentSsh(this.config,
-        `qm listsnapshot ${this.config.nestedVmId}`);
-      return output.split("\n")
-        .map(line => line.trim().split(/\s+/)[1] ?? "")
-        .filter(name => name.startsWith("dep-"));
-    } catch {
-      return [];
-    }
-  }
-
   /**
-   * Create a snapshot of the nested VM.
-   * 1. Backup /etc/pve/lxc configs (pmxcfs not in ZFS snapshot)
-   * 2. qm snapshot on parent Proxmox
+   * Create ZFS snapshots for all dependency VMs + volumes dataset.
+   * 1. Backup /etc/pve/lxc configs to volumes dataset
+   * 2. ZFS snapshot each VM disk + volumes dataset
    */
-  create(name: string, description: string): void {
-    this.log(`Creating VM snapshot @${name}...`);
+  create(name: string, depVmIds: number[]): void {
+    this.log(`Creating ZFS snapshot @${name}...`);
 
-    // 1. Backup /etc/pve/lxc on the nested PVE
+    // 1. Backup /etc/pve/lxc
     try {
-      nestedSsh(this.config, this.nestedSshPort,
+      this.ssh(
         `mkdir -p ${PVE_LXC_BACKUP_DIR} && cp -a /etc/pve/lxc/*.conf ${PVE_LXC_BACKUP_DIR}/ 2>/dev/null || true`,
-        15000);
+        15000,
+      );
     } catch (err) {
       this.log(`Warning: /etc/pve/lxc backup failed (non-fatal): ${err}`);
     }
 
-    // 2. Delete old snapshot with same name if exists, then create new
-    try {
-      parentSsh(this.config,
-        `qm delsnapshot ${this.config.nestedVmId} ${name} 2>/dev/null || true; qm snapshot ${this.config.nestedVmId} ${name} --description ${JSON.stringify(description)}`,
-        120000);
-      this.log(`Snapshot @${name} created`);
-    } catch (err) {
-      throw new Error(`Failed to create snapshot @${name}: ${err}`);
-    }
-  }
-
-  /**
-   * Rollback the nested VM to a snapshot.
-   * 1. qm rollback on parent Proxmox (stops + restores VM)
-   * 2. Wait for nested PVE SSH to be available
-   * 3. Restore /etc/pve/lxc configs from backup
-   * 4. Wait for LXC containers to start
-   */
-  rollback(name: string): void {
-    this.log(`Rolling back VM to @${name}...`);
-
-    // 1. Rollback (this stops the VM, restores disk, and restarts)
-    parentSsh(this.config,
-      `qm rollback ${this.config.nestedVmId} ${name} --start 1`,
-      120000);
-
-    // 2. Wait for nested PVE SSH
-    this.log(`Waiting for nested PVE to come back online...`);
-    const maxWait = 60;
-    for (let i = 0; i < maxWait; i++) {
+    // 2. Snapshot each dependency VM disk
+    for (const vmId of depVmIds) {
+      const dataset = `rpool/data/subvol-${vmId}-disk-0`;
       try {
-        nestedSsh(this.config, this.nestedSshPort, "echo ok", 5000);
-        break;
-      } catch {
-        if (i === maxWait - 1) throw new Error(`Nested PVE not reachable after ${maxWait}s`);
-        execSync("sleep 1");
+        this.ssh(
+          `zfs destroy ${dataset}@${name} 2>/dev/null; zfs snapshot ${dataset}@${name}`,
+          30000,
+        );
+      } catch (err) {
+        this.log(`Warning: snapshot ${dataset}@${name} failed: ${err}`);
       }
     }
 
-    // 3. Restore /etc/pve/lxc configs
+    // 3. Snapshot volumes dataset (includes /etc/pve/lxc backup)
     try {
-      nestedSsh(this.config, this.nestedSshPort,
-        `if [ -d ${PVE_LXC_BACKUP_DIR} ]; then cp -a ${PVE_LXC_BACKUP_DIR}/*.conf /etc/pve/lxc/ 2>/dev/null || true; fi`,
-        15000);
+      this.ssh(
+        `zfs destroy ${VOLUMES_DATASET}@${name} 2>/dev/null; zfs snapshot ${VOLUMES_DATASET}@${name}`,
+        30000,
+      );
     } catch (err) {
-      this.log(`Warning: /etc/pve/lxc restore failed (non-fatal): ${err}`);
+      this.log(`Warning: volumes snapshot failed: ${err}`);
     }
 
-    // 4. Wait for LXC containers to come up (they auto-start via onboot)
-    this.log(`Waiting for containers to start...`);
-    execSync("sleep 5");
+    this.log(`Snapshot @${name} created`);
+  }
+
+  /**
+   * Rollback ZFS snapshots for dependency VMs + volumes dataset.
+   * 1. Stop dependency containers
+   * 2. ZFS rollback each VM disk + volumes dataset
+   * 3. Restore /etc/pve/lxc configs from backup
+   * 4. Start dependency containers
+   */
+  rollback(name: string, depVmIds: number[]): void {
+    this.log(`Rolling back to @${name}...`);
+
+    // 1. Stop containers
+    for (const vmId of depVmIds) {
+      this.ssh(`pct stop ${vmId} 2>/dev/null; true`, 30000);
+    }
+
+    // 2. Rollback VM disks
+    for (const vmId of depVmIds) {
+      const dataset = `rpool/data/subvol-${vmId}-disk-0`;
+      try {
+        this.ssh(`zfs rollback -r ${dataset}@${name}`, 60000);
+      } catch (err) {
+        this.log(`Warning: rollback ${dataset}@${name} failed: ${err}`);
+      }
+    }
+
+    // 3. Rollback volumes dataset
+    try {
+      this.ssh(
+        `zfs rollback -r ${VOLUMES_DATASET}@${name}`,
+        60000,
+      );
+    } catch (err) {
+      this.log(`Warning: volumes rollback failed: ${err}`);
+    }
+
+    // 4. Restore /etc/pve/lxc configs from backup (now restored by volumes rollback)
+    try {
+      this.ssh(
+        `if [ -d ${PVE_LXC_BACKUP_DIR} ]; then cp -a ${PVE_LXC_BACKUP_DIR}/*.conf /etc/pve/lxc/ 2>/dev/null || true; fi`,
+        15000,
+      );
+    } catch (err) {
+      this.log(`Warning: /etc/pve/lxc restore failed: ${err}`);
+    }
+
+    // 5. Start containers
+    for (const vmId of depVmIds) {
+      try {
+        this.ssh(`pct start ${vmId}`, 30000);
+      } catch (err) {
+        this.log(`Warning: start VM ${vmId} failed: ${err}`);
+      }
+    }
 
     this.log(`Rollback to @${name} complete`);
   }
