@@ -16,7 +16,7 @@ interface TemplateJson {
   execute_on: string;
   commands: Array<{
     script: string;
-    library?: string;
+    library?: string | string[];
     outputs?: string[];
   }>;
 }
@@ -70,18 +70,21 @@ export class TemplateTestHelper {
 
     let script = readFileSync(scriptPath, "utf-8");
 
-    // Prepend library if defined
+    // Prepend library/libraries if defined
     if (command.library) {
-      const libraryPath = join(
-        this.config.repoRoot,
-        "json",
-        "shared",
-        "scripts",
-        "library",
-        command.library,
-      );
-      const library = readFileSync(libraryPath, "utf-8");
-      script = library + "\n" + script;
+      const libraries = Array.isArray(command.library) ? command.library : [command.library];
+      for (const lib of libraries) {
+        const libraryPath = join(
+          this.config.repoRoot,
+          "json",
+          "shared",
+          "scripts",
+          "library",
+          lib,
+        );
+        const library = readFileSync(libraryPath, "utf-8");
+        script = library + "\n" + script;
+      }
     }
 
     // Substitute template variables {{ key }} using production VariableResolver
@@ -122,6 +125,25 @@ export class TemplateTestHelper {
     } catch {
       return {};
     }
+  }
+
+  /**
+   * Write an OCI version cache file on the PVE host.
+   * In test mode, this prevents any skopeo calls and returns deterministic versions.
+   */
+  async setupOciVersionCache(
+    versions: Record<string, string>,
+  ): Promise<void> {
+    const cache = {
+      _meta: { mode: "test" },
+      versions,
+      inspect: {},
+      tags: {},
+    };
+    await spawnAsync("ssh", [...this.sshBaseArgs, "sh"], {
+      input: `cat > /tmp/.oci-version-cache.json << 'EOFCACHE'\n${JSON.stringify(cache, null, 2)}\nEOFCACHE`,
+      timeout: 10000,
+    });
   }
 
   async executeOnVe(

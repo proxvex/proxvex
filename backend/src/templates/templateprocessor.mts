@@ -616,25 +616,38 @@ export class TemplateProcessor extends EventEmitter {
         };
 
         if (cmd.library !== undefined) {
-          const libraryResolution = this.resolver.resolveLibraryContent(
-            opts.application,
-            cmd.library,
-          );
-          scriptValidator.validateLibraryContent(
-            cmd.library,
-            opts.errors,
-            libraryResolution.content,
-            opts.requestedIn,
-            opts.parentTemplate,
-          );
-          const libraryPath = this.resolver.resolveLibraryPath(
-            libraryResolution.ref,
-          );
-          if (libraryResolution.content !== null) {
-            commandWithLibrary.libraryContent = libraryResolution.content;
+          const libraries = Array.isArray(cmd.library) ? cmd.library : [cmd.library];
+          const allContents: string[] = [];
+          let lastLibraryPath: string | undefined;
+
+          for (const lib of libraries) {
+            const libraryResolution = this.resolver.resolveLibraryContent(
+              opts.application,
+              lib,
+            );
+            scriptValidator.validateLibraryContent(
+              lib,
+              opts.errors,
+              libraryResolution.content,
+              opts.requestedIn,
+              opts.parentTemplate,
+            );
+            const libraryPath = this.resolver.resolveLibraryPath(
+              libraryResolution.ref,
+            );
+            if (libraryResolution.content !== null) {
+              allContents.push(libraryResolution.content);
+            }
+            if (libraryPath) {
+              lastLibraryPath = libraryPath;
+            }
           }
-          if (libraryPath) {
-            commandWithLibrary.libraryPath = libraryPath;
+
+          if (allContents.length > 0) {
+            commandWithLibrary.libraryContent = allContents.join("\n\n");
+          }
+          if (lastLibraryPath) {
+            commandWithLibrary.libraryPath = lastLibraryPath;
           }
         }
 

@@ -97,8 +97,11 @@
         "command": { "type": "string" },
         "script": { "type": "string" },
         "library": {
-          "type": "string",
-          "description": "Optional: Path to library file (relative to scripts directory). Library will be prepended to script content."
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Optional: Library file(s) to prepend to script content. String or array of strings."
         },
         "outputs": {
           "type": "array",

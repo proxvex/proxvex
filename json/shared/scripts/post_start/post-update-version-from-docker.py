@@ -72,14 +72,12 @@ def find_main_image(vmid: str, app_id: str) -> str | None:
 
 
 def get_version(vmid: str, image: str) -> str:
-    """Get version from OCI label, tag, or skopeo registry inspect.
+    """Get version using oci_version_lib (labels, tag, digest matching).
 
-    Tries multiple sources:
-    1. OCI label org.opencontainers.image.version (from container)
-    2. Image tag (if not "latest")
-    3. skopeo inspect on the PVE host for org.opencontainers.image.version
+    Also tries docker inspect inside the container as first attempt,
+    since the local image may have labels not visible to skopeo.
     """
-    # Try OCI label via docker inspect inside container
+    # Try OCI label via docker inspect inside container first
     label = docker_exec(
         vmid,
         f"docker inspect {image} --format {{{{index .Config.Labels \"org.opencontainers.image.version\"}}}}",
@@ -87,39 +85,8 @@ def get_version(vmid: str, image: str) -> str:
     if label and label != "<no value>":
         return label
 
-    # Fallback: image tag (if not "latest")
-    tag = image.rsplit(":", 1)[-1] if ":" in image else ""
-    if tag and tag != "latest":
-        return tag
-
-    # Fallback: use skopeo on the PVE host to inspect registry labels
-    version = _skopeo_get_version(image)
-    if version:
-        return version
-
-    return "unknown"
-
-
-def _skopeo_get_version(image: str) -> str | None:
-    """Use skopeo (on PVE host) to get version label from registry."""
-    try:
-        result = subprocess.run(
-            ["skopeo", "inspect", "--override-os", "linux", "--override-arch", "amd64",
-             f"docker://{image}"],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            return None
-
-        data = json.loads(result.stdout)
-        labels = data.get("Labels") or {}
-        version = labels.get("org.opencontainers.image.version")
-        if version:
-            print(f"Resolved version via skopeo: {version}", file=sys.stderr)
-            return version
-    except Exception:
-        pass
-    return None
+    # Delegate to oci_version_lib (labels, tag, digest matching via skopeo)
+    return resolve_image_version(image)
 
 
 def update_notes_version(vmid: str, version: str) -> None:

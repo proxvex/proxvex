@@ -22,7 +22,7 @@
     {
       "name": "Update Version from Docker",
       "script": "post-update-version-from-docker.py",
-      "library": "lxc_config_parser_lib.py",
+      "library": ["oci_version_lib.py", "lxc_config_parser_lib.py"],
       "outputs": ["app_version"]
     }
   ]

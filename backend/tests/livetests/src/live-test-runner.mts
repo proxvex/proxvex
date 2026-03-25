@@ -698,6 +698,26 @@ async function main() {
     }
   }
 
+  // Set up OCI version cache on PVE host (prevents skopeo calls during tests)
+  try {
+    const ociCache = JSON.stringify({
+      _meta: { mode: "test" },
+      versions: {
+        "postgres:latest": "17.5",
+        "postgrest/postgrest:latest": "14.7",
+        "eclipse-mosquitto:2": "2",
+      },
+      inspect: {},
+      tags: {},
+    });
+    nestedSsh(config.pveHost, config.portPveSsh,
+      `cat > /tmp/.oci-version-cache.json << 'EOFCACHE'\n${ociCache}\nEOFCACHE`,
+      10000);
+    logOk("OCI version cache written (test mode)");
+  } catch {
+    logInfo("Warning: Could not write OCI version cache (non-fatal)");
+  }
+
   // Fetch application metadata (stacktypes, extends, tags)
   const appStacktypes = new Map<string, string | string[]>();
   const appMetaMap = new Map<string, AppMeta>();

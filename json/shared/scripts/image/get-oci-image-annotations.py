@@ -98,11 +98,14 @@ def skopeo_inspect(image_ref: str, platform: str = 'linux/amd64') -> Dict:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, check=True)
         return json.loads(result.stdout)
     except subprocess.TimeoutExpired:
-        error(f"Timeout inspecting image {image_ref}")
+        log(f"Warning: Timeout inspecting image {image_ref}")
+        return None
     except subprocess.CalledProcessError as e:
-        error(f"Failed to inspect image {image_ref}: {e.stderr}")
+        log(f"Warning: Failed to inspect image {image_ref}: {e.stderr.strip()}")
+        return None
     except json.JSONDecodeError as e:
-        error(f"Failed to parse inspect output: {e}")
+        log(f"Warning: Failed to parse inspect output for {image_ref}: {e}")
+        return None
 
 def extract_annotations(inspect_output: Dict) -> Dict:
     """
@@ -198,22 +201,29 @@ def main():
     
     # Check if skopeo is available
     if not check_skopeo():
-        error("skopeo is required but not found. Please install it with: apt install skopeo")
-    
+        log("Warning: skopeo not found, returning empty annotations")
+        print(json.dumps({}))
+        return
+
     # Parse image reference
     image_ref = parse_image_ref(image, tag)
-    
+
     # First, quickly check if image exists using --raw (fast check)
     if not check_image_exists(image_ref, platform):
-        # Image does not exist, exit with error code 1
         error(f"Image {image_ref} not found", 1)
-    
+
     # Image exists, now do full inspection for annotations
     inspect_output = skopeo_inspect(image_ref, platform)
-    
+
+    if not inspect_output:
+        # Inspect failed (rate limit, timeout) — return empty annotations
+        log("Warning: Image inspection failed, returning empty annotations")
+        print(json.dumps({}))
+        return
+
     # Extract annotations
     annotations = extract_annotations(inspect_output)
-    
+
     # Output JSON to stdout
     print(json.dumps(annotations, indent=2))
 

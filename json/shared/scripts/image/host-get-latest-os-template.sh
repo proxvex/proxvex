@@ -19,6 +19,10 @@ STORAGE="local"
 OSTYPE={{ ostype }}
 # Deployer version (auto-injected by backend)
 OCI_IMAGE_TAG={{ oci_image_tag }}
+# Fallback if version could not be resolved (rate limit, missing labels)
+if [ -z "$OCI_IMAGE_TAG" ] || [ "$OCI_IMAGE_TAG" = "NOT_DEFINED" ] || [ "$OCI_IMAGE_TAG" = "unknown" ]; then
+  OCI_IMAGE_TAG="latest"
+fi
 
 # Find the latest OSTYPE template from the list of available templates
 TEMPLATE=$(pveam available 2>&1 | awk -v OSTYPE="$OSTYPE" 'index($2, OSTYPE)==1 {print $2}' | sort -V | tail -n 1)
