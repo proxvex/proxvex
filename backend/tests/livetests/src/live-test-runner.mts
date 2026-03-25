@@ -525,8 +525,12 @@ async function executeScenarios(
       if (resultWriter) {
         const depInfos: TestResultDependency[] = (scenario.depends_on ?? []).map((depId) => {
           const depStep = planned.find((p) => p.scenario.id === depId);
-          let version = "";
-          if (depStep) {
+          // Try CLI JSON result first (available after fresh install),
+          // fallback to PVE host LXC notes (works after rollback too)
+          const depApp = depId.split("/")[0] ?? "";
+          const prefix = depApp.toUpperCase().replace(/-/g, "_");
+          let version = cliResult.resolvedVersions.get(prefix) ?? "";
+          if (!version && depStep) {
             try {
               const raw = nestedSsh(config.pveHost, config.portPveSsh,
                 `sed -n 's/.*oci-lxc-deployer%3Aversion \\([^ <]*\\).*/\\1/p' /etc/pve/lxc/${depStep.vmId}.conf 2>/dev/null | head -1`,
@@ -559,7 +563,7 @@ async function executeScenarios(
           deployerGitHash,
           dependencies: depInfos,
           verifyResults: Object.fromEntries(
-            Object.entries(finalVerify).map(([k, v]) => [k, v === true]),
+            Object.entries(finalVerify).map(([k, v]) => [k, !!v]),
           ),
         }));
       }
