@@ -51,7 +51,7 @@ if ! pct start "$VMID" >/dev/null 2>&1; then
   echo "$START_ERROR" >&2
 
   # Show application log if available — often more useful than the config
-  LOG_PATH=$(pct config "$VMID" 2>/dev/null | grep "^lxc.console.logfile:" | awk '{print $2}')
+  LOG_PATH=$(pct config "$VMID" 2>/dev/null | grep -a "^lxc.console.logfile:" | awk '{print $2}')
   if [ -n "$LOG_PATH" ] && [ -f "$LOG_PATH" ]; then
     echo "" >&2
     echo "=== Application log (last 30 lines) ===" >&2
@@ -77,7 +77,7 @@ if [ "$POST_STATUS" != "running" ]; then
   echo "Check the log below for details (e.g. missing files, invalid configuration)." >&2
 
   # Show console log — this contains the application's error output
-  LOG_PATH=$(pct config "$VMID" 2>/dev/null | grep "^lxc.console.logfile:" | awk '{print $2}')
+  LOG_PATH=$(pct config "$VMID" 2>/dev/null | grep -a "^lxc.console.logfile:" | awk '{print $2}')
   if [ -n "$LOG_PATH" ] && [ -f "$LOG_PATH" ]; then
     echo "" >&2
     echo "=== Application log (last 30 lines) ===" >&2
@@ -85,7 +85,7 @@ if [ "$POST_STATUS" != "running" ]; then
   fi
 
   # Show log viewer URL from notes if available
-  LOG_URL=$(pct config "$VMID" 2>/dev/null | grep -o 'oci-lxc-deployer[:%]3[Aa]log-url [^ ]*' | head -1 | sed 's/.*log-url //')
+  LOG_URL=$(pct config "$VMID" 2>/dev/null | grep -ao 'oci-lxc-deployer[:%]3[Aa]log-url [^ ]*' | head -1 | sed 's/.*log-url //')
   if [ -n "$LOG_URL" ]; then
     echo "" >&2
     echo "Full log: $LOG_URL" >&2
