@@ -15,7 +15,7 @@ describe.skipIf(!hostReachable)("Template: host-get-oci-image", () => {
         oci_image: "postgres:latest",
         storage: "local",
       },
-      timeout: 180000,
+      timeout: 300000,
     });
 
     if (!result.success) {
@@ -37,7 +37,7 @@ describe.skipIf(!hostReachable)("Template: host-get-oci-image", () => {
     // Should resolve to a version like "17.5" (not "latest")
     expect(result.outputs.oci_image_tag).toMatch(/^\d+\.\d+/);
     console.log(`postgres:latest resolved to: ${result.outputs.oci_image_tag}`);
-  }, 180000);
+  }, 300000);
 
   it("should download postgrest/postgrest:latest and resolve version via digest matching", async () => {
     const result = await helper.runTemplate({
@@ -55,5 +55,5 @@ describe.skipIf(!hostReachable)("Template: host-get-oci-image", () => {
     // Should resolve to a version like "v12.2.8" (not "latest")
     expect(result.outputs.oci_image_tag).not.toBe("latest");
     console.log(`postgrest:latest resolved to: ${result.outputs.oci_image_tag}`);
-  }, 180000);
+  }, 300000);
 });
