@@ -45,8 +45,10 @@ esac
 exit 0
 '
 
-# Compute checksum of the body
-NEW_CHECKSUM=$(printf '%s' "$HOOK_BODY" | md5sum | cut -d' ' -f1)
+# Compute checksum of the body (use subshell assignment to strip trailing
+# newlines, matching how sed + $() behaves during the read-back verification)
+HOOK_BODY_NORMALIZED=$(printf '%s' "$HOOK_BODY")
+NEW_CHECKSUM=$(printf '%s' "$HOOK_BODY_NORMALIZED" | md5sum | cut -d' ' -f1)
 
 write_hookscript() {
   echo "Creating hookscript at $HOOK_PATH (v${NEW_VERSION})" >&2
@@ -76,8 +78,8 @@ if [ -f "$HOOK_PATH" ]; then
     ACTUAL_BODY=$(sed '1,/^# --- DO NOT MODIFY ABOVE THIS LINE ---$/d' "$HOOK_PATH")
     ACTUAL_CHECKSUM=$(printf '%s' "$ACTUAL_BODY" | md5sum | cut -d' ' -f1)
 
-    if [ -z "$STORED_CHECKSUM" ]; then
-      # No checksum header found - old format, safe to update
+    if [ -z "$STORED_CHECKSUM" ] || [ "$STORED_CHECKSUM" = "placeholder" ]; then
+      # No valid checksum - old format or placeholder, safe to update
       echo "Updating hookscript from old format to v${NEW_VERSION}" >&2
       write_hookscript
     elif [ "$ACTUAL_CHECKSUM" = "$STORED_CHECKSUM" ]; then
