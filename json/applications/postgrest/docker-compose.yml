@@ -3,7 +3,7 @@ services:
     image: postgrest/postgrest:${POSTGREST_VERSION:-latest}
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: "postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-postgres}"
+      PGRST_DB_URI: "postgres://${POSTGRES_USER:-postgres}:{{ POSTGRES_PASSWORD }}@{{ POSTGRES_HOST }}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-postgres}"
       PGRST_DB_SCHEMAS: ${PGRST_SCHEMAS:-public}
       PGRST_DB_ANON_ROLE: ${PGRST_ANON_ROLE:-postgres}
       PGRST_SERVER_PORT: 3000

@@ -37,6 +37,50 @@ PKG_NETWORK_RETRY_DELAY=3    # Seconds between network checks
 PKG_DOWNLOAD_TIMEOUT=30      # Timeout for wget/curl operations
 PKG_DOWNLOAD_RETRIES=3       # Number of download retry attempts
 PKG_DNS_TEST_HOST="dl-cdn.alpinelinux.org"  # Host to test DNS resolution
+PKG_LOCK_FILE="/tmp/.pkg-common.lock"
+PKG_LOCK_TIMEOUT=120         # Max seconds to wait for lock
+PKG_LOCK_POLL_INTERVAL=2     # Seconds between lock polls
+
+# ============================================================================
+# INTERNAL: Lock helpers
+# Prevents concurrent apk/apt from racing (e.g. hookscript + post_start)
+# ============================================================================
+_pkg_acquire_lock() {
+  _lock_start=$(date +%s)
+  _lock_end=$((_lock_start + PKG_LOCK_TIMEOUT))
+
+  while [ "$(date +%s)" -lt "$_lock_end" ]; do
+    # Reentrant: already own the lock
+    _holder=$(cat "$PKG_LOCK_FILE" 2>/dev/null || true)
+    if [ "$_holder" = "$$" ]; then
+      return 0
+    fi
+
+    # Atomic: create file only if it doesn't exist (noclobber)
+    if (set -C; echo $$ > "$PKG_LOCK_FILE") 2>/dev/null; then
+      return 0
+    fi
+
+    # Check if the holding process is still alive
+    if [ -n "$_holder" ] && ! kill -0 "$_holder" 2>/dev/null; then
+      echo "Removing stale lock (PID $_holder gone)" >&2
+      rm -f "$PKG_LOCK_FILE"
+      continue
+    fi
+
+    sleep "$PKG_LOCK_POLL_INTERVAL"
+  done
+
+  echo "Warning: Could not acquire package lock after ${PKG_LOCK_TIMEOUT}s, proceeding anyway" >&2
+  return 0
+}
+
+_pkg_release_lock() {
+  _holder=$(cat "$PKG_LOCK_FILE" 2>/dev/null || true)
+  if [ "$_holder" = "$$" ]; then
+    rm -f "$PKG_LOCK_FILE"
+  fi
+}
 
 # ============================================================================
 # 1. pkg_detect_os()
@@ -156,26 +200,35 @@ pkg_update_cache() {
   pkg_detect_os || return 1
   pkg_wait_for_network || return 1
 
+  _pkg_acquire_lock
   echo "Updating package cache for $PKG_OS_TYPE..." >&2
 
+  _rc=0
   case "$PKG_OS_TYPE" in
     alpine)
       if apk update >&2; then
         PKG_CACHE_UPDATED=1
-        return 0
+      else
+        _rc=1
       fi
       ;;
     debian|ubuntu)
       export DEBIAN_FRONTEND=noninteractive
       if apt-get update -qq >&2; then
         PKG_CACHE_UPDATED=1
-        return 0
+      else
+        _rc=1
       fi
       ;;
   esac
 
-  echo "Error: Failed to update package cache" >&2
-  return 1
+  _pkg_release_lock
+
+  if [ "$_rc" -ne 0 ]; then
+    echo "Error: Failed to update package cache" >&2
+    return 1
+  fi
+  return 0
 }
 
 # ============================================================================
@@ -194,21 +247,36 @@ pkg_install() {
   fi
 
   pkg_detect_os || return 1
-  pkg_update_cache || return 1
+
+  _pkg_acquire_lock
+
+  # Update cache while holding the lock (skip if already done)
+  if [ "$PKG_CACHE_UPDATED" != "1" ]; then
+    pkg_wait_for_network || { _pkg_release_lock; return 1; }
+    echo "Updating package cache for $PKG_OS_TYPE..." >&2
+    case "$PKG_OS_TYPE" in
+      alpine) apk update >&2 && PKG_CACHE_UPDATED=1 ;;
+      debian|ubuntu) export DEBIAN_FRONTEND=noninteractive; apt-get update -qq >&2 && PKG_CACHE_UPDATED=1 ;;
+    esac
+  fi
 
   echo "Installing packages: $_packages" >&2
 
+  _rc=0
   case "$PKG_OS_TYPE" in
     alpine)
       # shellcheck disable=SC2086
-      apk add --no-cache $_packages >&2
+      apk add --no-cache $_packages >&2 || _rc=$?
       ;;
     debian|ubuntu)
       export DEBIAN_FRONTEND=noninteractive
       # shellcheck disable=SC2086
-      apt-get install -y --no-install-recommends $_packages >&2
+      apt-get install -y --no-install-recommends $_packages >&2 || _rc=$?
       ;;
   esac
+
+  _pkg_release_lock
+  return $_rc
 }
 
 # ============================================================================

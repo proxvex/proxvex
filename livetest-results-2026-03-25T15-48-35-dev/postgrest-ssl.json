@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-03-25T15-48-35-dev",
+  "scenario_id": "postgrest/ssl",
+  "application": "postgrest",
+  "variant": "ssl",
+  "task": "installation",
+  "status": "failed",
+  "vm_id": 203,
+  "hostname": "postgrest-ssl",
+  "stack_name": "ssl",
+  "addons": [
+    "addon-ssl"
+  ],
+  "duration_seconds": 47,
+  "started_at": "2026-03-25T15:52:13.854Z",
+  "finished_at": "2026-03-25T15:53:00.490Z",
+  "deployer_version": "0.3.48",
+  "deployer_git_hash": "e009846",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": "Scenario failed: postgrest/ssl (installation)",
+  "skipped_reason": null
+}

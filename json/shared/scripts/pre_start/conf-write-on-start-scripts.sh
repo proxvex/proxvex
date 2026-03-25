@@ -60,6 +60,23 @@ fi
 
 SCRIPTS_WRITTEN=0
 
+# Lock helper snippet — inlined into generated on_start.d scripts to prevent
+# concurrent apk/apt from racing with post_start scripts (same lock file).
+PKG_LOCK_SNIPPET='
+_PKG_LOCK="/tmp/.pkg-common.lock"
+_pkg_lock() {
+  _tries=0
+  while [ "$_tries" -lt 60 ]; do
+    if (set -C; echo $$ > "$_PKG_LOCK") 2>/dev/null; then return 0; fi
+    _h=$(cat "$_PKG_LOCK" 2>/dev/null || true)
+    if [ -n "$_h" ] && ! kill -0 "$_h" 2>/dev/null; then rm -f "$_PKG_LOCK"; continue; fi
+    sleep 2; _tries=$((_tries + 1))
+  done
+  echo "Warning: pkg lock timeout, proceeding" >&2
+}
+_pkg_unlock() { _h=$(cat "$_PKG_LOCK" 2>/dev/null || true); [ "$_h" = "$$" ] && rm -f "$_PKG_LOCK"; }
+'
+
 # Determine ownership from parent volume directory (set by template 150)
 VOL_OWNER=$(stat -c '%u:%g' "$VOLUME_DIR" 2>/dev/null || echo "0:0")
 
@@ -122,6 +139,9 @@ ALPINE_MIRROR="$ALPINE_MIRROR"
 DEBIAN_MIRROR="$DEBIAN_MIRROR"
 EOF
 
+  # Insert package lock helper
+  echo "$PKG_LOCK_SNIPPET" >> "$ACME_SCRIPT"
+
   # Part 2: Script body (no variable expansion)
   cat >> "$ACME_SCRIPT" << 'ACMEEOF'
 
@@ -161,6 +181,7 @@ fi
 # --- Install curl and openssl if not present (with network retry) ---
 if ! command -v curl >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1; then
   echo "Installing curl and openssl..." >&2
+  _pkg_lock
   case "$OS_TYPE" in
     alpine)
       if [ -n "$ALPINE_MIRROR" ]; then
@@ -205,6 +226,7 @@ MIRROREOF
       apt-get install -y --no-install-recommends curl openssl >&2
       ;;
   esac
+  _pkg_unlock
 fi
 
 # --- Install acme.sh if not present ---
@@ -342,6 +364,9 @@ DEBIAN_MIRROR="$DEBIAN_MIRROR"
 COMPOSE_PROJECT="$COMPOSE_PROJECT"
 EOF
 
+  # Insert package lock helper
+  echo "$PKG_LOCK_SNIPPET" >> "$SSL_SCRIPT"
+
   # Part 2: Script body (no variable expansion)
   cat >> "$SSL_SCRIPT" << 'SSLEOF'
 
@@ -401,6 +426,7 @@ fi
 # --- Install nginx and iptables if not present ---
 if ! command -v nginx >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then
   echo "Installing nginx and iptables..." >&2
+  _pkg_lock
 
   case "$OS_TYPE" in
     alpine)
@@ -437,6 +463,7 @@ MIRROREOF
       apt-get install -y --no-install-recommends nginx iptables >&2
       ;;
   esac
+  _pkg_unlock
 fi
 
 # --- Determine nginx config directory ---

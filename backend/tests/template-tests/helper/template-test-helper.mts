@@ -44,7 +44,7 @@ export class TemplateTestHelper {
     templatePath: string;
     commandIndex?: number;
     inputs?: Record<string, string | number | boolean>;
-  }): { script: string; executeOn: string } {
+  }): { script: string; executeOn: string; interpreter: string } {
     const fullTemplatePath = join(
       this.config.repoRoot,
       "json",
@@ -93,7 +93,14 @@ export class TemplateTestHelper {
     );
     script = resolver.replaceVars(script);
 
-    return { script, executeOn: template.execute_on };
+    // Detect interpreter from shebang (sh, python3, etc.)
+    // Library may be prepended before the shebang, so check the script file directly
+    let interpreter = "sh";
+    if (command.script.endsWith(".py")) {
+      interpreter = "python3";
+    }
+
+    return { script, executeOn: template.execute_on, interpreter };
   }
 
   private parseOutputs(stdout: string): Record<string, string> {
@@ -120,8 +127,10 @@ export class TemplateTestHelper {
   async executeOnVe(
     script: string,
     timeout = 120000,
+    interpreter = "sh",
   ): Promise<TemplateTestResult> {
-    const result = await spawnAsync("ssh", this.sshArgs, {
+    const sshArgs = [...this.sshBaseArgs, interpreter];
+    const result = await spawnAsync("ssh", sshArgs, {
       input: script,
       timeout,
     });
@@ -162,10 +171,10 @@ export class TemplateTestHelper {
     vmId?: string;
     timeout?: number;
   }): Promise<TemplateTestResult> {
-    const { script, executeOn } = this.prepareScript(opts);
+    const { script, executeOn, interpreter } = this.prepareScript(opts);
 
     if (executeOn === "ve") {
-      return this.executeOnVe(script, opts.timeout);
+      return this.executeOnVe(script, opts.timeout, interpreter);
     }
 
     if (executeOn === "lxc") {

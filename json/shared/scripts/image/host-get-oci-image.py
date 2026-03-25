@@ -124,44 +124,10 @@ def parse_image_ref(oci_image: str) -> str:
     
     return image_ref
 
+# extract_version_from_inspect is provided by oci_version_lib.py (prepended)
+# as extract_version_from_labels(). For backwards compatibility:
 def extract_version_from_inspect(inspect_output: dict) -> str:
-    """
-    Extract version tag from skopeo inspect output.
-    
-    Tries to find version in Labels:
-    - org.opencontainers.image.version
-    - io.hass.version
-    - org.opencontainers.image.revision
-    - version
-    
-    Returns the extracted version, or None if not found.
-    """
-    try:
-        labels = inspect_output.get('Labels', {})
-        if not labels:
-            return None
-        
-        # Try common version label fields (in order of preference)
-        version_fields = [
-            'org.opencontainers.image.version',
-            'io.hass.version',
-            'org.opencontainers.image.revision',
-            'version',
-        ]
-        
-        for field in version_fields:
-            if field in labels:
-                version = labels[field]
-                if version and version.strip():
-                    # Clean up version tag (remove leading 'v' if present)
-                    version = version.strip()
-                    if version.lower().startswith('v') and len(version) > 1:
-                        version = version[1:]
-                    return version
-        
-        return None
-    except Exception:
-        return None
+    return extract_version_from_labels(inspect_output)
 
 def extract_application_name_from_inspect(inspect_output: dict) -> Optional[str]:
     """
@@ -449,9 +415,9 @@ def main() -> None:
                     application_name = extract_application_name_from_inspect(inspect_output) or ""
                     actual_tag = tag
                     if tag == "latest" or tag.lower() == "latest":
-                        extracted_version = extract_version_from_inspect(inspect_output)
-                        if extracted_version:
-                            actual_tag = extracted_version
+                        resolved = resolve_image_version(f"{image}:{tag}")
+                        if resolved and resolved != "unknown":
+                            actual_tag = resolved
 
                     # Extract arch from platform for Proxmox
                     oci_arch = platform.split('/')[-1] if '/' in platform else platform
@@ -476,13 +442,13 @@ def main() -> None:
     log("Inspecting image...")
     inspect_output = skopeo_inspect(image_ref, registry_username, registry_password)
     
-    # Extract version if tag is "latest"
+    # Resolve version (labels -> digest matching) via oci_version_lib
     actual_tag = tag
     if tag == "latest" or tag.lower() == "latest":
-        extracted_version = extract_version_from_inspect(inspect_output)
-        if extracted_version:
-            actual_tag = extracted_version
-            log(f"Extracted version from image labels: {actual_tag}")
+        resolved = resolve_image_version(f"{image}:{tag}")
+        if resolved and resolved != "unknown":
+            actual_tag = resolved
+            log(f"Resolved version: {actual_tag}")
     
     # Detect ostype and application name
     ostype = detect_ostype_from_inspect(inspect_output)

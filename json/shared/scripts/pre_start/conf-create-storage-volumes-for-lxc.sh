@@ -507,9 +507,7 @@ while IFS= read -r line <&3; do
     chown "$EFFECTIVE_UID:$EFFECTIVE_GID" "$SUBDIR" 2>/dev/null || true
   fi
 
-  # If mount target already exists, check if it needs fixing.
-  # On ZFS, PVE mounts the whole dataset instead of a subdirectory, so we
-  # create a dedicated ZFS dataset whose root IS the volume directory.
+  # If mount target already exists, update it to point to the correct subdirectory
   if [ "$ATTACH_TO_CT" -eq 1 ]; then
     case " $EXISTING_TARGETS " in
       *" $VOLUME_PATH "*)
@@ -517,45 +515,22 @@ while IFS= read -r line <&3; do
         EXISTING_HOST_PATH=$(echo "$EXISTING_MP" | sed -E 's/^mp[0-9]+:\s*([^,]+).*/\1/')
         EXISTING_MP_KEY=$(echo "$EXISTING_MP" | cut -d: -f1)
 
-        if [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" != "$SUBDIR" ] && [ -n "$EXISTING_MP_KEY" ] && [ "$STORAGE_TYPE" = "zfspool" ]; then
-          # ZFS: Create a dedicated dataset so PVE mounts the dataset root
-          DEDICATED_VOLNAME="subvol-${VMID}-${SAFE_HOST}-${SAFE_KEY}"
-          DEDICATED_VOLID=$(get_existing_volid "${SAFE_HOST}-${SAFE_KEY}" "$STORAGE_TYPE")
-          if [ -z "$DEDICATED_VOLID" ]; then
-            log "Creating dedicated ZFS dataset: ${DEDICATED_VOLNAME}"
-            DEDICATED_VOLID=$(alloc_volume "$DEDICATED_VOLNAME" "$VOLUME_SIZE" "$VMID" || true)
-          fi
-
-          if [ -n "$DEDICATED_VOLID" ]; then
-            DEDICATED_VOLNAME_REAL="${DEDICATED_VOLID#*:}"
-            DEDICATED_PATH=$(resolve_volume_path "$DEDICATED_VOLID" "$DEDICATED_VOLNAME_REAL" "$STORAGE_TYPE" || true)
-            if [ -n "$DEDICATED_PATH" ]; then
-              log "Replacing ${EXISTING_MP_KEY}: ${EXISTING_HOST_PATH} -> ${DEDICATED_PATH}"
-              if [ -n "$PERM" ]; then
-                chmod "$PERM" "$DEDICATED_PATH" 2>/dev/null || true
-              fi
-              if [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
-                chown "$EFFECTIVE_UID:$EFFECTIVE_GID" "$DEDICATED_PATH" 2>/dev/null || true
-              fi
-              if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
-                pct stop "$VMID" >&2 || true
-                NEEDS_STOP=1
-              fi
-              OPTS="mp=$VOLUME_PATH"
-              pct set "$VMID" -${EXISTING_MP_KEY} "${DEDICATED_PATH},${OPTS}" >&2
-              # Tell cert generation to use the dataset root directly (only for cert volumes)
-              if [ "$VOLUME_PATH" = "/etc/ssl/addon" ]; then
-                CERT_DIR_OVERRIDE="$DEDICATED_PATH"
-              fi
-              log "Mount updated to dedicated ZFS dataset: ${DEDICATED_PATH}"
-            else
-              log "Warning: Could not resolve dedicated ZFS dataset path"
-            fi
-          else
-            log "Warning: Could not create dedicated ZFS dataset"
-          fi
-        elif [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" = "$SUBDIR" ]; then
+        if [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" = "$SUBDIR" ]; then
           log "Skipping mount for $VOLUME_PATH - already exists with correct path"
+        elif [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" != "$SUBDIR" ] && [ -n "$EXISTING_MP_KEY" ]; then
+          # Existing mount points to wrong path — update to correct subdirectory
+          log "Updating ${EXISTING_MP_KEY}: ${EXISTING_HOST_PATH} -> ${SUBDIR}"
+          if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
+            pct stop "$VMID" >&2 || true
+            NEEDS_STOP=1
+          fi
+          OPTS="mp=$VOLUME_PATH"
+          pct set "$VMID" -${EXISTING_MP_KEY} "${SUBDIR},${OPTS}" >&2
+          # Tell cert generation to use the subdirectory directly (only for cert volumes)
+          if [ "$VOLUME_PATH" = "/etc/ssl/addon" ]; then
+            CERT_DIR_OVERRIDE="$SUBDIR"
+          fi
+          log "Mount updated to: ${SUBDIR}"
         else
           log "Skipping mount for $VOLUME_PATH - already exists"
         fi

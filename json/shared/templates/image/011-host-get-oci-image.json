@@ -52,6 +52,7 @@
     {
       "name": "Get OCI Image",
       "script": "host-get-oci-image.py",
+      "library": "oci_version_lib.py",
       "outputs": [
         "template_path",
         "ostype",

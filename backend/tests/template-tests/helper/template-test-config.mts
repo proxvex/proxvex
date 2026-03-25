@@ -18,9 +18,14 @@ export function loadTemplateTestConfig(): TemplateTestConfig {
   const instanceName = process.env["E2E_INSTANCE"] || config.default;
   const instance = config.instances[instanceName];
 
+  const resolveEnv = (val: string) =>
+    val
+      .replace(/\$\{(\w+):-(\w+)\}/g, (_, varName, defaultVal) => process.env[varName] || defaultVal)
+      .replace(/\$\{(\w+)\}/g, (_, varName) => process.env[varName] || "");
+
   return {
     host:
-      process.env["TEMPLATE_TEST_HOST"] || instance?.pveHost || "ubuntupve",
+      process.env["TEMPLATE_TEST_HOST"] || resolveEnv(instance?.pveHost || "ubuntupve"),
     sshPort: process.env["TEMPLATE_TEST_SSH_PORT"]
       ? parseInt(process.env["TEMPLATE_TEST_SSH_PORT"], 10)
       : config.ports?.pveSsh || 1022,

@@ -1,0 +1,36 @@
+{
+  "run_id": "2026-03-25T16-03-37-dev",
+  "scenario_id": "postgrest/default",
+  "application": "postgrest",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 201,
+  "hostname": "postgrest-default",
+  "stack_name": "default",
+  "addons": [],
+  "duration_seconds": 65,
+  "started_at": "2026-03-25T16:04:55.860Z",
+  "finished_at": "2026-03-25T16:06:01.209Z",
+  "deployer_version": "0.3.48",
+  "deployer_git_hash": "e009846",
+  "dependencies": [
+    {
+      "scenario_id": "postgres/default",
+      "vm_id": 200,
+      "status": "passed",
+      "version": "16-alpine",
+      "snapshot_used": "dep-postgres-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {
+    "container_running": true,
+    "notes_managed": true,
+    "lxc_log_no_errors": true,
+    "services_up": true,
+    "docker_log_no_errors": true
+  },
+  "error_message": null,
+  "skipped_reason": null
+}
