@@ -44,6 +44,8 @@ export interface IApplicationBase {
   parameterOverrides?: IParameterOverride[];
   verification?: IApplicationVerification | undefined;
   dependencies?: { application: string }[];
+  /** If true, serial/tty device mapping is available for this application. */
+  supports_serial_tty?: boolean;
   /** If true, the application is not shown in the applications list but can appear in the installed list. */
   hidden?: boolean;
 }
@@ -168,6 +170,7 @@ export interface ITemplate {
   execute_on?: "ve" | "lxc" | string; // string allows "host:hostname" pattern. Optional if template only has properties commands
   skip_if_all_missing?: string[];
   skip_if_property_set?: string;
+  skip_unless_app_flag?: string;
   name: string;
   description?: string;
   parameters?: IParameter[];

@@ -81,14 +81,16 @@
       "name": "Mapped UID (Host)",
       "type": "string",
       "default": "",
-      "advanced": true
+      "advanced": true,
+      "description": "UID mapping on the host for unprivileged containers"
     },
     {
       "id": "mapped_gid",
       "name": "Mapped GID (Host)",
       "type": "string",
       "default": "",
-      "advanced": true
+      "advanced": true,
+      "description": "GID mapping on the host for unprivileged containers"
     }
   ],
   "commands": [

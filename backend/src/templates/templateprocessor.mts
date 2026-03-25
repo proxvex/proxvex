@@ -211,6 +211,12 @@ export class TemplateProcessor extends EventEmitter {
       }
     }
 
+    // Extract application-level boolean flags for skip_unless_app_flag checks
+    const applicationFlags: Record<string, boolean> = {};
+    if (application?.supports_serial_tty) {
+      applicationFlags.supports_serial_tty = true;
+    }
+
     for (const tmpl of templates) {
       const templateCategory = this.resolver.extractTemplateCategory(tmpl);
       let ptOpts: IProcessTemplateOpts = {
@@ -237,6 +243,7 @@ export class TemplateProcessor extends EventEmitter {
         outputSources,
         templateCategory,
         pendingPropertyDefaults,
+        applicationFlags,
       };
       if (veContext !== undefined) {
         ptOpts.veContext = veContext;
@@ -421,15 +428,16 @@ export class TemplateProcessor extends EventEmitter {
       tmplData,
       opts.resolvedParams,
       opts.parameters,
+      opts.applicationFlags,
     );
     const shouldSkip = skipDecision.shouldSkip;
     const skipReason = skipDecision.reason;
 
-    // Determine if template is conditional (skip_if_all_missing or skip_if_property_set)
+    // Determine if template is conditional (skip_if_all_missing, skip_if_property_set, or skip_unless_app_flag)
     const isConditional =
       !!(
         tmplData.skip_if_all_missing && tmplData.skip_if_all_missing.length > 0
-      ) || !!tmplData.skip_if_property_set;
+      ) || !!tmplData.skip_if_property_set || !!tmplData.skip_unless_app_flag;
 
     // Determine if template is shared or app-specific
     const isSharedTemplate = tmplRef.scope === "shared";
@@ -448,6 +456,10 @@ export class TemplateProcessor extends EventEmitter {
     }
 
     if (shouldSkip) {
+      // app_flag_missing: template is completely hidden — no commands, no parameters
+      if (skipReason === "app_flag_missing") {
+        return;
+      }
       // Replace all commands with "skipped" commands that always exit with 0
       // Only set execute_on if template has it (properties-only templates don't need it)
       for (const cmd of tmplData.commands ?? []) {
