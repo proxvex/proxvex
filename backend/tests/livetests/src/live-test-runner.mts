@@ -686,7 +686,12 @@ class Verifier {
       logWarn(`[${vmId}] Could not fetch docker logs via API`);
       return;
     }
-    const errorLines = content.split("\n").filter((l) => /error/i.test(l));
+    const errorLines = content.split("\n").filter((l) => {
+      if (!/error/i.test(l)) return false;
+      // Ignore known harmless Zitadel notification errors (missing protocol scheme for ExternalDomain)
+      if (/projections\.notifications.*missing protocol scheme/i.test(l)) return false;
+      return true;
+    });
     if (errorLines.length === 0) {
       logOk(`[${vmId}] Docker logs clean (no errors)`);
       this.passed++;

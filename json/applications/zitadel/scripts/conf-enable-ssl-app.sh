@@ -35,8 +35,8 @@ sed -i 's/source: traefik-dynamic-http$/source: traefik-dynamic-https/' "$TMPFIL
 
 # 2. Add HTTPS entrypoint + redirect after web entrypoint
 sed -i '/--entrypoints.web.address=:8080/a\
-      - "--entrypoints.web.http.redirections.entrypoint.to=:${HTTPS_PORT}"\
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"\
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"\
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"\
       - "--entrypoints.websecure.address=:${HTTPS_PORT}"' "$TMPFILE"
 
 # 3. Add HTTPS port mapping after HTTP port
