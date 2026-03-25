@@ -32,7 +32,7 @@ describe.skipIf(!hostReachable)(
         templatePath: TEMPLATE_PATH,
         inputs: {
           vm_id: vmId,
-          "ssl.mode": "proxy",
+          ssl_mode: "proxy",
         },
       });
 
@@ -56,7 +56,7 @@ describe.skipIf(!hostReachable)(
         templatePath: TEMPLATE_PATH,
         inputs: {
           vm_id: vmId,
-          "ssl.mode": "native",
+          ssl_mode: "native",
         },
       });
 
@@ -76,7 +76,7 @@ describe.skipIf(!hostReachable)(
         templatePath: TEMPLATE_PATH,
         inputs: {
           vm_id: vmId,
-          "ssl.mode": "proxy",
+          ssl_mode: "proxy",
         },
       });
 
@@ -85,7 +85,7 @@ describe.skipIf(!hostReachable)(
         templatePath: TEMPLATE_PATH,
         inputs: {
           vm_id: vmId,
-          "ssl.mode": "proxy",
+          ssl_mode: "proxy",
         },
       });
 
