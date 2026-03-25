@@ -22,6 +22,10 @@
       "type": "string",
       "description": "Parameter ID. If this parameter is set (exists in resolvedParams), the template will be skipped."
     },
+    "skip_unless_app_flag": {
+      "type": "string",
+      "description": "Application-level boolean flag name (e.g. 'supports_serial_tty'). If the application does not have this flag set to true, the template is completely skipped and its parameters are hidden."
+    },
     "name": {
       "type": "string",
       "maxLength": 30

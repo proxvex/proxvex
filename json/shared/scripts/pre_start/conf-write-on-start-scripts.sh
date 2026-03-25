@@ -55,7 +55,6 @@ VOLUME_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/oci-deployer"
 
 if [ ! -d "$VOLUME_DIR" ]; then
   log "Warning: Volume directory $VOLUME_DIR does not exist, skipping"
-  printf '[]\n'
   exit 0
 fi
 

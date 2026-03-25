@@ -43,6 +43,8 @@ export interface IProcessTemplateOpts {
     { template: string; kind: "outputs" | "properties" }
   >; // Output provenance
   pendingPropertyDefaults?: import("./template-output-processor.mjs").PropertyDefaultEntry[];
+  /** Application-level boolean flags (e.g. supports_serial_tty) for skip_unless_app_flag checks */
+  applicationFlags?: Record<string, boolean>;
 }
 
 export interface IParameterWithTemplate extends IParameter {

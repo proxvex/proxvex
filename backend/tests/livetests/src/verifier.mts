@@ -567,6 +567,7 @@ export class Verifier {
     if (verify.pg_ssl_on) this.pgSslOn(vmId);
     if (verify.db_ssl_connection) this.dbSslConnection(vmId);
     if (typeof verify.file_exists === "string") this.fileExists(vmId, verify.file_exists);
+    if (Array.isArray(verify.file_exists)) verify.file_exists.forEach((f: string) => this.fileExists(vmId, f));
     if (verify.zitadel_setup_test_project) this.zitadelSetupTestProject(vmId);
     if (verify.oidc_enabled) this.oidcEnabled(vmId);
     if (verify.oidc_api_protected) this.oidcApiProtected(vmId);

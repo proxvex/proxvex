@@ -63,6 +63,11 @@
     "reconfigure": {
       "$ref": "categorized-templatelist"
     },
+    "supports_serial_tty": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, serial/tty device mapping is available for this application. Templates with skip_unless_app_flag referencing this flag will be completely hidden otherwise."
+    },
     "hidden": {
       "type": "boolean",
       "default": false,
