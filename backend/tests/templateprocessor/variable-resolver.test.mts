@@ -309,6 +309,70 @@ describe("VariableResolver", () => {
     });
   });
 
+  it("should not treat Go/Docker template syntax like {{.Repository}} as deployer variables", () => {
+    const outputs = new Map<string, string | number | boolean>();
+    const inputs: Record<string, string | number | boolean> = {};
+    const defaults = new Map<string, string | number | boolean>();
+
+    const resolver = new VariableResolver(
+      () => outputs,
+      () => inputs,
+      () => defaults,
+    );
+
+    // Docker CLI uses Go templates: {{.Repository}}, {{.Tag}}, etc.
+    // These must NOT be treated as deployer {{ variable }} placeholders.
+    const dockerFormat = "docker images --format {{.Repository}}:{{.Tag}}";
+    const result = resolver.replaceVars(dockerFormat);
+    expect(result).toBe(dockerFormat);
+
+    // Also test with spaces (should still be preserved)
+    const withSpaces = "docker images --format {{ .Repository }}:{{ .Tag }}";
+    const result2 = resolver.replaceVars(withSpaces);
+    expect(result2).toBe(withSpaces);
+
+    // Nested Go template syntax used in docker inspect
+    const inspectFormat = '{{index .Config.Labels "org.opencontainers.image.version"}}';
+    const result3 = resolver.replaceVars(inspectFormat);
+    expect(result3).toBe(inspectFormat);
+  });
+
+  it("should not treat Go/Docker template syntax as deployer variables inside base64", () => {
+    const outputs = new Map<string, string | number | boolean>();
+    const inputs: Record<string, string | number | boolean> = {
+      vm_id: "201",
+    };
+    const defaults = new Map<string, string | number | boolean>();
+
+    const resolver = new VariableResolver(
+      () => outputs,
+      () => inputs,
+      () => defaults,
+    );
+
+    // Script content with both deployer variables and Go template syntax
+    const scriptContent = [
+      'VM_ID="{{ vm_id }}"',
+      'docker images --format {{.Repository}}:{{.Tag}}',
+    ].join("\n");
+    const base64Content = Buffer.from(scriptContent).toString("base64");
+
+    const testInputs: Record<string, string | number | boolean> = {
+      ...inputs,
+      script_file: base64Content,
+    };
+
+    resolver.resolveBase64Inputs(testInputs);
+
+    const resolved = Buffer.from(
+      testInputs.script_file as string,
+      "base64",
+    ).toString("utf-8");
+    expect(resolved).toContain('VM_ID="201"');
+    expect(resolved).toContain("{{.Repository}}");
+    expect(resolved).toContain("{{.Tag}}");
+  });
+
   it("should return NOT_DEFINED for undefined variables", () => {
     const outputs = new Map<string, string | number | boolean>();
     const inputs: Record<string, string | number | boolean> = {};

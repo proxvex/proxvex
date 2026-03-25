@@ -1,7 +1,16 @@
 /**
  * Variable resolver for replacing {{ variable }} placeholders in strings.
  * Supports regular variables and list variables (e.g., {{ volumes }}).
+ *
+ * Variable names must start with a letter or underscore ([a-zA-Z_]).
+ * This excludes Go/Docker template syntax like {{.Repository}}, {{.Tag}}.
  */
+
+/** Captures deployer variables: {{ var_name }}, {{ list.foo.bar }} etc. */
+const VAR_CAPTURE_RE = /{{\s*([a-zA-Z_][^}\s]*)\s*}}/g;
+/** Tests whether a string still contains unresolved deployer variables. */
+const VAR_TEST_RE = /{{\s*[a-zA-Z_][^}\s]*\s*}}/;
+
 export class VariableResolver {
   constructor(
     private getOutputs: () => Map<string, string | number | boolean>,
@@ -28,7 +37,7 @@ export class VariableResolver {
    */
   replaceVars(str: string): string {
     const result = this.replaceVarsWithContext(str, {});
-    if (result !== str && /{{\s*[^}\s]+\s*}}/.test(result)) {
+    if (result !== str && VAR_TEST_RE.test(result)) {
       return this.replaceVarsWithContext(result, {});
     }
     return result;
@@ -151,7 +160,7 @@ export class VariableResolver {
       if (typeof value !== "string" || value.length < 20) continue;
       try {
         const decoded = Buffer.from(value, "base64").toString("utf-8");
-        if (!/{{\s*[^}\s]+\s*}}/.test(decoded)) continue;
+        if (!VAR_TEST_RE.test(decoded)) continue;
         const resolved = this.replaceVarsPreserveUnresolved(decoded);
         if (resolved !== decoded) {
           inputs[key] = Buffer.from(resolved).toString("base64");
@@ -165,7 +174,7 @@ export class VariableResolver {
         if (typeof value !== "string" || value.length < 20) continue;
         try {
           const decoded = Buffer.from(value, "base64").toString("utf-8");
-          if (!/{{\s*[^}\s]+\s*}}/.test(decoded)) continue;
+          if (!VAR_TEST_RE.test(decoded)) continue;
           const resolved = this.replaceVarsPreserveUnresolved(decoded);
           if (resolved !== decoded) {
             outputs.set(key, Buffer.from(resolved).toString("base64"));
@@ -184,7 +193,7 @@ export class VariableResolver {
    * placeholders until the producing script has run.
    */
   private replaceVarsPreserveUnresolved(str: string): string {
-    const result = str.replace(/{{\s*([^}\s]+)\s*}}/g, (match: string, v: string) => {
+    const result = str.replace(VAR_CAPTURE_RE, (match: string, v: string) => {
       const listResult = this.resolveListVariable(v, {});
       if (listResult !== null) return listResult;
       if (this.outputs.has(v)) return String(this.outputs.get(v));
@@ -192,14 +201,14 @@ export class VariableResolver {
       if (this.defaults.has(v)) return String(this.defaults.get(v));
       return match; // Preserve {{ var }} for later resolution
     });
-    if (result !== str && /{{\s*[^}\s]+\s*}}/.test(result)) {
+    if (result !== str && VAR_TEST_RE.test(result)) {
       return this.replaceVarsPreserveUnresolved(result);
     }
     return result;
   }
 
   replaceVarsWithContext(str: string, ctx: Record<string, any>): string {
-    return str.replace(/{{\s*([^}\s]+)\s*}}/g, (_: string, v: string) => {
+    return str.replace(VAR_CAPTURE_RE, (_: string, v: string) => {
       // Try to resolve as list variable first
       const listResult = this.resolveListVariable(v, ctx);
       if (listResult !== null) {
