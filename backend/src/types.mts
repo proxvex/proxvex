@@ -239,6 +239,11 @@ export enum ApiUri {
   CertificatesAll = "/api/certificates",
   CertificateAutoRenewal = "/api/certificates/auto-renewal",
   CertificateAutoRenewalCheck = "/api/certificates/auto-renewal/check",
+
+  // Maintenance endpoints
+  LogRotation = "/api/maintenance/log-rotation",
+  LogRotationCheck = "/api/maintenance/log-rotation/check",
+
   // Dependency check
   DependencyCheck = "/api/:veContext/dependency-check/:application",
 
@@ -820,5 +825,14 @@ export interface IAutoRenewalStatus {
   next_check?: string | undefined;
   last_renewed?: string[] | undefined;
   last_renewed_date?: string | undefined;
+  last_error?: string | undefined;
+}
+
+export interface ILogRotationStatus {
+  enabled: boolean;
+  last_check?: string | undefined;
+  next_check?: string | undefined;
+  last_rotated_count?: number | undefined;
+  last_deleted_count?: number | undefined;
   last_error?: string | undefined;
 }

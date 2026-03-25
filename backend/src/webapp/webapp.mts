@@ -16,6 +16,7 @@ import { setupStaticRoutes } from "./webapp-static.mjs";
 import { WebAppVE } from "./webapp-ve.mjs";
 import { WebAppStack } from "./webapp-stack-routes.mjs";
 import { registerCertificateRoutes, getAutoRenewalService } from "./webapp-certificate-routes.mjs";
+import { registerMaintenanceRoutes, getLogRotationService } from "./webapp-maintenance-routes.mjs";
 import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
 import { registerDependencyCheckRoutes } from "./webapp-dependency-check-routes.mjs";
 import { registerTestQueueRoutes } from "./webapp-test-queue-routes.mjs";
@@ -65,6 +66,20 @@ export class VEWebApp {
     if (autoRenewal) autoRenewal.stop();
   }
 
+  private startLogRotationIfEnabled(): void {
+    const logRotation = getLogRotationService();
+    if (!logRotation) return;
+
+    if (logRotation.isEnabled()) {
+      logRotation.startTimer();
+    }
+  }
+
+  stopLogRotation(): void {
+    const logRotation = getLogRotationService();
+    if (logRotation) logRotation.stop();
+  }
+
   static async create(storageContext: ContextManager): Promise<VEWebApp> {
     const instance = new VEWebApp(storageContext);
     await instance.init();
@@ -108,6 +123,7 @@ export class VEWebApp {
     registerCertificateRoutes(this.app, this.storageContext);
     registerAddonRoutes(this.app, this.storageContext);
     registerValidationRoutes(this.app);
+    registerMaintenanceRoutes(this.app, this.storageContext);
     registerDependencyCheckRoutes(this.app, this.storageContext);
     registerTestQueueRoutes(this.app);
 
@@ -137,8 +153,9 @@ export class VEWebApp {
     const webAppStack = new WebAppStack(this.app, this.storageContext);
     webAppStack.init();
 
-    // Start certificate auto-renewal timer if enabled
+    // Start periodic timers if enabled
     this.startAutoRenewalIfEnabled();
+    this.startLogRotationIfEnabled();
 
     // Catch-all route for Angular routing - must be after all API routes
     // This ensures that routes like /ssh-config work correctly.

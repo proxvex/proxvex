@@ -15,7 +15,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { FormsModule } from '@angular/forms';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
-import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewalStatus } from '../../shared/types';
+import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewalStatus, ILogRotationStatus } from '../../shared/types';
 
 @Component({
   selector: 'app-certificate-management-dialog',
@@ -247,6 +247,48 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
 
           </div>
         </mat-tab>
+
+        <!-- Tab 3: Maintenance -->
+        <mat-tab label="Maintenance">
+          <div class="tab-content">
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Log Rotation</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <p class="hint-text">Automatically rotate and clean up LXC console logs in /var/log/lxc/ on all PVE hosts. Rotated logs are deleted after 7 days.</p>
+                <div class="auto-renewal-row">
+                  <mat-slide-toggle [checked]="logRotationEnabled()" (change)="toggleLogRotation($event.checked)">
+                    Enable daily log rotation
+                  </mat-slide-toggle>
+                  <span class="auto-renewal-info">
+                    @if (logRotationStatus()?.last_check) {
+                      <span class="hint-text">Last check: {{ logRotationStatus()?.last_check | date:'medium' }}</span>
+                    }
+                    @if (logRotationStatus()?.last_rotated_count !== undefined && logRotationStatus()?.last_rotated_count! > 0) {
+                      <span class="hint-text">Rotated: {{ logRotationStatus()?.last_rotated_count }}</span>
+                    }
+                    @if (logRotationStatus()?.last_deleted_count !== undefined && logRotationStatus()?.last_deleted_count! > 0) {
+                      <span class="hint-text">Deleted: {{ logRotationStatus()?.last_deleted_count }}</span>
+                    }
+                    @if (logRotationStatus()?.last_error) {
+                      <span class="hint-text warn">{{ logRotationStatus()?.last_error }}</span>
+                    }
+                  </span>
+                </div>
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button (click)="triggerLogRotation()" [disabled]="runningLogRotation()">
+                  @if (runningLogRotation()) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                  } @else {
+                    <ng-container><mat-icon>rotate_right</mat-icon> Run Now</ng-container>
+                  }
+                </button>
+              </mat-card-actions>
+            </mat-card>
+          </div>
+        </mat-tab>
       </mat-tab-group>
     </mat-dialog-content>
 
@@ -373,6 +415,10 @@ export class CertificateManagementDialog implements OnInit {
   autoRenewalStatus = signal<IAutoRenewalStatus | null>(null);
   autoRenewalEnabled = signal(false);
 
+  logRotationStatus = signal<ILogRotationStatus | null>(null);
+  logRotationEnabled = signal(false);
+  runningLogRotation = signal(false);
+
   generateHostname = signal('');
   generatingCert = signal(false);
 
@@ -387,6 +433,7 @@ export class CertificateManagementDialog implements OnInit {
     this.loadPveStatus();
     this.loadCertificates();
     this.loadAutoRenewalStatus();
+    this.loadLogRotationStatus();
   }
 
   private loadCaInfo(): void {
@@ -448,6 +495,43 @@ export class CertificateManagementDialog implements OnInit {
       error: (err) => {
         this.errorHandler.handleError('Failed to toggle auto-renewal', err);
         this.autoRenewalEnabled.set(!enabled);
+      }
+    });
+  }
+
+  private loadLogRotationStatus(): void {
+    this.configService.getLogRotationStatus().subscribe({
+      next: (status) => {
+        this.logRotationStatus.set(status);
+        this.logRotationEnabled.set(status.enabled);
+      },
+      error: () => { /* ignore if not available */ }
+    });
+  }
+
+  toggleLogRotation(enabled: boolean): void {
+    this.configService.setLogRotationEnabled(enabled).subscribe({
+      next: (status) => {
+        this.logRotationStatus.set(status);
+        this.logRotationEnabled.set(status.enabled);
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Failed to toggle log rotation', err);
+        this.logRotationEnabled.set(!enabled);
+      }
+    });
+  }
+
+  triggerLogRotation(): void {
+    this.runningLogRotation.set(true);
+    this.configService.triggerLogRotationCheck().subscribe({
+      next: (status) => {
+        this.logRotationStatus.set(status);
+        this.runningLogRotation.set(false);
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Log rotation failed', err);
+        this.runningLogRotation.set(false);
       }
     });
   }
