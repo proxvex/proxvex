@@ -125,6 +125,7 @@ def main() -> None:
             found[config.application_id] = {
                 "vm_id": int(vmid_str),
                 "hostname": config.hostname,
+                "version": config.version or "",
             }
 
             # Stop scanning if all dependencies found
@@ -152,14 +153,16 @@ def main() -> None:
             )
             sys.exit(1)
 
-    # Phase 4: Output resolved hostnames
+    # Phase 4: Output resolved hostnames and versions
     outputs = []
     for app_id, info in found.items():
-        var_name = "%s_HOST" % app_id.upper().replace("-", "_")
-        outputs.append({"id": var_name, "value": info["hostname"]})
+        prefix = app_id.upper().replace("-", "_")
+        outputs.append({"id": "%s_HOST" % prefix, "value": info["hostname"]})
+        if info["version"]:
+            outputs.append({"id": "%s_VERSION" % prefix, "value": info["version"]})
         print(
-            "Resolved dependency: %s=%s (VMID %d)"
-            % (var_name, info["hostname"], info["vm_id"]),
+            "Resolved dependency: %s_HOST=%s version=%s (VMID %d)"
+            % (prefix, info["hostname"], info["version"] or "n/a", info["vm_id"]),
             file=sys.stderr,
         )
 

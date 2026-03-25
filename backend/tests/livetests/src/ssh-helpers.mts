@@ -1,0 +1,79 @@
+/**
+ * SSH helper functions for the live integration test runner.
+ *
+ * Provides functions to execute commands on the PVE host via SSH,
+ * and to wait for docker services inside containers.
+ */
+
+import { execSync } from "node:child_process";
+
+/**
+ * Execute an SSH command on the PVE host.
+ * Throws on failure (non-zero exit code or timeout).
+ */
+export function nestedSshStrict(
+  pveHost: string,
+  port: number,
+  command: string,
+  timeoutMs = 15000,
+): string {
+  const result = execSync(
+    `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ` +
+    `-o BatchMode=yes -o ConnectTimeout=10 ` +
+    `-p ${port} root@${pveHost} ${JSON.stringify(command)}`,
+    { timeout: timeoutMs, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+  );
+  return result.trim();
+}
+
+/**
+ * Execute an SSH command on the PVE host.
+ * Returns empty string on failure (swallows errors).
+ */
+export function nestedSsh(
+  pveHost: string,
+  port: number,
+  command: string,
+  timeoutMs = 15000,
+): string {
+  try {
+    return nestedSshStrict(pveHost, port, command, timeoutMs);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Wait for all docker services in a container to report "Up" status.
+ * Polls every 5 seconds until all services are up or the deadline is reached.
+ */
+export async function waitForServices(
+  pveHost: string,
+  sshPort: number,
+  vmId: number,
+  maxWait: number,
+  log: {
+    info: (msg: string) => void;
+    ok: (msg: string) => void;
+    warn: (msg: string) => void;
+  },
+): Promise<void> {
+  log.info(`Waiting for docker services (max ${maxWait}s)...`);
+  const deadline = Date.now() + maxWait * 1000;
+
+  while (Date.now() < deadline) {
+    const output = nestedSsh(pveHost, sshPort,
+      `pct exec ${vmId} -- docker ps --format '{{.Status}}'`);
+    if (output) {
+      const lines = output.split("\n").filter(Boolean);
+      const allUp = lines.every((l) => l.includes("Up"));
+      if (allUp && lines.length > 0) {
+        const elapsed = Math.round((Date.now() + maxWait * 1000 - deadline) / 1000);
+        log.ok(`Docker services ready after ~${elapsed}s`);
+        return;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+  log.warn(`Docker services not fully ready after ${maxWait}s`);
+}
