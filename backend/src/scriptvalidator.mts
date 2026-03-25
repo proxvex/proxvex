@@ -29,7 +29,8 @@ export class ScriptValidator {
     // Match {{ var }} but only capture valid variable names
     // Valid variable names: alphanumeric, underscore, hyphen, dot
     // This avoids false positives from shell patterns like *"{{"*"}}"*
-    const regex = /{{ *([a-zA-Z0-9_.-]+) *}}/g;
+    // Exclude Go-template variables (starting with .) like {{.Repository}}, {{.Tag}}
+    const regex = /{{ *([a-zA-Z_][a-zA-Z0-9_.-]*) *}}/g;
     const vars = new Set<string>();
     let match;
     while ((match = regex.exec(str)) !== null) {
