@@ -281,8 +281,14 @@ async function executeScenarios(
   // A step is snapshot-worthy if another step in the plan depends on it
   const allDepIds = new Set(planned.flatMap((p) => p.scenario.depends_on ?? []));
   const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
+  // For dev (local deployer), use .livetest-data/ for context backup/restore with snapshots
+  const isLocalDeployer = config.deployerUrl.includes("localhost");
+  const localContextPath = isLocalDeployer
+    ? path.join(projectRoot, ".livetest-data")
+    : undefined;
+
   const snapMgr = config.snapshot?.enabled
-    ? new SnapshotManager(config.pveHost, config.vmId, config.portPveSsh, (msg) => logInfo(msg))
+    ? new SnapshotManager(config.pveHost, config.vmId, config.portPveSsh, (msg) => logInfo(msg), localContextPath)
     : null;
 
   // Try to restore from whole-VM snapshot (skip dependency installation)

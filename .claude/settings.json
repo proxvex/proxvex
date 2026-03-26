@@ -1,7 +1,39 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git rm json/shared/scripts/upgrade-oci-lxc.sh json/shared/scripts/upgrade-start.sh json/shared/templates/221-upgrade-oci-lxc.json json/shared/templates/231-upgrade-start.json)",
+      "Bash(git rm json/shared/scripts/upgrade-oci-lxc.sh json/shared/scripts/upgrade-start.sh json/shared/templates/221-upgrade-oci-lxc.json json/shared/templates/231-upgrade-start.json)"
+    ]
+  },
+  "hooks": {
+    "Edit": [
+      {
+        "event": "afterTool",
+        "command": ".claude/hooks/mark-backend-edit.sh"
+      },
+      {
+        "event": "afterTool",
+        "command": ".claude/hooks/mark-json-edit.sh"
+      }
+    ],
+    "Write": [
+      {
+        "event": "afterTool",
+        "command": ".claude/hooks/mark-backend-edit.sh"
+      },
+      {
+        "event": "afterTool",
+        "command": ".claude/hooks/mark-json-edit.sh"
+      }
+    ],
+    "Stop": [
+      {
+        "event": "stop",
+        "command": ".claude/hooks/validate-backend.sh"
+      },
+      {
+        "event": "stop",
+        "command": ".claude/hooks/validate-json.sh"
+      }
     ]
   }
 }

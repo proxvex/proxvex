@@ -5,14 +5,19 @@
  * Proxmox host using `qm snapshot`. A single snapshot captures everything:
  * all LXC containers, their disks, configs, volumes, and the ZFS pool.
  *
- * This eliminates the need for per-container ZFS snapshots, /etc/pve/lxc
- * backup/restore, and VM-ID remapping.
+ * For dev instances (deployer runs locally), the local context files
+ * (storagecontext.json, secret.txt) are copied to the nested VM before
+ * snapshot creation and restored after rollback. This ensures stack
+ * passwords match the snapshot state.
  */
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 
 export interface SnapshotConfig {
   enabled: boolean;
 }
+
+const CONTEXT_BACKUP_DIR = "/root/.deployer-context-backup";
 
 export class SnapshotManager {
   constructor(
@@ -20,6 +25,7 @@ export class SnapshotManager {
     private nestedVmId: number,
     private nestedSshPort: number,
     private log: (msg: string) => void = console.log,
+    private localContextPath?: string,
   ) {}
 
   /** SSH to the outer PVE host (port 22) for qm commands */
@@ -38,6 +44,22 @@ export class SnapshotManager {
     ).trim();
   }
 
+  /** SCP files to the nested VM */
+  private scpToNested(localFile: string, remotePath: string): void {
+    execSync(
+      `scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -P ${this.nestedSshPort} ${JSON.stringify(localFile)} root@${this.outerPveHost}:${JSON.stringify(remotePath)}`,
+      { timeout: 15000, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+    );
+  }
+
+  /** SCP files from the nested VM */
+  private scpFromNested(remotePath: string, localFile: string): void {
+    execSync(
+      `scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -P ${this.nestedSshPort} root@${this.outerPveHost}:${JSON.stringify(remotePath)} ${JSON.stringify(localFile)}`,
+      { timeout: 15000, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+    );
+  }
+
   /** Generate snapshot name from scenario ID: dep-<app>-<variant> */
   snapshotName(scenarioId: string): string {
     return "dep-" + scenarioId.replace(/\//g, "-");
@@ -46,7 +68,7 @@ export class SnapshotManager {
   /** Check if a snapshot exists for the nested VM */
   exists(name: string): boolean {
     try {
-      const output = this.outerSsh(
+      this.outerSsh(
         `qm listsnapshot ${this.nestedVmId} | grep -q ' ${name} '`,
         15000,
       );
@@ -57,12 +79,63 @@ export class SnapshotManager {
   }
 
   /**
+   * Backup local context files to the nested VM.
+   * Called before snapshot creation so passwords are embedded in the snapshot.
+   */
+  private backupContext(): void {
+    if (!this.localContextPath) return;
+
+    const ctxFile = `${this.localContextPath}/storagecontext.json`;
+    const secretFile = `${this.localContextPath}/secret.txt`;
+
+    if (!existsSync(ctxFile) && !existsSync(secretFile)) return;
+
+    try {
+      this.nestedSsh(`mkdir -p ${CONTEXT_BACKUP_DIR}`);
+      if (existsSync(ctxFile)) {
+        this.scpToNested(ctxFile, `${CONTEXT_BACKUP_DIR}/storagecontext.json`);
+      }
+      if (existsSync(secretFile)) {
+        this.scpToNested(secretFile, `${CONTEXT_BACKUP_DIR}/secret.txt`);
+      }
+      this.log("Local context backed up to nested VM");
+    } catch (err) {
+      this.log(`Warning: context backup failed (non-fatal): ${err}`);
+    }
+  }
+
+  /**
+   * Restore local context files from the nested VM.
+   * Called after snapshot rollback so passwords match the restored state.
+   */
+  private restoreContext(): void {
+    if (!this.localContextPath) return;
+
+    try {
+      this.scpFromNested(
+        `${CONTEXT_BACKUP_DIR}/storagecontext.json`,
+        `${this.localContextPath}/storagecontext.json`,
+      );
+      this.scpFromNested(
+        `${CONTEXT_BACKUP_DIR}/secret.txt`,
+        `${this.localContextPath}/secret.txt`,
+      );
+      this.log("Local context restored from snapshot");
+    } catch (err) {
+      this.log(`Warning: context restore failed (non-fatal): ${err}`);
+    }
+  }
+
+  /**
    * Create a live snapshot of the entire nested PVE VM.
    * No VM stop needed — ZFS snapshots are atomic.
    * Takes ~2s on ZFS backend.
    */
   create(name: string, buildHash?: string): void {
     this.log(`Creating VM snapshot @${name}...`);
+
+    // Backup local context to nested VM (embedded in snapshot)
+    this.backupContext();
 
     // Delete existing snapshot with same name (idempotent)
     try {
@@ -85,6 +158,7 @@ export class SnapshotManager {
   /**
    * Rollback the entire nested PVE VM to a snapshot.
    * Stops the VM, rolls back, starts it, waits for SSH.
+   * Restores local context files from the VM so passwords match.
    */
   rollback(name: string): void {
     this.log(`Rolling back to @${name}...`);
@@ -104,6 +178,9 @@ export class SnapshotManager {
 
     // Wait for nested VM to be reachable via SSH
     this.waitForNestedVm();
+
+    // Restore local context from VM (passwords match snapshot state)
+    this.restoreContext();
 
     this.log(`Rollback to @${name} complete`);
   }

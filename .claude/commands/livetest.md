@@ -8,35 +8,43 @@ Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `-
 
 1. **Parse arguments**: Check if `--fresh` and/or `--fix` flags are present. Remove them from the test filter.
 
-2. **Build backend** (required — tests use compiled output):
-   ```
-   cd backend && pnpm run build
-   ```
+2. **Build if needed**: Only build if backend TypeScript was changed. For JSON/script-only changes, a deployer reload is sufficient.
+   - Check if backend was edited: `test -f .claude/claude.backend-edited`
+   - If yes: `cd backend && pnpm run build` (and remove marker: `rm -f .claude/claude.backend-edited`)
+   - If no: skip build (JSON/script changes are picked up by deployer reload)
 
-3. **If `--fresh`**: Rollback the nested PVE VM to baseline snapshot. This wipes ALL containers and starts from a clean Proxmox installation.
-   ```
-   ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm stop 9000 2>/dev/null; true' && \
-   ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm rollback 9000 baseline' && \
-   ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm start 9000'
-   ```
-   Then wait for the nested VM to be reachable (poll SSH on port 1022, up to 60s):
-   ```
-   for i in $(seq 1 30); do ssh -o StrictHostKeyChecking=no -o ConnectTimeout=2 -p 1022 root@ubuntupve 'echo ok' 2>/dev/null && break; sleep 2; done
-   ```
-   The deployer runs locally (not in the nested VM), so no reinstall needed.
+3. **If `--fresh`**:
+   - Delete livetest data (wipe local context/secrets):
+     ```
+     rm -rf .livetest-data
+     ```
+   - Delete child snapshots then rollback to baseline:
+     ```
+     ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $(qm listsnapshot 9000 | grep dep- | awk "{print \$2}"); do qm delsnapshot 9000 $snap; done'
+     ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm stop 9000 2>/dev/null; true'
+     ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm rollback 9000 baseline'
+     ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm start 9000'
+     ```
+   - Wait for the nested VM to be reachable:
+     ```
+     for i in $(seq 1 30); do ssh -o StrictHostKeyChecking=no -o ConnectTimeout=2 -p 1022 root@ubuntupve 'echo ok' 2>/dev/null && break; sleep 2; done
+     ```
 
 4. **Check if deployer is already running** on port 3201:
    ```
    lsof -i :3201 -sTCP:LISTEN
    ```
 
-5. **Start deployer in background** if not running:
+5. **Start deployer in background** if not running (using livetest-specific context):
    ```
-   cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs &
+   mkdir -p .livetest-data
+   cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs \
+     --storageContextFilePath ../.livetest-data/storagecontext.json \
+     --secretsFilePath ../.livetest-data/secret.txt &
    ```
    Wait 3 seconds, then verify it responds:
    ```
-   curl -sk --connect-timeout 5 http://localhost:3201/api/health || curl -sk --connect-timeout 5 https://localhost:3201/api/health
+   curl -sk --connect-timeout 5 http://localhost:3201/api/applications | head -c 50
    ```
    If it doesn't respond, show the error and stop.
 
@@ -63,12 +71,20 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
 
 2. **Fix the issue** in the codebase (templates, scripts, backend code, application JSON)
 
-3. **Rebuild and restart**:
-   ```
-   cd backend && pnpm run build
-   kill $(lsof -ti :3201 -sTCP:LISTEN) 2>/dev/null; sleep 2
-   cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs &
-   ```
+3. **Rebuild and/or restart**:
+   - If backend code changed: rebuild and restart deployer:
+     ```
+     cd backend && pnpm run build
+     kill $(lsof -ti :3201 -sTCP:LISTEN) 2>/dev/null; sleep 2
+     mkdir -p ../.livetest-data
+     cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs \
+       --storageContextFilePath ../.livetest-data/storagecontext.json \
+       --secretsFilePath ../.livetest-data/secret.txt &
+     ```
+   - If only JSON/scripts changed: reload deployer (no build needed):
+     ```
+     curl -sk -X POST http://localhost:3201/api/reload
+     ```
 
 4. **Re-run the livetest** (step 6) with the same filter
 
@@ -92,21 +108,22 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
 Tests declare dependencies (e.g. `gitea/default` depends on `zitadel/default` which depends on `postgres/default`). The runner resolves the full chain and creates an execution plan with VM IDs.
 
 **VM reuse priority** (highest first):
-1. **Whole-VM snapshot restore**: If a `qm snapshot` exists for the dependency chain, rollback the entire nested PVE VM (fastest)
+1. **Whole-VM snapshot restore**: If a `qm snapshot` exists for the dependency chain, rollback the entire nested PVE VM (fastest). Local context (storagecontext.json, secret.txt) is restored from the VM to match snapshot state.
 2. **Running VM**: If the dependency container is already running inside the nested VM, reuse it as-is
 3. **Fresh install**: Install the dependency from scratch
 
 ### Whole-VM snapshots (dev instance only)
 - Enabled via `e2e/config.json` → `snapshot.enabled: true`
 - **Created** via `qm snapshot 9000 <name> --vmstate 0` (live, ~2s, no VM stop)
+- **Context backup**: Before snapshot, local `.livetest-data/` files are copied to the nested VM so passwords are embedded in the snapshot
 - **Naming**: `dep-<app>-<variant>` (e.g. `dep-postgres-default`, `dep-zitadel-ssl`)
-- **Scope**: One snapshot captures the entire nested PVE VM including all containers, configs, volumes
-- **Rollback**: `qm stop` → `qm rollback` → `qm start` (~30-60s for VM boot)
+- **Scope**: One snapshot captures the entire nested PVE VM including all containers, configs, volumes, and context backup
+- **Rollback**: `qm stop` → `qm rollback` → `qm start` → restore local context from VM (~30-60s for VM boot)
 
 ### When things go wrong
 If a test fails and you want a clean retry:
 - **Just re-run**: The runner auto-detects existing snapshots and restores dependencies from them. Only the failed target VM gets reinstalled.
-- **Fresh start**: Use `--fresh` flag to rollback to baseline. This reinstalls everything from scratch.
+- **Fresh start**: Use `--fresh` flag to rollback to baseline and wipe `.livetest-data/`. This reinstalls everything from scratch.
 - **Dependencies are corrupt**: Use `--fresh` to reset to baseline.
 
 ### VM cleanup behavior
@@ -116,6 +133,7 @@ If a test fails and you want a clean retry:
 
 ## Notes
 - The `dev` instance config is in `e2e/config.json` — it connects to the deployer at `localhost:${DEPLOYER_PORT}`
+- The deployer uses `.livetest-data/` for context (not `examples/`) to isolate test state from manual use
 - The PVE host is `ubuntupve` on SSH port 1022 (port-forwarded to nested VM)
 - The outer PVE host is `ubuntupve` on SSH port 22 (direct, used for `qm` commands)
 - Do NOT stop the deployer after the test — leave it running for subsequent tests

@@ -103,6 +103,11 @@ fi
 
 if [ $RC -ne 0 ]; then
   echo "Error: Failed to start Docker Compose services (exit code: $RC)" >&2
+  # Dump logs per service for debugging
+  for svc in $(docker compose -f "$COMPOSE_FILE" ps --services 2>/dev/null); do
+    echo "=== Docker logs: $svc (last 30 lines) ===" >&2
+    docker compose -f "$COMPOSE_FILE" logs --tail=30 "$svc" >&2 2>&1 || true
+  done
   exit $RC
 fi
 

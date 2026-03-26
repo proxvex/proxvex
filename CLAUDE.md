@@ -99,10 +99,10 @@ pnpm run <script>     # Run scripts
 
 ## Testing and Quality
 
-After significant changes:
+After significant **backend TypeScript** changes:
 
 ```bash
-# Backend
+# Backend (only needed for .mts/.ts changes, NOT for json/ or scripts/)
 cd backend && pnpm run lint:fix && pnpm run build && pnpm test
 
 # Frontend
