@@ -68,5 +68,13 @@
     "replace_ct": [
       "900-replace-ct.json"
     ]
+  },
+  "check": {
+    "check": [
+      "900-host-check-container.json",
+      "920-host-check-lxc-log.json",
+      "940-host-check-file-exists.json",
+      "950-host-check-tls-connect.json"
+    ]
   }
 }

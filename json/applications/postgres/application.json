@@ -71,10 +71,13 @@
       "value": "15"
     }
   ],
+  "supports": ["pg_ssl"],
   "installation": {},
+  "check": {
+    "check": [
+      "check-pg-ssl.json"
+    ]
+  },
   "tags": ["database"],
-  "stacktype": "postgres",
-  "verification": {
-    "wait_seconds": 30
-  }
+  "stacktype": "postgres"
 }

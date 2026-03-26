@@ -139,6 +139,7 @@ fi
 # The new container was started while the old one still held the DNS name.
 # After stopping the old container, reboot the new one so it picks up the hostname via DHCP/DNS.
 CLEANUP_SCRIPT="
+  pct set $PREVIOUS_VMID --onboot 0 2>&1 || true
   pct stop $PREVIOUS_VMID 2>&1 || echo 'Warning: pct stop $PREVIOUS_VMID failed'
   pct reboot $NEW_VMID 2>&1 || echo 'Warning: pct reboot $NEW_VMID failed'
   sleep 3

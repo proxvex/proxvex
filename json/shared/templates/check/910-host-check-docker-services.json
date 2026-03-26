@@ -1,0 +1,13 @@
+{
+  "execute_on": "ve",
+  "name": "Check Docker Services",
+  "description": "Checks all Docker services are running inside the container. Skips gracefully if docker is not installed.",
+  "implements": "docker",
+  "commands": [
+    {
+      "name": "Check Docker Services",
+      "script": "host-check-docker-services.sh",
+      "outputs": ["check_services"]
+    }
+  ]
+}

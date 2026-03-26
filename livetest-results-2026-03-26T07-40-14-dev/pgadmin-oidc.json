@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-03-26T07-40-14-dev",
+  "scenario_id": "pgadmin/oidc",
+  "application": "pgadmin",
+  "variant": "oidc",
+  "task": "installation",
+  "status": "failed",
+  "vm_id": 203,
+  "hostname": "pgadmin-oidc",
+  "stack_name": "oidc",
+  "addons": [
+    "addon-oidc"
+  ],
+  "duration_seconds": 4,
+  "started_at": "2026-03-26T07:40:17.559Z",
+  "finished_at": "2026-03-26T07:40:21.332Z",
+  "deployer_version": "0.3.48",
+  "deployer_git_hash": "e009846",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": "Scenario failed: pgadmin/oidc (installation)",
+  "skipped_reason": null
+}

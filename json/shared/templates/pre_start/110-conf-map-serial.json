@@ -2,7 +2,7 @@
   "execute_on": "ve",
   "name": "Map Serial Device",
   "description": "Map serial device to VM",
-  "skip_unless_app_flag": "supports_serial_tty",
+  "implements": "serial_tty",
   "parameters": [
     {
       "id": "host_device_path",

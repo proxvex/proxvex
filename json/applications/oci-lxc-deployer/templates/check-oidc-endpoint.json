@@ -1,0 +1,12 @@
+{
+  "execute_on": "ve",
+  "name": "Check OIDC Endpoint",
+  "description": "Checks the OIDC endpoint is reachable and API is protected.",
+  "commands": [
+    {
+      "name": "Check OIDC Endpoint",
+      "script": "host-check-oidc-endpoint.sh",
+      "outputs": ["check_oidc"]
+    }
+  ]
+}

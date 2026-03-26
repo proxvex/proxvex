@@ -36,16 +36,7 @@ export class TemplateValidator {
     tmplData: ITemplate,
     resolvedParams: IResolvedParam[],
     applicationParams?: IParameterWithTemplate[],
-    applicationFlags?: Record<string, boolean>,
-  ): { shouldSkip: boolean; reason?: "property_set" | "all_missing" | "app_flag_missing" } {
-    // Check skip_unless_app_flag first: if the application doesn't have the flag set,
-    // the template is completely hidden (no parameters, no commands)
-    if (tmplData.skip_unless_app_flag) {
-      if (!applicationFlags?.[tmplData.skip_unless_app_flag]) {
-        return { shouldSkip: true, reason: "app_flag_missing" };
-      }
-    }
-
+  ): { shouldSkip: boolean; reason?: "property_set" | "all_missing" } {
     if (tmplData.skip_if_property_set) {
       const resolved = resolvedParams.find(
         (p) => p.id === tmplData.skip_if_property_set,

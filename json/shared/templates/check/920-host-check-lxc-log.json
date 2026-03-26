@@ -1,0 +1,12 @@
+{
+  "execute_on": "ve",
+  "name": "Check LXC Log",
+  "description": "Checks LXC container log for errors.",
+  "commands": [
+    {
+      "name": "Check LXC Log",
+      "script": "host-check-lxc-log.sh",
+      "outputs": ["check_lxc_log"]
+    }
+  ]
+}

@@ -84,6 +84,8 @@ fi
 
 # ─── Step 4: Stop and destroy old container ───────────────────────────────────
 source_status=$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
+# Disable autostart first — if destroy fails, the container must not boot on reboot
+pct set "$SOURCE_VMID" --onboot 0 >&2 2>/dev/null || true
 if [ "$source_status" = "running" ]; then
   log "Stopping old container $SOURCE_VMID..."
   pct stop "$SOURCE_VMID" >&2 || log "Warning: failed to stop old container $SOURCE_VMID"

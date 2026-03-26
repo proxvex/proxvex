@@ -1,12 +1,12 @@
 /**
- * ZFS snapshot manager for live integration tests.
+ * Whole-VM snapshot manager for live integration tests.
  *
- * Creates per-dependency ZFS snapshots of all container disks and the
- * shared volumes dataset inside the nested PVE. Each snapshot captures
- * the cumulative state of all dependencies installed up to that point.
+ * Creates snapshots of the entire nested PVE VM (QEMU) from the outer
+ * Proxmox host using `qm snapshot`. A single snapshot captures everything:
+ * all LXC containers, their disks, configs, volumes, and the ZFS pool.
  *
- * /etc/pve/lxc is on pmxcfs (FUSE) and NOT included in ZFS snapshots,
- * so we backup/restore it manually to the volumes dataset.
+ * This eliminates the need for per-container ZFS snapshots, /etc/pve/lxc
+ * backup/restore, and VM-ID remapping.
  */
 import { execSync } from "node:child_process";
 
@@ -14,19 +14,26 @@ export interface SnapshotConfig {
   enabled: boolean;
 }
 
-const PVE_LXC_BACKUP_DIR = "/rpool/data/subvol-999999-oci-lxc-deployer-volumes/.pve-lxc-backup";
-const VOLUMES_DATASET = "rpool/data/subvol-999999-oci-lxc-deployer-volumes";
-
 export class SnapshotManager {
   constructor(
-    private pveHost: string,
-    private pveSshPort: number,
+    private outerPveHost: string,
+    private nestedVmId: number,
+    private nestedSshPort: number,
     private log: (msg: string) => void = console.log,
   ) {}
 
-  private ssh(cmd: string, timeout = 30000): string {
+  /** SSH to the outer PVE host (port 22) for qm commands */
+  private outerSsh(cmd: string, timeout = 60000): string {
     return execSync(
-      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p ${this.pveSshPort} root@${this.pveHost} ${JSON.stringify(cmd)}`,
+      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 root@${this.outerPveHost} ${JSON.stringify(cmd)}`,
+      { timeout, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+    ).trim();
+  }
+
+  /** SSH to the nested PVE VM (via port-forwarded port) for pct commands */
+  private nestedSsh(cmd: string, timeout = 15000): string {
+    return execSync(
+      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p ${this.nestedSshPort} root@${this.outerPveHost} ${JSON.stringify(cmd)}`,
       { timeout, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
     ).trim();
   }
@@ -36,10 +43,13 @@ export class SnapshotManager {
     return "dep-" + scenarioId.replace(/\//g, "-");
   }
 
-  /** Check if a snapshot exists on the volumes dataset */
+  /** Check if a snapshot exists for the nested VM */
   exists(name: string): boolean {
     try {
-      this.ssh(`zfs list -t snapshot -o name -H | grep -q '@${name}$'`);
+      const output = this.outerSsh(
+        `qm listsnapshot ${this.nestedVmId} | grep -q ' ${name} '`,
+        15000,
+      );
       return true;
     } catch {
       return false;
@@ -47,110 +57,82 @@ export class SnapshotManager {
   }
 
   /**
-   * Create ZFS snapshots for all dependency VMs + volumes dataset.
-   * 1. Backup /etc/pve/lxc configs to volumes dataset
-   * 2. ZFS snapshot each VM disk + volumes dataset
+   * Create a live snapshot of the entire nested PVE VM.
+   * No VM stop needed — ZFS snapshots are atomic.
+   * Takes ~2s on ZFS backend.
    */
-  create(name: string, depVmIds: number[]): void {
-    this.log(`Creating ZFS snapshot @${name}...`);
+  create(name: string): void {
+    this.log(`Creating VM snapshot @${name}...`);
 
-    // 1. Backup /etc/pve/lxc
+    // Delete existing snapshot with same name (idempotent)
     try {
-      this.ssh(
-        `mkdir -p ${PVE_LXC_BACKUP_DIR} && cp -a /etc/pve/lxc/*.conf ${PVE_LXC_BACKUP_DIR}/ 2>/dev/null || true`,
-        15000,
-      );
-    } catch (err) {
-      this.log(`Warning: /etc/pve/lxc backup failed (non-fatal): ${err}`);
-    }
-
-    // 2. Snapshot each dependency VM disk
-    for (const vmId of depVmIds) {
-      const dataset = `rpool/data/subvol-${vmId}-disk-0`;
-      try {
-        this.ssh(
-          `zfs destroy ${dataset}@${name} 2>/dev/null; zfs snapshot ${dataset}@${name}`,
-          30000,
-        );
-      } catch (err) {
-        this.log(`Warning: snapshot ${dataset}@${name} failed: ${err}`);
-      }
-    }
-
-    // 3. Snapshot volumes dataset (includes /etc/pve/lxc backup)
-    try {
-      this.ssh(
-        `zfs destroy ${VOLUMES_DATASET}@${name} 2>/dev/null; zfs snapshot ${VOLUMES_DATASET}@${name}`,
+      this.outerSsh(
+        `qm delsnapshot ${this.nestedVmId} ${name} 2>/dev/null; true`,
         30000,
       );
-    } catch (err) {
-      this.log(`Warning: volumes snapshot failed: ${err}`);
-    }
+    } catch { /* ignore */ }
+
+    // Create live snapshot (no VM stop needed, --vmstate 0 skips RAM)
+    this.outerSsh(
+      `qm snapshot ${this.nestedVmId} ${name} --vmstate 0`,
+      30000,
+    );
 
     this.log(`Snapshot @${name} created`);
   }
 
   /**
-   * Rollback ZFS snapshots for dependency VMs + volumes dataset.
-   * 1. Stop dependency containers
-   * 2. ZFS rollback each VM disk + volumes dataset
-   * 3. Restore /etc/pve/lxc configs from backup
-   * 4. Start dependency containers
+   * Rollback the entire nested PVE VM to a snapshot.
+   * Stops the VM, rolls back, starts it, waits for SSH.
    */
-  rollback(name: string, depVmIds: number[]): void {
+  rollback(name: string): void {
     this.log(`Rolling back to @${name}...`);
 
-    // 1. Stop containers
-    for (const vmId of depVmIds) {
-      this.ssh(`pct stop ${vmId} 2>/dev/null; true`, 30000);
-    }
-
-    // 2. Rollback VM disks
-    for (const vmId of depVmIds) {
-      const dataset = `rpool/data/subvol-${vmId}-disk-0`;
-      try {
-        this.ssh(`zfs rollback -r ${dataset}@${name}`, 60000);
-      } catch (err) {
-        this.log(`Warning: rollback ${dataset}@${name} failed: ${err}`);
-      }
-    }
-
-    // 3. Rollback volumes dataset
+    // Stop nested VM
     try {
-      this.ssh(
-        `zfs rollback -r ${VOLUMES_DATASET}@${name}`,
-        60000,
-      );
-    } catch (err) {
-      this.log(`Warning: volumes rollback failed: ${err}`);
+      this.outerSsh(`qm stop ${this.nestedVmId}`, 60000);
+    } catch {
+      this.log("Warning: qm stop failed (may already be stopped)");
     }
 
-    // 4. Restore /etc/pve/lxc configs from backup (now restored by volumes rollback)
-    try {
-      this.ssh(
-        `if [ -d ${PVE_LXC_BACKUP_DIR} ]; then cp -a ${PVE_LXC_BACKUP_DIR}/*.conf /etc/pve/lxc/ 2>/dev/null || true; fi`,
-        15000,
-      );
-    } catch (err) {
-      this.log(`Warning: /etc/pve/lxc restore failed: ${err}`);
-    }
+    // Rollback
+    this.outerSsh(`qm rollback ${this.nestedVmId} ${name}`, 120000);
 
-    // 5. Start containers
-    for (const vmId of depVmIds) {
-      try {
-        this.ssh(`pct start ${vmId}`, 30000);
-      } catch (err) {
-        this.log(`Warning: start VM ${vmId} failed: ${err}`);
-      }
-    }
+    // Start
+    this.outerSsh(`qm start ${this.nestedVmId}`, 30000);
+
+    // Wait for nested VM to be reachable via SSH
+    this.waitForNestedVm();
 
     this.log(`Rollback to @${name} complete`);
   }
 
   /**
+   * Wait for the nested VM to become reachable via SSH after boot.
+   * Polls SSH on the port-forwarded port until success or timeout.
+   */
+  private waitForNestedVm(timeoutMs = 120000): void {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        this.nestedSsh("echo ok", 5000);
+        // Extra wait for PVE to start onboot containers
+        this.sleep(5);
+        return;
+      } catch {
+        this.sleep(3);
+      }
+    }
+    throw new Error(`Nested VM not reachable via SSH after ${timeoutMs / 1000}s`);
+  }
+
+  private sleep(seconds: number): void {
+    execSync(`sleep ${seconds}`, { stdio: "ignore" });
+  }
+
+  /**
    * Find the best (latest) snapshot for a dependency chain.
    * Walks backwards through deps and returns the first existing snapshot.
-   * That snapshot contains the cumulative state of all previous dependencies.
    */
   findBestSnapshot(depScenarioIds: string[]): { name: string; index: number } | null {
     for (let i = depScenarioIds.length - 1; i >= 0; i--) {

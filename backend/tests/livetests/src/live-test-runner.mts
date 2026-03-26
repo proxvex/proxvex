@@ -272,27 +272,43 @@ async function executeScenarios(
   const allDepIds = new Set(planned.flatMap((p) => p.scenario.depends_on ?? []));
   const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
   const snapMgr = config.snapshot?.enabled
-    ? new SnapshotManager(config.pveHost, config.portPveSsh, (msg) => logInfo(msg))
+    ? new SnapshotManager(config.pveHost, config.vmId, config.portPveSsh, (msg) => logInfo(msg))
     : null;
 
-  // Try to restore from ZFS snapshot (skip dependency installation)
+  // Try to restore from whole-VM snapshot (skip dependency installation)
   let depsRestoredFromSnapshot = false;
   if (snapMgr && depSteps.length > 0) {
     const depIds = depSteps.map((p) => p.scenario.id);
     const best = snapMgr.findBestSnapshot(depIds);
     if (best) {
       try {
-        const depVmIds = depSteps.slice(0, best.index + 1).map((p) => p.vmId);
         logStep("Snapshot", `Restoring to @${best.name}`);
-        snapMgr.rollback(best.name, depVmIds);
+        snapMgr.rollback(best.name);
         depsRestoredFromSnapshot = true;
+
+        // Stop ghost containers that are not dependencies in this run
+        const depVmIds = new Set(depSteps.map((p) => p.vmId));
+        try {
+          const pctList = nestedSsh(config.pveHost, config.portPveSsh,
+            `pct list 2>/dev/null | tail -n +2 | awk '{print $1}'`, 10000);
+          for (const line of pctList.split("\n")) {
+            const vmId = parseInt(line.trim(), 10);
+            if (!isNaN(vmId) && !depVmIds.has(vmId)) {
+              nestedSsh(config.pveHost, config.portPveSsh,
+                `pct set ${vmId} --onboot 0 2>/dev/null; pct stop ${vmId} 2>/dev/null; true`, 15000);
+            }
+          }
+        } catch {
+          logInfo("Warning: ghost container cleanup failed (non-fatal)");
+        }
+
         // Mark all dependencies up to and including the snapshot as skipped
         for (let j = 0; j <= best.index; j++) {
           depSteps[j]!.skipExecution = true;
         }
-        logOk(`Dependencies restored from ZFS snapshot @${best.name}`);
+        logOk(`Dependencies restored from VM snapshot @${best.name}`);
       } catch (err) {
-        logInfo(`ZFS snapshot restore failed, will install normally: ${err}`);
+        logInfo(`VM snapshot restore failed, will install normally: ${err}`);
       }
     }
   }
@@ -568,18 +584,13 @@ async function executeScenarios(
         }));
       }
 
-      // Create ZFS snapshot after each dependency is installed and verified
+      // Create whole-VM snapshot after each dependency is installed and verified
       if (snapMgr && allDepIds.has(step.scenario.id) && !step.skipExecution) {
         try {
           const depSnapName = snapMgr.snapshotName(step.scenario.id);
-          // Collect all dep VM IDs installed so far (including this one)
-          const installedDepVmIds = planned
-            .filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution)
-            .filter((p) => planned.indexOf(p) <= i)
-            .map((p) => p.vmId);
-          snapMgr.create(depSnapName, installedDepVmIds);
+          snapMgr.create(depSnapName);
         } catch (err) {
-          logInfo(`ZFS snapshot creation failed (non-fatal): ${err}`);
+          logInfo(`VM snapshot creation failed (non-fatal): ${err}`);
         }
       }
     }

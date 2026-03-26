@@ -37,7 +37,7 @@
       "templatename": "Configure LXC for OCI"
     }
   ],
-  "supports_serial_tty": true,
+  "supports": ["serial_tty"],
   "properties": [
     {
       "id": "oci_image",
@@ -62,11 +62,5 @@
     "api",
     "development"
   ],
-  "supported_addons": ["addon-oidc"],
-  "verification": {
-    "wait_seconds": 30,
-    "checks": {
-      "docker_log_no_errors": true
-    }
-  }
+  "supported_addons": ["addon-oidc"]
 }

@@ -211,10 +211,12 @@ export class TemplateProcessor extends EventEmitter {
       }
     }
 
-    // Extract application-level boolean flags for skip_unless_app_flag checks
+    // Build applicationFlags from supports array for implements checks
     const applicationFlags: Record<string, boolean> = {};
-    if (application?.supports_serial_tty) {
-      applicationFlags.supports_serial_tty = true;
+    if (application?.supports) {
+      for (const flag of application.supports) {
+        applicationFlags[flag] = true;
+      }
     }
 
     for (const tmpl of templates) {
@@ -421,6 +423,14 @@ export class TemplateProcessor extends EventEmitter {
       );
     }
 
+    // implements: if template declares a feature flag, check if application supports it.
+    // Silently excluded — not tracked, not shown, not skipped.
+    if (tmplData.implements) {
+      if (!opts.applicationFlags?.[tmplData.implements]) {
+        return;
+      }
+    }
+
     // Check if template should be skipped due to missing parameters
     // This check happens BEFORE marking outputs, so outputs from previous templates are available
     // but we don't set outputs for skipped templates
@@ -428,16 +438,15 @@ export class TemplateProcessor extends EventEmitter {
       tmplData,
       opts.resolvedParams,
       opts.parameters,
-      opts.applicationFlags,
     );
     const shouldSkip = skipDecision.shouldSkip;
     const skipReason = skipDecision.reason;
 
-    // Determine if template is conditional (skip_if_all_missing, skip_if_property_set, or skip_unless_app_flag)
+    // Determine if template is conditional (skip_if_all_missing, skip_if_property_set)
     const isConditional =
       !!(
         tmplData.skip_if_all_missing && tmplData.skip_if_all_missing.length > 0
-      ) || !!tmplData.skip_if_property_set || !!tmplData.skip_unless_app_flag;
+      ) || !!tmplData.skip_if_property_set;
 
     // Determine if template is shared or app-specific
     const isSharedTemplate = tmplRef.scope === "shared";
@@ -456,10 +465,6 @@ export class TemplateProcessor extends EventEmitter {
     }
 
     if (shouldSkip) {
-      // app_flag_missing: template is completely hidden — no commands, no parameters
-      if (skipReason === "app_flag_missing") {
-        return;
-      }
       // Replace all commands with "skipped" commands that always exit with 0
       // Only set execute_on if template has it (properties-only templates don't need it)
       for (const cmd of tmplData.commands ?? []) {

@@ -265,6 +265,9 @@ export async function validateAllJson(localPathArg?: string): Promise<void> {
   // === 4. Validate Applications (schema + tasks) ===
   const apps = pm.getApplicationService().listApplicationsForFrontend();
 
+  // check is excluded from standalone validation because its templates rely on
+  // parameters (vm_id, hostname) produced by other tasks. Check templates are
+  // auto-appended to installation/upgrade/reconfigure and validated there.
   const VALID_TASK_TYPES: TaskType[] = [
     "installation",
     "backup",

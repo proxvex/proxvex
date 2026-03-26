@@ -2,6 +2,7 @@
   "name": "docker-compose",
   "description": "Base application for Docker Compose based services",
   "supported_addons": ["addon-ssl", "samba-shares"],
+  "supports": ["docker"],
   "parameters": [
     {
       "id": "compose_file",
@@ -131,6 +132,16 @@
     ],
     "replace_ct": [
       "900-replace-ct.json"
+    ]
+  },
+  "check": {
+    "check": [
+      "900-host-check-container.json",
+      "910-host-check-docker-services.json",
+      "920-host-check-lxc-log.json",
+      "930-host-check-docker-logs.json",
+      "940-host-check-file-exists.json",
+      "950-host-check-tls-connect.json"
     ]
   }
 }

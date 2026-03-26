@@ -470,14 +470,6 @@ export class WebAppVeRouteHandlers {
       // Auto-generate certificate parameters for certtype params without user upload
       this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey);
 
-      // Append verification commands (run after all post_start commands)
-      if (task === "installation") {
-        const verifyCommands = this.loadVerificationCommands();
-        if (verifyCommands.length > 0) {
-          commands = [...commands, ...verifyCommands];
-        }
-      }
-
       // Start ProxmoxExecution
       const inputs = processedParams.map((p) => ({
         id: p.id,
@@ -529,67 +521,6 @@ export class WebAppVeRouteHandlers {
     }
   }
 
-  /**
-   * Loads verification templates from json/shared/templates/verify/ and builds commands.
-   * These are appended after all installation commands to verify the container is healthy.
-   */
-  private loadVerificationCommands(): ICommand[] {
-    const repositories = this.pm.getRepositories();
-    const commands: ICommand[] = [];
-    const templateNames = [
-      "900-host-verify-container.json",
-      "910-host-verify-docker-services.json",
-    ];
-
-    for (const templateName of templateNames) {
-      try {
-        const template = repositories.getTemplate({
-          name: templateName,
-          scope: "shared",
-          category: "verify",
-        });
-
-        if (template && template.commands) {
-          for (const cmd of template.commands) {
-            const command: ICommand = { ...cmd };
-            if (!command.name || command.name.trim() === "") {
-              command.name = template.name || templateName;
-            }
-            if (!command.execute_on && template.execute_on) {
-              command.execute_on = template.execute_on;
-            }
-            if (cmd.script && !cmd.scriptContent) {
-              const scriptContent = repositories.getScript({
-                name: cmd.script,
-                scope: "shared",
-                category: "verify",
-              });
-              if (scriptContent) {
-                command.scriptContent = scriptContent;
-              }
-            }
-
-            if (cmd.library && !cmd.libraryContent) {
-              const libraryContent = repositories.getScript({
-                name: cmd.library,
-                scope: "shared",
-                category: "library",
-              });
-              if (libraryContent) {
-                command.libraryContent = libraryContent;
-              }
-            }
-
-            commands.push(command);
-          }
-        }
-      } catch {
-        // Template not found — skip
-      }
-    }
-
-    return commands;
-  }
 
   /**
    * Handles GET /api/ve/execute/:veContext

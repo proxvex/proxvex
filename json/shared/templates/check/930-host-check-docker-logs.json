@@ -1,0 +1,13 @@
+{
+  "execute_on": "ve",
+  "name": "Check Docker Logs",
+  "description": "Checks Docker container logs for errors.",
+  "implements": "docker",
+  "commands": [
+    {
+      "name": "Check Docker Logs",
+      "script": "host-check-docker-logs.sh",
+      "outputs": ["check_docker_logs"]
+    }
+  ]
+}

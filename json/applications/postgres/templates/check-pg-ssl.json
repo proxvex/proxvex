@@ -1,0 +1,13 @@
+{
+  "execute_on": "ve",
+  "name": "Check PG SSL",
+  "description": "Checks if PostgreSQL has SSL enabled.",
+  "implements": "pg_ssl",
+  "commands": [
+    {
+      "name": "Check PG SSL",
+      "script": "host-check-pg-ssl.sh",
+      "outputs": ["check_pg_ssl"]
+    }
+  ]
+}

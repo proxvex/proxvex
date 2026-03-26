@@ -1,15 +1,8 @@
 {
   "default": {
-    "wait_seconds": 30,
-    "verify": {
-      "docker_log_no_errors": true
-    }
+    "wait_seconds": 30
   },
   "ssl": {
-    "wait_seconds": 60,
-    "verify": {
-      "docker_log_no_errors": true,
-      "tls_connect": 3443
-    }
+    "wait_seconds": 60
   }
 }

@@ -439,6 +439,15 @@ export class ApplicationPersistenceHandler {
               ]),
             ];
           }
+          // Merge supports: parent + child, deduplicated
+          if (parent.supports?.length || appData.supports?.length) {
+            appData.supports = [
+              ...new Set([
+                ...(parent.supports ?? []),
+                ...(appData.supports ?? []),
+              ]),
+            ];
+          }
         } catch (e: Error | any) {
           this.addErrorToOptions(opts, e);
         }
@@ -689,7 +698,7 @@ export class ApplicationPersistenceHandler {
     opts: IReadApplicationOptions,
   ): void {
     // Installation uses category-based format: { image, pre_start, start, post_start }
-    const installationCategories = ["image", "create_ct", "pre_start", "start", "post_start", "replace_ct"];
+    const installationCategories = ["image", "create_ct", "pre_start", "start", "post_start", "replace_ct", "check"];
     const installation = (appData as any).installation;
     if (installation && typeof installation === "object") {
       let taskEntry = opts.taskTemplates.find((t) => t.task === "installation");
@@ -706,8 +715,8 @@ export class ApplicationPersistenceHandler {
       }
     }
 
-    // upgrade, reconfigure: support both array (flat) and object (category-based) format
-    for (const key of ["upgrade", "reconfigure"] as const) {
+    // upgrade, reconfigure, check: support both array (flat) and object (category-based) format
+    for (const key of ["upgrade", "reconfigure", "check"] as const) {
       const value = (appData as any)[key];
       if (!value) continue;
 
@@ -750,6 +759,23 @@ export class ApplicationPersistenceHandler {
           opts.taskTemplates.push(taskEntry);
         }
         this.processTemplateList(list, taskEntry, key, opts, "root");
+      }
+    }
+
+    // Auto-append check templates to installation/upgrade/reconfigure tasks.
+    // This allows check templates to be defined once in the "check" task
+    // and automatically run at the end of every deployment task.
+    const checkData = (appData as any).check;
+    if (checkData && typeof checkData === "object" && !Array.isArray(checkData)) {
+      for (const taskKey of ["installation", "upgrade", "reconfigure"]) {
+        const taskEntry = opts.taskTemplates.find((t) => t.task === taskKey);
+        if (!taskEntry) continue;
+        for (const category of installationCategories) {
+          const list = checkData[category];
+          if (Array.isArray(list)) {
+            this.processTemplateList(list, taskEntry, taskKey, opts, category);
+          }
+        }
       }
     }
   }

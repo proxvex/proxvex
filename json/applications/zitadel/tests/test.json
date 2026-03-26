@@ -6,8 +6,6 @@
     "cli_timeout": 900,
     "wait_seconds": 90,
     "verify": {
-      "docker_log_no_errors": true,
-      "file_exists": ["/bootstrap/login-client.pat", "/bootstrap/admin-client.pat"],
       "zitadel_setup_test_project": true
     }
   },
@@ -16,12 +14,7 @@
       "postgres": "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='zitadel' AND pid<>pg_backend_pid(); DROP DATABASE IF EXISTS zitadel; DROP USER IF EXISTS zitadel;"
     },
     "cli_timeout": 900,
-    "wait_seconds": 90,
-    "verify": {
-      "docker_log_no_errors": true,
-      "tls_connect": 8443,
-      "file_exists": ["/bootstrap/login-client.pat", "/bootstrap/admin-client.pat"]
-    }
+    "wait_seconds": 90
   },
   "production": {
     "cleanup": {

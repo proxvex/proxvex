@@ -2,9 +2,6 @@
   "default": {
   },
   "ssl": {
-    "wait_seconds": 30,
-    "verify": {
-      "file_exists": ["/mosquitto/config/certs/fullchain.pem", "/mosquitto/config/certs/privkey.pem"]
-    }
+    "wait_seconds": 30
   }
 }

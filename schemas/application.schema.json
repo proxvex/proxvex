@@ -63,10 +63,13 @@
     "reconfigure": {
       "$ref": "categorized-templatelist"
     },
-    "supports_serial_tty": {
-      "type": "boolean",
-      "default": false,
-      "description": "If true, serial/tty device mapping is available for this application. Templates with skip_unless_app_flag referencing this flag will be completely hidden otherwise."
+    "supports": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Feature flags this application supports (e.g. 'serial_tty', 'docker'). Merged with parent via extends. Templates with 'implements' are only included when the application has the matching value."
+    },
+    "check": {
+      "$ref": "categorized-templatelist"
     },
     "hidden": {
       "type": "boolean",
@@ -75,15 +78,13 @@
     },
     "verification": {
       "type": "object",
-      "description": "Post-installation verification configuration",
+      "description": "Deprecated: Use check task instead. Post-installation verification configuration.",
       "properties": {
         "wait_seconds": {
-          "type": "number",
-          "description": "Seconds to wait before running verification checks (allows services to start up)"
+          "type": "number"
         },
         "checks": {
           "type": "object",
-          "description": "Verification checks. Keys are check names, values are true/false or objects with enabled/fatal flags.",
           "additionalProperties": {
             "oneOf": [
               { "type": "boolean" },

@@ -12,7 +12,8 @@
         "pre_start": { "$ref": "templatelist" },
         "start": { "$ref": "templatelist" },
         "post_start": { "$ref": "templatelist" },
-        "replace_ct": { "$ref": "templatelist" }
+        "replace_ct": { "$ref": "templatelist" },
+        "check": { "$ref": "templatelist" }
       }
     }
   ]

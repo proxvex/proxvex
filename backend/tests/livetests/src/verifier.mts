@@ -1,6 +1,12 @@
 /**
  * Verification logic for live integration tests.
- * Checks container state, services, TLS, OIDC, and more.
+ * Basic checks (container_running, notes_managed, services_up, lxc_log_no_errors,
+ * docker_log_no_errors, file_exists, tls_connect, pg_ssl_on) are now handled by
+ * check templates that run as part of the installation/upgrade CLI execution.
+ *
+ * Remaining here: complex integration test checks (zitadel, OIDC) that require
+ * multi-step API interactions and test data setup. These will be migrated to
+ * check templates in a follow-up.
  */
 
 import { nestedSsh } from "./ssh-helpers.mjs";
@@ -30,58 +36,21 @@ export interface AppMeta {
   extends?: string | undefined;
   stacktype?: string | string[] | undefined;
   tags?: string[] | undefined;
-  verification?: {
-    wait_seconds?: number;
-    checks?: Record<string, boolean | number | string | { enabled?: boolean; fatal?: boolean }>;
-  } | undefined;
 }
 
 /**
- * Build default verifications from application metadata and scenario addons.
- * test.json can override/extend these defaults.
+ * Build verify checks from test.json scenario.
+ * Basic checks are now handled by check templates in the CLI.
+ * Only test-specific checks remain here.
  */
 export function buildDefaultVerify(
-  scenario: ResolvedScenario,
-  appMeta: AppMeta,
+  _scenario: ResolvedScenario,
+  _appMeta: AppMeta,
 ): Record<string, boolean | number | string> {
-  const verify: Record<string, boolean | number | string> = {
-    container_running: true,
-    notes_managed: true,
-    lxc_log_no_errors: true,
-  };
-
-  // Docker-compose apps additionally check docker services
-  if (appMeta.extends === "docker-compose") {
-    verify.services_up = true;
-  }
-
-  // Addon-based checks
-  const allAddons = scenario.selectedAddons ?? [];
-  const hasSSL = allAddons.includes("addon-ssl");
-
-  if (hasSSL) {
-    // Only check pg_ssl_on for actual postgres applications, not for apps
-    // that merely use the postgres stacktype for shared variables
-    if (scenario.application === "postgres") {
-      verify.pg_ssl_on = true;
-    }
-  }
-
-  // Merge application-level verification checks from application.json
-  if (appMeta.verification?.checks) {
-    for (const [key, value] of Object.entries(appMeta.verification.checks)) {
-      if (typeof value === "object" && value !== null) {
-        // { enabled?: boolean; fatal?: boolean } - only add if enabled (default true)
-        if (value.enabled !== false) {
-          verify[key] = true;
-        }
-      } else {
-        verify[key] = value;
-      }
-    }
-  }
-
-  return verify;
+  // Basic checks (container_running, notes_managed, lxc_log_no_errors,
+  // services_up, docker_log_no_errors, file_exists, tls_connect, pg_ssl_on)
+  // are now handled by check templates auto-appended to installation/upgrade.
+  return {};
 }
 
 // ── Verifier class ──
@@ -124,69 +93,6 @@ export class Verifier {
     }
   }
 
-  containerRunning(vmId: number) {
-    const status = this.ssh(`pct status ${vmId}`);
-    this.assert(status.includes("running"), `[${vmId}] Container is running (${status.trim()})`);
-  }
-
-  notesManaged(vmId: number) {
-    const notes = this.ssh(`pct config ${vmId} | grep -a -A100 'description:'`);
-    const hasMarker = /oci-lxc-deployer(:managed|%3Amanaged)/.test(notes);
-    this.assert(hasMarker, `[${vmId}] Notes contain managed marker`);
-  }
-
-  servicesUp(vmId: number) {
-    const services = this.ssh(`pct exec ${vmId} -- docker ps --format '{{.Names}}:{{.Status}}'`);
-    if (!services) {
-      logFail(`[${vmId}] No docker services found`);
-      this.failed++;
-      return;
-    }
-    const lines = services.split("\n").filter(Boolean);
-    const notUp = lines.filter((l) => !l.includes("Up"));
-    if (notUp.length === 0) {
-      logOk(`[${vmId}] All docker services are up`);
-      this.passed++;
-    } else {
-      logFail(`[${vmId}] Some docker services not up: ${notUp.join(", ")}`);
-      this.failed++;
-    }
-  }
-
-  lxcLogNoErrors(vmId: number, hostname: string) {
-    const errors = this.ssh(
-      `cat /var/log/lxc/${hostname}-${vmId}.log 2>/dev/null | grep -i error | head -10`,
-    );
-    if (!errors) {
-      logOk(`[${vmId}] LXC log clean (no errors)`);
-      this.passed++;
-    } else {
-      logWarn(`[${vmId}] LXC log contains errors:`);
-      errors.split("\n").slice(0, 5).forEach((l) => console.log(`  ${l}`));
-    }
-  }
-
-  async dockerLogNoErrors(vmId: number) {
-    const content = await this.fetchDockerLogs(vmId, 200);
-    if (content === null) {
-      logWarn(`[${vmId}] Could not fetch docker logs via API`);
-      return;
-    }
-    const errorLines = content.split("\n").filter((l) => {
-      if (!/error/i.test(l)) return false;
-      // Ignore known harmless Zitadel notification errors (missing protocol scheme for ExternalDomain)
-      if (/projections\.notifications.*missing protocol scheme/i.test(l)) return false;
-      return true;
-    });
-    if (errorLines.length === 0) {
-      logOk(`[${vmId}] Docker logs clean (no errors)`);
-      this.passed++;
-    } else {
-      logWarn(`[${vmId}] Docker logs contain errors:`);
-      errorLines.slice(0, 10).forEach((l) => console.log(`  ${l}`));
-    }
-  }
-
   async dumpDockerLogs(vmId: number) {
     logWarn(`[${vmId}] Dumping docker logs (last 50 lines)...`);
     const content = await this.fetchDockerLogs(vmId, 50);
@@ -195,43 +101,6 @@ export class Verifier {
     } else {
       logWarn(`[${vmId}] Could not fetch docker logs via API`);
     }
-  }
-
-  tlsConnect(vmId: number, port: number) {
-    const ip = this.ssh(
-      `pct exec ${vmId} -- ip -4 addr show eth0 | sed -n 's/.*inet \\([0-9.]*\\).*/\\1/p' | head -1`,
-    );
-    if (!ip) {
-      logFail(`[${vmId}] Cannot determine container IP for TLS check`);
-      this.failed++;
-      return;
-    }
-    const result = this.ssh(
-      `curl -sk --connect-timeout 5 https://${ip}:${port}/`,
-      20000,
-    );
-    this.assert(result !== "", `[${vmId}] TLS connection successful on port ${port}`);
-  }
-
-  pgSslOn(vmId: number) {
-    const sslStatus = this.ssh(
-      `pct exec ${vmId} -- psql -U postgres -tA -c 'SHOW ssl;'`,
-    ).trim();
-    this.assert(sslStatus === "on", `[${vmId}] Postgres SSL is enabled (SHOW ssl = ${sslStatus})`);
-  }
-
-  dbSslConnection(vmId: number) {
-    const sslInUse = this.ssh(
-      `pct exec ${vmId} -- psql -U postgres -tA -c "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid();"`,
-    ).trim();
-    this.assert(sslInUse === "t", `[${vmId}] DB connection uses SSL (pg_stat_ssl = ${sslInUse})`);
-  }
-
-  fileExists(vmId: number, filePath: string) {
-    const result = this.ssh(
-      `pct exec ${vmId} -- test -f ${filePath} && echo exists || echo missing`,
-    ).trim();
-    this.assert(result === "exists", `[${vmId}] File exists: ${filePath}`);
   }
 
   private getContainerIp(vmId: number): string | null {
@@ -555,19 +424,14 @@ export class Verifier {
     this.assert(apiOk, `[${vmId}] Machine user API call with JWT succeeded`);
   }
 
-  async runAll(vmId: number, hostname: string, verify: Record<string, boolean | number | string>, planned?: PlannedScenario[]) {
+  async runAll(vmId: number, _hostname: string, verify: Record<string, boolean | number | string>, planned?: PlannedScenario[]) {
     const failedBefore = this.failed;
 
-    if (verify.container_running) this.containerRunning(vmId);
-    if (verify.notes_managed) this.notesManaged(vmId);
-    if (verify.services_up) this.servicesUp(vmId);
-    if (verify.lxc_log_no_errors) this.lxcLogNoErrors(vmId, hostname);
-    if (verify.docker_log_no_errors) await this.dockerLogNoErrors(vmId);
-    if (typeof verify.tls_connect === "number") this.tlsConnect(vmId, verify.tls_connect);
-    if (verify.pg_ssl_on) this.pgSslOn(vmId);
-    if (verify.db_ssl_connection) this.dbSslConnection(vmId);
-    if (typeof verify.file_exists === "string") this.fileExists(vmId, verify.file_exists);
-    if (Array.isArray(verify.file_exists)) verify.file_exists.forEach((f: string) => this.fileExists(vmId, f));
+    // Basic checks (container_running, notes_managed, services_up, lxc_log_no_errors,
+    // docker_log_no_errors, file_exists, tls_connect, pg_ssl_on, db_ssl_connection)
+    // are now handled by check templates auto-appended to installation/upgrade.
+
+    // Complex integration test checks remain here until migrated to templates
     if (verify.zitadel_setup_test_project) this.zitadelSetupTestProject(vmId);
     if (verify.oidc_enabled) this.oidcEnabled(vmId);
     if (verify.oidc_api_protected) this.oidcApiProtected(vmId);

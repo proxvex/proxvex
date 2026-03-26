@@ -1,12 +1,12 @@
 #!/bin/sh
-# Verify container status after installation.
+# Check container status after installation.
 # Checks: container is running, notes contain managed marker.
 #
 # Template variables:
 #   vm_id - Container VM ID
 #   hostname - Container hostname
 #
-# Outputs JSON array with verification results.
+# Outputs JSON array with check results.
 # Exit 1 on fatal check failure (default), exit 0 if all checks pass.
 
 VM_ID="{{ vm_id }}"
@@ -33,10 +33,10 @@ add_result() {
 status_output=$(pct status "$VM_ID" 2>/dev/null)
 if echo "$status_output" | grep -q "running"; then
     add_result "container_running" "true"
-    echo "VERIFY: container_running PASSED (VM $VM_ID is running)" >&2
+    echo "CHECK: container_running PASSED (VM $VM_ID is running)" >&2
 else
     add_result "container_running" "false" "status: ${status_output}"
-    echo "VERIFY: container_running FAILED (VM $VM_ID status: ${status_output})" >&2
+    echo "CHECK: container_running FAILED (VM $VM_ID status: ${status_output})" >&2
     all_passed=false
 fi
 
@@ -47,15 +47,15 @@ fi
 notes_raw=$(pct config "$VM_ID" 2>/dev/null | grep -a "^description:" || true)
 if echo "$notes_raw" | grep -aq "oci-lxc-deployer%3Amanaged\|oci-lxc-deployer:managed"; then
     add_result "notes_managed" "true"
-    echo "VERIFY: notes_managed PASSED" >&2
+    echo "CHECK: notes_managed PASSED" >&2
 else
     add_result "notes_managed" "false" "managed marker not found in notes"
-    echo "VERIFY: notes_managed FAILED (managed marker not found)" >&2
+    echo "CHECK: notes_managed FAILED (managed marker not found)" >&2
     all_passed=false
 fi
 
 # Output results
-printf '[{"id":"verify_results","value":"%s"}]' "$(echo "$results" | sed 's/"/\\"/g')"
+printf '[{"id":"check_results","value":"%s"}]' "$(echo "$results" | sed 's/"/\\"/g')"
 
 if [ "$all_passed" = "false" ]; then
     exit 1

@@ -79,6 +79,10 @@
     {
       "id": "startup_up",
       "value": "15"
+    },
+    {
+      "id": "check_file_paths",
+      "value": "/bootstrap/login-client.pat\n/bootstrap/admin-client.pat"
     }
   ],
   "dependencies": [
@@ -90,12 +94,5 @@
   "stacktype": [
     "postgres",
     "oidc"
-  ],
-  "verification": {
-    "wait_seconds": 90,
-    "checks": {
-      "docker_log_no_errors": true,
-      "file_exists": "/bootstrap/login-client.pat"
-    }
-  }
+  ]
 }

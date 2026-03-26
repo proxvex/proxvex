@@ -1,0 +1,24 @@
+{
+  "execute_on": "ve",
+  "name": "Check File Exists",
+  "description": "Checks if specified files exist inside the container.",
+  "skip_if_all_missing": ["check_file_paths"],
+  "parameters": [
+    {
+      "id": "check_file_paths",
+      "name": "File Paths to Check",
+      "type": "string",
+      "multiline": true,
+      "required": false,
+      "internal": true,
+      "description": "Newline-separated list of file paths to verify inside the container."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Check File Exists",
+      "script": "host-check-file-exists.sh",
+      "outputs": ["check_file_exists"]
+    }
+  ]
+}

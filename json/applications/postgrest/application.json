@@ -43,10 +43,5 @@
     ]
   },
   "stacktype": "postgres",
-  "verification": {
-    "wait_seconds": 30,
-    "checks": {
-      "docker_log_no_errors": true
-    }
-  }
+  "supports": ["tls"]
 }

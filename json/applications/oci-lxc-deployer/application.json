@@ -46,6 +46,11 @@
     { "id": "oidc_required_role", "value": "admin" }
   ],
   "installation": {},
+  "check": {
+    "check": [
+      "check-oidc-endpoint.json"
+    ]
+  },
   "url": "https://github.com/modbus2mqtt/oci-lxc-deployer",
   "documentation": "https://github.com/modbus2mqtt/oci-lxc-deployer/blob/main/README.md",
   "source": "https://github.com/modbus2mqtt/oci-lxc-deployer",

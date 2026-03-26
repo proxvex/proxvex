@@ -3,9 +3,6 @@
     "wait_seconds": 30
   },
   "ssl": {
-    "wait_seconds": 30,
-    "verify": {
-      "tls_connect": 5443
-    }
+    "wait_seconds": 30
   }
 }

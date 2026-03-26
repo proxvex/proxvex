@@ -11,8 +11,5 @@
         "position": "start"
       }
     ]
-  },
-  "verification": {
-    "wait_seconds": 30
   }
 }
