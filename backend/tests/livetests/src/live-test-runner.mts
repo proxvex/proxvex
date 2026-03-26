@@ -242,6 +242,7 @@ async function executeScenarios(
   veHost: string,
   projectRoot: string,
   appMetaMap: Map<string, AppMeta>,
+  allTests: Map<string, ResolvedScenario>,
   resultWriter?: TestResultWriter,
   fixtureBaseDir?: string,
 ): Promise<TestResult> {
@@ -278,8 +279,10 @@ async function executeScenarios(
   } catch { /* ignore — no build hash available */ }
 
   // Snapshot support for dependencies
-  // A step is snapshot-worthy if another step in the plan depends on it
-  const allDepIds = new Set(planned.flatMap((p) => p.scenario.depends_on ?? []));
+  // A step is snapshot-worthy if ANY scenario (not just planned ones) depends on it.
+  // This ensures snapshots are created for common dependencies like postgres, zitadel
+  // even when they are targets in the current run but dependencies in other tests.
+  const allDepIds = new Set([...allTests.values()].flatMap((s) => s.depends_on ?? []));
   const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
   // For dev (local deployer), use .livetest-data/ for context backup/restore with snapshots
   const isLocalDeployer = config.deployerUrl.includes("localhost");
@@ -959,7 +962,7 @@ async function main() {
     ? path.join(projectRoot, "frontend/src/test-fixtures")
     : undefined;
   const resultWriter = new TestResultWriter(projectRoot, config.instance);
-  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, resultWriter, fixtureBaseDir);
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, allTests, resultWriter, fixtureBaseDir);
   const allResults = [result];
 
   // Collect diagnostics before cleanup (VMs still running)
