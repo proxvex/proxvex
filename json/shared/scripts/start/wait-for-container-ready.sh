@@ -52,3 +52,4 @@ done
 
 echo "Container $VMID not ready within ${TIMEOUT}s" >&2
 exit 1
+^
