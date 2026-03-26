@@ -14,6 +14,12 @@
 
 COMPOSE_PROJECT="{{ compose_project }}"
 VMID="{{ vm_id }}"
+STARTUP_TIMEOUT="{{ startup_timeout }}"
+
+# Default timeout if not set
+if [ -z "$STARTUP_TIMEOUT" ] || [ "$STARTUP_TIMEOUT" = "NOT_DEFINED" ]; then
+  STARTUP_TIMEOUT=120
+fi
 
 if [ -z "$COMPOSE_PROJECT" ]; then
   echo "Error: Required parameter 'compose_project' must be set" >&2
@@ -82,15 +88,13 @@ elif [ -f "docker-compose.yml" ]; then
   COMPOSE_FILE="docker-compose.yml"
 fi
 
-# Run docker-compose up -d
-echo "Starting Docker Compose services..." >&2
+# Run docker compose up -d --wait (waits for healthchecks to pass)
+echo "Starting Docker Compose services (timeout: ${STARTUP_TIMEOUT}s)..." >&2
 if command -v docker-compose >/dev/null 2>&1; then
-  # Use docker-compose command
-  docker-compose -f "$COMPOSE_FILE" up -d >&2
+  docker-compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" >&2
   RC=$?
 elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  # Use docker compose plugin
-  docker compose -f "$COMPOSE_FILE" up -d >&2
+  docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" >&2
   RC=$?
 else
   echo "Error: Neither 'docker-compose' nor 'docker compose' command found" >&2

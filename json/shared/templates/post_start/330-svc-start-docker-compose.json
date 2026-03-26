@@ -16,6 +16,15 @@
       "type": "string",
       "required": true,
       "description": "Project name for Docker Compose (directory name)"
+    },
+    {
+      "id": "startup_timeout",
+      "name": "Startup Timeout",
+      "type": "number",
+      "required": false,
+      "internal": true,
+      "default": 120,
+      "description": "Seconds to wait for Docker services to become healthy (--wait-timeout)."
     }
   ],
   "commands": [
