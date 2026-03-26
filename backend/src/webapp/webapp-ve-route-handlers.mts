@@ -240,9 +240,7 @@ export class WebAppVeRouteHandlers {
       }
       const firstStackId = allStackIds[0];
       if (firstStackId) {
-        // Use the stack's display name (not internal ID) for stack_name
-        const firstStack = storageContext.getStack(firstStackId);
-        initialInputs.push({ id: "stack_name", value: firstStack?.name ?? firstStackId });
+        initialInputs.push({ id: "stack_name", value: firstStackId });
       }
 
       // Read application + addon dependencies for dependency-host-discovery
@@ -346,7 +344,7 @@ export class WebAppVeRouteHandlers {
         const stack = storageContext.getStack(sid);
         if (stack) {
           if (!defaults.has("stack_name")) {
-            defaults.set("stack_name", stack.name);
+            defaults.set("stack_name", sid);
           }
           if (stack.entries) {
             for (const entry of stack.entries) {

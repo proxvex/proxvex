@@ -155,6 +155,11 @@
 					<span class="action-spacer"></span>
 					<button mat-stroked-button color="primary" type="button" (click)="close()">Cancel</button>
 					<button mat-flat-button color="accent" type="submit" data-testid="confirm-install-btn" [disabled]="installDisabled">{{ taskLabel }}</button>
+					@if (installDisabled && invalidControls.length > 0) {
+						<div class="invalid-controls-debug" style="font-size: 11px; color: #c62828; margin-top: 4px;">
+							Invalid: {{ invalidControls.join(', ') }}
+						</div>
+					}
 				</div>
 			}
 		}

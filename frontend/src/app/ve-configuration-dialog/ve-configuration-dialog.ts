@@ -850,7 +850,31 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
 
   /** Whether the install button should be disabled */
   get installDisabled(): boolean {
-    return this.form.invalid || this.loading() || this.dependencyErrors().length > 0;
+    return this.hasVisibleInvalidControls || this.loading() || this.dependencyErrors().length > 0;
+  }
+
+  /** Check if any visible (non-hidden) form control is invalid */
+  private get hasVisibleInvalidControls(): boolean {
+    for (const [name, control] of Object.entries(this.form.controls)) {
+      if (!control.invalid) continue;
+      // Check if this parameter has an 'if' condition that hides it
+      const param = this.unresolvedParameters.find(p => p.id === name);
+      if (param?.if && !this.evaluateCondition(param.if)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /** Returns names of invalid visible form controls (for debugging) */
+  get invalidControls(): string[] {
+    const invalid: string[] = [];
+    for (const [name, control] of Object.entries(this.form.controls)) {
+      if (!control.invalid) continue;
+      const param = this.unresolvedParameters.find(p => p.id === name);
+      if (param?.if && !this.evaluateCondition(param.if)) continue;
+      invalid.push(name);
+    }
+    return invalid;
   }
 
   toggleAdvanced(): void {
