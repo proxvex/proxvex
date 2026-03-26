@@ -95,6 +95,7 @@ function loadConfig(instanceName?: string): {
   bridge: string;
   veHost: string;
   veSshPort: number;
+  vmId: number;
   snapshot: { enabled: boolean } | undefined;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
@@ -154,6 +155,7 @@ function loadConfig(instanceName?: string): {
     bridge: inst.bridge || "vmbr0",
     veHost,
     veSshPort,
+    vmId: inst.vmId,
     snapshot,
   };
 }

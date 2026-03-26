@@ -85,9 +85,10 @@ export class WebAppVeAddonCommandBuilder {
       }
 
       // Add addon properties as commands first (only for pre_start to avoid duplicates)
-      if (phase === "pre_start" && addon.properties && addon.properties.length > 0) {
+      // Always inject if addon has notes_key (for has_addon_* marker property)
+      if (phase === "pre_start" && (addon.properties?.length || addon.notes_key)) {
         const appProperties = application?.properties ?? [];
-        const resolvedProps: IOutputObject[] = addon.properties.map((prop) => {
+        const resolvedProps: IOutputObject[] = (addon.properties ?? []).map((prop) => {
           // Check if application overrides this addon property
           const appOverride = appProperties.find((p: IOutputObject) => p.id === prop.id);
           const value = appOverride?.value !== undefined ? appOverride.value : prop.value;
@@ -113,6 +114,12 @@ export class WebAppVeAddonCommandBuilder {
           }
         }
         resolvedProps.push(...aliasProps);
+
+        // Auto-inject addon marker property for check templates
+        // e.g. has_addon_ssl, has_addon_oidc — used by skip_if_all_missing
+        if (addon.notes_key) {
+          resolvedProps.push({ id: `has_addon_${addon.notes_key}`, value: "true" });
+        }
 
         const propertiesCommand: ICommand = {
           name: `${addon.name} Properties`,

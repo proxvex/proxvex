@@ -42,6 +42,5 @@
       "postgrest-parameters.json"
     ]
   },
-  "stacktype": "postgres",
-  "supports": ["tls"]
+  "stacktype": "postgres"
 }

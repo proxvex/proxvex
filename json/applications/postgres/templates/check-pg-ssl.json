@@ -1,8 +1,8 @@
 {
   "execute_on": "ve",
   "name": "Check PG SSL",
-  "description": "Checks if PostgreSQL has SSL enabled.",
-  "implements": "pg_ssl",
+  "description": "Checks if PostgreSQL has SSL enabled. Only runs when SSL addon is active.",
+  "skip_if_all_missing": ["has_addon_ssl"],
   "commands": [
     {
       "name": "Check PG SSL",
