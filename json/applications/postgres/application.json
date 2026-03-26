@@ -71,6 +71,7 @@
       "value": "15"
     }
   ],
+  "supports": ["pg_ssl"],
   "installation": {},
   "check": {
     "check": [
