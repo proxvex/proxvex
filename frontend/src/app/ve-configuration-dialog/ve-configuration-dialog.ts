@@ -611,7 +611,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   @Input() customActions?: boolean;
 
   save() {
-    if (this.form.invalid) return;
+    if (this.hasVisibleInvalidControls) return;
     this.loading.set(true);
 
     // Compute disabled addons: installed but no longer selected
