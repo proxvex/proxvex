@@ -292,7 +292,7 @@ export class StacksPage implements OnInit, OnDestroy {
     if (!confirm(`Delete stack "${stack.name}"?`)) return;
 
     this.loading.set(true);
-    this.configService.deleteStack(stack.name).subscribe({
+    this.configService.deleteStack(stack.id).subscribe({
       next: () => {
         this.loadStacks();
       },

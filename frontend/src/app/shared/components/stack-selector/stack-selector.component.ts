@@ -47,7 +47,7 @@ import { IStack } from '../../../../shared/types';
           }
         </mat-select>
         @if (showManageLink) {
-          <a mat-icon-button matSuffix href="/stacks" target="_blank"
+          <a mat-icon-button matSuffix [href]="getManageLink()" target="_blank"
              matTooltip="Manage Secrets" (click)="$event.stopPropagation()">
             <mat-icon>edit</mat-icon>
           </a>
@@ -108,6 +108,9 @@ export class StackSelectorComponent {
   /** Show manage link (edit icon to /stacks) */
   @Input() showManageLink = false;
 
+  /** Optional stacktype for manage link query param */
+  @Input() manageLinkStacktype = '';
+
   /** Show entry count in options */
   @Input() showEntryCount = true;
 
@@ -122,6 +125,10 @@ export class StackSelectorComponent {
 
   /** Emits when create button is clicked */
   @Output() createStackRequested = new EventEmitter<void>();
+
+  getManageLink(): string {
+    return this.manageLinkStacktype ? `/stacks?stacktype=${this.manageLinkStacktype}` : '/stacks';
+  }
 
   onStackChange(stack: IStack): void {
     this.stackSelected.emit(stack);

@@ -65,7 +65,7 @@ export class StackContext implements IStack {
   }
 
   getKey(): string {
-    return `stack_${this.name}`;
+    return `stack_${this.id}`;
   }
 }
 
@@ -250,10 +250,16 @@ export class ContextManager extends Context implements IContext {
   }
 
   getStack(id: string): IStack | null {
-    // id is "stack_<name>" or just the name
+    // Try direct key lookup: id may be the full id (e.g. "postgres_production")
+    // or prefixed with "stack_" (e.g. "stack_postgres_production")
     const key = id.startsWith("stack_") ? id : `stack_${id}`;
     const value = this.get(key);
     if (value instanceof StackContext) return value;
+    // Fallback: search by id or name across all stacks
+    for (const k of this.keys().filter((k) => k.startsWith("stack_"))) {
+      const v = this.get(k);
+      if (v instanceof StackContext && (v.id === id || v.name === id)) return v;
+    }
     return null;
   }
 
@@ -272,10 +278,19 @@ export class ContextManager extends Context implements IContext {
   }
 
   deleteStack(id: string): boolean {
+    // Try direct key lookup
     const key = id.startsWith("stack_") ? id : `stack_${id}`;
     if (this.has(key)) {
       this.remove(key);
       return true;
+    }
+    // Fallback: search by id or name
+    for (const k of this.keys().filter((k) => k.startsWith("stack_"))) {
+      const v = this.get(k);
+      if (v instanceof StackContext && (v.id === id || v.name === id)) {
+        this.remove(k);
+        return true;
+      }
     }
     return false;
   }

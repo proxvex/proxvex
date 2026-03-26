@@ -101,7 +101,7 @@ export class WebAppVeRouteHandlers {
 
     if (changed) {
       stack.provides = existingProvides;
-      storageContext.set(`stack_${stack.name}`, stack);
+      storageContext.set(`stack_${stack.id}`, stack);
       this.logger.info("Stack provides updated", { stack: firstStackId, provides: provides.map((p) => p.name) });
     }
   }
@@ -240,7 +240,9 @@ export class WebAppVeRouteHandlers {
       }
       const firstStackId = allStackIds[0];
       if (firstStackId) {
-        initialInputs.push({ id: "stack_name", value: firstStackId });
+        // Use the stack's display name (not internal ID) for stack_name
+        const firstStack = storageContext.getStack(firstStackId);
+        initialInputs.push({ id: "stack_name", value: firstStack?.name ?? firstStackId });
       }
 
       // Read application + addon dependencies for dependency-host-discovery
@@ -344,7 +346,7 @@ export class WebAppVeRouteHandlers {
         const stack = storageContext.getStack(sid);
         if (stack) {
           if (!defaults.has("stack_name")) {
-            defaults.set("stack_name", sid);
+            defaults.set("stack_name", stack.name);
           }
           if (stack.entries) {
             for (const entry of stack.entries) {

@@ -47,10 +47,9 @@ export class WebAppStack {
           .json({ error: "Missing required fields: name, stacktype" });
         return;
       }
-      // Auto-generate id from name if not provided
-      if (!body.id) {
-        body.id = body.name;
-      }
+      // Auto-generate id from stacktype + name to ensure uniqueness across types
+      const typePrefix = Array.isArray(body.stacktype) ? body.stacktype.sort().join('_') : body.stacktype;
+      body.id = `${typePrefix}_${body.name}`;
 
       // Auto-generate secrets for variables without 'external' flag
       // Supports both single stacktype ("postgres") and array (["postgres", "oidc"])

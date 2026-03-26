@@ -33,12 +33,12 @@ describe("Stack API", () => {
       const res = await request(app).post(ApiUri.Stacks).send(stack);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.key).toBe("stack_Test Stack");
+      expect(res.body.key).toBe("stack_music_Test Stack");
 
       // Verify stack is stored in context
-      const storedStack = setup.ctx.getStack("Test Stack");
+      const storedStack = setup.ctx.getStack("music_Test Stack");
       expect(storedStack).not.toBeNull();
-      expect(storedStack?.id).toBe("stack1");
+      expect(storedStack?.id).toBe("music_Test Stack");
       expect(storedStack?.name).toBe("Test Stack");
       expect(storedStack?.stacktype).toBe("music");
       expect(storedStack?.entries).toEqual([
@@ -52,7 +52,7 @@ describe("Stack API", () => {
         .send({ name: "Test", stacktype: "music", entries: [] });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.key).toBe("stack_Test");
+      expect(res.body.key).toBe("stack_music_Test");
     });
 
     it("returns error for missing name", async () => {
@@ -153,21 +153,20 @@ describe("Stack API", () => {
       expect(res.body.error).toBe("Stack not found");
     });
 
-    it("returns stack by name", async () => {
+    it("returns stack by id", async () => {
       await request(app)
         .post(ApiUri.Stacks)
         .send({
-          id: "mystack",
           name: "My Stack",
           stacktype: "audio",
           entries: [{ name: "duration", value: 180 }],
         });
 
       const res = await request(app).get(
-        ApiUri.Stack.replace(":id", "My Stack"),
+        ApiUri.Stack.replace(":id", "audio_My Stack"),
       );
       expect(res.status).toBe(200);
-      expect(res.body.stack.id).toBe("mystack");
+      expect(res.body.stack.id).toBe("audio_My Stack");
       expect(res.body.stack.name).toBe("My Stack");
       expect(res.body.stack.stacktype).toBe("audio");
       expect(res.body.stack.entries).toEqual([
@@ -175,16 +174,29 @@ describe("Stack API", () => {
       ]);
     });
 
-    it("returns stack by key with stack_ prefix", async () => {
+    it("returns stack by name (fallback lookup)", async () => {
       await request(app).post(ApiUri.Stacks).send({
-        id: "mystack",
         name: "My Stack",
         stacktype: "audio",
         entries: [],
       });
 
       const res = await request(app).get(
-        ApiUri.Stack.replace(":id", "stack_My Stack"),
+        ApiUri.Stack.replace(":id", "My Stack"),
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.stack.name).toBe("My Stack");
+    });
+
+    it("returns stack by key with stack_ prefix", async () => {
+      await request(app).post(ApiUri.Stacks).send({
+        name: "My Stack",
+        stacktype: "audio",
+        entries: [],
+      });
+
+      const res = await request(app).get(
+        ApiUri.Stack.replace(":id", "stack_audio_My Stack"),
       );
       expect(res.status).toBe(200);
       expect(res.body.stack.name).toBe("My Stack");
@@ -192,32 +204,48 @@ describe("Stack API", () => {
   });
 
   describe("DELETE /api/stack/:id", () => {
-    it("deletes existing stack from context", async () => {
+    it("deletes existing stack by id", async () => {
       await request(app).post(ApiUri.Stacks).send({
-        id: "todelete",
         name: "Delete Me",
         stacktype: "test",
         entries: [],
       });
 
       // Verify stack exists in context before deletion
-      expect(setup.ctx.getStack("Delete Me")).not.toBeNull();
+      expect(setup.ctx.getStack("test_Delete Me")).not.toBeNull();
 
       const res = await request(app).delete(
-        ApiUri.Stack.replace(":id", "Delete Me"),
+        ApiUri.Stack.replace(":id", "test_Delete Me"),
       );
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.deleted).toBe(true);
 
       // Verify stack is removed from context
-      expect(setup.ctx.getStack("Delete Me")).toBeNull();
+      expect(setup.ctx.getStack("test_Delete Me")).toBeNull();
 
       // Verify via API as well
       const getRes = await request(app).get(
-        ApiUri.Stack.replace(":id", "Delete Me"),
+        ApiUri.Stack.replace(":id", "test_Delete Me"),
       );
       expect(getRes.status).toBe(404);
+    });
+
+    it("deletes existing stack by name (fallback)", async () => {
+      await request(app).post(ApiUri.Stacks).send({
+        name: "Delete Me",
+        stacktype: "test",
+        entries: [],
+      });
+
+      const res = await request(app).delete(
+        ApiUri.Stack.replace(":id", "Delete Me"),
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.deleted).toBe(true);
+
+      // Verify stack is removed from context
+      expect(setup.ctx.getStack("Delete Me")).toBeNull();
     });
 
     it("returns deleted=false for non-existent stack", async () => {
@@ -231,7 +259,6 @@ describe("Stack API", () => {
 
     it("deletes stack using stack_ prefix and removes from context", async () => {
       await request(app).post(ApiUri.Stacks).send({
-        id: "todelete",
         name: "Delete Me",
         stacktype: "test",
         entries: [],
@@ -241,7 +268,7 @@ describe("Stack API", () => {
       expect(setup.ctx.getStack("Delete Me")).not.toBeNull();
 
       const res = await request(app).delete(
-        ApiUri.Stack.replace(":id", "stack_Delete Me"),
+        ApiUri.Stack.replace(":id", "stack_test_Delete Me"),
       );
       expect(res.status).toBe(200);
       expect(res.body.deleted).toBe(true);
@@ -326,7 +353,7 @@ describe("Stack API", () => {
       expect(res.status).toBe(200);
 
       // Verify auto-generated secret
-      const stack = setup.ctx.getStack("test-stack");
+      const stack = setup.ctx.getStack("withsecrets_test-stack");
       expect(stack).not.toBeNull();
       const autoSecret = stack!.entries.find((e) => e.name === "AUTO_SECRET");
       expect(autoSecret).toBeDefined();
@@ -344,16 +371,16 @@ describe("Stack API", () => {
       });
 
       // Manually set provides on the stack (simulates what backend does after execution)
-      const stack = setup.ctx.getStack("provides-test");
+      const stack = setup.ctx.getStack("music_provides-test");
       expect(stack).not.toBeNull();
       stack!.provides = [
         { name: "PROTO", value: "https", application: "myapp" },
         { name: "PORT", value: "8443", application: "myapp" },
       ];
-      setup.ctx.set(`stack_provides-test`, stack);
+      setup.ctx.set(`stack_music_provides-test`, stack);
 
       // Retrieve and verify
-      const url = ApiUri.Stack.replace(":id", "provides-test");
+      const url = ApiUri.Stack.replace(":id", "music_provides-test");
       const res = await request(app).get(url);
       expect(res.status).toBe(200);
       expect(res.body.stack.provides).toHaveLength(2);
@@ -369,7 +396,7 @@ describe("Stack API", () => {
         entries: [],
       });
 
-      const url = ApiUri.Stack.replace(":id", "no-provides");
+      const url = ApiUri.Stack.replace(":id", "music_no-provides");
       const res = await request(app).get(url);
       expect(res.status).toBe(200);
       // provides should be undefined or empty

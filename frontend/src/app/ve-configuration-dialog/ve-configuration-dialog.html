@@ -70,20 +70,19 @@
 		@if (appStacktypes.length > 0) {
 			<div class="secrets-row">
 				@for (type of appStacktypes; track type) {
-					@if (getStacksForType(type).length > 0) {
-						<div class="secrets-selector">
-							<app-stack-selector
-								[availableStacks]="getStacksForType(type)"
-								[selectedStack]="getSelectedStackForType(type)"
-								[label]="getStacktypeLabel(type) + ' Secrets'"
-								[showCreateButton]="false"
-								[showManageLink]="true"
-								[showEntryCount]="false"
-								[showDefaultHint]="true"
-								(stackSelected)="onStackSelected($event, type)"
-							></app-stack-selector>
-						</div>
-					}
+					<div class="secrets-selector">
+						<app-stack-selector
+							[availableStacks]="getStacksForType(type)"
+							[selectedStack]="getSelectedStackForType(type)"
+							[label]="getStacktypeLabel(type) + ' Secrets'"
+							[showCreateButton]="false"
+							[showManageLink]="true"
+							[manageLinkStacktype]="type"
+							[showEntryCount]="false"
+							[showDefaultHint]="true"
+							(stackSelected)="onStackSelected($event, type)"
+						></app-stack-selector>
+					</div>
 				}
 			</div>
 		}
