@@ -1,0 +1,11 @@
+{
+  "application": "eclipse-mosquitto",
+  "task": "installation",
+  "params": [
+    { "name": "vm_id_start", "value": 600 },
+    { "name": "static_ip", "value": "192.168.4.44/24" },
+    { "name": "static_gw", "value": "192.168.4.1" },
+    { "name": "nameserver4", "value": "192.168.4.1" }
+  ],
+  "selectedAddons": ["addon-ssl"]
+}
