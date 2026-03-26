@@ -8,11 +8,9 @@ Parses Proxmox LXC configuration files including:
 This is a library - import and use the functions, do not execute directly.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Pattern
 from urllib.parse import unquote
 
 
@@ -75,7 +73,7 @@ class MountPoint:
     index: int
     source: str
     target: str
-    options: str | None = None
+    options: Optional[str] = None
 
 
 @dataclass
@@ -86,41 +84,41 @@ class LxcConfig:
     decoded_text: str = ""
 
     # Basic properties
-    hostname: str | None = None
+    hostname: Optional[str] = None
     is_managed: bool = False
     is_deployer_instance: bool = False
 
     # Application info from notes
-    oci_image: str | None = None
-    application_id: str | None = None
-    application_name: str | None = None
-    version: str | None = None
-    addons: list[str] = field(default_factory=list)
+    oci_image: Optional[str] = None
+    application_id: Optional[str] = None
+    application_name: Optional[str] = None
+    version: Optional[str] = None
+    addons: List[str] = field(default_factory=list)
 
     # User/permission info from notes (for addon reconfiguration)
-    username: str | None = None
-    uid: str | None = None
-    gid: str | None = None
+    username: Optional[str] = None
+    uid: Optional[str] = None
+    gid: Optional[str] = None
 
     # Stack info from notes (for dependency discovery)
-    stack_name: str | None = None
+    stack_name: Optional[str] = None
 
     # LXC config entries
-    id_mappings: list[IdMapping] = field(default_factory=list)
-    mount_points: list[MountPoint] = field(default_factory=list)
+    id_mappings: List[IdMapping] = field(default_factory=list)
+    mount_points: List[MountPoint] = field(default_factory=list)
 
     # Container resource settings (from LXC config)
-    memory: int | None = None  # in MB
-    cores: int | None = None
-    rootfs_storage: str | None = None
-    disk_size: str | None = None  # e.g. "4G"
-    bridge: str | None = None
-    static_ip: str | None = None  # e.g. "10.0.0.100/24" (None if "dhcp")
-    static_gw: str | None = None  # e.g. "10.0.0.1"
+    memory: Optional[int] = None  # in MB
+    cores: Optional[int] = None
+    rootfs_storage: Optional[str] = None
+    disk_size: Optional[str] = None  # e.g. "4G"
+    bridge: Optional[str] = None
+    static_ip: Optional[str] = None  # e.g. "10.0.0.100/24" (None if "dhcp")
+    static_gw: Optional[str] = None  # e.g. "10.0.0.1"
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result: dict[str, Any] = {
+        result: Dict[str, Any] = {
             "is_managed": self.is_managed,
         }
         if self.is_deployer_instance:
@@ -182,7 +180,7 @@ class LxcConfig:
         return result
 
 
-def _extract_from_patterns(text: str, patterns: list[re.Pattern[str]]) -> str | None:
+def _extract_from_patterns(text: str, patterns: "List[Pattern[str]]") -> Optional[str]:
     """Try multiple patterns and return the first match."""
     for pattern in patterns:
         m = pattern.search(text)
@@ -193,7 +191,7 @@ def _extract_from_patterns(text: str, patterns: list[re.Pattern[str]]) -> str | 
     return None
 
 
-def _extract_all_matches(text: str, pattern: re.Pattern[str]) -> list[str]:
+def _extract_all_matches(text: str, pattern: "Pattern[str]") -> List[str]:
     """Extract all matches from a pattern."""
     matches = pattern.findall(text)
     return [m.strip() for m in matches if m.strip()]
@@ -210,7 +208,7 @@ def _decode_config_text(conf_text: str) -> str:
     return unquote(conf_text)
 
 
-def parse_id_mappings(conf_text: str) -> list[IdMapping]:
+def parse_id_mappings(conf_text: str) -> List[IdMapping]:
     """Parse lxc.idmap entries from config text."""
     mappings = []
     for match in IDMAP_RE.finditer(conf_text):
@@ -223,7 +221,7 @@ def parse_id_mappings(conf_text: str) -> list[IdMapping]:
     return mappings
 
 
-def parse_mount_points(conf_text: str) -> list[MountPoint]:
+def parse_mount_points(conf_text: str) -> List[MountPoint]:
     """Parse mp0, mp1, etc. mount point entries."""
     mount_points = []
     for match in MOUNTPOINT_RE.finditer(conf_text):

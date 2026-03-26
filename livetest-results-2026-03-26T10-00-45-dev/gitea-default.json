@@ -1,0 +1,42 @@
+{
+  "run_id": "2026-03-26T10-00-45-dev",
+  "scenario_id": "gitea/default",
+  "application": "gitea",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 202,
+  "hostname": "gitea-default",
+  "stack_name": "default",
+  "addons": [
+    "addon-oidc"
+  ],
+  "duration_seconds": 106,
+  "started_at": "2026-03-26T10:00:45.241Z",
+  "finished_at": "2026-03-26T10:02:31.580Z",
+  "deployer_version": "0.3.48",
+  "deployer_git_hash": "26a3203",
+  "dependencies": [
+    {
+      "scenario_id": "zitadel/default",
+      "vm_id": 201,
+      "status": "passed",
+      "version": "0.3.48",
+      "snapshot_used": "dep-zitadel-default",
+      "snapshot_date": null
+    },
+    {
+      "scenario_id": "postgres/default",
+      "vm_id": 200,
+      "status": "passed",
+      "version": "16-alpine",
+      "snapshot_used": "dep-postgres-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {
+    "docker_log_no_errors": true
+  },
+  "error_message": null,
+  "skipped_reason": null
+}

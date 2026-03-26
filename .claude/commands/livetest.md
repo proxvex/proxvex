@@ -2,7 +2,7 @@ Run a live integration test against the dev instance.
 
 ## Usage
 The user provides: `$ARGUMENTS`
-Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `--fix pgadmin`, `eclipse-mosquitto/ssl`, `--all`.
+Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `--fix pgadmin`, `--fix --fresh gitea`, `--all`.
 
 ## Steps
 
@@ -40,7 +40,7 @@ Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `-
    ```
    If it doesn't respond, show the error and stop.
 
-6. **Run the livetest** (with `--fresh` removed from arguments):
+6. **Run the livetest** (with flags removed from arguments):
    ```
    DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev <test-filter>
    ```
@@ -48,18 +48,43 @@ Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `-
 
 7. **Report results** — summarize pass/fail status.
 
-8. **If `--fix` and tests failed**: Analyze the failure, fix the code, then loop:
-   1. Read the diagnostic tarball (extracted to `/tmp/`) and CLI output to identify the root cause
-   2. Fix the issue in the codebase (templates, scripts, backend code, application JSON)
-   3. Rebuild: `cd backend && pnpm run build`
-   4. Restart the deployer if backend code changed: `kill $(lsof -ti :3201 -sTCP:LISTEN) 2>/dev/null; sleep 2; cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs &`
-   5. Re-run the same livetest (step 6)
-   6. Repeat until all tests pass or the issue requires user input
+8. **If `--fix` and tests failed**: Enter the fix loop (see below).
 
-   When analyzing failures, check these in order:
-   - CLI output: look for `exitCode":1` or `"error"` in the JSON lines
-   - The diagnostic tarball contains per-VM dirs with: `cli-output.log`, `lxc.conf`, `lxc.log`, `docker-ps.txt`, `docker-compose.yml`
-   - Common causes: template variable not resolved, script error, container failed to start, docker service not up
+## Fix loop (`--fix`)
+
+When `--fix` is set, time does not matter — the goal is to get all tests green with minimal user interaction. Work autonomously through failures.
+
+### For each failed scenario:
+1. **Analyze the failure**:
+   - Extract the diagnostic tarball to `/tmp/` and read the CLI output for the failed VM
+   - Look for `"exitCode":-1` or `"exitCode":1` in `cli-output.log` — the `stderr` field contains the error
+   - Also check: `lxc.conf`, `lxc.log`, `docker-ps.txt`, `docker-compose.yml` in the diagnostic dir
+   - Common causes: template variable not resolved, script syntax error, `from __future__` in prepended library, container failed to start, docker service not healthy, check template running when it shouldn't (missing skip condition)
+
+2. **Fix the issue** in the codebase (templates, scripts, backend code, application JSON)
+
+3. **Rebuild and restart**:
+   ```
+   cd backend && pnpm run build
+   kill $(lsof -ti :3201 -sTCP:LISTEN) 2>/dev/null; sleep 2
+   cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs &
+   ```
+
+4. **Re-run the livetest** (step 6) with the same filter
+
+5. **If the same scenario fails again** with a different error: fix and retry again
+
+6. **If a scenario fails with an issue you cannot fix** (infrastructure problem, external service down, unclear root cause after 2 attempts): Skip it and continue with the remaining scenarios. Report the unfixable issue to the user at the end.
+
+7. **Repeat** until all fixable tests pass
+
+### Fix loop principles:
+- **Be autonomous**: Don't ask the user unless you're truly stuck. Fix, rebuild, retest.
+- **Time is not a concern**: A full test run can take 5-10 minutes. That's fine.
+- **Dependency failures cascade**: If postgres fails, zitadel and gitea will also fail. Fix the root dependency first.
+- **Always restart the deployer** after code changes — it caches schemas and templates.
+- **Run unit tests** (`pnpm test`) after significant backend changes to catch regressions early.
+- **At the end**, report: which tests pass, which were unfixable and why.
 
 ## How the test runner works
 

@@ -61,7 +61,7 @@ export class SnapshotManager {
    * No VM stop needed — ZFS snapshots are atomic.
    * Takes ~2s on ZFS backend.
    */
-  create(name: string): void {
+  create(name: string, buildHash?: string): void {
     this.log(`Creating VM snapshot @${name}...`);
 
     // Delete existing snapshot with same name (idempotent)
@@ -73,8 +73,9 @@ export class SnapshotManager {
     } catch { /* ignore */ }
 
     // Create live snapshot (no VM stop needed, --vmstate 0 skips RAM)
+    const desc = buildHash ? `build:${buildHash}` : "livetest";
     this.outerSsh(
-      `qm snapshot ${this.nestedVmId} ${name} --vmstate 0`,
+      `qm snapshot ${this.nestedVmId} ${name} --vmstate 0 --description ${JSON.stringify(desc)}`,
       30000,
     );
 
@@ -131,13 +132,37 @@ export class SnapshotManager {
   }
 
   /**
+   * Check if a snapshot's description contains the expected build hash.
+   * Returns true if no buildHash is provided (skip validation).
+   */
+  private matchesBuild(name: string, buildHash?: string): boolean {
+    if (!buildHash) return true;
+    try {
+      const output = this.outerSsh(
+        `qm listsnapshot ${this.nestedVmId}`,
+        15000,
+      );
+      // qm listsnapshot format: " `-> name   date   description"
+      for (const line of output.split("\n")) {
+        if (line.includes(` ${name} `) || line.includes(` ${name}\t`)) {
+          return line.includes(`build:${buildHash}`);
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Find the best (latest) snapshot for a dependency chain.
    * Walks backwards through deps and returns the first existing snapshot.
+   * If buildHash is provided, only snapshots matching the hash are considered.
    */
-  findBestSnapshot(depScenarioIds: string[]): { name: string; index: number } | null {
+  findBestSnapshot(depScenarioIds: string[], buildHash?: string): { name: string; index: number } | null {
     for (let i = depScenarioIds.length - 1; i >= 0; i--) {
       const name = this.snapshotName(depScenarioIds[i]!);
-      if (this.exists(name)) {
+      if (this.exists(name) && this.matchesBuild(name, buildHash)) {
         return { name, index: i };
       }
     }
