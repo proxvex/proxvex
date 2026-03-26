@@ -150,6 +150,11 @@
 						<button mat-icon-button matSuffix type="button" (click)="fileInput.click()" [matTooltip]="'Select file'" matTooltipPosition="above">
 							<mat-icon>attach_file</mat-icon>
 						</button>
+						@if (isBase64Value(param.id)) {
+							<button mat-icon-button matSuffix type="button" (click)="downloadFile(param.id, param)" [matTooltip]="'Download file'" matTooltipPosition="above">
+								<mat-icon>download</mat-icon>
+							</button>
+						}
 						@if (hasExpandableHelp(param)) {
 							<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
 								<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>

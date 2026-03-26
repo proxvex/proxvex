@@ -533,6 +533,30 @@ export class ParameterGroupComponent implements OnInit {
     }
   }
 
+  downloadFile(paramId: string, param: IParameter): void {
+    const base64Content = this.getBase64Content(paramId);
+    if (!base64Content) return;
+
+    const byteChars = atob(base64Content);
+    const byteNumbers = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) {
+      byteNumbers[i] = byteChars.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+
+    const filename = this.uploadedFileNames[paramId]
+      || this.getDefaultFilenameForParam(param)
+      || `${paramId}.bin`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   private readFileAsBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
