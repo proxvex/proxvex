@@ -95,7 +95,7 @@
 					[groupedParameters]="groupedParameters"
 					[form]="form"
 					[showAdvanced]="showAdvanced()"
-					[availableStacks]="availableStacks()"
+					[availableStacks]="appStacktypes.length > 0 ? [] : availableStacks()"
 					(stackSelected)="onStackSelected($event)"
 					(createStackRequested)="onCreateStackRequested()"
 				/>

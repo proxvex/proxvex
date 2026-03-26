@@ -96,6 +96,11 @@ export class VEWebApp {
     if (oidcConfig) {
       setupSession(this.app);
       registerOidcRoutes(this.app, oidcConfig);
+    } else {
+      // Always provide auth/config so the frontend doesn't get a 404
+      this.app.get("/api/auth/config", (_req, res) => {
+        res.json({ oidcEnabled: false, authenticated: false });
+      });
     }
 
     // Auth middleware on /api/* routes (must be before route registration)

@@ -65,6 +65,7 @@ h2, p {
   column-gap: 0.75rem;
   padding: 0.5rem 1rem;
   overflow-y: auto;
+  overflow-x: hidden;
   max-height: calc(100vh - 16rem);
   scrollbar-width: thin;
   scrollbar-color: #667eea33 transparent;
@@ -86,6 +87,9 @@ h2, p {
     margin-bottom: 0.75rem;
   }
 
+  @media (max-width: 900px) {
+    column-count: 1;
+  }
 }
 
 /* Missing stacks error */

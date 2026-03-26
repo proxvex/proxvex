@@ -5,8 +5,8 @@
     { "name": "vm_id_start", "value": 502 },
     { "name": "static_ip", "value": "192.168.4.42/24" },
     { "name": "static_gw", "value": "192.168.4.1" },
-    { "name": "nameserver", "value": "192.168.4.1" }
+    { "name": "nameserver4", "value": "192.168.4.1" }
   ],
   "selectedAddons": ["addon-ssl"],
-  "stackId": "production"
+  "stackIds": ["postgres_production", "oidc_production"]
 }

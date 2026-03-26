@@ -5,12 +5,12 @@
     { "name": "vm_id_start", "value": 501 },
     { "name": "static_ip", "value": "192.168.4.41/24" },
     { "name": "static_gw", "value": "192.168.4.1" },
-    { "name": "nameserver", "value": "192.168.4.1" },
+    { "name": "nameserver4", "value": "192.168.4.1" },
     { "name": "volumes", "value": "conf=/etc/nginx/conf.d\nhtml=/usr/share/nginx/html" },
     { "name": "ssl_mode", "value": "certs" },
     { "name": "ssl.needs_server_cert", "value": false },
     { "name": "ssl.needs_ca_cert", "value": true }
   ],
   "selectedAddons": ["addon-acme", "addon-ssl"],
-  "stackId": "production"
+  "stackId": "postgres_production"
 }
