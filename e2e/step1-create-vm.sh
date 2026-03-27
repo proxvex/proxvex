@@ -418,6 +418,7 @@ fi
 # Step 10d: Install and configure dnsmasq for DHCP on vmbr1
 info "Setting up DHCP server (dnsmasq) on vmbr1..."
 nested_ssh "
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsmasq
 
     cat > /etc/dnsmasq.d/e2e-nat.conf << DNSEOF

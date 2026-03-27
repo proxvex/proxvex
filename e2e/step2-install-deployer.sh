@@ -528,7 +528,7 @@ if [ "$UPDATE_ONLY" != "true" ]; then
     success "Snapshot 'deployer-installed' created"
     pve_ssh "qm start $TEST_VMID"
     info "Waiting for deployer API after VM restart..."
-    local api_ready=false
+    api_ready=false
     for i in $(seq 1 60); do
         if nested_ssh "curl -s --connect-timeout 1 http://$DEPLOYER_IP:3080/ 2>/dev/null" | grep -q "doctype"; then
             api_ready=true; break

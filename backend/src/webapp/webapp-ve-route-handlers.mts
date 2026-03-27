@@ -242,6 +242,9 @@ export class WebAppVeRouteHandlers {
       if (firstStackId) {
         initialInputs.push({ id: "stack_name", value: firstStackId });
       }
+      if (allStackIds.length > 0) {
+        initialInputs.push({ id: "all_stack_names", value: JSON.stringify(allStackIds) });
+      }
 
       // Read application + addon dependencies for dependency-host-discovery
       try {

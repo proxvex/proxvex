@@ -14,7 +14,8 @@ Requires lxc_config_parser_lib.py to be prepended via library parameter.
 
 Template variables:
   - app_dependencies: JSON array of dependencies, e.g. [{"application": "postgres"}]
-  - stack_name: Stack name for matching containers in the same stack
+  - stack_name: Primary stack name (legacy, still used as fallback)
+  - all_stack_names: JSON array of all selected stack IDs for multi-stack matching
 """
 
 import json
@@ -30,6 +31,7 @@ from pathlib import Path
 
 DEPS_RAW = '{{ app_dependencies }}'
 STACK_NAME_RAW = '{{ stack_name }}'
+ALL_STACK_NAMES_RAW = '{{ all_stack_names }}'
 
 
 def get_status(vmid: int) -> str | None:
@@ -70,13 +72,25 @@ def main() -> None:
 
     stack_name = STACK_NAME_RAW if STACK_NAME_RAW != "NOT_DEFINED" else ""
 
+    # Build set of all stack names (multi-stack support)
+    all_stack_names: set[str] = set()
+    if ALL_STACK_NAMES_RAW and ALL_STACK_NAMES_RAW != "NOT_DEFINED":
+        try:
+            parsed = json.loads(ALL_STACK_NAMES_RAW)
+            if isinstance(parsed, list):
+                all_stack_names = {s for s in parsed if s}
+        except json.JSONDecodeError:
+            pass
+    if stack_name:
+        all_stack_names.add(stack_name)
+
     # Build set of needed application_ids
     needed = {dep["application"] for dep in deps if "application" in dep}
     if not needed:
         print(json.dumps([]))
         return
 
-    if not stack_name and needed:
+    if not all_stack_names and needed:
         print(
             "ERROR: Dependencies require a stack_name but none is set. "
             "Ensure the application or its addons define a stacktype and a matching stack is selected.",
@@ -109,9 +123,9 @@ def main() -> None:
             if config.application_id not in needed:
                 continue
 
-            # Match stack_name: both must match (empty matches empty)
+            # Match stack: container must belong to any of the selected stacks
             config_stack = config.stack_name or ""
-            if config_stack != stack_name:
+            if config_stack not in all_stack_names:
                 continue
 
             if not config.hostname:
@@ -136,8 +150,8 @@ def main() -> None:
     missing = needed - found.keys()
     if missing:
         print(
-            "ERROR: Dependency containers not found for: %s (stack=%s)"
-            % (", ".join(sorted(missing)), stack_name or "default"),
+            "ERROR: Dependency containers not found for: %s (stacks=%s)"
+            % (", ".join(sorted(missing)), ", ".join(sorted(all_stack_names)) or "default"),
             file=sys.stderr,
         )
         sys.exit(1)

@@ -12,6 +12,13 @@
       "description": "Auto-injected by backend: Stack name/id for dependency discovery"
     },
     {
+      "id": "all_stack_names",
+      "name": "All Stack Names",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: JSON array of all selected stack IDs"
+    },
+    {
       "id": "app_dependencies",
       "name": "Application Dependencies",
       "type": "string",
