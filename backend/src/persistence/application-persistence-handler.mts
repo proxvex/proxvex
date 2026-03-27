@@ -10,12 +10,15 @@ import { IApplicationWeb } from "../types.mjs";
 import { ITemplateReference } from "../backend-types.mjs";
 import { JsonValidator } from "../jsonvalidator.mjs";
 import { JsonError } from "../jsonvalidator.mjs";
+import { createLogger } from "../logger/index.mjs";
 
 /**
  * Handles application-specific persistence operations
  * Separated from main FileSystemPersistence for better organization
  */
 export class ApplicationPersistenceHandler {
+  private logger = createLogger("application-persistence");
+
   // Application Caches
   private appNamesCache: {
     json: Map<string, string> | null;
@@ -297,6 +300,9 @@ export class ApplicationPersistenceHandler {
 
     appData.id = appName;
 
+    // Resolve file: references in properties — replace "file:filename" with base64 content
+    this.resolveFileReferences(appData, appPath);
+
     if (!opts.application) {
       opts.application = appData;
       opts.appPath = appPath;
@@ -304,6 +310,33 @@ export class ApplicationPersistenceHandler {
     opts.applicationHierarchy.push(appPath);
 
     return appData;
+  }
+
+  /**
+   * Resolve "file:filename" references in application properties.
+   * Reads the referenced file from the application directory and replaces
+   * the value with its base64-encoded content.
+   */
+  private resolveFileReferences(app: IApplication, appPath: string): void {
+    if (!app.properties) return;
+    for (const prop of app.properties) {
+      const val = prop.value ?? prop.default;
+      if (typeof val === "string" && val.startsWith("file:")) {
+        const filename = val.substring(5);
+        const filePath = path.join(appPath, filename);
+        try {
+          const content = fs.readFileSync(filePath);
+          const base64 = content.toString("base64");
+          if (prop.value !== undefined) {
+            prop.value = base64;
+          } else {
+            prop.default = base64;
+          }
+        } catch (e: any) {
+          this.logger.warn(`Failed to read file reference: ${filePath}: ${e.message}`);
+        }
+      }
+    }
   }
 
   /**
