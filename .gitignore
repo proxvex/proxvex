@@ -54,3 +54,4 @@ backend/tests/e2e/.nested-vm-ip
 e2e/certs/
 livetest-diag-*.tar.gz
 .livetest-data/
+oci*.tgz
