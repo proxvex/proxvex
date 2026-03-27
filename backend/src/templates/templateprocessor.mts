@@ -440,9 +440,20 @@ export class TemplateProcessor extends EventEmitter {
     // Check if template should be skipped due to missing parameters
     // This check happens BEFORE marking outputs, so outputs from previous templates are available
     // but we don't set outputs for skipped templates
+    // Include pending property defaults as "resolved" for skip_if_all_missing checks.
+    // Property defaults have a value (the default) but aren't yet applied to parameters.
+    const resolvedForSkipCheck = opts.pendingPropertyDefaults?.length
+      ? [
+          ...opts.resolvedParams,
+          ...opts.pendingPropertyDefaults.map((pd) => ({
+            id: pd.id,
+            template: "application.json (default)",
+          })),
+        ]
+      : opts.resolvedParams;
     const skipDecision = this.validator.shouldSkipTemplate(
       tmplData,
-      opts.resolvedParams,
+      resolvedForSkipCheck,
       opts.parameters,
     );
     const shouldSkip = skipDecision.shouldSkip;

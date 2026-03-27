@@ -156,10 +156,10 @@ export class ParameterValidator {
       }
     }
 
-    // Validate stack ID
+    // Validate stack ID (match by id or name)
     if (stackId && availableStacks) {
-      const stackIds = new Set(availableStacks.map((s) => s.id));
-      if (!stackIds.has(stackId)) {
+      const found = availableStacks.some((s) => s.id === stackId || s.name === stackId);
+      if (!found) {
         errors.push({
           field: "stackId",
           message: `Unknown stack '${stackId}'`,

@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-03-27T15-49-07-dev",
+  "scenario_id": "postgres/production",
+  "application": "postgres",
+  "variant": "production",
+  "task": "installation",
+  "status": "failed",
+  "vm_id": 204,
+  "hostname": "postgres-production",
+  "stack_name": "production",
+  "addons": [
+    "addon-ssl"
+  ],
+  "duration_seconds": 4,
+  "started_at": "2026-03-27T15:49:18.081Z",
+  "finished_at": "2026-03-27T15:49:22.174Z",
+  "deployer_version": "0.3.57",
+  "deployer_git_hash": "d551a89",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": "Scenario failed: postgres/production (installation)",
+  "skipped_reason": null
+}

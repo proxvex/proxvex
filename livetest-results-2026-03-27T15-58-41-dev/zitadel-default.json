@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-03-27T15-58-41-dev",
+  "scenario_id": "zitadel/default",
+  "application": "zitadel",
+  "variant": "default",
+  "task": "installation",
+  "status": "failed",
+  "vm_id": 201,
+  "hostname": "zitadel-default",
+  "stack_name": "default",
+  "addons": [],
+  "duration_seconds": 14,
+  "started_at": "2026-03-27T16:00:00.072Z",
+  "finished_at": "2026-03-27T16:00:14.495Z",
+  "deployer_version": "0.3.57",
+  "deployer_git_hash": "d551a89",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": "Scenario failed: zitadel/default (installation)",
+  "skipped_reason": null
+}

@@ -173,17 +173,17 @@ def main():
                         # Keep directory structure but use as volume key
                         volume_key = relative_name.replace("/", "_")
                         container_path_normalized = container_path.lstrip("/")
-                        volumes_list.append(f"{volume_key}={container_path_normalized}")
+                        append_volume(volume_key, container_path_normalized)
                     elif host_path.startswith("/"):
                         # Absolute path - use last component as key
                         volume_key = Path(host_path).name or "data"
                         container_path_normalized = container_path.lstrip("/")
-                        volumes_list.append(f"{volume_key}={container_path_normalized}")
+                        append_volume(volume_key, container_path_normalized)
                     else:
                         # Other format, try to use as-is
                         volume_key = host_path.replace("/", "_").replace(".", "_") or "data"
                         container_path_normalized = container_path.lstrip("/")
-                        volumes_list.append(f"{volume_key}={container_path_normalized}")
+                        append_volume(volume_key, container_path_normalized)
     
     # Always include compose directory as a persistent volume.
     # This ensures docker-compose files survive container upgrades
