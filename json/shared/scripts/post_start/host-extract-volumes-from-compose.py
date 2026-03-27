@@ -26,11 +26,47 @@ except ImportError:
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
+def parse_volume_options(volumes_input):
+    """Parse existing volumes parameter to extract per-key options (e.g. permissions).
+
+    Input format: "bootstrap:,0777\\ncerts:" or "bootstrap=/bootstrap,0777"
+    Returns dict: {"bootstrap": ",0777", "certs": ""}
+    """
+    options = {}
+    if not volumes_input or volumes_input == "NOT_DEFINED":
+        return options
+    for line in volumes_input.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        # Handle both "key:,opts" and "key=path,opts" formats
+        if "=" in line:
+            key = line.split("=")[0].strip()
+            rest = line.split("=", 1)[1]
+            # Extract options after path (e.g. "/bootstrap,0777" -> ",0777")
+            if "," in rest:
+                opts = "," + rest.split(",", 1)[1]
+            else:
+                opts = ""
+        elif ":" in line:
+            key = line.split(":")[0].strip()
+            opts = line.split(":", 1)[1].strip()
+            if opts and not opts.startswith(","):
+                opts = "," + opts
+        else:
+            key = line.strip()
+            opts = ""
+        if key:
+            options[key] = opts
+    return options
+
+
 def main():
     # Get parameters from template variables
     compose_file_base64 = "{{ compose_file }}"
     compose_project = "{{ compose_project }}"
     hostname = "{{ hostname }}"
+    existing_volumes = "{{ volumes }}"
     
     # Use hostname as default if compose_project is not set
     if not compose_project or compose_project == "NOT_DEFINED" or compose_project == "":
@@ -66,6 +102,16 @@ def main():
             first_service = list(compose_data["services"].keys())[0]
             compose_project = first_service.replace("_", "-")
     
+    # Parse existing volume options from application.json (e.g. permissions)
+    volume_options = parse_volume_options(existing_volumes)
+    if volume_options:
+        eprint(f"Existing volume options: {volume_options}")
+
+    def append_volume(key, container_path_normalized):
+        """Append volume entry, merging options from existing volumes parameter."""
+        opts = volume_options.get(key, "")
+        volumes_list.append(f"{key}={container_path_normalized}{opts}")
+
     volumes_list = []
     volume_names = set()
     compose_uid = None
@@ -111,13 +157,13 @@ def main():
                             volume_key = host_path
                             volume_names.add(volume_key)
                             container_path_normalized = container_path.lstrip("/")
-                            volumes_list.append(f"{volume_key}={container_path_normalized}")
+                            append_volume(volume_key, container_path_normalized)
                         else:
                             # Unknown named volume, skip or create default path
                             volume_key = host_path
                             volume_names.add(volume_key)
                             container_path_normalized = container_path.lstrip("/")
-                            volumes_list.append(f"{volume_key}={container_path_normalized}")
+                            append_volume(volume_key, container_path_normalized)
                     elif host_path.startswith("./"):
                         # Relative path - convert to volumes/<project>/<name>
                         # ./data -> volumes/<project>/data
@@ -142,12 +188,12 @@ def main():
     # Always include compose directory as a persistent volume.
     # This ensures docker-compose files survive container upgrades
     # and are accessible from the VE host (e.g. for addon reconfigure).
-    volumes_list.append("compose=opt/docker-compose")
+    append_volume("compose", "opt/docker-compose")
 
     # Persist Docker storage directory so images survive container recreation.
     # During upgrades, images can be pre-pulled in the old container and
     # reused by the new container without re-downloading.
-    volumes_list.append("docker=var/lib/docker")
+    append_volume("docker", "var/lib/docker")
 
     # Remove duplicates while preserving order
     seen = set()

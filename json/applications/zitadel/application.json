@@ -14,17 +14,6 @@
       "default": "zitadel"
     },
     {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "bootstrap=/bootstrap,0777"
-    },
-    {
       "id": "ZITADEL_EXTERNALDOMAIN",
       "name": "External Domain",
       "type": "string",
@@ -34,6 +23,10 @@
     }
   ],
   "properties": [
+    {
+      "id": "volumes",
+      "default": "bootstrap:,0777"
+    },
     {
       "id": "compose_file",
       "default": "file:Zitadel.docker-compose.yml"

@@ -17,6 +17,12 @@
       "type": "string",
       "default": "",
       "description": "Project name for Docker Compose (used for named volumes). Defaults to hostname if not provided."
+    },
+    {
+      "id": "volumes",
+      "name": "Volume Options",
+      "type": "string",
+      "description": "Existing volume definitions with options (e.g. permissions). Merged with extracted volumes."
     }
   ],
   "commands": [
