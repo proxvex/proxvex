@@ -37,10 +37,12 @@ add_dns() {
 
 add_redirect() {
   local name="$1"
-  local src_ip="$2"
-  local src_port="$3"
-  local dest_ip="$4"
-  local dest_port="$5"
+  local src="$2"
+  local dest="$3"
+  local src_ip="$4"
+  local src_port="$5"
+  local dest_ip="$6"
+  local dest_port="$7"
   existing=$(uci show firewall | grep "\.name='$name'" || true)
   if [ -n "$existing" ]; then
     echo "NAT redirect '$name' already exists, skipping"
@@ -48,15 +50,18 @@ add_redirect() {
   fi
   uci add firewall redirect
   uci set "firewall.@redirect[-1].name=$name"
-  uci set "firewall.@redirect[-1].src=lan"
-  uci set "firewall.@redirect[-1].dest=lan"
-  uci set "firewall.@redirect[-1].src_dip=$src_ip"
+  uci set "firewall.@redirect[-1].src=$src"
+  uci set "firewall.@redirect[-1].dest=$dest"
   uci set "firewall.@redirect[-1].src_dport=$src_port"
   uci set "firewall.@redirect[-1].dest_ip=$dest_ip"
   uci set "firewall.@redirect[-1].dest_port=$dest_port"
   uci set "firewall.@redirect[-1].proto=tcp"
   uci set "firewall.@redirect[-1].target=DNAT"
-  echo "Added NAT redirect: $src_ip:$src_port → $dest_ip:$dest_port"
+  # src_dip only needed for hairpin NAT (LAN), not for WAN
+  if [ -n "$src_ip" ]; then
+    uci set "firewall.@redirect[-1].src_dip=$src_ip"
+  fi
+  echo "Added NAT redirect ($src→$dest): ${src_ip:-*}:$src_port → $dest_ip:$dest_port"
 }
 
 # === DNS ===
@@ -91,13 +96,16 @@ echo ""
 echo "=== Configuring NAT redirects ==="
 
 # HTTPS: all *.ohnewarum.de → nginx
-# Works from LAN (hairpin-free) and WAN (via separate WAN port forward)
+# LAN: hairpin NAT via router alt IP
 add_redirect "public-https-to-nginx" \
-  "$ROUTER_ALT_IP" 443 "$NGINX_IP" 1443
+  lan cluster "$ROUTER_ALT_IP" 443 "$NGINX_IP" 1443
+# WAN: external access
+add_redirect "wan-https-to-nginx" \
+  wan cluster "" 443 "$NGINX_IP" 1443
 
-# MQTTS: mqtt.ohnewarum.de → mosquitto (LAN only)
+# MQTTS: mqtt.ohnewarum.de → mosquitto (LAN only, no WAN)
 add_redirect "mqtts-to-mosquitto" \
-  "$ROUTER_ALT_IP" 8883 "$MOSQUITTO_IP" 8883
+  lan cluster "$ROUTER_ALT_IP" 8883 "$MOSQUITTO_IP" 8883
 
 uci commit firewall
 /etc/init.d/firewall restart

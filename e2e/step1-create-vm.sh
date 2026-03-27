@@ -613,8 +613,8 @@ done
 success "System packages updated"
 
 info "Installing additional tools..."
-nested_ssh "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq jq curl netcat-openbsd" || error "Failed to install tools"
-success "Tools installed (jq, curl, netcat)"
+nested_ssh "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq jq curl netcat-openbsd smbclient" || error "Failed to install tools"
+success "Tools installed (jq, curl, netcat, smbclient)"
 
 # Step 13: Create baseline snapshot (VM must be stopped for clean snapshot)
 header "Creating Baseline Snapshot"

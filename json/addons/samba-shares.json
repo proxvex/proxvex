@@ -30,8 +30,9 @@
 
   "properties": [
     { "id": "addon_packages", "value": "samba" },
-    { "id": "addon_volumes", "value": "samba_private=/var/lib/samba/private,0700,0:0\nsamba_config=/etc/samba,0700,0:0" },
-    { "id": "addon_path", "value": "samba_config:smb.conf" }
+    { "id": "addon_volumes", "value": "samba_private=/var/lib/samba/private,0700,0:0\nsamba_config=/etc/samba,0700,0:0\noci_deployer=/etc/lxc-oci-deployer,0755,0:0" },
+    { "id": "addon_path", "value": "samba_config:smb.conf" },
+    { "id": "has_on_start_hooks", "value": "true" }
   ],
 
   "installation": {
@@ -45,13 +46,13 @@
         "after": "150-conf-create-storage-volumes-for-lxc.json"
       },
       {
+        "name": "166-conf-write-on-start-scripts.json",
+        "after": "150-conf-create-storage-volumes-for-lxc.json"
+      },
+      {
         "name": "165-conf-register-hookscript.json",
         "after": "100-conf-create-configure-lxc.json"
       }
-    ],
-    "post_start": [
-      "332-post-install-on-start-dispatcher.json",
-      "337-post-install-samba-on-start.json"
     ]
   },
 
@@ -66,26 +67,21 @@
         "after": "150-conf-create-storage-volumes-for-lxc.json"
       },
       {
+        "name": "166-conf-write-on-start-scripts.json",
+        "after": "150-conf-create-storage-volumes-for-lxc.json"
+      },
+      {
         "name": "165-conf-register-hookscript.json",
         "after": "100-conf-create-configure-lxc.json"
       }
-    ],
-    "post_start": [
-      "332-post-install-on-start-dispatcher.json",
-      "337-post-install-samba-on-start.json"
     ]
   },
 
   "disable": {
-    "post_start": [
-      "338-post-disable-samba.json"
+    "pre_start": [
+      "167-conf-remove-on-start-scripts.json"
     ]
   },
-
-  "upgrade": [
-    "332-post-install-on-start-dispatcher.json",
-    "337-post-install-samba-on-start.json"
-  ],
 
   "notes_key": "samba-shares"
 }

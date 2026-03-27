@@ -31,7 +31,7 @@ fi
 REMOVED=0
 
 # Remove on_start.d scripts
-for script in acme-renew.sh ssl-proxy.sh; do
+for script in acme-renew.sh ssl-proxy.sh smbd.sh; do
   SCRIPT_PATH="${VOLUME_DIR}/on_start.d/${script}"
   if [ -f "$SCRIPT_PATH" ]; then
     rm -f "$SCRIPT_PATH"
