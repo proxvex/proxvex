@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Update LXC notes version from the actual Docker image after pull.
 
-Identifies the main service image by matching the application_id
-against the image name (between "/" and ":").
-
-Selection rules:
-1. Exact match: text after last "/" and before ":" equals application_id
-2. Contains: text after last "/" and before ":" contains application_id (unique match)
-3. Fallback: "unknown"
+For single-service apps: identifies the main image and writes one version.
+For multi-service docker-compose apps: resolves all service versions and
+writes them as comma-separated list (e.g. "zitadel-api:v4.12.3, traefik:v3.6").
 
 Version source: OCI label org.opencontainers.image.version, fallback to image tag.
 
@@ -44,14 +40,16 @@ def docker_exec(vmid: str, cmd: str) -> str | None:
         return None
 
 
-def find_main_image(vmid: str, app_id: str) -> str | None:
-    """Find the main Docker image matching the application_id."""
+def get_all_images(vmid: str) -> list[str]:
+    """Get all Docker images in the container (excluding <none>)."""
     output = docker_exec(vmid, "docker images --format {{.Repository}}:{{.Tag}}")
     if not output:
-        return None
+        return []
+    return [line for line in output.split("\n") if line and "<none>" not in line]
 
-    images = [line for line in output.split("\n") if line and "<none>" not in line]
 
+def find_main_image(images: list[str], app_id: str) -> str | None:
+    """Find the main Docker image matching the application_id."""
     # Rule 1: exact match — name after last "/" and before ":" equals app_id
     for img in images:
         name_part = img.rsplit("/", 1)[-1].split(":")[0]
@@ -89,6 +87,33 @@ def get_version(vmid: str, image: str) -> str:
     return resolve_image_version(image)
 
 
+def get_service_name(image: str) -> str:
+    """Extract short service name from image reference (e.g. 'ghcr.io/zitadel/zitadel:v4' -> 'zitadel')."""
+    return image.rsplit("/", 1)[-1].split(":")[0]
+
+
+def resolve_all_versions(vmid: str, images: list[str]) -> list[tuple[str, str]]:
+    """Resolve versions for all images. Returns list of (service_name, version)."""
+    results = []
+    for image in images:
+        service = get_service_name(image)
+        version = get_version(vmid, image)
+        print(f"  {service}: {version}", file=sys.stderr)
+        results.append((service, version))
+    return results
+
+
+def format_version_string(service_versions: list[tuple[str, str]]) -> str:
+    """Format version string for notes.
+
+    Single service: just the version (e.g. "v4.12.3")
+    Multiple services: "service1:version1, service2:version2"
+    """
+    if len(service_versions) == 1:
+        return service_versions[0][1]
+    return ", ".join(f"{svc}:{ver}" for svc, ver in service_versions)
+
+
 def update_notes_version(vmid: str, version: str) -> None:
     """Update the version marker in LXC notes."""
     conf_path = Path(f"/etc/pve/lxc/{vmid}.conf")
@@ -116,6 +141,16 @@ def update_notes_version(vmid: str, version: str) -> None:
             conf_text,
         )
 
+    # Also update the visible header: "# AppName (version)" or "# AppName"
+    # URL-encoded: %23 = #, %28 = (, %29 = )
+    app_name = config.application_name or config.application_id or ""
+    if app_name:
+        encoded_version = quote(version, safe="")
+        # Match existing header with version: # AppName (old_version)
+        header_pattern = r"%%23\s+" + re.escape(quote(app_name, safe="")) + r"(?:\s+%%28[^)]*%%29)?"
+        header_new = "%%23 %s %%28%s%%29" % (quote(app_name, safe=""), encoded_version)
+        conf_text = re.sub(header_pattern, header_new, conf_text)
+
     conf_path.write_text(conf_text, encoding="utf-8")
     print(f"Updated version in LXC notes: {version}", file=sys.stderr)
 
@@ -128,20 +163,21 @@ def main() -> None:
         print(json.dumps([]))
         return
 
-    image = find_main_image(vmid, app_id)
-    if not image:
-        print(f"Could not identify main image for {app_id}", file=sys.stderr)
+    images = get_all_images(vmid)
+    if not images:
+        print(f"No Docker images found for {app_id}", file=sys.stderr)
         print(json.dumps([{"id": "app_version", "value": "unknown"}]))
         return
 
-    print(f"Main image: {image}", file=sys.stderr)
+    print(f"Found {len(images)} image(s), resolving versions...", file=sys.stderr)
+    service_versions = resolve_all_versions(vmid, images)
 
-    version = get_version(vmid, image)
-    print(f"Resolved version: {version}", file=sys.stderr)
+    version_string = format_version_string(service_versions)
+    print(f"Version string: {version_string}", file=sys.stderr)
 
-    update_notes_version(vmid, version)
+    update_notes_version(vmid, version_string)
 
-    print(json.dumps([{"id": "app_version", "value": version}]))
+    print(json.dumps([{"id": "app_version", "value": version_string}]))
 
 
 if __name__ == "__main__":

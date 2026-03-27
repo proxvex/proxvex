@@ -199,8 +199,14 @@ export class TemplateProcessor extends EventEmitter {
           });
           propertiesWithValue.push({ id: prop.id, value: prop.value });
         }
-        // Note: Properties with 'default' will be applied later during parameter resolution
-        // They don't mark the parameter as resolved, allowing UI editing
+        if (prop.default !== undefined) {
+          // Property with default only - add to pendingPropertyDefaults
+          // so it gets applied after all parameters are collected
+          pendingPropertyDefaults.push({
+            id: prop.id,
+            default: prop.default as string | number | boolean,
+          });
+        }
       }
       // Add a properties command to set these values during execution
       if (propertiesWithValue.length > 0) {
