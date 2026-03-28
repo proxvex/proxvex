@@ -30,7 +30,8 @@ DEPLOYER_INSTANCE_RE = re.compile(r"(?:oci-lxc-deployer):deployer-instance", re.
 USERNAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):username\s+(.+?)\s*-->", re.IGNORECASE)
 UID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):uid\s+(.+?)\s*-->", re.IGNORECASE)
 GID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):gid\s+(.+?)\s*-->", re.IGNORECASE)
-STACK_NAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):stack-name\s+(.+?)\s*-->", re.IGNORECASE)
+STACK_ID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):stack-id\s+(.+?)\s*-->", re.IGNORECASE)
+STACK_NAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):stack-name\s+(.+?)\s*-->", re.IGNORECASE)  # legacy fallback
 
 # --- Regex patterns for LXC config parsing ---
 
@@ -101,7 +102,8 @@ class LxcConfig:
     gid: Optional[str] = None
 
     # Stack info from notes (for dependency discovery)
-    stack_name: Optional[str] = None
+    stack_id: Optional[str] = None
+    stack_name: Optional[str] = None  # legacy alias for stack_id
 
     # LXC config entries
     id_mappings: List[IdMapping] = field(default_factory=list)
@@ -141,7 +143,9 @@ class LxcConfig:
             result["uid"] = self.uid
         if self.gid:
             result["gid"] = self.gid
-        if self.stack_name:
+        if self.stack_id:
+            result["stack_name"] = self.stack_id  # key stays "stack_name" for API compat
+        elif self.stack_name:
             result["stack_name"] = self.stack_name
         if self.memory is not None:
             result["memory"] = self.memory
@@ -313,11 +317,17 @@ def parse_lxc_config(conf_text: str) -> LxcConfig:
         _extract_from_patterns(normalized, [GID_MARKER_RE])
     )
 
-    # Parse stack name from notes
-    config.stack_name = (
-        _extract_from_patterns(decoded, [STACK_NAME_MARKER_RE]) or
-        _extract_from_patterns(normalized, [STACK_NAME_MARKER_RE])
+    # Parse stack id from notes (new marker: stack-id, legacy fallback: stack-name)
+    config.stack_id = (
+        _extract_from_patterns(decoded, [STACK_ID_MARKER_RE]) or
+        _extract_from_patterns(normalized, [STACK_ID_MARKER_RE])
     )
+    if not config.stack_id:
+        config.stack_id = (
+            _extract_from_patterns(decoded, [STACK_NAME_MARKER_RE]) or
+            _extract_from_patterns(normalized, [STACK_NAME_MARKER_RE])
+        )
+    config.stack_name = config.stack_id  # legacy alias
 
     # Parse LXC config entries (from raw/normalized, not decoded)
     config.id_mappings = parse_id_mappings(normalized)

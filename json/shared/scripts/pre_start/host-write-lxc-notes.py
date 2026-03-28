@@ -18,7 +18,7 @@ USERNAME_RAW = "{{ username }}"
 UID_RAW = "{{ uid }}"
 GID_RAW = "{{ gid }}"
 IS_DEPLOYER_RAW = "{{ is_deployer }}"
-STACK_NAME_RAW = "{{ stack_name }}"
+STACK_NAME_RAW = "{{ stack_id }}"
 
 
 def build_notes(include_icon):

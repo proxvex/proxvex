@@ -324,33 +324,31 @@ export class RemoteCli {
     if (!primaryStacktype) return requestedStackId;
 
     if (requestedStackId) {
-      // Check if the requested stack exists
-      const exists = existingStacks.some(
-        (s) => s.id === requestedStackId || s.name === requestedStackId,
-      );
-      if (exists) return requestedStackId;
+      // Check if the requested stack exists (by id)
+      const found = existingStacks.find((s) => s.id === requestedStackId);
+      if (found) return found.id;
 
-      // Auto-create the requested stack
+      // Auto-create the requested stack (name = requestedStackId, server generates the id)
       if (!this.options.quiet) {
         process.stderr.write(
           `Stack '${requestedStackId}' not found. Creating stack '${requestedStackId}' (type: ${primaryStacktype})...\n`,
         );
       }
-      await this.client.postCreateStack({
+      const created = await this.client.postCreateStack({
         name: requestedStackId,
         stacktype: primaryStacktype,
       });
-      return requestedStackId;
+      // Return the server-generated stackId (e.g. "postgres_production")
+      return created?.key?.replace(/^stack_/, "") ?? requestedStackId;
     }
 
     // No stackId given — use existing or create default
     if (existingStacks.length > 0) {
       const stack = existingStacks[0]!;
-      const stackId = stack.id || stack.name;
       if (!this.options.quiet) {
-        process.stderr.write(`Using existing stack '${stackId}'.\n`);
+        process.stderr.write(`Using existing stack '${stack.id}'.\n`);
       }
-      return stackId;
+      return stack.id;
     }
 
     // No stacks exist — create "default"
@@ -360,11 +358,11 @@ export class RemoteCli {
         `No stacks found. Creating stack '${defaultName}' (type: ${primaryStacktype})...\n`,
       );
     }
-    await this.client.postCreateStack({
+    const created = await this.client.postCreateStack({
       name: defaultName,
       stacktype: primaryStacktype,
     });
-    return defaultName;
+    return created?.key?.replace(/^stack_/, "") ?? defaultName;
   }
 
   private readParametersFile(filePath: string): {

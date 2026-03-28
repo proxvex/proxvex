@@ -7,5 +7,5 @@
     { "name": "static_gw", "value": "192.168.4.1" }
   ],
   "selectedAddons": ["addon-oidc", "addon-ssl"],
-  "stackId": "production"
+  "stackIds": ["postgres_production", "oidc_production"]
 }

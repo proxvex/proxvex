@@ -174,18 +174,25 @@ describe("Stack API", () => {
       ]);
     });
 
-    it("returns stack by name (fallback lookup)", async () => {
+    it("returns 404 when looking up by name instead of id", async () => {
       await request(app).post(ApiUri.Stacks).send({
         name: "My Stack",
         stacktype: "audio",
         entries: [],
       });
 
+      // Looking up by name should NOT work — must use stackId
       const res = await request(app).get(
         ApiUri.Stack.replace(":id", "My Stack"),
       );
-      expect(res.status).toBe(200);
-      expect(res.body.stack.name).toBe("My Stack");
+      expect(res.status).toBe(404);
+
+      // Looking up by stackId works
+      const res2 = await request(app).get(
+        ApiUri.Stack.replace(":id", "audio_My Stack"),
+      );
+      expect(res2.status).toBe(200);
+      expect(res2.body.stack.name).toBe("My Stack");
     });
 
     it("returns stack by key with stack_ prefix", async () => {
@@ -231,21 +238,26 @@ describe("Stack API", () => {
       expect(getRes.status).toBe(404);
     });
 
-    it("deletes existing stack by name (fallback)", async () => {
+    it("delete by name returns deleted=false (must use stackId)", async () => {
       await request(app).post(ApiUri.Stacks).send({
         name: "Delete Me",
         stacktype: "test",
         entries: [],
       });
 
+      // Deleting by name should NOT work — must use stackId
       const res = await request(app).delete(
         ApiUri.Stack.replace(":id", "Delete Me"),
       );
       expect(res.status).toBe(200);
-      expect(res.body.deleted).toBe(true);
+      expect(res.body.deleted).toBe(false);
 
-      // Verify stack is removed from context
-      expect(setup.ctx.getStack("Delete Me")).toBeNull();
+      // Deleting by stackId works
+      const res2 = await request(app).delete(
+        ApiUri.Stack.replace(":id", "test_Delete Me"),
+      );
+      expect(res2.status).toBe(200);
+      expect(res2.body.deleted).toBe(true);
     });
 
     it("returns deleted=false for non-existent stack", async () => {
@@ -264,8 +276,8 @@ describe("Stack API", () => {
         entries: [],
       });
 
-      // Verify stack exists in context
-      expect(setup.ctx.getStack("Delete Me")).not.toBeNull();
+      // Verify stack exists in context (by stackId)
+      expect(setup.ctx.getStack("test_Delete Me")).not.toBeNull();
 
       const res = await request(app).delete(
         ApiUri.Stack.replace(":id", "stack_test_Delete Me"),
@@ -274,7 +286,7 @@ describe("Stack API", () => {
       expect(res.body.deleted).toBe(true);
 
       // Verify stack is removed from context
-      expect(setup.ctx.getStack("Delete Me")).toBeNull();
+      expect(setup.ctx.getStack("test_Delete Me")).toBeNull();
     });
   });
 

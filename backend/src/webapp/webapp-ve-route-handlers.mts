@@ -240,10 +240,10 @@ export class WebAppVeRouteHandlers {
       }
       const firstStackId = allStackIds[0];
       if (firstStackId) {
-        initialInputs.push({ id: "stack_name", value: firstStackId });
+        initialInputs.push({ id: "stack_id", value: firstStackId });
       }
       if (allStackIds.length > 0) {
-        initialInputs.push({ id: "all_stack_names", value: JSON.stringify(allStackIds) });
+        initialInputs.push({ id: "all_stack_ids", value: JSON.stringify(allStackIds) });
       }
 
       // Read application + addon dependencies for dependency-host-discovery
@@ -346,8 +346,8 @@ export class WebAppVeRouteHandlers {
       for (const sid of allStackIds) {
         const stack = storageContext.getStack(sid);
         if (stack) {
-          if (!defaults.has("stack_name")) {
-            defaults.set("stack_name", sid);
+          if (!defaults.has("stack_id")) {
+            defaults.set("stack_id", sid);
           }
           if (stack.entries) {
             for (const entry of stack.entries) {

@@ -156,9 +156,9 @@ export class ParameterValidator {
       }
     }
 
-    // Validate stack ID (match by id or name)
+    // Validate stack ID (match by id only — use stackId consistently)
     if (stackId && availableStacks) {
-      const found = availableStacks.some((s) => s.id === stackId || s.name === stackId);
+      const found = availableStacks.some((s) => s.id === stackId);
       if (!found) {
         errors.push({
           field: "stackId",

@@ -30,8 +30,8 @@ from pathlib import Path
 
 
 DEPS_RAW = '{{ app_dependencies }}'
-STACK_NAME_RAW = '{{ stack_name }}'
-ALL_STACK_NAMES_RAW = '{{ all_stack_names }}'
+STACK_NAME_RAW = '{{ stack_id }}'
+ALL_STACK_NAMES_RAW = '{{ all_stack_ids }}'
 
 
 def get_status(vmid: int) -> str | None:

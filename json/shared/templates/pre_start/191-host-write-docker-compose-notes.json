@@ -86,11 +86,11 @@
       "description": "GID for volume permissions (stored for addon reconfiguration)"
     },
     {
-      "id": "stack_name",
-      "name": "Stack Name",
+      "id": "stack_id",
+      "name": "Stack ID",
       "type": "string",
       "advanced": true,
-      "description": "Auto-injected by backend: Stack name/id for dependency discovery"
+      "description": "Auto-injected by backend: Stack ID written to container notes"
     }
   ],
   "commands": [

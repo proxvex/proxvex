@@ -61,7 +61,7 @@ def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
     if gid:
         lines.append("<!-- oci-lxc-deployer:gid %s -->" % gid)
     if stack_name:
-        lines.append("<!-- oci-lxc-deployer:stack-name %s -->" % stack_name)
+        lines.append("<!-- oci-lxc-deployer:stack-id %s -->" % stack_name)
     return lines
 
 

@@ -5,15 +5,15 @@
   "description": "Resolves hostnames of dependency containers by scanning LXC configs.\n\nFor each dependency declared in application.json, finds the container with matching application_id and stack_name, verifies it is running, and outputs <APP_ID>_HOST with the hostname.\n\nFails if any dependency is not found or not running.",
   "parameters": [
     {
-      "id": "stack_name",
-      "name": "Stack Name",
+      "id": "stack_id",
+      "name": "Stack ID",
       "type": "string",
       "advanced": true,
-      "description": "Auto-injected by backend: Stack name/id for dependency discovery"
+      "description": "Auto-injected by backend: Primary stack ID for dependency discovery"
     },
     {
-      "id": "all_stack_names",
-      "name": "All Stack Names",
+      "id": "all_stack_ids",
+      "name": "All Stack IDs",
       "type": "string",
       "advanced": true,
       "description": "Auto-injected by backend: JSON array of all selected stack IDs"

@@ -255,10 +255,10 @@ export class ContextManager extends Context implements IContext {
     const key = id.startsWith("stack_") ? id : `stack_${id}`;
     const value = this.get(key);
     if (value instanceof StackContext) return value;
-    // Fallback: search by id or name across all stacks
+    // Fallback: search by id across all stacks (not by name — use stackId consistently)
     for (const k of this.keys().filter((k) => k.startsWith("stack_"))) {
       const v = this.get(k);
-      if (v instanceof StackContext && (v.id === id || v.name === id)) return v;
+      if (v instanceof StackContext && v.id === id) return v;
     }
     return null;
   }
@@ -284,10 +284,10 @@ export class ContextManager extends Context implements IContext {
       this.remove(key);
       return true;
     }
-    // Fallback: search by id or name
+    // Fallback: search by id across all stacks (not by name)
     for (const k of this.keys().filter((k) => k.startsWith("stack_"))) {
       const v = this.get(k);
-      if (v instanceof StackContext && (v.id === id || v.name === id)) {
+      if (v instanceof StackContext && v.id === id) {
         this.remove(k);
         return true;
       }

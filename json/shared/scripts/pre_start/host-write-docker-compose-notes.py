@@ -21,7 +21,7 @@ ICON_MIME_TYPE = "{{ icon_mime_type }}"
 USERNAME_RAW = "{{ username }}"
 UID_RAW = "{{ uid }}"
 GID_RAW = "{{ gid }}"
-STACK_NAME_RAW = "{{ stack_name }}"
+STACK_NAME_RAW = "{{ stack_id }}"
 
 
 def build_notes(include_icon):
