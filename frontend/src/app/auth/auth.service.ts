@@ -7,6 +7,8 @@ export interface AuthConfig {
   oidcEnabled: boolean;
   authenticated: boolean;
   user?: { name?: string; email?: string };
+  roles?: Record<string, Record<string, unknown>>;
+  issuerUrl?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -36,6 +38,38 @@ export class AuthService {
 
   get config$(): Observable<AuthConfig> {
     return this.authConfig$.asObservable();
+  }
+
+  /** User has ORG_OWNER role (full ZITADEL config access, any project) */
+  get isOrgOwner(): boolean {
+    return !!this.authConfig$.value.roles?.['ORG_OWNER'];
+  }
+
+  /** User has PROJECT_OWNER on at least one project */
+  get isProjectOwner(): boolean {
+    const roles = this.authConfig$.value.roles;
+    if (!roles) return false;
+    return Object.keys(roles).some(k => k.startsWith('PROJECT_OWNER'));
+  }
+
+  /** User can configure OIDC (has ORG_OWNER or PROJECT_OWNER) */
+  get canConfigureOidc(): boolean {
+    return this.isOrgOwner || this.isProjectOwner;
+  }
+
+  /** Project IDs the user has PROJECT_OWNER access to */
+  get allowedProjectIds(): string[] {
+    const roles = this.authConfig$.value.roles;
+    if (!roles) return [];
+    if (this.isOrgOwner) return []; // empty means all projects allowed
+    return Object.keys(roles)
+      .filter(k => k.startsWith('PROJECT_OWNER:'))
+      .map(k => k.split(':')[1]);
+  }
+
+  /** ZITADEL issuer URL (for direct Management API calls from frontend) */
+  get issuerUrl(): string | undefined {
+    return this.authConfig$.value.issuerUrl;
   }
 
   async loadAuthConfig(): Promise<void> {

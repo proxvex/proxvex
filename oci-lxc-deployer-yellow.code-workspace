@@ -6,10 +6,6 @@
   ],
   "settings": {
     "window.title": "${activeEditorShort} - oci-lxc-deployer [YELLOW]",
-    "workbench.colorCustomizations": {
-      "activityBar.background": "#dce062",
-      "activityBar.foreground": "#121305"
-    },
     "claudeCode.allowDangerouslySkipPermissions": true,
     "terminal.integrated.env.osx": {
       "DEPLOYER_PORT": "3301",

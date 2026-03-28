@@ -3,10 +3,12 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { IAddonWithParameters, IParameter, IStack } from '../../../../shared/types';
 import { ParameterGroupComponent } from '../../../ve-configuration-dialog/parameter-group.component';
 import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-dialog.component';
+import { AuthService } from '../../../auth/auth.service';
 
 @Component({
   selector: 'app-addon-section',
@@ -16,6 +18,7 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
     MatCheckboxModule,
     MatExpansionModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     ParameterGroupComponent
   ],
   template: `
@@ -36,12 +39,15 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
                                  class="addon-panel">
               <mat-expansion-panel-header (click)="$event.stopPropagation()">
                 <mat-panel-title>
-                  <mat-checkbox
-                    [checked]="isAddonSelected(addon.id)"
-                    (change)="onAddonToggle(addon.id, $event.checked)"
-                    (click)="$event.stopPropagation()">
-                    {{ addon.name }}
-                  </mat-checkbox>
+                  <span [matTooltip]="getAddonDisabledReason(addon.id)">
+                    <mat-checkbox
+                      [checked]="isAddonSelected(addon.id)"
+                      [disabled]="isAddonDisabled(addon.id)"
+                      (change)="onAddonToggle(addon.id, $event.checked)"
+                      (click)="$event.stopPropagation()">
+                      {{ addon.name }}
+                    </mat-checkbox>
+                  </span>
                 </mat-panel-title>
                 <mat-panel-description>
                   @if (addon.description) {
@@ -117,6 +123,7 @@ import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-
 })
 export class AddonSectionComponent {
   private dialog = inject(MatDialog);
+  private auth = inject(AuthService);
 
   @Input() availableAddons: IAddonWithParameters[] = [];
   @Input() selectedAddons: string[] = [];
@@ -138,6 +145,20 @@ export class AddonSectionComponent {
   @Output() addonExpandedChanged = new EventEmitter<string>();
   @Output() stackSelected = new EventEmitter<IStack>();
   @Output() createStackRequested = new EventEmitter<void>();
+
+  /** Check if an addon is disabled due to insufficient permissions */
+  isAddonDisabled(addonId: string): boolean {
+    if (addonId !== 'addon-oidc') return false;
+    // OIDC addon requires ORG_OWNER or PROJECT_OWNER role (UX only — ZITADEL enforces server-side)
+    if (!this.auth.isOidcEnabled) return false;
+    return !this.auth.canConfigureOidc;
+  }
+
+  /** Tooltip reason when an addon is disabled */
+  getAddonDisabledReason(addonId: string): string {
+    if (!this.isAddonDisabled(addonId)) return '';
+    return 'Insufficient permissions: requires ORG_OWNER or PROJECT_OWNER role in ZITADEL';
+  }
 
   isAddonSelected(addonId: string): boolean {
     return this.selectedAddons.includes(addonId);

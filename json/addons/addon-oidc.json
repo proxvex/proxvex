@@ -38,12 +38,13 @@
 
   "installation": {
     "pre_start": [
-
+      "149-conf-bootstrap-zitadel-project.json",
       "150-conf-setup-oidc-client.json",
       "162-conf-configure-oidc-app.json"
     ],
     "post_start": [
-      "355-post-configure-oidc-app.json"
+      "355-post-configure-oidc-app.json",
+      "360-post-harden-zitadel-compose.json"
     ]
   },
 

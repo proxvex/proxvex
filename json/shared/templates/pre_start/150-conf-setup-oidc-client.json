@@ -64,6 +64,14 @@
       "default": "",
       "advanced": true,
       "description": "Optional: External OIDC issuer URL (e.g. https://auth.example.com). If empty, defaults to internal Zitadel URL."
+    },
+    {
+      "id": "ZITADEL_PAT",
+      "name": "Zitadel PAT",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Short-lived Zitadel access token (injected by backend in zero-secret mode). Falls back to admin-client.pat file if not set."
     }
   ],
   "commands": [

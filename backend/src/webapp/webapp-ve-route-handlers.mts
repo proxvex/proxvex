@@ -474,10 +474,27 @@ export class WebAppVeRouteHandlers {
       this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey);
 
       // Start ProxmoxExecution
-      const inputs = processedParams.map((p) => ({
+      const inputs: Array<{ id: string; value: string | number | boolean }> = processedParams.map((p) => ({
         id: p.id,
         value: p.value,
       }));
+
+      // Inject short-lived ZITADEL token for OIDC addon scripts (zero-secret mode)
+      if (selectedAddons.includes("addon-oidc")) {
+        const { getZitadelClient } = await import("@src/services/zitadel-client.service.mjs");
+        const zitadelClient = getZitadelClient();
+        if (zitadelClient) {
+          try {
+            const zitadelToken = await zitadelClient.getAccessToken();
+            inputs.push({ id: "ZITADEL_PAT", value: zitadelToken });
+            this.logger.info("[ve-route-handlers] Injected ZITADEL service token for OIDC addon");
+          } catch (err) {
+            this.logger.warn("[ve-route-handlers] Failed to obtain ZITADEL token, falling back to file-based PAT", {
+              error: err instanceof Error ? err.message : err,
+            });
+          }
+        }
+      }
 
       const { exec, restartKey } = this.executionSetup.setupExecution(
         commands,

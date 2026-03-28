@@ -1,0 +1,29 @@
+{
+  "name": "Harden Zitadel Compose",
+  "description": "Post-bootstrap hardening: Changes Zitadel command from start-from-init to start, sets bootstrap volume to read-only, removes FIRSTINSTANCE env vars, and empties admin PAT file. Only runs after successful bootstrap (requires zitadel_project_id output).",
+  "execute_on": "lxc",
+  "skip_if_all_missing": ["zitadel_project_id"],
+  "parameters": [
+    {
+      "id": "compose_project",
+      "name": "Compose Project",
+      "type": "string",
+      "required": true,
+      "description": "Docker-Compose project name"
+    },
+    {
+      "id": "zitadel_project_id",
+      "name": "Zitadel Project ID",
+      "type": "string",
+      "required": false,
+      "description": "Output from bootstrap step (presence triggers hardening)"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Harden Zitadel Compose",
+      "script": "post-harden-zitadel-compose.sh",
+      "description": "Modify deployed compose file for production security"
+    }
+  ]
+}

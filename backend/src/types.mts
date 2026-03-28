@@ -223,6 +223,7 @@ export enum ApiUri {
   AuthConfig = "/api/auth/config",
   AuthLogin = "/api/auth/login",
   AuthLogout = "/api/auth/logout",
+  AuthToken = "/api/auth/token",
 
   // Version / build info
   Version = "/api/version",

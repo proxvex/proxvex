@@ -119,6 +119,8 @@ export function registerOidcRoutes(
       oidcEnabled: boolean;
       authenticated: boolean;
       user?: { name?: string; email?: string };
+      roles?: Record<string, Record<string, unknown>>;
+      issuerUrl?: string;
     } = {
       oidcEnabled: true,
       authenticated,
@@ -129,8 +131,20 @@ export function registerOidcRoutes(
       if (sess.userName) user.name = sess.userName;
       if (sess.userEmail) user.email = sess.userEmail;
       result.user = user;
+      if (sess.roles) result.roles = sess.roles;
+      result.issuerUrl = oidcConfig.issuerUrl;
     }
     res.json(result);
+  });
+
+  // GET /api/auth/token - returns access token for direct ZITADEL API calls
+  app.get("/api/auth/token", (req: Request, res: Response) => {
+    const sess = req.session as AuthSession;
+    if (!sess?.authenticated || !sess.accessToken) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+    res.json({ accessToken: sess.accessToken });
   });
 
   // GET /api/auth/login - redirect to Zitadel
@@ -144,7 +158,7 @@ export function registerOidcRoutes(
 
     const authUrl = client.buildAuthorizationUrl(oidcConfig.config, {
       redirect_uri: oidcConfig.callbackUrl,
-      scope: "openid email profile",
+      scope: "openid email profile urn:zitadel:iam:org:project:roles",
       state,
       nonce,
       response_type: "code",
@@ -214,6 +228,23 @@ export function registerOidcRoutes(
         }
         sess.sub = claims.sub;
 
+        // Extract all ZITADEL roles from project-specific claims
+        const roles: Record<string, Record<string, unknown>> = {};
+        for (const [key, value] of Object.entries(claimsRecord)) {
+          if (
+            key.startsWith(ZITADEL_ROLES_CLAIM_PREFIX) &&
+            key.endsWith(":roles") &&
+            value &&
+            typeof value === "object"
+          ) {
+            Object.assign(roles, value as Record<string, Record<string, unknown>>);
+          }
+        }
+        sess.roles = roles;
+
+        // Store access token for frontend-to-ZITADEL direct API calls
+        sess.accessToken = tokenResponse.access_token;
+
         // Clean up OIDC state
         delete sess.oidcState;
         delete sess.oidcNonce;
@@ -255,4 +286,6 @@ interface AuthSession {
   sub?: string;
   oidcState?: string;
   oidcNonce?: string;
+  roles?: Record<string, Record<string, unknown>>;
+  accessToken?: string;
 }

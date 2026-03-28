@@ -74,29 +74,33 @@ else
 fi
 
 # --- Read PAT ---
-# NOTE: PAT path is an open issue. Zitadel writes the PAT to the container's
-# docker-compose working directory, which is NOT mapped to a PVE-host volume.
-# This needs to be fixed in the Zitadel docker-compose configuration first.
-# For now, we look in the expected volume path.
-PAT_FILE="${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/bootstrap/admin-client.pat"
+# Priority: 1) Template variable (injected by backend in zero-secret mode)
+#           2) File on PVE host (legacy mode)
+ZITADEL_PAT_INPUT="{{ ZITADEL_PAT }}"
+PAT=""
 
-if [ ! -f "$PAT_FILE" ]; then
-  echo "ERROR: PAT file not found at ${PAT_FILE}" >&2
-  echo "Zitadel PAT must be accessible from PVE host." >&2
-  echo "Check that the Zitadel docker-compose maps the PAT directory as a volume." >&2
-  echo '[]'
-  exit 1
+if [ -n "$ZITADEL_PAT_INPUT" ] && [ "$ZITADEL_PAT_INPUT" != "NOT_DEFINED" ]; then
+  PAT="$ZITADEL_PAT_INPUT"
+  echo "PAT provided via template variable (zero-secret mode)" >&2
+else
+  PAT_FILE="${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/bootstrap/admin-client.pat"
+  if [ -f "$PAT_FILE" ]; then
+    PAT=$(cat "$PAT_FILE")
+    if [ -n "$PAT" ]; then
+      echo "PAT loaded from ${PAT_FILE} (legacy mode)" >&2
+    fi
+  fi
 fi
 
-PAT=$(cat "$PAT_FILE")
 if [ -z "$PAT" ]; then
-  echo "ERROR: PAT file is empty" >&2
+  echo "ERROR: No Zitadel PAT available." >&2
+  echo "Either ZITADEL_PAT must be set or admin-client.pat must exist at:" >&2
+  echo "  ${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/bootstrap/admin-client.pat" >&2
   echo '[]'
   exit 1
 fi
 
 echo "Using Zitadel at ${ZITADEL_URL}" >&2
-echo "PAT loaded from ${PAT_FILE}" >&2
 
 # --- Wait for Zitadel ready ---
 echo "Waiting for Zitadel to be ready..." >&2

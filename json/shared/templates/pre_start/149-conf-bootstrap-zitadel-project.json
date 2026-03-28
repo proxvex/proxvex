@@ -1,0 +1,79 @@
+{
+  "name": "Bootstrap Zitadel Project",
+  "description": "One-time bootstrap: Creates a Zitadel project (pve-<hostname>), service account with PROJECT_OWNER role, and OIDC app. Invalidates the admin PAT after setup (zero-persistent-secret design). Only runs during initial installation when bootstrap volume is available.",
+  "execute_on": "ve",
+  "skip_if_all_missing": ["bootstrap_zitadel"],
+  "parameters": [
+    {
+      "id": "bootstrap_zitadel",
+      "name": "Bootstrap Zitadel",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Set to 'true' to run Zitadel bootstrap (creates project, service account, invalidates admin PAT)"
+    },
+    {
+      "id": "ZITADEL_HOST",
+      "name": "Zitadel Host",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of the Zitadel instance (resolved via dependency)"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of this PVE node"
+    },
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "advanced": true,
+      "description": "Path to the shared volume mount point on PVE host"
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Domain suffix for constructing URLs"
+    },
+    {
+      "id": "oidc_issuer_url",
+      "name": "OIDC Issuer URL",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Optional: External OIDC issuer URL"
+    },
+    {
+      "id": "oidc_callback_path",
+      "name": "Callback Path",
+      "type": "string",
+      "required": false,
+      "default": "/api/auth/callback",
+      "advanced": true,
+      "description": "OIDC callback path"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Bootstrap Zitadel Project",
+      "script": "conf-bootstrap-zitadel-project.sh",
+      "outputs": [
+        "oidc_issuer_url",
+        "oidc_client_id",
+        "oidc_client_secret",
+        "zitadel_svc_client_id",
+        "zitadel_svc_client_secret",
+        "zitadel_project_id"
+      ]
+    }
+  ]
+}
