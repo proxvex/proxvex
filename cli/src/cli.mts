@@ -186,12 +186,31 @@ export class RemoteCli {
       : process.cwd();
     const processedParams = this.processFileUploads(paramsInput.params, paramsDir);
 
-    // 7b. Auto-resolve stack if app has stacktype
-    const resolvedStackId = await this.resolveStack(
-      paramsInput.stackId,
-      appStacktype,
-      stacks,
-    );
+    // 7b. Auto-resolve stack(s) if app has stacktype
+    // Support both stackId (single) and stackIds (multi-stack apps like zitadel)
+    let resolvedStackId: string | undefined;
+    let resolvedStackIds: string[] | undefined;
+    if (paramsInput.stackIds && paramsInput.stackIds.length > 0) {
+      // Multi-stack: resolve each stackId individually
+      resolvedStackIds = [];
+      for (const sid of paramsInput.stackIds) {
+        const resolved = await this.resolveStack(sid, appStacktype, stacks);
+        if (resolved) resolvedStackIds.push(resolved);
+      }
+    } else {
+      resolvedStackId = await this.resolveStack(
+        paramsInput.stackId,
+        appStacktype,
+        stacks,
+      );
+    }
+
+    // Build stack params for API calls
+    const stackParams = resolvedStackIds && resolvedStackIds.length > 0
+      ? { stackIds: resolvedStackIds }
+      : resolvedStackId
+        ? { stackId: resolvedStackId }
+        : {};
 
     // 7c. Merge addons from CLI flags with addons from parameters file
     const selectedAddons = [
@@ -209,7 +228,7 @@ export class RemoteCli {
         params: processedParams,
         ...(selectedAddons.length > 0 ? { selectedAddons } : {}),
         ...(disabledAddons.length > 0 ? { disabledAddons } : {}),
-        ...(resolvedStackId ? { stackId: resolvedStackId } : {}),
+        ...stackParams,
       },
     );
 
@@ -237,7 +256,7 @@ export class RemoteCli {
         params: processedParams,
         ...(selectedAddons.length > 0 ? { selectedAddons } : {}),
         ...(disabledAddons.length > 0 ? { disabledAddons } : {}),
-        ...(resolvedStackId ? { stackId: resolvedStackId } : {}),
+        ...stackParams,
       },
     );
 
@@ -371,6 +390,7 @@ export class RemoteCli {
     params: { name: string; value: IParameterValue }[];
     selectedAddons?: string[];
     stackId?: string;
+    stackIds?: string[];
   } {
     const absPath = path.isAbsolute(filePath)
       ? filePath
@@ -418,6 +438,7 @@ export class RemoteCli {
       params,
       selectedAddons: parsed.selectedAddons,
       stackId: parsed.stackId,
+      stackIds: parsed.stackIds,
     };
   }
 
