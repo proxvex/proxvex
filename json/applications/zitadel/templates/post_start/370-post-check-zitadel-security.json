@@ -1,0 +1,11 @@
+{
+  "execute_on": "lxc",
+  "name": "Check Zitadel Security",
+  "description": "Verify Zitadel security: login-client.pat on persistent mount, admin-client.pat NOT on persistent mount, correct directory permissions.",
+  "commands": [
+    {
+      "script": "post-check-zitadel-security.sh",
+      "description": "Verify PAT placement and volume permissions"
+    }
+  ]
+}

@@ -127,12 +127,23 @@ export class Verifier {
       return;
     }
 
-    // Read admin PAT
-    const pat = this.ssh(
-      `pct exec ${vmId} -- cat /bootstrap/admin-client.pat`,
-    ).trim();
+    // Read admin PAT from Docker container tmpfs (not persistent mount)
+    let pat = "";
+    try {
+      pat = this.ssh(
+        `pct exec ${vmId} -- docker exec $(pct exec ${vmId} -- docker ps -qf name=zitadel-api | head -1) cat /zitadel/tmp/admin-client.pat`,
+      ).trim();
+    } catch { /* container may not have the file */ }
     if (!pat) {
-      logFail(`[${vmId}] Cannot read admin-client.pat`);
+      // Fallback: try legacy path on persistent mount
+      try {
+        pat = this.ssh(
+          `pct exec ${vmId} -- cat /bootstrap/admin-client.pat`,
+        ).trim();
+      } catch { /* not found */ }
+    }
+    if (!pat) {
+      logFail(`[${vmId}] Cannot read admin-client.pat (checked /zitadel/tmp/ and /bootstrap/)`);
       this.failed++;
       return;
     }
@@ -286,10 +297,20 @@ export class Verifier {
       return;
     }
 
-    // Read PAT from Zitadel container
-    const pat = this.ssh(
-      `pct exec ${zitadelVm.vmId} -- cat /bootstrap/admin-client.pat`,
-    ).trim();
+    // Read PAT from Zitadel container (tmpfs in Docker, fallback to persistent mount)
+    let pat = "";
+    try {
+      pat = this.ssh(
+        `pct exec ${zitadelVm.vmId} -- docker exec $(pct exec ${zitadelVm.vmId} -- docker ps -qf name=zitadel-api | head -1) cat /zitadel/tmp/admin-client.pat`,
+      ).trim();
+    } catch { /* not found in tmpfs */ }
+    if (!pat) {
+      try {
+        pat = this.ssh(
+          `pct exec ${zitadelVm.vmId} -- cat /bootstrap/admin-client.pat`,
+        ).trim();
+      } catch { /* not found */ }
+    }
     if (!pat) {
       logFail(`[${vmId}] Cannot read Zitadel PAT from VM ${zitadelVm.vmId}`);
       this.failed++;

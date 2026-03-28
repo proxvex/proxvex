@@ -32,8 +32,8 @@
       "outputs": [
         "volumes",
         { "id": "compose_project", "optional": true },
-        "uid",
-        "gid"
+        { "id": "uid", "optional": true },
+        { "id": "gid", "optional": true }
       ]
     }
   ]

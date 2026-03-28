@@ -221,9 +221,10 @@ def main():
         original_compose_project == ""):
         output.append({"id": "compose_project", "value": compose_project})
 
-    # Output UID/GID for volume ownership on host (default: 0 = root)
-    output.append({"id": "uid", "value": compose_uid or "0"})
-    output.append({"id": "gid", "value": compose_uid or "0"})
+    # Output UID/GID for volume ownership on host (only if found in compose)
+    if compose_uid:
+        output.append({"id": "uid", "value": compose_uid})
+        output.append({"id": "gid", "value": compose_uid})
 
     print(json.dumps(output))
 
