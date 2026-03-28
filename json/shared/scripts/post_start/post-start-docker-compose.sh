@@ -88,6 +88,16 @@ elif [ -f "docker-compose.yml" ]; then
   COMPOSE_FILE="docker-compose.yml"
 fi
 
+# Fix volume permissions inside container (host chmod may not propagate through LXC bind-mounts)
+# Parse docker-compose.yaml for bind-mount volumes and ensure they are writable
+if [ -n "$COMPOSE_FILE" ]; then
+  for vol_line in $(grep -E '^\s*-\s+/' "$COMPOSE_FILE" | sed 's/.*- //' | sed 's/:.*//'); do
+    if [ -d "$vol_line" ]; then
+      chmod 777 "$vol_line" 2>/dev/null || true
+    fi
+  done
+fi
+
 # Run docker compose up -d --wait (waits for healthchecks to pass)
 echo "Starting Docker Compose services (timeout: ${STARTUP_TIMEOUT}s)..." >&2
 if command -v docker-compose >/dev/null 2>&1; then

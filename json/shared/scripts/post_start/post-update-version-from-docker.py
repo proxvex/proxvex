@@ -142,13 +142,14 @@ def update_notes_version(vmid: str, version: str) -> None:
         )
 
     # Also update the visible header: "# AppName (version)" or "# AppName"
-    # URL-encoded: %23 = #, %28 = (, %29 = )
+    # In PVE config, description is URL-encoded: %23=#, %28=(, %29=)
     app_name = config.application_name or config.application_id or ""
     if app_name:
         encoded_version = quote(version, safe="")
-        # Match existing header with version: # AppName (old_version)
-        header_pattern = r"%%23\s+" + re.escape(quote(app_name, safe="")) + r"(?:\s+%%28[^)]*%%29)?"
-        header_new = "%%23 %s %%28%s%%29" % (quote(app_name, safe=""), encoded_version)
+        encoded_name = quote(app_name, safe="")
+        # Match: %23 AppName (%28old_version%29) — with optional version part
+        header_pattern = r"%23\s+" + re.escape(encoded_name) + r"(?:\s+%28[^%]*(?:%[0-9A-Fa-f]{2}[^%]*)*%29)?"
+        header_new = "%%23 %s %%28%s%%29" % (encoded_name, encoded_version)
         conf_text = re.sub(header_pattern, header_new, conf_text)
 
     conf_path.write_text(conf_text, encoding="utf-8")

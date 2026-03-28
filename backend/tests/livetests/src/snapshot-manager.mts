@@ -98,7 +98,11 @@ export class SnapshotManager {
       if (existsSync(secretFile)) {
         this.scpToNested(secretFile, `${CONTEXT_BACKUP_DIR}/secret.txt`);
       }
-      this.log("Local context backed up to nested VM");
+      // Flush to disk so live snapshot captures the files
+      this.nestedSsh("sync");
+      // Verify backup was written
+      const verify = this.nestedSsh(`ls ${CONTEXT_BACKUP_DIR}/ 2>&1`);
+      this.log(`Local context backed up to nested VM (${verify.replace(/\n/g, ", ")})`);
     } catch (err) {
       this.log(`Warning: context backup failed (non-fatal): ${err}`);
     }

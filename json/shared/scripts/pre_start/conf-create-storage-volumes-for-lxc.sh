@@ -500,6 +500,10 @@ while IFS= read -r line <&3; do
   PERM=$(printf '%s' "$VOLUME_OPTS" | tr ',' '\n' | awk '/^[0-9]{3,4}$/ {print $1; exit}')
   if [ -n "$PERM" ]; then
     chmod "$PERM" "$SUBDIR" 2>/dev/null || true
+    # Track permissions for post-mount fixup inside the container
+    # (Host chmod may not be visible inside unprivileged LXC containers)
+    VOLUME_PERMS="${VOLUME_PERMS:+$VOLUME_PERMS
+}${VOLUME_PATH}:${PERM}"
   fi
   if [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
     chown "$EFFECTIVE_UID:$EFFECTIVE_GID" "$SUBDIR" 2>/dev/null || true

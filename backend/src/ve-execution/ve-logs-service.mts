@@ -454,19 +454,37 @@ export class VeLogsService {
     }
 
     // Single script that auto-detects and fetches the right logs
+    // For docker-compose: show per-service errors first, then tail
     const script = `
 if lxc-attach -n ${vmId} -- test -d /opt/docker-compose 2>/dev/null; then
   lxc-attach -n ${vmId} -- sh -c '
     COMPOSE_DIR=$(find /opt/docker-compose -maxdepth 1 -type d ! -name docker-compose 2>/dev/null | head -1)
     if [ -n "$COMPOSE_DIR" ] && [ -f "$COMPOSE_DIR/docker-compose.yaml" ]; then
       cd "$COMPOSE_DIR"
-      if command -v docker-compose >/dev/null 2>&1; then
-        docker-compose logs --tail ${lines} 2>&1
-      elif docker compose version >/dev/null 2>&1; then
-        docker compose logs --tail ${lines} 2>&1
+      COMPOSE_CMD=""
+      if docker compose version >/dev/null 2>&1; then
+        COMPOSE_CMD="docker compose"
+      elif command -v docker-compose >/dev/null 2>&1; then
+        COMPOSE_CMD="docker-compose"
       else
         echo "Error: Neither docker-compose nor docker compose plugin found"
+        exit 1
       fi
+      # Phase 1: Show first errors per service (most important for debugging)
+      SERVICES=$($COMPOSE_CMD ps --format "{{.Service}}" 2>/dev/null | sort -u)
+      if [ -n "$SERVICES" ]; then
+        for SVC in $SERVICES; do
+          ERRORS=$($COMPOSE_CMD logs "$SVC" 2>&1 | grep -i "error\\|fatal\\|panic\\|fail" | head -20)
+          if [ -n "$ERRORS" ]; then
+            echo "=== ERRORS: $SVC ==="
+            echo "$ERRORS"
+            echo ""
+          fi
+        done
+      fi
+      # Phase 2: Show recent log tail
+      echo "=== Recent logs (last ${lines} lines) ==="
+      $COMPOSE_CMD logs --tail ${lines} 2>&1
     else
       echo "Error: No docker-compose.yaml found in /opt/docker-compose/*/"
     fi

@@ -15,7 +15,7 @@ services:
       - zitadel
 
   zitadel-api:
-    image: ghcr.io/zitadel/zitadel:v4.9.2
+    image: ghcr.io/zitadel/zitadel:v4.12.3
     restart: unless-stopped
     command: 'start-from-init --masterkey "{{ ZITADEL_MASTERKEY }}" --tlsMode disabled'
     environment:

@@ -25,7 +25,7 @@
   "properties": [
     {
       "id": "volumes",
-      "default": "bootstrap=zitadel/bootstrap,0777"
+      "default": "bootstrap=bootstrap,0770,1000:1001"
     },
     {
       "id": "compose_file",
