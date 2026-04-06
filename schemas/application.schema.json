@@ -39,6 +39,30 @@
       "items": { "type": "string" },
       "description": "Addon IDs this application supports. Merged with parent via extends."
     },
+    "oidc_roles": {
+      "type": "array",
+      "description": "Zitadel role definitions for OIDC authentication. Required when 'addon-oidc' is in supported_addons.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Role key in Zitadel (e.g. 'admin', 'user', 'readonly')"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Human-readable display name for the role"
+          },
+          "group": {
+            "type": "string",
+            "description": "Role group for organizing roles in Zitadel"
+          }
+        },
+        "required": ["key", "display_name"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
     "dependencies": {
       "type": "array",
       "description": "Applications that must be installed before this one (in the same stack)",
@@ -104,6 +128,16 @@
       },
       "additionalProperties": false
     }
+  },
+  "if": {
+    "properties": {
+      "supported_addons": {
+        "contains": { "const": "addon-oidc" }
+      }
+    }
+  },
+  "then": {
+    "required": ["oidc_roles"]
   },
   "if": {
     "not": {
