@@ -19,6 +19,9 @@ COMPOSE_FILE_B64="{{ compose_file }}"
 ENV_FILE_B64="{{ env_file }}"
 COMPOSE_PROJECT="{{ compose_project }}"
 VMID="{{ vm_id }}"
+STACK_SECRET_NAMES="{{ stack_secret_names }}"
+
+[ "$STACK_SECRET_NAMES" = "NOT_DEFINED" ] && STACK_SECRET_NAMES=""
 
 if [ -z "$COMPOSE_PROJECT" ]; then
   echo "Error: Required parameter 'compose_project' must be set" >&2
@@ -96,6 +99,33 @@ grep -E '^\s*-\s*\./[^:]+:/[^:]+' "$PROJECT_DIR/docker-compose.yaml" 2>/dev/null
     echo "Updated symlink $target -> $container_path" >&2
   fi
 done
+
+# Create sanitized template file (secrets replaced with placeholder markers)
+# This template is used during upgrades to preserve the compose structure
+# while keeping secrets out of the persistent file.
+if [ -n "$STACK_SECRET_NAMES" ]; then
+  TEMPLATE_FILE="$PROJECT_DIR/docker-compose.template.yaml"
+  cp "$PROJECT_DIR/docker-compose.yaml" "$TEMPLATE_FILE"
+
+  # For each secret name, find its resolved value in the compose file
+  # and replace it back with a placeholder marker
+  echo "$STACK_SECRET_NAMES" | tr ',' '\n' | while IFS='=' read -r secret_name secret_value; do
+    secret_name=$(echo "$secret_name" | tr -d ' ')
+    secret_value=$(echo "$secret_value" | tr -d ' ')
+    if [ -n "$secret_name" ] && [ -n "$secret_value" ]; then
+      # Use sed to replace the value with the placeholder
+      # Escape special chars in the value for sed
+      escaped_value=$(printf '%s\n' "$secret_value" | sed 's/[[\.*^$()+?{|\\]/\\&/g')
+      OPEN_BRACE="{{"
+      CLOSE_BRACE="}}"
+      sed -i "s|${escaped_value}|${OPEN_BRACE} ${secret_name} ${CLOSE_BRACE}|g" "$TEMPLATE_FILE"
+      echo "Sanitized secret: $secret_name" >&2
+    fi
+  done
+
+  chmod 644 "$TEMPLATE_FILE"
+  echo "Created sanitized template at $TEMPLATE_FILE" >&2
+fi
 
 echo "Docker Compose files uploaded successfully to $PROJECT_DIR" >&2
 echo '[{"id": "compose_files_uploaded", "value": "true"}, {"id": "compose_dir", "value": "'"$PROJECT_DIR"'"}]'

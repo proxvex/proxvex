@@ -1,0 +1,29 @@
+{
+  "name": "Update Compose Image Tags",
+  "description": "Updates Docker image tags in the existing docker-compose.yaml on the persistent volume. Only modifies image: lines, preserving all other content (hardening changes, env vars, etc.). Skipped when no target_versions are specified.",
+  "execute_on": "lxc",
+  "skip_if_all_missing": ["target_versions"],
+  "parameters": [
+    {
+      "id": "target_versions",
+      "name": "Target Versions",
+      "type": "string",
+      "required": false,
+      "description": "Comma-separated service=version pairs (e.g. traefik=v3.7,zitadel=v4.13.0)"
+    },
+    {
+      "id": "compose_project",
+      "name": "Compose Project",
+      "type": "string",
+      "required": true,
+      "description": "Docker Compose project name (directory under /opt/docker-compose/)"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Update Compose Image Tags",
+      "script": "post-update-compose-image-tags.py",
+      "description": "Update image tags in persistent compose file"
+    }
+  ]
+}

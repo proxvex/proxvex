@@ -97,7 +97,7 @@
     "post_start": [
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
-      "320-post-upload-docker-compose-files.json",
+      "315-post-update-compose-image-tags.json",
       "330-svc-start-docker-compose.json",
       "335-post-update-version-from-docker.json",
       "350-host-check-hook-log.json"

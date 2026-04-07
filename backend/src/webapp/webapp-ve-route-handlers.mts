@@ -365,6 +365,25 @@ export class WebAppVeRouteHandlers {
         }
       }
 
+      // Build stack_secret_names for compose template sanitization
+      // Format: NAME=VALUE,NAME=VALUE (allows upload script to replace resolved values with {{ NAME }})
+      {
+        const secretPairs: string[] = [];
+        for (const sid of allStackIds) {
+          const stack = storageContext.getStack(sid);
+          if (stack?.entries) {
+            for (const entry of stack.entries) {
+              if (entry.value !== undefined && entry.value !== "") {
+                secretPairs.push(`${entry.name}=${entry.value}`);
+              }
+            }
+          }
+        }
+        if (secretPairs.length > 0) {
+          defaults.set("stack_secret_names", secretPairs.join(","));
+        }
+      }
+
       // Inject application + addon dependencies for dependency-host-discovery script
       {
         const appDependencies = (loaded.application as any)?.dependencies as { application: string }[] | undefined;

@@ -201,6 +201,7 @@ export enum ApiUri {
   ApplicationTags = "/api/applications/tags",
   LocalApplicationIds = "/api/applications/local/ids",
   Installations = "/api/:veContext/installations",
+  InstallationVersions = "/api/:veContext/installations/:vmId/versions",
   ContainerConfig = "/api/:veContext/container-config/:vmId",
   TemplateDetailsForApplication = "/api/:veContext/template-details/:application/:task",
   UnresolvedParameters = "/api/:veContext/unresolved-parameters/:application",
@@ -430,6 +431,17 @@ export interface IManagedOciContainer {
 }
 
 export type IInstallationsResponse = IManagedOciContainer[];
+
+export interface IServiceVersion {
+  service: string;
+  image: string;
+  currentVersion: string;
+}
+
+export interface IContainerVersionsResponse {
+  services: IServiceVersion[];
+  framework: string;
+}
 
 
 export type IVeExecuteMessagesResponse = ISingleExecuteMessagesResponse[];

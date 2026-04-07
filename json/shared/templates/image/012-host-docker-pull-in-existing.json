@@ -10,6 +10,13 @@
       "type": "string",
       "required": true,
       "description": "Docker Compose project name (used to locate compose file in /opt/docker-compose/<project>/)"
+    },
+    {
+      "id": "target_versions",
+      "name": "Target Versions",
+      "type": "string",
+      "required": false,
+      "description": "Comma-separated service=version pairs for version-specific upgrade"
     }
   ],
   "commands": [

@@ -46,6 +46,13 @@
       "type": "string",
       "description": "Target platform (e.g., linux/amd64, linux/arm64). Auto-detects if not specified.",
       "advanced": true
+    },
+    {
+      "id": "target_versions",
+      "name": "Target Versions",
+      "type": "string",
+      "required": false,
+      "description": "Comma-separated service=version pairs. For OCI-image apps: main=version to pull a specific tag."
     }
   ],
   "commands": [

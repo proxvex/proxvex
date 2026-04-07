@@ -3,6 +3,7 @@ import {
   ApiUri,
   IInstallationsResponse,
   IManagedOciContainer,
+  IContainerVersionsResponse,
   ICommand,
 } from "@src/types.mjs";
 import { ContextManager } from "../context-manager.mjs";
@@ -11,6 +12,10 @@ import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { VeExecution } from "../ve-execution/ve-execution.mjs";
 import { determineExecutionMode } from "../ve-execution/ve-execution-constants.mjs";
 import { sendErrorResponse } from "./webapp-error-utils.mjs";
+import {
+  parseVersionString,
+  mergeComposeImages,
+} from "../version-utils.mjs";
 
 /**
  * Detects which addons are active on the PVE host by running a lightweight
@@ -156,6 +161,161 @@ export function registerInstallationsRoutes(
 
       const payload: IInstallationsResponse = [proxmoxEntry, ...containers];
       res.status(200).json(payload);
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // --- GET /api/:veContext/installations/:vmId/versions ---
+  app.get(ApiUri.InstallationVersions, async (req, res) => {
+    try {
+      const veContextKey = String(req.params.veContext || "").trim();
+      const vmId = parseInt(req.params.vmId, 10);
+      if (!veContextKey) {
+        res.status(400).json({ error: "Missing veContext" });
+        return;
+      }
+      if (isNaN(vmId)) {
+        res.status(400).json({ error: "Invalid vmId" });
+        return;
+      }
+
+      const veContext = storageContext.getVEContextByKey(veContextKey);
+      if (!veContext) {
+        res.status(404).json({ error: "VE context not found" });
+        return;
+      }
+
+      // Step 1: Read container config to get version, oci_image, application_id
+      const repositories = pm.getRepositories();
+      const scriptContent = repositories.getScript({
+        name: "list-managed-oci-containers.py",
+        scope: "shared",
+        category: "list",
+      });
+      const libraryContent = repositories.getScript({
+        name: "lxc_config_parser_lib.py",
+        scope: "shared",
+        category: "library",
+      });
+      if (!scriptContent || !libraryContent) {
+        res.status(500).json({ error: "Required scripts not found" });
+        return;
+      }
+
+      const listCmd: ICommand = {
+        name: "List Managed OCI Containers",
+        execute_on: "ve",
+        script: "list-managed-oci-containers.py",
+        scriptContent,
+        libraryContent,
+        outputs: ["containers"],
+      };
+
+      const ve = new VeExecution(
+        [listCmd],
+        [],
+        veContext,
+        new Map(),
+        undefined,
+        determineExecutionMode(),
+      );
+      await ve.run(null);
+      const containersRaw = ve.outputs.get("containers");
+      const containers: IManagedOciContainer[] =
+        typeof containersRaw === "string" && containersRaw.trim().length > 0
+          ? JSON.parse(containersRaw)
+          : [];
+
+      const container = containers.find((c) => c.vm_id === vmId);
+      if (!container) {
+        res.status(404).json({ error: `Container ${vmId} not found` });
+        return;
+      }
+
+      // Step 2: Determine framework from application_id
+      const appId = container.application_id;
+      let framework = "oci-image";
+      if (appId) {
+        try {
+          const apps = pm.getApplicationService().listApplicationsForFrontend();
+          const app = apps.find((a) => a.id === appId);
+          if (app?.framework) {
+            framework = app.framework;
+          }
+        } catch {
+          // Fall back to oci-image
+        }
+      }
+
+      // Step 3: Parse version string from notes
+      let services = parseVersionString(
+        container.version,
+        container.oci_image,
+      );
+
+      // Step 4: For docker-compose, try to read compose file for full image names
+      if (framework === "docker-compose" && container.hostname) {
+        try {
+          const composeScriptContent = repositories.getScript({
+            name: "list-container-service-versions.py",
+            scope: "shared",
+            category: "list",
+          });
+          if (composeScriptContent) {
+            const composeProject = container.hostname;
+            const resolvedScript = composeScriptContent
+              .replace(/\{\{\s*compose_project\s*\}\}/g, composeProject)
+              .replace(/\{\{\s*vm_id\s*\}\}/g, String(vmId));
+
+            const composeCmd: ICommand = {
+              name: "List Container Service Versions",
+              execute_on: "ve",
+              script: "list-container-service-versions.py",
+              scriptContent: resolvedScript,
+              outputs: ["service_versions"],
+            };
+
+            const veCompose = new VeExecution(
+              [composeCmd],
+              [],
+              veContext,
+              new Map(),
+              undefined,
+              determineExecutionMode(),
+            );
+            await veCompose.run(null);
+            const versionsRaw = veCompose.outputs.get("service_versions");
+            if (
+              typeof versionsRaw === "string" &&
+              versionsRaw.trim().length > 0
+            ) {
+              const composeServices = JSON.parse(versionsRaw);
+              if (Array.isArray(composeServices) && composeServices.length > 0) {
+                // Build image lookup from compose file
+                const composeImages: Record<string, string> = {};
+                for (const svc of composeServices) {
+                  if (svc.service && svc.image) {
+                    composeImages[svc.service] = svc.image;
+                  }
+                }
+
+                // If notes had no version info, use compose file versions directly
+                if (services.length === 0) {
+                  services = composeServices;
+                } else {
+                  services = mergeComposeImages(services, composeImages);
+                }
+              }
+            }
+          }
+        } catch {
+          // Compose file read failed — use version from notes only
+        }
+      }
+
+      const response: IContainerVersionsResponse = { services, framework };
+      res.status(200).json(response);
     } catch (err: any) {
       sendErrorResponse(res, err);
     }

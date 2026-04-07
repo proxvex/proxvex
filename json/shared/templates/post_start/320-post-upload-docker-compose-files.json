@@ -33,6 +33,13 @@
       "type": "string",
       "required": true,
       "description": "Project name for Docker Compose (directory name)"
+    },
+    {
+      "id": "stack_secret_names",
+      "name": "Stack Secret Names",
+      "type": "string",
+      "required": false,
+      "description": "Comma-separated NAME=VALUE pairs for secrets to sanitize in template file"
     }
   ],
   "commands": [

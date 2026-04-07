@@ -11,6 +11,7 @@ import { CacheService } from '../shared/services/cache.service';
 import { IManagedOciContainer } from '../../shared/types';
 import { CardGridComponent } from '../shared/components/card-grid/card-grid';
 import { CertificateManagementDialog } from '../certificate-management/certificate-management-dialog';
+import { UpgradeVersionDialog, UpgradeVersionDialogResult } from './upgrade-version-dialog';
 
 @Component({
   selector: 'app-installed-list',
@@ -47,21 +48,31 @@ export class InstalledList implements OnInit {
   }
 
   startUpgrade(installation: IManagedOciContainer) {
-    const application = installation.application_id || 'oci-lxc-deployer';
-    this.svc.postVeUpgrade(application, {
-      previouse_vm_id: installation.vm_id,
-      oci_image: installation.oci_image,
-      application_id: installation.application_id,
-      application_name: installation.application_name,
-      version: installation.version,
-      addons: installation.addons,
-    }).subscribe({
-      next: () => {
-        this.router.navigate(['/monitor']);
-      },
-      error: () => {
-        this.error = 'Error starting upgrade';
-      },
+    const dialogRef = this.dialog.open(UpgradeVersionDialog, {
+      width: '500px',
+      data: { installation },
+    });
+
+    dialogRef.afterClosed().subscribe((result?: UpgradeVersionDialogResult) => {
+      if (!result) return; // User cancelled
+
+      const application = installation.application_id || 'oci-lxc-deployer';
+      this.svc.postVeUpgrade(application, {
+        previouse_vm_id: installation.vm_id,
+        oci_image: installation.oci_image,
+        application_id: installation.application_id,
+        application_name: installation.application_name,
+        version: installation.version,
+        addons: installation.addons,
+        target_versions: result.target_versions,
+      }).subscribe({
+        next: () => {
+          this.router.navigate(['/monitor']);
+        },
+        error: () => {
+          this.error = 'Error starting upgrade';
+        },
+      });
     });
   }
 

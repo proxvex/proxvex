@@ -343,6 +343,7 @@ def main() -> None:
     registry_password = "{{ registry_password }}"
     platform = "{{ platform }}"
     application_id = "{{ application_id }}"
+    target_versions = "{{ target_versions }}"
     
     # Check if template variables were not substituted
     # VariableResolver returns "NOT_DEFINED" when a variable is not found
@@ -370,14 +371,30 @@ def main() -> None:
         platform = f'linux/{get_host_arch()}'
         log(f"Auto-detected host platform: {platform}")
     
+    # Apply target_versions override (for version-specific upgrades)
+    # Format: "main=v1.2.3" — for oci-image apps, "main" maps to the single image
+    if target_versions and target_versions != "NOT_DEFINED" and target_versions.strip():
+        for part in target_versions.split(","):
+            part = part.strip()
+            if "=" in part:
+                svc, ver = part.split("=", 1)
+                if svc.strip() == "main" and ver.strip():
+                    # Replace tag in oci_image
+                    if ":" in oci_image:
+                        oci_image = oci_image.rsplit(":", 1)[0] + ":" + ver.strip()
+                    else:
+                        oci_image = oci_image + ":" + ver.strip()
+                    log(f"Applied target version: {ver.strip()} -> {oci_image}")
+                    break
+
     log(f"Downloading OCI image: {oci_image}")
     if platform:
         log(f"Target platform: {platform}")
-    
+
     # Parse and normalize image reference
     image_ref = parse_image_ref(oci_image)
     log(f"Image reference: {image_ref}")
-    
+
     # Extract image name and tag for filename
     image_with_tag = image_ref.replace('docker://', '')
     if ':' in image_with_tag:
