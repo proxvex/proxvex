@@ -816,84 +816,11 @@ async function main() {
     }
   }
 
-  // Pre-test cleanup: smart handling of dependencies vs targets
-  for (const p of planned) {
-    let status: string;
-    try {
-      status = nestedSshStrict(config.pveHost, config.portPveSsh,
-        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
-    } catch (err: any) {
-      logFail(`SSH connection failed during pre-cleanup: ${err.message}`);
-      process.exit(1);
-    }
-
-    const task = p.scenario.task || "installation";
-    if (p.isDependency && status.includes("running")) {
-      // Health check: verify the container is managed AND matches the expected application/stack
-      let isManaged = false;
-      let matchesApp = false;
-      try {
-        const notes = nestedSsh(config.pveHost, config.portPveSsh,
-          `pct config ${p.vmId} 2>/dev/null | grep -a 'description:' | head -1`, 5000);
-        isManaged = /oci-lxc-deployer(%3A|:)managed/.test(notes);
-        if (isManaged) {
-          // Check application-id matches
-          const appMatch = notes.match(/application-id\s+(\S+)/);
-          const appId = appMatch?.[1]?.replace(/%20/g, " ");
-          // Check stack-id matches (URL-encoded in notes)
-          const rawSt = appStacktypes.get(p.scenario.application);
-          const sts = rawSt ? (Array.isArray(rawSt) ? rawSt : [rawSt]) : [];
-          const expectedStackId = sts.length > 0 ? `${sts[0]}_${p.stackName}` : p.stackName;
-          const stackMatch = notes.match(/stack-id\s+(\S+)/);
-          const stackId = stackMatch?.[1]?.replace(/%20/g, " ");
-          matchesApp = appId === p.scenario.application && (!stackId || stackId === expectedStackId);
-        }
-      } catch { /* treat as not managed */ }
-      if (isManaged && matchesApp) {
-        logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
-        p.skipExecution = true;
-      } else if (isManaged) {
-        logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but wrong app/stack — destroying`);
-      } else {
-        logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but not managed — destroying`);
-        nestedSsh(config.pveHost, config.portPveSsh,
-          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
-          30000);
-      }
-    } else if (REPLACE_CT_TASKS.includes(task) && status.includes("running")) {
-      // upgrade/reconfigure: keep existing VM, don't destroy
-      logOk(`VM ${p.vmId} (${p.scenario.id}) running — ${task} in place`);
-    } else if (!p.isDependency || status.includes("status:")) {
-      // Target VMs: always try to destroy (even if status check failed)
-      // Dependency VMs: only destroy if they exist but aren't running
-      logInfo(`Destroying VM ${p.vmId} (${p.scenario.id})...`);
-      nestedSsh(config.pveHost, config.portPveSsh,
-        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
-        30000);
-    }
-
-    // Clean volumes only for targets (not for reused dependencies or replace_ct tasks)
-    if (!p.skipExecution && !REPLACE_CT_TASKS.includes(task)) {
-      nestedSsh(config.pveHost, config.portPveSsh,
-        `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(p.hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
-        15000);
-    }
-
-    // Verify VM is actually gone (for targets, not replace_ct tasks)
-    if (!p.skipExecution && !p.isDependency && !REPLACE_CT_TASKS.includes(task)) {
-      const verify = nestedSsh(config.pveHost, config.portPveSsh,
-        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
-      if (verify.includes("status:")) {
-        logFail(`Failed to destroy VM ${p.vmId} — aborting`);
-        process.exit(1);
-      }
-    }
-  }
-
-  // Snapshot restore for dependencies — MUST happen before stack creation so that
-  // the deployer context (passwords) matches the restored VMs.
+  // Snapshot restore for dependencies — runs FIRST so that the VM state matches
+  // the deployer context (passwords). After restore, pre-cleanup will find the
+  // correct containers running and reuse them.
   const allDepIds = new Set([...allTests.values()].flatMap((s) => s.depends_on ?? []));
-  const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
+  const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id));
   const isLocalDeployer = config.deployerUrl.includes("localhost");
   const localContextPath = isLocalDeployer
     ? path.join(projectRoot, ".livetest-data")
@@ -950,6 +877,79 @@ async function main() {
         logOk(`Dependencies restored from VM snapshot @${best.name}`);
       } catch (err) {
         logInfo(`VM snapshot restore failed, will install normally: ${err}`);
+      }
+    }
+  }
+
+  // Pre-test cleanup: smart handling of dependencies vs targets
+  for (const p of planned) {
+    // Skip dependencies already restored from snapshot
+    if (p.skipExecution) continue;
+
+    let status: string;
+    try {
+      status = nestedSshStrict(config.pveHost, config.portPveSsh,
+        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
+    } catch (err: any) {
+      logFail(`SSH connection failed during pre-cleanup: ${err.message}`);
+      process.exit(1);
+    }
+
+    const task = p.scenario.task || "installation";
+    if (p.isDependency && status.includes("running")) {
+      // Health check: verify the container is managed AND matches the expected application/stack
+      let isManaged = false;
+      let matchesApp = false;
+      try {
+        const notes = nestedSsh(config.pveHost, config.portPveSsh,
+          `pct config ${p.vmId} 2>/dev/null | grep -a 'description:' | head -1`, 5000);
+        isManaged = /oci-lxc-deployer(%3A|:)managed/.test(notes);
+        if (isManaged) {
+          const appMatch = notes.match(/application-id\s+(\S+)/);
+          const appId = appMatch?.[1]?.replace(/%20/g, " ");
+          const rawSt = appStacktypes.get(p.scenario.application);
+          const sts = rawSt ? (Array.isArray(rawSt) ? rawSt : [rawSt]) : [];
+          const expectedStackId = sts.length > 0 ? `${sts[0]}_${p.stackName}` : p.stackName;
+          const stackMatch = notes.match(/stack-id\s+(\S+)/);
+          const stackId = stackMatch?.[1]?.replace(/%20/g, " ");
+          matchesApp = appId === p.scenario.application && (!stackId || stackId === expectedStackId);
+        }
+      } catch { /* treat as not managed */ }
+      if (isManaged && matchesApp) {
+        logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
+        p.skipExecution = true;
+      } else if (isManaged) {
+        logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but wrong app/stack — destroying`);
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+          30000);
+      } else {
+        logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but not managed — destroying`);
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+          30000);
+      }
+    } else if (REPLACE_CT_TASKS.includes(task) && status.includes("running")) {
+      logOk(`VM ${p.vmId} (${p.scenario.id}) running — ${task} in place`);
+    } else if (!p.isDependency || status.includes("status:")) {
+      logInfo(`Destroying VM ${p.vmId} (${p.scenario.id})...`);
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+        30000);
+    }
+
+    if (!p.skipExecution && !REPLACE_CT_TASKS.includes(task)) {
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `find /rpool/data -maxdepth 4 -type d -name ${JSON.stringify(p.hostname)} -path "*/volumes/*" -exec rm -rf {} + 2>/dev/null || true`,
+        15000);
+    }
+
+    if (!p.skipExecution && !p.isDependency && !REPLACE_CT_TASKS.includes(task)) {
+      const verify = nestedSsh(config.pveHost, config.portPveSsh,
+        `pct status ${p.vmId} 2>/dev/null || echo "not found"`, 10000);
+      if (verify.includes("status:")) {
+        logFail(`Failed to destroy VM ${p.vmId} — aborting`);
+        process.exit(1);
       }
     }
   }
