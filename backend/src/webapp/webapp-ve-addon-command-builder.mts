@@ -121,6 +121,14 @@ export class WebAppVeAddonCommandBuilder {
           resolvedProps.push({ id: `has_addon_${addon.notes_key}`, value: "true" });
         }
 
+        // Inject oidc_roles from application as JSON string for role creation in Zitadel
+        if (addonId === "addon-oidc" && application?.oidc_roles?.length) {
+          resolvedProps.push({
+            id: "oidc_roles",
+            value: JSON.stringify(application.oidc_roles),
+          });
+        }
+
         const propertiesCommand: ICommand = {
           name: `${addon.name} Properties`,
           properties: resolvedProps,

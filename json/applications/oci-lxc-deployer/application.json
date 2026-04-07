@@ -5,6 +5,9 @@
   "icon": "favicon.svg",
   "tags": ["infrastructure"],
   "supported_addons": ["addon-oidc"],
+  "oidc_roles": [
+    { "key": "admin", "display_name": "Administrator", "group": "deployer" }
+  ],
   "parameters": [
     {
       "id": "volumes",
@@ -29,11 +32,19 @@
       "default": "3443",
       "required": false,
       "advanced": true
+    },
+    {
+      "id": "oci_image_tag",
+      "name": "Version",
+      "type": "string",
+      "required": false,
+      "default": "latest",
+      "description": "OCI image tag / version to deploy (e.g. 'latest', 'v1.2.3')"
     }
   ],
   "properties": [
     { "id": "hostname", "value": "oci-lxc-deployer" },
-    { "id": "oci_image", "value": "ghcr.io/modbus2mqtt/oci-lxc-deployer" },
+    { "id": "oci_image", "value": "ghcr.io/modbus2mqtt/oci-lxc-deployer:{{oci_image_tag}}" },
     { "id": "uid", "value": "1001" },
     { "id": "gid", "value": "1001" },
     { "id": "username", "value": "lxc" },

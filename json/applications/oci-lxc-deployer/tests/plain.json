@@ -1,0 +1,7 @@
+{
+  "params": [
+    { "name": "volume_storage", "value": "local-zfs" },
+    { "name": "memory", "value": "1024" },
+    { "name": "oci_image_tag", "value": "latest" }
+  ]
+}

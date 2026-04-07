@@ -6,8 +6,9 @@
 #      (start-from-init is NOT idempotent and causes unique index errors on restart)
 #   2. Changes bootstrap volume from :rw to :ro for zitadel-api
 #   3. Removes ZITADEL_FIRSTINSTANCE_* environment variables (no longer needed)
-#   4. Empties admin-client.pat on host volume (defense in depth)
-#   5. Runs 'docker compose up -d' to apply changes
+#   4. Removes tmpfs mount for admin PAT (no longer needed after bootstrap)
+#   5. Reduces healthcheck start_period (fast startup with 'start' command)
+#   6. Runs 'docker compose up -d' to apply changes
 #
 # This script runs inside the LXC container (execute_on: lxc).
 #
@@ -57,12 +58,12 @@ else
 fi
 
 # --- 2. Change bootstrap volume to :ro for zitadel-api ---
-# Match lines like: - /bootstrap:/zitadel/bootstrap (without :ro)
+# Match lines like: - /bootstrap:/zitadel/persistent (without :ro)
 # But NOT lines that already have :ro
-if grep -q "/bootstrap:/zitadel/bootstrap$" "$COMPOSE_FILE" 2>/dev/null || \
-   grep -q '/bootstrap:/zitadel/bootstrap"' "$COMPOSE_FILE" 2>/dev/null; then
-  sed -i "s|/bootstrap:/zitadel/bootstrap\"|/bootstrap:/zitadel/bootstrap:ro\"|g" "$COMPOSE_FILE"
-  sed -i "s|/bootstrap:/zitadel/bootstrap$|/bootstrap:/zitadel/bootstrap:ro|g" "$COMPOSE_FILE"
+if grep -q "/bootstrap:/zitadel/persistent$" "$COMPOSE_FILE" 2>/dev/null || \
+   grep -q '/bootstrap:/zitadel/persistent"' "$COMPOSE_FILE" 2>/dev/null; then
+  sed -i "s|/bootstrap:/zitadel/persistent\"|/bootstrap:/zitadel/persistent:ro\"|g" "$COMPOSE_FILE"
+  sed -i "s|/bootstrap:/zitadel/persistent$|/bootstrap:/zitadel/persistent:ro|g" "$COMPOSE_FILE"
   echo "  Changed zitadel-api bootstrap volume to :ro" >&2
 else
   echo "  Bootstrap volume already :ro or not found (no change)" >&2
@@ -75,17 +76,27 @@ if [ "$REMOVED" -gt 0 ]; then
   echo "  Removed ${REMOVED} ZITADEL_FIRSTINSTANCE_* env vars" >&2
 fi
 
-# --- 4. Empty admin-client.pat on host volume ---
-# The bootstrap volume is mounted at /bootstrap inside the container
-ADMIN_PAT_FILE="/bootstrap/admin-client.pat"
-if [ -f "$ADMIN_PAT_FILE" ]; then
-  : > "$ADMIN_PAT_FILE"
-  echo "  Emptied admin-client.pat" >&2
+# --- 4. Remove tmpfs mount for admin-client.pat ---
+# The admin PAT is on a Docker tmpfs (/zitadel/tmp) and disappears on container
+# restart. Remove the tmpfs directive so it cannot reappear on future restarts.
+if grep -q '/zitadel/tmp' "$COMPOSE_FILE" 2>/dev/null; then
+  sed -i '/\/zitadel\/tmp/d' "$COMPOSE_FILE"
+  # Remove empty tmpfs: section if no entries remain
+  sed -i '/^[[:space:]]*tmpfs:$/{ N; /^[[:space:]]*tmpfs:\n$/d; }' "$COMPOSE_FILE"
+  echo "  Removed tmpfs mount for admin PAT" >&2
 else
-  echo "  admin-client.pat not found at ${ADMIN_PAT_FILE}" >&2
+  echo "  tmpfs mount already removed (no change)" >&2
 fi
 
-# --- 5. Restart with hardened config ---
+# --- 5. Reduce healthcheck start_period for production mode ---
+# After init, Zitadel starts much faster with 'start' command (DB already set up).
+# Reduce start_period from 300s to 30s to avoid long waits on restart.
+if grep -q 'start_period:.*300s' "$COMPOSE_FILE" 2>/dev/null; then
+  sed -i 's/start_period:.*300s/start_period: 30s/' "$COMPOSE_FILE"
+  echo "  Reduced healthcheck start_period to 30s" >&2
+fi
+
+# --- 6. Restart with hardened config ---
 echo "Restarting Docker Compose with hardened config..." >&2
 cd "$COMPOSE_DIR"
 
@@ -99,6 +110,6 @@ else
   exit 1
 fi
 
-$COMPOSE_CMD -f "$COMPOSE_FILE" up -d --wait --wait-timeout 300
+$COMPOSE_CMD -f "$COMPOSE_FILE" up -d --wait --wait-timeout 120
 
 echo "Zitadel compose hardened successfully" >&2

@@ -6,6 +6,7 @@ MARKER="$CLAUDE_PROJECT_DIR/.claude/claude.json-edited"
 
 # Only validate if marker exists (JSON was edited)
 if [ ! -f "$MARKER" ]; then
+  echo "JSON validation: skipped (no changes)" >&2
   exit 0
 fi
 

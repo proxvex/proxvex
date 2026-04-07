@@ -4,6 +4,7 @@
 MARKER="$CLAUDE_PROJECT_DIR/.claude/claude.frontend-edited"
 
 if [ ! -f "$MARKER" ]; then
+  echo "Frontend validation: skipped (no changes)" >&2
   exit 0
 fi
 

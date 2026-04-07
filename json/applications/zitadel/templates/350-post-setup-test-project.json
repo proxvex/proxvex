@@ -1,0 +1,52 @@
+{
+  "name": "Setup Test Project in Zitadel",
+  "description": "Creates a test project with roles, a human test user, and a machine user in Zitadel. Requires the ephemeral admin PAT (must run before hardening step 360). Stores test credentials in /bootstrap/test-oidc.json for downstream OIDC checks.",
+  "execute_on": "lxc",
+  "skip_if_all_missing": ["setup_test_project"],
+  "parameters": [
+    {
+      "id": "setup_test_project",
+      "name": "Setup Test Project",
+      "type": "boolean",
+      "required": false,
+      "internal": true,
+      "description": "Set to true to create a test project, test user, and machine user in Zitadel."
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of this Zitadel instance"
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Domain suffix for constructing external URLs"
+    },
+    {
+      "id": "ssl_mode",
+      "name": "SSL Mode",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "SSL mode for protocol detection"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Setup Test Project in Zitadel",
+      "script": "post-setup-test-project.sh",
+      "outputs": [
+        "test_project_id",
+        "test_user_id",
+        "test_machine_client_id",
+        "test_machine_client_secret"
+      ]
+    }
+  ]
+}

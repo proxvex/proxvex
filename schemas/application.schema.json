@@ -4,6 +4,33 @@
   "allOf": [
     {
       "$ref": "base-deployable"
+    },
+    {
+      "if": {
+        "required": ["supported_addons"],
+        "properties": {
+          "supported_addons": {
+            "type": "array",
+            "contains": { "const": "addon-oidc" }
+          }
+        }
+      },
+      "then": {
+        "required": ["oidc_roles"]
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "anyOf": [
+            { "required": ["extends"] },
+            { "properties": { "hidden": { "const": true } }, "required": ["hidden"] }
+          ]
+        }
+      },
+      "then": {
+        "required": ["installation"]
+      }
     }
   ],
   "type": "object",
@@ -38,6 +65,30 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Addon IDs this application supports. Merged with parent via extends."
+    },
+    "oidc_roles": {
+      "type": "array",
+      "description": "Zitadel role definitions for OIDC authentication. Required when 'addon-oidc' is in supported_addons.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Role key in Zitadel (e.g. 'admin', 'user', 'readonly')"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Human-readable display name for the role"
+          },
+          "group": {
+            "type": "string",
+            "description": "Role group for organizing roles in Zitadel"
+          }
+        },
+        "required": ["key", "display_name"],
+        "additionalProperties": false
+      },
+      "minItems": 1
     },
     "dependencies": {
       "type": "array",
@@ -104,17 +155,6 @@
       },
       "additionalProperties": false
     }
-  },
-  "if": {
-    "not": {
-      "anyOf": [
-        { "required": ["extends"] },
-        { "properties": { "hidden": { "const": true } }, "required": ["hidden"] }
-      ]
-    }
-  },
-  "then": {
-    "required": ["installation"]
   },
   "unevaluatedProperties": false
 }

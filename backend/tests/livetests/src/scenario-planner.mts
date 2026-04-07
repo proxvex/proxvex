@@ -232,14 +232,43 @@ export function buildParams(
 /**
  * Plan scenarios: assign VM IDs, hostnames, and stack names.
  */
+/**
+ * Plan VM IDs for scenarios. Uses a global ID map based on ALL known scenarios
+ * so that VM IDs are stable regardless of which subset of tests is selected.
+ * This prevents ID collisions when running tests sequentially (e.g. zitadel/default
+ * then zitadel/ssl — both need their own postgres VM with different IDs).
+ */
 export function planScenarios(
   scenarios: ResolvedScenario[],
   appStacktypes: Map<string, string | string[]>,
+  allScenarios?: Map<string, ResolvedScenario>,
 ): PlannedScenario[] {
-  let nextVmId = VM_ID_START;
+  // Build stable VM ID map from ALL known scenarios (sorted for determinism)
+  const globalIdMap = new Map<string, number>();
+  if (allScenarios) {
+    // Collect all scenario IDs including their transitive dependencies
+    const allIds = new Set<string>();
+    const addWithDeps = (id: string) => {
+      if (allIds.has(id)) return;
+      allIds.add(id);
+      const s = allScenarios.get(id);
+      if (s?.depends_on) {
+        for (const dep of s.depends_on) addWithDeps(dep);
+      }
+    };
+    for (const id of allScenarios.keys()) addWithDeps(id);
 
+    // Sort and assign stable IDs
+    let nextId = VM_ID_START;
+    for (const id of [...allIds].sort()) {
+      const s = allScenarios.get(id);
+      globalIdMap.set(id, s?.vm_id ?? nextId++);
+    }
+  }
+
+  let fallbackId = VM_ID_START;
   return scenarios.map((scenario) => {
-    const vmId = scenario.vm_id ?? nextVmId++;
+    const vmId = scenario.vm_id ?? globalIdMap.get(scenario.id) ?? fallbackId++;
     const rawStacktype = appStacktypes.get(scenario.application);
     const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
     const hasStacktype = stacktypes.length > 0;

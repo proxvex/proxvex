@@ -5,34 +5,22 @@
     ]
   },
   "hooks": {
-    "Edit": [
+    "PostToolUse": [
       {
-        "event": "afterTool",
-        "command": ".claude/hooks/mark-backend-edit.sh"
-      },
-      {
-        "event": "afterTool",
-        "command": ".claude/hooks/mark-json-edit.sh"
-      }
-    ],
-    "Write": [
-      {
-        "event": "afterTool",
-        "command": ".claude/hooks/mark-backend-edit.sh"
-      },
-      {
-        "event": "afterTool",
-        "command": ".claude/hooks/mark-json-edit.sh"
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/mark-backend-edit.sh\"'" },
+          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/mark-json-edit.sh\"'" }
+        ]
       }
     ],
     "Stop": [
       {
-        "event": "stop",
-        "command": ".claude/hooks/validate-backend.sh"
-      },
-      {
-        "event": "stop",
-        "command": ".claude/hooks/validate-json.sh"
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-backend.sh\"'" },
+          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-json.sh\"'" }
+        ]
       }
     ]
   }

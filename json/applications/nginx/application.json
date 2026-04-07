@@ -4,6 +4,9 @@
   "extends": "oci-image",
   "icon": "nginx.svg",
   "supported_addons": ["addon-oidc"],
+  "oidc_roles": [
+    { "key": "admin", "display_name": "Administrator" }
+  ],
   "parameters": [
     {
       "id": "hostname",
