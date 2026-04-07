@@ -22,13 +22,11 @@ SSL_MODE="{{ ssl_mode }}"
 [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=""
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
 
-# Build Host header: must include port for non-standard ports
+# Build Host header: must match ZITADEL_EXTERNALDOMAIN (= hostname, without domain_suffix)
 PROTOCOL="http"
+ZITADEL_HOST="${HOSTNAME}"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
-  ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}:1443"
-else
-  ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}:8080"
 fi
 ZITADEL_URL="http://localhost:8080"
 CRED_FILE="/bootstrap/test-oidc.json"

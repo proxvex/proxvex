@@ -103,15 +103,12 @@ else
   ZITADEL_URL="http://localhost:8080"
 fi
 
-# Build Host header: must include port for non-standard ports
+# Build Host header: must match ZITADEL_EXTERNALDOMAIN (= hostname, without domain_suffix).
+# Zitadel registers the instance under EXTERNALDOMAIN only, not hostname+suffix.
 PROTOCOL="http"
-ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}"
+ZITADEL_HOST="${HOSTNAME}"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
-  # Zitadel registers instance with domain:port when EXTERNALPORT != 443
-  ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}:1443"
-else
-  ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}:8080"
 fi
 ISSUER_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
 

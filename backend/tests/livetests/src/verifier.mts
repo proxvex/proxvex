@@ -36,7 +36,7 @@ export interface AppMeta {
   extends?: string | undefined;
   stacktype?: string | string[] | undefined;
   tags?: string[] | undefined;
-  verification?: { zitadel_setup_test_project?: boolean } | undefined;
+  verification?: { wait_seconds?: number; [key: string]: unknown } | undefined;
 }
 
 /**

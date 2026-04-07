@@ -279,13 +279,10 @@ async function executeScenarios(
     buildHash = buildInfo.dirty ? `${buildInfo.gitHash}-dirty` : buildInfo.gitHash;
   } catch { /* ignore — no build hash available */ }
 
-  // Snapshot support for dependencies
-  // A step is snapshot-worthy if ANY scenario (not just planned ones) depends on it.
-  // This ensures snapshots are created for common dependencies like postgres, zitadel
-  // even when they are targets in the current run but dependencies in other tests.
+  // Snapshot support for dependencies — snapshot restore is done in main() before
+  // stack creation to ensure password consistency. Here we only track state.
   const allDepIds = new Set([...allTests.values()].flatMap((s) => s.depends_on ?? []));
   const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
-  // For dev (local deployer), use .livetest-data/ for context backup/restore with snapshots
   const isLocalDeployer = config.deployerUrl.includes("localhost");
   const localContextPath = isLocalDeployer
     ? path.join(projectRoot, ".livetest-data")
@@ -295,52 +292,7 @@ async function executeScenarios(
     ? new SnapshotManager(config.pveHost, config.vmId, config.portPveSsh, (msg) => logInfo(msg), localContextPath)
     : null;
 
-  // Try to restore from whole-VM snapshot (skip dependency installation)
-  let depsRestoredFromSnapshot = false;
-  if (snapMgr && depSteps.length > 0) {
-    const depIds = depSteps.map((p) => p.scenario.id);
-    const best = snapMgr.findBestSnapshot(depIds, buildHash);
-    if (best) {
-      try {
-        logStep("Snapshot", `Restoring to @${best.name}`);
-        snapMgr.rollback(best.name);
-        depsRestoredFromSnapshot = true;
-
-        // Stop ghost containers that are not dependencies in this run
-        const depVmIds = new Set(depSteps.map((p) => p.vmId));
-        try {
-          const pctList = nestedSsh(config.pveHost, config.portPveSsh,
-            `pct list 2>/dev/null | tail -n +2 | awk '{print $1}'`, 10000);
-          for (const line of pctList.split("\n")) {
-            const vmId = parseInt(line.trim(), 10);
-            if (!isNaN(vmId) && !depVmIds.has(vmId)) {
-              nestedSsh(config.pveHost, config.portPveSsh,
-                `pct set ${vmId} --onboot 0 2>/dev/null; pct stop ${vmId} 2>/dev/null; true`, 15000);
-            }
-          }
-        } catch {
-          logInfo("Warning: ghost container cleanup failed (non-fatal)");
-        }
-
-        // Mark all dependencies up to and including the snapshot as skipped
-        for (let j = 0; j <= best.index; j++) {
-          depSteps[j]!.skipExecution = true;
-        }
-
-        // Reload deployer so it picks up the restored context (stack passwords)
-        try {
-          await fetch(`${apiUrl}/api/reload`, { method: "POST", signal: AbortSignal.timeout(5000) });
-          logInfo("Deployer reloaded after snapshot restore");
-        } catch {
-          logInfo("Warning: deployer reload after snapshot restore failed (non-fatal)");
-        }
-
-        logOk(`Dependencies restored from VM snapshot @${best.name}`);
-      } catch (err) {
-        logInfo(`VM snapshot restore failed, will install normally: ${err}`);
-      }
-    }
-  }
+  const depsRestoredFromSnapshot = depSteps.some((p) => p.skipExecution);
 
   try {
     for (let i = 0; i < planned.length; i++) {
@@ -821,7 +773,7 @@ async function main() {
   logOk(`${scenariosToRun.length} scenario(s) to run (including dependencies)`);
 
   // Plan: assign VM IDs and stack names
-  const planned = planScenarios(scenariosToRun, appStacktypes);
+  const planned = planScenarios(scenariosToRun, appStacktypes, allTests);
 
   // Mark dependencies vs explicitly selected targets
   const selectedIdSet = new Set(selectedIds);
@@ -877,35 +829,31 @@ async function main() {
 
     const task = p.scenario.task || "installation";
     if (p.isDependency && status.includes("running")) {
-      // Health check: verify the container is actually managed (not leftover from a failed run)
+      // Health check: verify the container is managed AND matches the expected application/stack
       let isManaged = false;
+      let matchesApp = false;
       try {
         const notes = nestedSsh(config.pveHost, config.portPveSsh,
           `pct config ${p.vmId} 2>/dev/null | grep -a 'description:' | head -1`, 5000);
         isManaged = /oci-lxc-deployer(%3A|:)managed/.test(notes);
+        if (isManaged) {
+          // Check application-id matches
+          const appMatch = notes.match(/application-id\s+(\S+)/);
+          const appId = appMatch?.[1]?.replace(/%20/g, " ");
+          // Check stack-id matches (URL-encoded in notes)
+          const rawSt = appStacktypes.get(p.scenario.application);
+          const sts = rawSt ? (Array.isArray(rawSt) ? rawSt : [rawSt]) : [];
+          const expectedStackId = sts.length > 0 ? `${sts[0]}_${p.stackName}` : p.stackName;
+          const stackMatch = notes.match(/stack-id\s+(\S+)/);
+          const stackId = stackMatch?.[1]?.replace(/%20/g, " ");
+          matchesApp = appId === p.scenario.application && (!stackId || stackId === expectedStackId);
+        }
       } catch { /* treat as not managed */ }
-      if (isManaged) {
-        // Check if the deployer context has stacks for this dependency.
-        // If not (fresh context), the passwords are unknown — must reinstall.
-        const rawSt = appStacktypes.get(p.scenario.application);
-        const sts = rawSt ? (Array.isArray(rawSt) ? rawSt : [rawSt]) : [];
-        let stackMissing = false;
-        for (const st of sts) {
-          const sid = `${st}_${p.stackName}`;
-          try {
-            const r = await fetch(`${apiUrl}/api/stack/${sid}`, { signal: AbortSignal.timeout(3000) });
-            if (!r.ok) stackMissing = true;
-          } catch { stackMissing = true; }
-        }
-        if (stackMissing) {
-          logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but stack missing — destroying (context mismatch)`);
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
-            30000);
-        } else {
-          logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
-          p.skipExecution = true;
-        }
+      if (isManaged && matchesApp) {
+        logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
+        p.skipExecution = true;
+      } else if (isManaged) {
+        logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but wrong app/stack — destroying`);
       } else {
         logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but not managed — destroying`);
         nestedSsh(config.pveHost, config.portPveSsh,
@@ -942,6 +890,70 @@ async function main() {
     }
   }
 
+  // Snapshot restore for dependencies — MUST happen before stack creation so that
+  // the deployer context (passwords) matches the restored VMs.
+  const allDepIds = new Set([...allTests.values()].flatMap((s) => s.depends_on ?? []));
+  const depSteps = planned.filter((p) => allDepIds.has(p.scenario.id) && !p.skipExecution);
+  const isLocalDeployer = config.deployerUrl.includes("localhost");
+  const localContextPath = isLocalDeployer
+    ? path.join(projectRoot, ".livetest-data")
+    : undefined;
+
+  if (config.snapshot?.enabled && depSteps.length > 0) {
+    let buildHash: string | undefined;
+    try {
+      const buildInfoPath = path.join(projectRoot, "backend/dist/build-info.json");
+      const buildInfo = JSON.parse(readFileSync(buildInfoPath, "utf-8"));
+      buildHash = buildInfo.dirty ? `${buildInfo.gitHash}-dirty` : buildInfo.gitHash;
+    } catch { /* ignore */ }
+
+    const snapMgr = new SnapshotManager(
+      config.pveHost, config.vmId, config.portPveSsh,
+      (msg) => logInfo(msg), localContextPath,
+    );
+    const depIds = depSteps.map((p) => p.scenario.id);
+    const best = snapMgr.findBestSnapshot(depIds, buildHash);
+    if (best) {
+      try {
+        logStep("Snapshot", `Restoring to @${best.name}`);
+        snapMgr.rollback(best.name);
+
+        // Stop ghost containers that are not dependencies in this run
+        const depVmIds = new Set(depSteps.map((p) => p.vmId));
+        try {
+          const pctList = nestedSsh(config.pveHost, config.portPveSsh,
+            `pct list 2>/dev/null | tail -n +2 | awk '{print $1}'`, 10000);
+          for (const line of pctList.split("\n")) {
+            const vmId = parseInt(line.trim(), 10);
+            if (!isNaN(vmId) && !depVmIds.has(vmId)) {
+              nestedSsh(config.pveHost, config.portPveSsh,
+                `pct set ${vmId} --onboot 0 2>/dev/null; pct stop ${vmId} 2>/dev/null; true`, 15000);
+            }
+          }
+        } catch {
+          logInfo("Warning: ghost container cleanup failed (non-fatal)");
+        }
+
+        // Mark restored dependencies as skipped
+        for (let j = 0; j <= best.index; j++) {
+          depSteps[j]!.skipExecution = true;
+        }
+
+        // Reload deployer to pick up the restored context (stack passwords)
+        try {
+          await fetch(`${apiUrl}/api/reload`, { method: "POST", signal: AbortSignal.timeout(5000) });
+          logInfo("Deployer reloaded after snapshot restore");
+        } catch {
+          logInfo("Warning: deployer reload after snapshot restore failed (non-fatal)");
+        }
+
+        logOk(`Dependencies restored from VM snapshot @${best.name}`);
+      } catch (err) {
+        logInfo(`VM snapshot restore failed, will install normally: ${err}`);
+      }
+    }
+  }
+
   // Run cleanup SQL on reused dependency VMs (e.g. DROP DATABASE for target apps)
   for (const p of planned) {
     if (p.isDependency || !p.scenario.cleanup) continue;
@@ -956,6 +968,31 @@ async function main() {
           `pct exec ${depVm.vmId} -- psql -U postgres ${cFlags}`,
           15000);
       }
+    }
+  }
+
+  // Destroy reused dependency VMs whose stacks are missing from the deployer context.
+  // This happens when a VM survives from a previous test run but the deployer context
+  // was reset (fresh start or different snapshot). New passwords would be generated
+  // that don't match the running VM.
+  for (const p of planned) {
+    if (!p.skipExecution || !p.isDependency) continue;
+    const rawSt = appStacktypes.get(p.scenario.application);
+    const sts = rawSt ? (Array.isArray(rawSt) ? rawSt : [rawSt]) : [];
+    let stackMissing = false;
+    for (const st of sts) {
+      const sid = `${st}_${p.stackName}`;
+      try {
+        const r = await fetch(`${apiUrl}/api/stack/${sid}`, { signal: AbortSignal.timeout(3000) });
+        if (!r.ok) stackMissing = true;
+      } catch { stackMissing = true; }
+    }
+    if (stackMissing) {
+      logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stack missing — destroying (context mismatch)`);
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+        30000);
+      p.skipExecution = false;
     }
   }
 

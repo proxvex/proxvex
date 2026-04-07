@@ -167,6 +167,29 @@ export class SnapshotManager {
   rollback(name: string): void {
     this.log(`Rolling back to @${name}...`);
 
+    // Delete snapshots newer than the target so rollback succeeds.
+    // PVE requires the target to be the most recent snapshot on each disk.
+    try {
+      const snapList = this.outerSsh(`qm listsnapshot ${this.nestedVmId}`, 15000);
+      const allNames: string[] = [];
+      for (const line of snapList.split("\n")) {
+        const m = line.match(/[`|]\->\s+(\S+)/);
+        if (m && m[1] !== "current") allNames.push(m[1]);
+      }
+      const targetIdx = allNames.indexOf(name);
+      if (targetIdx >= 0) {
+        // Delete all snapshots after the target (in reverse order)
+        for (let i = allNames.length - 1; i > targetIdx; i--) {
+          this.log(`Deleting intermediate snapshot @${allNames[i]}`);
+          try {
+            this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${allNames[i]}`, 30000);
+          } catch { /* ignore — may already be gone */ }
+        }
+      }
+    } catch {
+      this.log("Warning: could not clean intermediate snapshots");
+    }
+
     // Stop nested VM
     try {
       this.outerSsh(`qm stop ${this.nestedVmId}`, 60000);
