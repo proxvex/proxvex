@@ -4,6 +4,33 @@
   "allOf": [
     {
       "$ref": "base-deployable"
+    },
+    {
+      "if": {
+        "required": ["supported_addons"],
+        "properties": {
+          "supported_addons": {
+            "type": "array",
+            "contains": { "const": "addon-oidc" }
+          }
+        }
+      },
+      "then": {
+        "required": ["oidc_roles"]
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "anyOf": [
+            { "required": ["extends"] },
+            { "properties": { "hidden": { "const": true } }, "required": ["hidden"] }
+          ]
+        }
+      },
+      "then": {
+        "required": ["installation"]
+      }
     }
   ],
   "type": "object",
@@ -128,27 +155,6 @@
       },
       "additionalProperties": false
     }
-  },
-  "if": {
-    "properties": {
-      "supported_addons": {
-        "contains": { "const": "addon-oidc" }
-      }
-    }
-  },
-  "then": {
-    "required": ["oidc_roles"]
-  },
-  "if": {
-    "not": {
-      "anyOf": [
-        { "required": ["extends"] },
-        { "properties": { "hidden": { "const": true } }, "required": ["hidden"] }
-      ]
-    }
-  },
-  "then": {
-    "required": ["installation"]
   },
   "unevaluatedProperties": false
 }

@@ -1,0 +1,51 @@
+{
+  "name": "Setup Deployer in Zitadel",
+  "description": "Creates oci-lxc-deployer project, OIDC app, and roles in Zitadel using the ephemeral admin PAT. Stores credentials in /bootstrap/deployer-oidc.json for downstream OIDC addon activation without API access.",
+  "execute_on": "lxc",
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of this Zitadel instance"
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Domain suffix for constructing external URLs"
+    },
+    {
+      "id": "compose_project",
+      "name": "Compose Project",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Docker Compose project name"
+    },
+    {
+      "id": "ssl_mode",
+      "name": "SSL Mode",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "SSL mode for protocol detection (native, none)"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Setup Deployer in Zitadel",
+      "script": "post-setup-deployer-in-zitadel.sh",
+      "outputs": [
+        "oidc_issuer_url",
+        "zitadel_project_id",
+        "oidc_client_id",
+        "oidc_client_secret"
+      ]
+    }
+  ]
+}

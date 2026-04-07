@@ -85,7 +85,12 @@
       "application": "postgres"
     }
   ],
-  "installation": {},
+  "installation": {
+    "post_start": [
+      "340-post-setup-deployer-in-zitadel.json",
+      "360-post-harden-zitadel-compose.json"
+    ]
+  },
   "stacktype": [
     "postgres",
     "oidc"

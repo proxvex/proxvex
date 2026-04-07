@@ -79,10 +79,10 @@ fi
 # The bootstrap volume is mounted at /bootstrap inside the container
 ADMIN_PAT_FILE="/bootstrap/admin-client.pat"
 if [ -f "$ADMIN_PAT_FILE" ]; then
-  : > "$ADMIN_PAT_FILE"
-  echo "  Emptied admin-client.pat" >&2
+  rm -f "$ADMIN_PAT_FILE"
+  echo "  Deleted admin-client.pat" >&2
 else
-  echo "  admin-client.pat not found at ${ADMIN_PAT_FILE}" >&2
+  echo "  admin-client.pat not found at ${ADMIN_PAT_FILE} (already removed)" >&2
 fi
 
 # --- 5. Restart with hardened config ---

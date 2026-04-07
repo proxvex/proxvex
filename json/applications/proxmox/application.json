@@ -5,6 +5,9 @@
   "icon": "icon.svg",
   "tags": ["infrastructure"],
   "supported_addons": ["addon-ssl", "addon-oidc"],
+  "oidc_roles": [
+    { "key": "admin", "display_name": "Administrator" }
+  ],
   "reconfigure": {
     "pre_start": []
   }

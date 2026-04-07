@@ -73,6 +73,31 @@ else
   ISSUER_URL="${ZITADEL_URL}"
 fi
 
+# --- Check for pre-provisioned credentials ---
+# If the Zitadel bootstrap (340) already created an OIDC app for this application,
+# the credentials are stored in deployer-oidc.json. Use them directly without API access.
+DEPLOYER_CRED_FILE="${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/bootstrap/deployer-oidc.json"
+if [ -f "$DEPLOYER_CRED_FILE" ] && [ "$OIDC_APP_NAME" = "oci-lxc-deployer" ]; then
+  echo "Using pre-provisioned credentials from ${DEPLOYER_CRED_FILE}" >&2
+  CRED_ISSUER=$(sed -n 's/.*"issuer_url": *"\([^"]*\)".*/\1/p' "$DEPLOYER_CRED_FILE")
+  CRED_CLIENT_ID=$(sed -n 's/.*"client_id": *"\([^"]*\)".*/\1/p' "$DEPLOYER_CRED_FILE")
+  CRED_CLIENT_SECRET=$(sed -n 's/.*"client_secret": *"\([^"]*\)".*/\1/p' "$DEPLOYER_CRED_FILE")
+  if [ -n "$CRED_CLIENT_ID" ] && [ -n "$CRED_CLIENT_SECRET" ]; then
+    echo "OIDC client setup complete (pre-provisioned)" >&2
+    echo "  Issuer URL: ${CRED_ISSUER}" >&2
+    echo "  Client ID:  ${CRED_CLIENT_ID}" >&2
+    cat <<ENDOFOUTPUT
+[
+  {"id": "oidc_issuer_url", "value": "${CRED_ISSUER}"},
+  {"id": "oidc_client_id", "value": "${CRED_CLIENT_ID}"},
+  {"id": "oidc_client_secret", "value": "${CRED_CLIENT_SECRET}"}
+]
+ENDOFOUTPUT
+    exit 0
+  fi
+  echo "WARNING: Pre-provisioned credentials incomplete, falling back to API" >&2
+fi
+
 # --- Read PAT ---
 # Priority: 1) Template variable (injected by backend in zero-secret mode)
 #           2) File on PVE host (legacy mode)
@@ -191,6 +216,32 @@ else
   echo "Found project '${OIDC_PROJECT_NAME}' with ID ${PROJECT_ID}" >&2
 fi
 
+# --- Create roles from oidc_roles (skip all if any exist) ---
+OIDC_ROLES='{{ oidc_roles }}'
+if [ -n "$OIDC_ROLES" ] && [ "$OIDC_ROLES" != "NOT_DEFINED" ]; then
+  ROLES_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/roles/_search" "{}")
+  EXISTING_ROLE=$(echo "$ROLES_RESPONSE" | sed -n 's/.*"key":"\([^"]*\)".*/\1/p' | head -1)
+
+  if [ -z "$EXISTING_ROLE" ]; then
+    echo "Creating roles from oidc_roles..." >&2
+    # Parse JSON array: extract each object and create role
+    echo "$OIDC_ROLES" | sed 's/^\[//;s/\]$//;s/},{/}\n{/g' | while IFS= read -r role; do
+      [ -z "$role" ] && continue
+      ROLE_KEY=$(echo "$role" | sed -n 's/.*"key" *: *"\([^"]*\)".*/\1/p')
+      ROLE_DISPLAY=$(echo "$role" | sed -n 's/.*"display_name" *: *"\([^"]*\)".*/\1/p')
+      ROLE_GROUP=$(echo "$role" | sed -n 's/.*"group" *: *"\([^"]*\)".*/\1/p')
+      if [ -n "$ROLE_KEY" ] && [ -n "$ROLE_DISPLAY" ]; then
+        ROLE_BODY="{\"roleKey\":\"${ROLE_KEY}\",\"displayName\":\"${ROLE_DISPLAY}\"}"
+        [ -n "$ROLE_GROUP" ] && ROLE_BODY="{\"roleKey\":\"${ROLE_KEY}\",\"displayName\":\"${ROLE_DISPLAY}\",\"group\":\"${ROLE_GROUP}\"}"
+        zitadel_api POST "/management/v1/projects/${PROJECT_ID}/roles" "$ROLE_BODY" >/dev/null 2>&1
+        echo "  Created role: ${ROLE_KEY}" >&2
+      fi
+    done
+  else
+    echo "Roles already exist (found: ${EXISTING_ROLE}), skipping role creation" >&2
+  fi
+fi
+
 # --- Find or create OIDC app ---
 echo "Searching for OIDC app '${OIDC_APP_NAME}' in project ${PROJECT_ID}..." >&2
 APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/_search" \
@@ -237,7 +288,19 @@ if [ -z "$CLIENT_ID" ]; then
   exit 1
 fi
 
-# --- Generate client secret (only needed for existing apps) ---
+# --- Client secret handling (create-only: never regenerate for existing apps) ---
+OIDC_CRED_FILE="${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/bootstrap/${OIDC_APP_NAME}.oidc.json"
+
+if [ -z "$CLIENT_SECRET" ]; then
+  # Try to read from stored credentials first (create-only: don't regenerate)
+  if [ -f "$OIDC_CRED_FILE" ]; then
+    CLIENT_SECRET=$(sed -n 's/.*"client_secret" *: *"\([^"]*\)".*/\1/p' "$OIDC_CRED_FILE")
+    if [ -n "$CLIENT_SECRET" ]; then
+      echo "Client secret loaded from stored credentials" >&2
+    fi
+  fi
+fi
+
 if [ -z "$CLIENT_SECRET" ]; then
   echo "Generating client secret for app ${APP_ID}..." >&2
   SECRET_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config/_generate_client_secret" "{}")
@@ -249,6 +312,22 @@ if [ -z "$CLIENT_SECRET" ]; then
     echo "Response: ${SECRET_RESPONSE}" >&2
     echo '[]'
     exit 1
+  fi
+fi
+
+# Store credentials for future create-only access
+if [ -n "$CLIENT_ID" ] && [ -n "$CLIENT_SECRET" ]; then
+  CRED_DIR=$(dirname "$OIDC_CRED_FILE")
+  if [ -d "$CRED_DIR" ]; then
+    cat > "$OIDC_CRED_FILE" <<ENDOFCRED
+{
+  "client_id": "${CLIENT_ID}",
+  "client_secret": "${CLIENT_SECRET}",
+  "project_id": "${PROJECT_ID}"
+}
+ENDOFCRED
+    chmod 0600 "$OIDC_CRED_FILE"
+    echo "Credentials stored at ${OIDC_CRED_FILE}" >&2
   fi
 fi
 

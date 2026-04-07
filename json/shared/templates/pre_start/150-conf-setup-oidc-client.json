@@ -72,6 +72,14 @@
       "required": false,
       "advanced": true,
       "description": "Short-lived Zitadel access token (injected by backend in zero-secret mode). Falls back to admin-client.pat file if not set."
+    },
+    {
+      "id": "oidc_roles",
+      "name": "OIDC Roles",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "JSON array of role definitions from application.json (injected by backend)"
     }
   ],
   "commands": [

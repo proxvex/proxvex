@@ -46,6 +46,8 @@ export interface IApplicationBase {
   dependencies?: { application: string }[];
   /** Feature flags this application supports (e.g. 'serial_tty', 'docker'). Merged with parent via extends. */
   supports?: string[];
+  /** Zitadel role definitions for OIDC authentication. Required when 'addon-oidc' is in supported_addons. */
+  oidc_roles?: { key: string; display_name: string; group?: string }[];
   /** If true, the application is not shown in the applications list but can appear in the installed list. */
   hidden?: boolean;
 }
