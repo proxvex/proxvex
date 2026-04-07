@@ -1,0 +1,152 @@
+/**
+ * Stack lifecycle management for live integration tests.
+ *
+ * Handles stack creation, reuse, cleanup SQL, and stale VM detection.
+ * Stacks hold shared passwords between applications in the same deployment
+ * (e.g. postgres password shared between postgres and zitadel).
+ */
+
+import { nestedSsh } from "./ssh-helpers.mjs";
+import type { PlannedScenario } from "./livetest-types.mjs";
+import { logOk, logInfo } from "./log-helpers.mjs";
+
+export interface StackMaps {
+  stackIdMap: Map<string, string>;
+  appStackIdsMap: Map<string, string[]>;
+}
+
+/**
+ * Run cleanup SQL on reused dependency VMs.
+ * E.g. DROP DATABASE for target apps that need a fresh database.
+ */
+export function runCleanupSql(
+  planned: PlannedScenario[],
+  pveHost: string,
+  sshPort: number,
+): void {
+  for (const p of planned) {
+    if (p.isDependency || !p.scenario.cleanup) continue;
+    for (const [depApp, sql] of Object.entries(p.scenario.cleanup)) {
+      const depVm = planned.find(d => d.scenario.application === depApp && d.skipExecution);
+      if (depVm) {
+        logInfo(`Cleanup SQL on ${depApp} (VM ${depVm.vmId}): ${sql}`);
+        const sqlParts = sql.split(";").map(s => s.trim()).filter(Boolean);
+        const cFlags = sqlParts.map(s => `-c ${JSON.stringify(s)}`).join(" ");
+        nestedSsh(pveHost, sshPort,
+          `pct exec ${depVm.vmId} -- psql -U postgres ${cFlags}`,
+          15000);
+      }
+    }
+  }
+}
+
+/**
+ * Destroy reused dependency VMs whose stacks are missing from the deployer context.
+ * This happens when a VM survives from a previous test run but the deployer context
+ * was reset (fresh start or different snapshot).
+ */
+export async function destroyStaleVms(
+  planned: PlannedScenario[],
+  pveHost: string,
+  sshPort: number,
+  apiUrl: string,
+  appStacktypes: Map<string, string | string[]>,
+): Promise<void> {
+  for (const p of planned) {
+    if (!p.skipExecution || !p.isDependency) continue;
+    const rawSt = appStacktypes.get(p.scenario.application);
+    const sts = rawSt ? (Array.isArray(rawSt) ? rawSt : [rawSt]) : [];
+    let stackMissing = false;
+    for (const st of sts) {
+      const sid = `${st}_${p.stackName}`;
+      try {
+        const r = await fetch(`${apiUrl}/api/stack/${sid}`, { signal: AbortSignal.timeout(3000) });
+        if (!r.ok) stackMissing = true;
+      } catch { stackMissing = true; }
+    }
+    if (stackMissing) {
+      logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stack missing — destroying (context mismatch)`);
+      nestedSsh(pveHost, sshPort,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+        30000);
+      p.skipExecution = false;
+    }
+  }
+}
+
+/**
+ * Ensure stacks exist for all planned scenarios.
+ * Creates new stacks or reuses existing ones based on VM reuse state.
+ */
+export async function ensureStacks(
+  planned: PlannedScenario[],
+  apiUrl: string,
+  appStacktypes: Map<string, string | string[]>,
+): Promise<StackMaps> {
+  const stackIdMap = new Map<string, string>();
+  const appStackIdsMap = new Map<string, string[]>();
+  const stacksToCreate = new Map<string, { name: string; type: string }>();
+
+  for (const p of planned) {
+    const rawStacktype = appStacktypes.get(p.scenario.application);
+    const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
+    if (stacktypes.length === 0) continue;
+
+    const ids: string[] = [];
+    for (const st of stacktypes) {
+      const stackId = `${st}_${p.stackName}`;
+      ids.push(stackId);
+      if (!stacksToCreate.has(stackId)) {
+        stacksToCreate.set(stackId, { name: p.stackName, type: st });
+      }
+    }
+    stackIdMap.set(p.stackName, ids[0]!);
+    appStackIdsMap.set(`${p.scenario.application}/${p.stackName}`, ids);
+  }
+
+  for (const [stackId, { name: stackName, type: stacktype }] of stacksToCreate) {
+    let stackExists = false;
+    try {
+      const checkResp = await fetch(`${apiUrl}/api/stack/${stackId}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      stackExists = checkResp.ok;
+    } catch { /* ignore */ }
+
+    if (stackExists) {
+      const stackVms = planned.filter(p => {
+        const ids = appStackIdsMap.get(`${p.scenario.application}/${p.stackName}`);
+        return ids?.includes(stackId);
+      });
+      const allDestroyed = stackVms.every(p => !p.skipExecution);
+      if (allDestroyed) {
+        try {
+          await fetch(`${apiUrl}/api/stack/${stackId}`, {
+            method: "DELETE", signal: AbortSignal.timeout(5000),
+          });
+        } catch { /* ignore */ }
+        stackExists = false;
+      } else {
+        logOk(`Stack '${stackId}' exists — reusing (passwords unchanged)`);
+      }
+    }
+
+    if (!stackExists) {
+      try {
+        const resp = await fetch(`${apiUrl}/api/stacks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: stackName, stacktype, entries: [] }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (resp.ok) {
+          logOk(`Stack '${stackId}' created (type: ${stacktype})`);
+        }
+      } catch {
+        // Stack creation failed — may already exist from concurrent run
+      }
+    }
+  }
+
+  return { stackIdMap, appStackIdsMap };
+}
