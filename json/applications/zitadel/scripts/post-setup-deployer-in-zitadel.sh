@@ -37,6 +37,12 @@ OIDC_APP_NAME="oci-lxc-deployer"
 OIDC_CALLBACK_PATH="/api/auth/callback"
 CRED_FILE="/bootstrap/deployer-oidc.json"
 
+# --- Ensure curl is available ---
+if ! command -v curl > /dev/null 2>&1; then
+  echo "Installing curl..." >&2
+  apk add --no-cache curl >&2
+fi
+
 # --- Read admin PAT from Docker tmpfs ---
 # The PAT is in the zitadel-api container at /zitadel/tmp/admin-client.pat
 echo "Reading admin PAT from Docker container..." >&2
@@ -57,7 +63,16 @@ if [ -n "$COMPOSE_PROJECT" ] && [ -d "$COMPOSE_DIR" ]; then
   cd "$COMPOSE_DIR"
 fi
 
-PAT=$(docker exec "$(docker ps -q -f name=zitadel-api 2>/dev/null | head -1)" cat /zitadel/tmp/admin-client.pat 2>/dev/null)
+# Read PAT via /proc filesystem — the Zitadel distroless image has no shell tools
+# (no cat, no sh), so docker exec cannot be used to read files.
+ZITADEL_CONTAINER_ID=$(docker ps -q -f name=zitadel-api 2>/dev/null | head -1)
+if [ -n "$ZITADEL_CONTAINER_ID" ]; then
+  GO_PID_FMT=$(printf '%s.State.Pid%s' '{{' '}}')
+  CONTAINER_PID=$(docker inspect -f "$GO_PID_FMT" "$ZITADEL_CONTAINER_ID" 2>/dev/null)
+  if [ -n "$CONTAINER_PID" ] && [ -f "/proc/${CONTAINER_PID}/root/zitadel/tmp/admin-client.pat" ]; then
+    PAT=$(cat "/proc/${CONTAINER_PID}/root/zitadel/tmp/admin-client.pat" 2>/dev/null)
+  fi
+fi
 
 if [ -z "$PAT" ]; then
   echo "Admin PAT not available (already bootstrapped or container not ready)" >&2
@@ -75,19 +90,36 @@ fi
 echo "Admin PAT obtained" >&2
 
 # --- Build Zitadel URL ---
-# Inside the LXC, Zitadel is accessible on localhost:8080
-ZITADEL_URL="http://localhost:8080"
+# Connect to the zitadel-api Docker container directly (bypasses Traefik).
+# The /debug/ready endpoint doesn't need domain validation.
+# For management API calls, we set the Host header to match Zitadel's external domain+port.
+GO_PID_FMT=$(printf '%srange .NetworkSettings.Networks%s%s.IPAddress%s%send%s' \
+  '{{' '}}' '{{' '}}' '{{' '}}')
+ZITADEL_API_IP=$(docker inspect -f "$GO_PID_FMT" "$ZITADEL_CONTAINER_ID" 2>/dev/null)
 
-# Build external issuer URL
+if [ -n "$ZITADEL_API_IP" ]; then
+  ZITADEL_URL="http://${ZITADEL_API_IP}:8080"
+else
+  ZITADEL_URL="http://localhost:8080"
+fi
+
+# Build Host header: must include port for non-standard ports
 PROTOCOL="http"
+ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
+  # Zitadel registers instance with domain:port when EXTERNALPORT != 443
+  ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}:1443"
+else
+  ZITADEL_HOST="${HOSTNAME}${DOMAIN_SUFFIX}:8080"
 fi
 ISSUER_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
 
+echo "Zitadel API URL: ${ZITADEL_URL} (Host: ${ZITADEL_HOST})" >&2
+
 # --- Wait for Zitadel ready ---
 echo "Waiting for Zitadel API..." >&2
-RETRIES=60
+RETRIES=30
 while [ $RETRIES -gt 0 ]; do
   STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${ZITADEL_URL}/debug/ready" 2>/dev/null)
   if [ "$STATUS" = "200" ]; then
@@ -112,12 +144,14 @@ zitadel_api() {
 
   if [ -n "$_body" ]; then
     curl -sk -X "$_method" \
+      -H "Host: ${ZITADEL_HOST}" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       -d "$_body" \
       "${ZITADEL_URL}${_path}" 2>/dev/null
   else
     curl -sk -X "$_method" \
+      -H "Host: ${ZITADEL_HOST}" \
       -H "Authorization: Bearer ${PAT}" \
       -H "Content-Type: application/json" \
       "${ZITADEL_URL}${_path}" 2>/dev/null
@@ -139,7 +173,7 @@ if [ -z "$PROJECT_ID" ]; then
 
   if [ -z "$PROJECT_ID" ]; then
     echo "ERROR: Failed to create project" >&2
-    echo "Response: ${CREATE_RESPONSE}" >&2
+    echo "Response: ${CREATE_BODY_RESP}" >&2
     echo '[]'
     exit 1
   fi

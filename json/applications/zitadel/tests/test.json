@@ -5,9 +5,9 @@
     },
     "cli_timeout": 900,
     "wait_seconds": 90,
-    "verify": {
-      "zitadel_setup_test_project": true
-    }
+    "params": [
+      { "name": "setup_test_project", "value": "true" }
+    ]
   },
   "ssl": {
     "cleanup": {

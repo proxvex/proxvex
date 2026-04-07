@@ -326,6 +326,15 @@ async function executeScenarios(
         for (let j = 0; j <= best.index; j++) {
           depSteps[j]!.skipExecution = true;
         }
+
+        // Reload deployer so it picks up the restored context (stack passwords)
+        try {
+          await fetch(`${apiUrl}/api/reload`, { method: "POST", signal: AbortSignal.timeout(5000) });
+          logInfo("Deployer reloaded after snapshot restore");
+        } catch {
+          logInfo("Warning: deployer reload after snapshot restore failed (non-fatal)");
+        }
+
         logOk(`Dependencies restored from VM snapshot @${best.name}`);
       } catch (err) {
         logInfo(`VM snapshot restore failed, will install normally: ${err}`);
@@ -379,6 +388,17 @@ async function executeScenarios(
         hostname: step.hostname,
         stack_name: step.stackName,
       };
+
+      // Add dependency VM IDs as template variables (dep_<app>_vm_id)
+      if (scenario.depends_on) {
+        for (const depId of scenario.depends_on) {
+          const depStep = planned.find((p) => p.scenario.id === depId);
+          if (depStep) {
+            const depApp = depStep.scenario.application.replace(/-/g, "_");
+            templateVars[`dep_${depApp}_vm_id`] = String(depStep.vmId);
+          }
+        }
+      }
 
       const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
 
@@ -818,6 +838,32 @@ async function main() {
   }
   console.log("");
 
+  // Baseline rollback for --all: start from a clean nested VM
+  if (testArg === "--all" && config.snapshot?.enabled) {
+    const isLocalDeployer = config.deployerUrl.includes("localhost");
+    const localContextPath = isLocalDeployer
+      ? path.join(projectRoot, ".livetest-data")
+      : undefined;
+    const baselineSnap = new SnapshotManager(
+      config.pveHost, config.vmId, config.portPveSsh,
+      (msg) => logInfo(msg), localContextPath,
+    );
+    if (baselineSnap.exists("baseline")) {
+      logStep("Snapshot", "Rolling back to @baseline for --all run");
+      baselineSnap.rollback("baseline");
+      // Clear local context — baseline has no stacks or secrets
+      if (localContextPath) {
+        for (const f of ["storagecontext.json", "secret.txt"]) {
+          const fp = path.join(localContextPath, f);
+          if (existsSync(fp)) rmSync(fp);
+        }
+        logInfo("Local context cleared (baseline has no stacks)");
+      }
+    } else {
+      logWarn("No @baseline snapshot found — skipping rollback");
+    }
+  }
+
   // Pre-test cleanup: smart handling of dependencies vs targets
   for (const p of planned) {
     let status: string;
@@ -839,8 +885,27 @@ async function main() {
         isManaged = /oci-lxc-deployer(%3A|:)managed/.test(notes);
       } catch { /* treat as not managed */ }
       if (isManaged) {
-        logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
-        p.skipExecution = true;
+        // Check if the deployer context has stacks for this dependency.
+        // If not (fresh context), the passwords are unknown — must reinstall.
+        const rawSt = appStacktypes.get(p.scenario.application);
+        const sts = rawSt ? (Array.isArray(rawSt) ? rawSt : [rawSt]) : [];
+        let stackMissing = false;
+        for (const st of sts) {
+          const sid = `${st}_${p.stackName}`;
+          try {
+            const r = await fetch(`${apiUrl}/api/stack/${sid}`, { signal: AbortSignal.timeout(3000) });
+            if (!r.ok) stackMissing = true;
+          } catch { stackMissing = true; }
+        }
+        if (stackMissing) {
+          logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but stack missing — destroying (context mismatch)`);
+          nestedSsh(config.pveHost, config.portPveSsh,
+            `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+            30000);
+        } else {
+          logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
+          p.skipExecution = true;
+        }
       } else {
         logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but not managed — destroying`);
         nestedSsh(config.pveHost, config.portPveSsh,

@@ -4,11 +4,12 @@
     "addons": ["addon-oidc"],
     "wait_seconds": 30,
     "cli_timeout": 900,
-    "verify": {
-      "oidc_enabled": true,
-      "oidc_api_protected": true,
-      "oidc_machine_login": true
-    }
+    "params": [
+      { "name": "check_oidc_enabled", "value": "true" },
+      { "name": "check_oidc_api_protected", "value": "true" },
+      { "name": "check_oidc_machine_login", "value": "true" },
+      { "name": "dep_zitadel_vm_id", "value": "{{ dep_zitadel_vm_id }}" }
+    ]
   },
   "upgrade": {
     "task": "upgrade",

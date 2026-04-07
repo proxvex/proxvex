@@ -9,8 +9,8 @@
       {
         "matcher": "Edit|Write",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/mark-backend-edit.sh" },
-          { "type": "command", "command": ".claude/hooks/mark-json-edit.sh" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/mark-backend-edit.sh" },
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/mark-json-edit.sh" }
         ]
       }
     ],
@@ -18,8 +18,8 @@
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/validate-backend.sh" },
-          { "type": "command", "command": ".claude/hooks/validate-json.sh" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validate-backend.sh" },
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validate-json.sh" }
         ]
       }
     ]
