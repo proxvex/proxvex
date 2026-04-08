@@ -65,7 +65,7 @@ services:
       - zitadel
 
   zitadel-login:
-    image: ghcr.io/zitadel/zitadel-login:latest
+    image: ghcr.io/zitadel/zitadel-login:v4.12.3
     restart: unless-stopped
     environment:
       ZITADEL_API_URL: http://zitadel-api:8080

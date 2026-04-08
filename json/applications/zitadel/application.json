@@ -79,8 +79,7 @@
   ],
   "installation": {
     "post_start": [
-      "340-post-setup-deployer-in-zitadel.json",
-      "360-post-harden-zitadel-compose.json"
+      "340-post-setup-deployer-in-zitadel.json"
     ]
   },
   "stacktype": [

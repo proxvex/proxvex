@@ -47,8 +47,8 @@ PAT=""
 if [ -n "$ZITADEL_CONTAINER_ID" ]; then
   GO_PID_FMT=$(printf '%s.State.Pid%s' '{{' '}}')
   CONTAINER_PID=$(docker inspect -f "$GO_PID_FMT" "$ZITADEL_CONTAINER_ID" 2>/dev/null)
-  if [ -n "$CONTAINER_PID" ] && [ -f "/proc/${CONTAINER_PID}/root/zitadel/tmp/admin-client.pat" ]; then
-    PAT=$(cat "/proc/${CONTAINER_PID}/root/zitadel/tmp/admin-client.pat" 2>/dev/null)
+  if [ -n "$CONTAINER_PID" ] && [ -f "/proc/${CONTAINER_PID}/root/zitadel/bootstrap/admin-client.pat" ]; then
+    PAT=$(cat "/proc/${CONTAINER_PID}/root/zitadel/bootstrap/admin-client.pat" 2>/dev/null)
   fi
 fi
 

@@ -5,7 +5,7 @@
     { "name": "vm_id", "value": 502 },
     { "name": "static_ip", "value": "192.168.4.42/24" },
     { "name": "static_gw", "value": "192.168.4.1" }
-  ],code 
+  ],
   "selectedAddons": ["addon-ssl"],
   "stackIds": ["postgres_production", "oidc_production"]
 }
