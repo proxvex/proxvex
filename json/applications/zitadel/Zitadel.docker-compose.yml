@@ -37,11 +37,11 @@ services:
       ZITADEL_OIDC_DEFAULTLOGINURLV2: http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login/login?authRequest=
       ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login/logout?post_logout_redirect=
       ZITADEL_SAML_DEFAULTLOGINURLV2: http://{{ ZITADEL_EXTERNALDOMAIN }}:8080/ui/v2/login/login?samlRequest=
-      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/persistent/login-client.pat
+      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
-      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/tmp/admin-client.pat
+      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin-client.pat
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: admin-client
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Admin Client
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
@@ -54,9 +54,7 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PREFERREDLANGUAGE: en
     volumes:
-      - /bootstrap:/zitadel/persistent
-    tmpfs:
-      - /zitadel/tmp:size=1M
+      - /bootstrap:/zitadel/bootstrap
     healthcheck:
       test: ["CMD", "/app/zitadel", "ready"]
       interval: 10s
@@ -71,11 +69,11 @@ services:
     restart: unless-stopped
     environment:
       ZITADEL_API_URL: http://zitadel-api:8080
-      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/persistent/login-client.pat
+      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
       NEXT_PUBLIC_BASE_PATH: /ui/v2/login
       CUSTOM_REQUEST_HEADERS: "Host:{{ ZITADEL_EXTERNALDOMAIN }},X-Forwarded-Proto:http"
     volumes:
-      - /bootstrap:/zitadel/persistent:ro
+      - /bootstrap:/zitadel/bootstrap:ro
     depends_on:
       zitadel-api:
         condition: service_healthy

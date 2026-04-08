@@ -123,14 +123,9 @@ def main() -> None:
             if config.application_id not in needed:
                 continue
 
-            # Match stack: container must share the same base stack name.
-            # Stack IDs have format "<type>_<name>" (e.g. "postgres_default", "oidc_ssl").
-            # A zitadel container with stack "postgres_default" should match when
-            # searching for "oidc_default" because both share base name "default".
+            # Match stack: container must belong to any of the selected stacks
             config_stack = config.stack_name or ""
-            config_base = config_stack.split("_", 1)[1] if "_" in config_stack else config_stack
-            target_bases = {s.split("_", 1)[1] if "_" in s else s for s in all_stack_names}
-            if config_base not in target_bases:
+            if config_stack not in all_stack_names:
                 continue
 
             if not config.hostname:

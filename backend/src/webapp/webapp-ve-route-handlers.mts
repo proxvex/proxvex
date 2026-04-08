@@ -494,7 +494,7 @@ export class WebAppVeRouteHandlers {
       this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey);
 
       // Start ProxmoxExecution
-      const inputs: Array<{ id: string; value: string | number | boolean }> = processedParams.map((p) => ({
+      const inputs = processedParams.map((p) => ({
         id: p.id,
         value: p.value,
       }));

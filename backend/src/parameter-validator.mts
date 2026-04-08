@@ -68,19 +68,14 @@ export class ParameterValidator {
       }
     }
 
-    // Framework parameters set by the execution engine (not defined in application templates)
-    const frameworkParams = new Set(["vm_id", "hostname", "bridge"]);
-
     // Type checks and enum validation
     for (const p of params) {
       const def = parameterDefs.find((d) => d.id === p.name);
       if (!def) {
-        if (!frameworkParams.has(p.name)) {
-          warnings.push({
-            field: p.name,
-            message: `Unknown parameter '${p.name}'`,
-          });
-        }
+        warnings.push({
+          field: p.name,
+          message: `Unknown parameter '${p.name}'`,
+        });
         continue;
       }
 
