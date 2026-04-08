@@ -93,10 +93,12 @@ export class VeConfigurationService {
     return this.http.get<IUnresolvedParametersResponse>(url);
   }
 
-  getApplicationOverview(applicationId: string, task: string): Observable<IApplicationOverviewResponse> {
-    const url = ApiUri.ApplicationOverview
+  getApplicationOverview(applicationId: string, task: string, vmId?: number, veContextKey?: string): Observable<IApplicationOverviewResponse> {
+    let url = ApiUri.ApplicationOverview
       .replace(':applicationId', encodeURIComponent(applicationId))
       + '?task=' + encodeURIComponent(task);
+    if (vmId !== undefined) url += '&vm_id=' + vmId;
+    if (veContextKey) url += '&veContext=' + encodeURIComponent(veContextKey);
     return this.http.get<IApplicationOverviewResponse>(url);
   }
 

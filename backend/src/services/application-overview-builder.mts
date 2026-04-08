@@ -7,10 +7,11 @@ import {
   IApplicationOverviewTemplate,
   IApplicationOverviewStacktype,
   IApplicationOverviewDependency,
+  IManagedOciContainer,
   normalizeStacktype,
   IParameter,
 } from "@src/types.mjs";
-import { IConfiguredPathes } from "@src/backend-types.mjs";
+import { IConfiguredPathes, IVEContext } from "@src/backend-types.mjs";
 import { PersistenceManager } from "@src/persistence/persistence-manager.mjs";
 import { ContextManager } from "@src/context-manager.mjs";
 import {
@@ -18,6 +19,7 @@ import {
   IParameterWithTemplate,
 } from "@src/templates/templateprocessor-types.mjs";
 import { TemplatePathResolver } from "@src/templates/template-path-resolver.mjs";
+import { listManagedContainers } from "./container-list-service.mjs";
 
 export class ApplicationOverviewBuilder {
   constructor(
@@ -29,6 +31,8 @@ export class ApplicationOverviewBuilder {
   async build(
     applicationId: string,
     task: TaskType,
+    veContext?: IVEContext,
+    vmId?: number,
   ): Promise<IApplicationOverviewResponse> {
     // Load application via template processor (veContext optional)
     const loadResult = await this.storageContext
@@ -51,12 +55,24 @@ export class ApplicationOverviewBuilder {
     // Build stacktype with provider/consumer roles
     const stacktype = this.buildStacktype(applicationId, app?.stacktype);
 
+    // Fetch installed container values if vm_id provided
+    let installedContainer: IManagedOciContainer | undefined;
+    if (veContext && vmId !== undefined) {
+      try {
+        const containers = await listManagedContainers(this.pm, veContext);
+        installedContainer = containers.find((c) => c.vm_id === vmId);
+      } catch {
+        // Non-fatal: overview works without installed values
+      }
+    }
+
     // Build parameters from the loaded result
     const parameters = this.buildParameters(
       loadResult.parameters,
       loadResult.resolvedParams,
       loadResult.processedTemplates ?? [],
       app,
+      installedContainer,
     );
 
     // Determine app path for script resolution
@@ -208,6 +224,7 @@ export class ApplicationOverviewBuilder {
     resolvedParams: import("@src/backend-types.mjs").IResolvedParam[],
     processedTemplates: IProcessedTemplate[],
     app: import("@src/backend-types.mjs").IApplication | undefined,
+    installedContainer?: IManagedOciContainer,
   ): IApplicationOverviewParameter[] {
     // Build a map of output sources for determining sourceType and actual values
     const outputSources = new Map<
@@ -268,6 +285,23 @@ export class ApplicationOverviewBuilder {
       }
     }
 
+    // Build installed values map from container data
+    const installedValues = new Map<string, string | number | boolean>();
+    if (installedContainer) {
+      const c = installedContainer;
+      if (c.hostname !== undefined) installedValues.set("hostname", c.hostname);
+      if (c.oci_image !== undefined) installedValues.set("oci_image", c.oci_image);
+      if (c.username !== undefined) installedValues.set("username", c.username);
+      if (c.uid !== undefined) installedValues.set("uid", c.uid);
+      if (c.gid !== undefined) installedValues.set("gid", c.gid);
+      if (c.memory !== undefined) installedValues.set("memory", c.memory);
+      if (c.cores !== undefined) installedValues.set("cores", c.cores);
+      if (c.disk_size !== undefined) installedValues.set("disk_size", c.disk_size);
+      if (c.volumes !== undefined) installedValues.set("volumes", c.volumes);
+      if (c.stack_name !== undefined) installedValues.set("stack_name", c.stack_name);
+      if (c.vm_id !== undefined) installedValues.set("vm_id", c.vm_id);
+    }
+
     const mapped = parameters.map((param) => {
       const origin = this.getParameterOrigin(param, processedTemplates);
       const source = outputSources.get(param.id);
@@ -275,6 +309,8 @@ export class ApplicationOverviewBuilder {
         ? source.kind
         : "parameter";
       const defaultSource = source?.source;
+
+      const installedValue = installedValues.get(param.id);
 
       return {
         id: param.id,
@@ -289,6 +325,7 @@ export class ApplicationOverviewBuilder {
         defaultSource,
         origin,
         sourceType,
+        installedValue,
       };
     });
 

@@ -22,7 +22,7 @@
     <button class="header-btn" type="button" aria-label="Applications" routerLink="/applications" matTooltip="Applications">
       <mat-icon aria-hidden="true">apps</mat-icon>
     </button>
-    <button class="header-btn" type="button" aria-label="Installations" routerLink="/installations" matTooltip="Installed Containers">
+    <button class="header-btn" type="button" aria-label="Installations" [routerLink]="installationsRoute()" matTooltip="Installed Containers">
       <mat-icon aria-hidden="true">inventory_2</mat-icon>
     </button>
     <button class="header-btn" type="button" aria-label="Secrets" routerLink="/stacks" matTooltip="Secrets">

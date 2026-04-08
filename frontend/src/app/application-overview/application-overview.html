@@ -136,7 +136,7 @@
         <thead>
           <tr>
             <th>Parameter</th>
-            <th>Default / Value / Parameter</th>
+            <th>Value</th>
             <th>Template</th>
           </tr>
         </thead>
@@ -150,8 +150,10 @@
                   <span class="param-badge" [class]="badge.cls">{{ badge.label }}</span>
                 }
               </td>
-              <td>
-                @if (p.sourceType === 'value' || p.sourceType === 'default') {
+              <td class="value-cell">
+                @if (p.installedValue !== undefined && p.installedValue !== null) {
+                  <code class="installed-value">{{ p.installedValue }}</code>
+                } @else if (p.sourceType === 'value' || p.sourceType === 'default') {
                   <code class="default-value">{{ p.default }}</code>
                   @if (p.defaultSource) {
                     <span class="default-source">from {{ p.defaultSource }}</span>

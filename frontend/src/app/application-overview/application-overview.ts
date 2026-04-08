@@ -61,8 +61,14 @@ export class ApplicationOverview implements OnInit {
   flagInternal: 'all' | 'yes' | 'no' = 'all';
   filterBinding: SourceFilter = 'all';
 
+  vmId?: number;
+  veContextKey?: string;
+
   ngOnInit(): void {
     this.applicationId = this.route.snapshot.paramMap.get('applicationId') ?? '';
+    const vmIdParam = this.route.snapshot.queryParamMap.get('vm_id');
+    this.vmId = vmIdParam ? Number(vmIdParam) : undefined;
+    this.veContextKey = this.route.snapshot.queryParamMap.get('veContext') ?? undefined;
     this.loadData();
   }
 
@@ -72,7 +78,7 @@ export class ApplicationOverview implements OnInit {
   loadData(): void {
     this.loading = true;
     this.error = null;
-    this.configService.getApplicationOverview(this.applicationId, this.selectedTask).subscribe({
+    this.configService.getApplicationOverview(this.applicationId, this.selectedTask, this.vmId, this.veContextKey).subscribe({
       next: (result) => {
         this.data = result;
         this.loading = false;

@@ -56,7 +56,8 @@
       }
       <button type="button" class="secondary" (click)="editAddons(it)">Reconfigure</button>
       @if (it.application_id) {
-        <button type="button" class="secondary" [routerLink]="['/application-overview', it.application_id]">Overview</button>
+        <button type="button" class="secondary" [routerLink]="['/application-overview', it.application_id]"
+          [queryParams]="{ vm_id: it.vm_id, veContext: veContextKey }">Overview</button>
       }
     </div>
   </ng-template>

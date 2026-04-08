@@ -820,6 +820,7 @@ export interface IApplicationOverviewParameter {
     | "shared-local"
     | "shared-json";
   sourceType: "value" | "default" | "parameter";
+  installedValue?: string | number | boolean | undefined;
 }
 
 export interface IApplicationOverviewTemplate {

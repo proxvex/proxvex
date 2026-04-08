@@ -397,6 +397,25 @@
   margin-left: 0.3rem;
 }
 
+.value-cell {
+  white-space: normal;
+}
+
+.installed-value {
+  font-family: monospace;
+  font-size: 0.82rem;
+  background: #e8f5e9;
+  padding: 0 3px;
+  border-radius: 2px;
+  color: #2e7d32;
+}
+
+.default-hint {
+  font-size: 0.7rem;
+  color: #999;
+  margin-left: 0.3rem;
+}
+
 .no-default {
   color: #ccc;
 }

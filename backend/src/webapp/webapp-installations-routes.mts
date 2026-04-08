@@ -11,6 +11,7 @@ import { IVEContext } from "../backend-types.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { VeExecution } from "../ve-execution/ve-execution.mjs";
 import { determineExecutionMode } from "../ve-execution/ve-execution-constants.mjs";
+import { listManagedContainers } from "../services/container-list-service.mjs";
 import { sendErrorResponse } from "./webapp-error-utils.mjs";
 import {
   parseVersionString,
@@ -85,61 +86,8 @@ export function registerInstallationsRoutes(
         return;
       }
 
-      const repositories = pm.getRepositories();
-      const scriptContent = repositories.getScript({
-        name: "list-managed-oci-containers.py",
-        scope: "shared",
-        category: "list", // list scripts are in list/ category
-      });
-      if (!scriptContent) {
-        res.status(500).json({
-          error:
-            "list-managed-oci-containers.py not found (expected in local/shared/scripts/list or json/shared/scripts/list)",
-        });
-        return;
-      }
-
-      const libraryContent = repositories.getScript({
-        name: "lxc_config_parser_lib.py",
-        scope: "shared",
-        category: "library", // library scripts are in library/ category
-      });
-      if (!libraryContent) {
-        res.status(500).json({
-          error:
-            "lxc_config_parser_lib.py not found (expected in local/shared/scripts/library or json/shared/scripts/library)",
-        });
-        return;
-      }
-
-      const cmd: ICommand = {
-        name: "List Managed OCI Containers",
-        execute_on: "ve",
-        script: "list-managed-oci-containers.py",
-        scriptContent,
-        libraryContent,
-        outputs: ["containers"],
-      };
-
       // Run container list and addon detection in parallel
-      const veExecPromise = (async () => {
-        const ve = new VeExecution(
-          [cmd],
-          [],
-          veContext,
-          new Map(),
-          undefined,
-          determineExecutionMode(),
-        );
-        await ve.run(null);
-        const containersRaw = ve.outputs.get("containers");
-        const parsed =
-          typeof containersRaw === "string" && containersRaw.trim().length > 0
-            ? JSON.parse(containersRaw)
-            : [];
-        return Array.isArray(parsed) ? parsed : [];
-      })();
-
+      const veExecPromise = listManagedContainers(pm, veContext);
       const addonsPromise = detectProxmoxAddons(veContext, pm);
 
       const [containers, pveAddons] = await Promise.all([

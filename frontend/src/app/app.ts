@@ -148,6 +148,11 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
+  installationsRoute(): string {
+    const key = this.cfg.getVeContextKey();
+    return key ? `/${key}/installations` : '/installations';
+  }
+
   getHostDisplay(ssh: ISsh): string {
     if (ssh.port && ssh.port !== 22) {
       return `${ssh.host}:${ssh.port}`;

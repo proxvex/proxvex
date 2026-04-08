@@ -35,6 +35,7 @@ export interface IApplicationOverviewParameter {
   defaultSource?: string;
   origin: 'application-local' | 'application-json' | 'shared-local' | 'shared-json';
   sourceType: 'value' | 'default' | 'parameter';
+  installedValue?: string | number | boolean;
 }
 
 export interface IApplicationOverviewTemplate {

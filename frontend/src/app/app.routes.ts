@@ -18,6 +18,7 @@ export const routes: Routes = [
   { path: 'ssh-config', component: SshConfigPage, canActivate: [authGuard] },
   { path: 'create-application', component: CreateApplication, canActivate: [authGuard] },
 	{ path: 'installations', component: InstalledList, canActivate: [authGuard] },
+	{ path: ':veContextKey/installations', component: InstalledList, canActivate: [authGuard] },
   { path: 'stacks', component: StacksPage, canActivate: [authGuard] },
   { path: 'application-overview/:applicationId', component: ApplicationOverview, canActivate: [authGuard] },
 ];

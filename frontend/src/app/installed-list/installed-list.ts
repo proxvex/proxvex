@@ -1,6 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -27,14 +27,17 @@ export class InstalledList implements OnInit {
 
   private svc = inject(VeConfigurationService);
   private cacheService = inject(CacheService);
+  private route = inject(ActivatedRoute);
   private router = inject(Router);
   private dialog = inject(MatDialog);
+  veContextKey?: string;
 
   // Track by function — use hostname for host entries (vm_id=0)
   trackByInstallation = (_: number, item: IManagedOciContainer): string | number =>
     item.is_host ? `host:${item.hostname}` : item.vm_id;
 
   ngOnInit(): void {
+    this.veContextKey = this.route.snapshot.paramMap.get('veContextKey') ?? this.svc.getVeContextKey();
     this.cacheService.getInstallations().subscribe({
       next: (items) => {
         this.installations = items;
