@@ -5,6 +5,30 @@ set -eu
 # Minimal installation script for oci-lxc-deployer as an LXC container on Proxmox
 # Downloads OCI image, creates container, mounts volumes, and writes storagecontext.json
 
+# --- Quiet output: show step names only, dump full log on error ---
+LOG_FILE=$(mktemp /tmp/oci-lxc-install-XXXXXX.log)
+cleanup_log() { rm -f "$LOG_FILE"; }
+
+dump_log_and_exit() {
+  echo "" >&2
+  echo "=== Installation failed — full log ===" >&2
+  cat "$LOG_FILE" >&2
+  echo "=== End of log ===" >&2
+  cleanup_log
+  exit 1
+}
+trap dump_log_and_exit EXIT
+
+# Print step name to terminal, log detail line to file
+step() {
+  printf "  %s\n" "$*" >&2
+  echo "" >> "$LOG_FILE"
+  echo "--- $* ---" >> "$LOG_FILE"
+}
+log() {
+  echo "  $*" >> "$LOG_FILE"
+}
+
 # Static GitHub source configuration
 OCI_OWNER="${OCI_OWNER:-modbus2mqtt}"
 OWNER="${OWNER:-modbus2mqtt}"
@@ -42,13 +66,13 @@ execute_script_from_github() {
 
   # Load script content from local path or GitHub
   if [ -n "$LOCAL_SCRIPT_PATH" ] && [ -f "${LOCAL_SCRIPT_PATH}/${path}" ]; then
-    echo "Loading script from local: ${LOCAL_SCRIPT_PATH}/${path}" >&2
+    log "Loading script from local: ${LOCAL_SCRIPT_PATH}/${path}"
     script_content=$(cat "${LOCAL_SCRIPT_PATH}/${path}")
   else
     raw_url="https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}"
     script_content=$(curl -fsSL "$raw_url" 2>/dev/null || true)
     if [ -z "$script_content" ]; then
-      echo "Error: Failed to download script from ${raw_url}" >&2
+      log "Error: Failed to download script from ${raw_url}"
       return 3
     fi
   fi
@@ -87,11 +111,11 @@ execute_script_from_github() {
   esac
 
   if [ "$output_id" = "-" ]; then
-    printf '%s' "$script_content" | $interpreter
+    printf '%s' "$script_content" | $interpreter 2>>"$LOG_FILE"
     return $?
   fi
 
-  script_output=$(printf '%s' "$script_content" | $interpreter)
+  script_output=$(printf '%s' "$script_content" | $interpreter 2>>"$LOG_FILE")
 
   get_value_by_id() {
     printf '%s\n' "$script_output" \
@@ -126,8 +150,8 @@ execute_script_from_github() {
         results="${results}${results:+,}${value}"
       done
       if [ -n "$missing" ]; then
-        echo "Warning: Output id(s) '$missing' not found" >&2
-        printf '%s\n' "$script_output" >&2
+        log "Warning: Output id(s) '$missing' not found"
+        printf '%s\n' "$script_output" >> "$LOG_FILE"
       fi
       printf '%s\n' "$results"
       return 0
@@ -138,8 +162,8 @@ execute_script_from_github() {
         printf '%s\n' "$output_value"
         return 0
       else
-        echo "ERROR: Output id '$output_id' not found" >&2
-        printf '%s\n' "$script_output" >&2
+        log "ERROR: Output id '$output_id' not found"
+        printf '%s\n' "$script_output" >> "$LOG_FILE"
         return 3
       fi
       ;;
@@ -310,29 +334,25 @@ fi
 proxmox_hostname=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "localhost")
 
 echo "Installing oci-lxc-deployer..." >&2
-echo "  OCI Image: ${OCI_IMAGE}" >&2
-echo "  Hostname: ${hostname}" >&2
-echo "  Proxmox Host: ${proxmox_hostname}" >&2
-echo "  Volume base: ${volume_base}" >&2
-echo "  Config volume: ${config_volume_path}" >&2
-echo "  Secure volume: ${secure_volume_path}" >&2
-if [ "$OWNER" = "modbus2mqtt" ]; then
-  echo "  \033[33mOWNER=${OWNER}\033[0m, REPO=${REPO}, BRANCH=${BRANCH}, OCI_IMAGE=${OCI_IMAGE}" >&2
-else
-  echo "  OWNER=${OWNER}, REPO=${REPO}, BRANCH=${BRANCH}, OCI_IMAGE=${OCI_IMAGE}" >&2
-fi
+log "OCI Image: ${OCI_IMAGE}"
+log "Hostname: ${hostname}"
+log "Proxmox Host: ${proxmox_hostname}"
+log "Volume base: ${volume_base}"
+log "Config volume: ${config_volume_path}"
+log "Secure volume: ${secure_volume_path}"
+log "OWNER=${OWNER}, REPO=${REPO}, BRANCH=${BRANCH}"
 
 # Check and install SSH server if needed (on Proxmox VE host)
 # This matches the installation command from the SSH config page
-echo "Step 0: Installing and hardening SSH server..." >&2
+step "Installing and hardening SSH server"
 # Check if SSH port is listening
 if ! nc -z localhost 22 2>/dev/null && ! timeout 2 nc -z localhost 22 2>/dev/null; then
-  echo "  SSH server not listening, installing and configuring..." >&2
+  log "SSH server not listening, installing and configuring..."
   
   # Install openssh-server if apt-get exists (Proxmox is Debian-based)
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server >/dev/null 2>&1 || {
-      echo "Warning: Failed to install openssh-server" >&2
+      log "Warning: Failed to install openssh-server"
     }
   fi
   
@@ -355,15 +375,15 @@ SSHCONF
   systemctl enable ssh >/dev/null 2>&1 || systemctl enable sshd >/dev/null 2>&1 || true
   systemctl restart ssh >/dev/null 2>&1 || systemctl restart sshd >/dev/null 2>&1 || \
   service ssh restart >/dev/null 2>&1 || service sshd restart >/dev/null 2>&1 || {
-    echo "Warning: Failed to restart SSH server" >&2
+    log "Warning: Failed to restart SSH server"
   }
   
-  echo "  SSH server installed and hardened" >&2
+  log "SSH server installed and hardened"
 else
-  echo "  SSH server already listening" >&2
+  log "SSH server already listening"
   # Still ensure drop-in config exists (may have been removed)
   if [ ! -f /etc/ssh/sshd_config.d/oci-lxc-deployer.conf ]; then
-    echo "  Adding oci-lxc-deployer SSH configuration..." >&2
+    log "Adding oci-lxc-deployer SSH configuration..."
     mkdir -p /etc/ssh/sshd_config.d
     cat > /etc/ssh/sshd_config.d/oci-lxc-deployer.conf <<'SSHCONF'
 PermitRootLogin prohibit-password
@@ -379,7 +399,7 @@ SSHCONF
 fi
 
 # 1) Download OCI image
-echo "Step 1: Downloading OCI image..." >&2
+step "Downloading OCI image"
 template_path=$(execute_script_from_github \
   "json/shared/scripts/image/host-get-oci-image.py" \
   "template_path" \
@@ -390,7 +410,7 @@ template_path=$(execute_script_from_github \
   "platform=linux/amd64")
 
 if [ -z "$template_path" ]; then
-  echo "Error: Failed to download OCI image" >&2
+  log "Error: Failed to download OCI image"
   exit 1
 fi
 
@@ -420,11 +440,11 @@ if [ -z "$oci_image_tag" ]; then
   oci_image_tag=""
 fi
 
-echo "  OCI image ready: ${template_path}" >&2
+log "OCI image ready: ${template_path}"
 
 
 # 2) Create LXC container from OCI image
-echo "Step 2: Creating LXC container..." >&2
+step "Creating LXC container"
 vm_id=$(execute_script_from_github \
   "json/shared/scripts/pre_start/conf-create-lxc-container.sh" \
   "vm_id" \
@@ -447,15 +467,15 @@ vm_id=$(execute_script_from_github \
   "startup_down=")
 
 if [ -z "$vm_id" ]; then
-  echo "Error: Failed to create LXC container" >&2
+  log "Error: Failed to create LXC container"
   exit 1
 fi
 
-echo "  Container created: ${vm_id}" >&2
+log "Container created: ${vm_id}"
 
 # 2b) Configure static IP if provided
 if [ -n "$static_ip" ]; then
-  echo "Step 2b: Configuring static IP..." >&2
+  step "Configuring static IP"
   execute_script_from_github \
     "json/shared/scripts/pre_start/conf-lxc-static-ip.sh" \
     "-" \
@@ -468,11 +488,11 @@ if [ -n "$static_ip" ]; then
     "bridge=${bridge}" \
     "nameserver4=${nameserver}" \
     "nameserver6=" >/dev/null
-  echo "  Static IP configured: ${static_ip} (gateway: ${static_gw})" >&2
+  log "Static IP configured: ${static_ip} (gateway: ${static_gw})"
 fi
 
 # 3) Configure UID/GID mapping (subuid/subgid only, container config after creation)
-echo "Step 3: Configuring UID/GID mapping..." >&2
+step "Configuring UID/GID mapping"
 # Run mapping script and capture mapped UID/GID for later steps (idempotent to call twice)
 mapped_uid=$(execute_script_from_github \
   "json/shared/scripts/pre_start/conf-setup-lxc-uid-mapping.py" \
@@ -490,20 +510,20 @@ mapped_gid=$(execute_script_from_github \
 if [ -z "$mapped_uid" ]; then mapped_uid="$LXC_UID"; fi
 if [ -z "$mapped_gid" ]; then mapped_gid="$LXC_GID"; fi
 
-echo "  UID/GID ranges configured; mapped_uid=${mapped_uid}, mapped_gid=${mapped_gid}" >&2
+log "UID/GID ranges configured; mapped_uid=${mapped_uid}, mapped_gid=${mapped_gid}"
 
 # 4) Create and attach storage volumes (shared volume strategy)
-echo "Step 4: Preparing storage volumes..." >&2
+step "Preparing storage volumes"
 rootfs_storage=$(pct config "$vm_id" 2>/dev/null | awk -F: '/^rootfs:/ {print $2}' | cut -d',' -f1 | cut -d':' -f1 | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
 if [ -z "$rootfs_storage" ]; then
   rootfs_storage="$storage"
 fi
 storage_type=$(get_storage_type "$rootfs_storage")
 
-echo "  Volume storage: ${rootfs_storage} (type: ${storage_type})" >&2
-echo "  Host: ${proxmox_hostname}" >&2
-echo "  Container ID: ${vm_id}, Container hostname: ${hostname}" >&2
-echo "  Using UID/GID: ${LXC_UID}/${LXC_GID} (mapped: ${mapped_uid}/${mapped_gid})" >&2
+log "Volume storage: ${rootfs_storage} (type: ${storage_type})"
+log "Host: ${proxmox_hostname}"
+log "Container ID: ${vm_id}, Container hostname: ${hostname}"
+log "Using UID/GID: ${LXC_UID}/${LXC_GID} (mapped: ${mapped_uid}/${mapped_gid})"
 
 export VOLUMES="config=/config
 secure=/secure,0700"
@@ -526,17 +546,17 @@ shared_volpath=$(execute_script_from_github \
   "addon_volumes=")
 
 if [ -z "$shared_volpath" ]; then
-  echo "Error: Failed to create/attach storage volumes or get shared volume path" >&2
+  log "Error: Failed to create/attach storage volumes or get shared volume path"
   exit 1
 fi
 
 config_volume_path="${shared_volpath}/volumes/${hostname}/config"
 secure_volume_path="${shared_volpath}/volumes/${hostname}/secure"
-echo "  Config volume: ${config_volume_path}" >&2
-echo "  Secure volume: ${secure_volume_path}" >&2
+log "Config volume: ${config_volume_path}"
+log "Secure volume: ${secure_volume_path}"
 
 # Write storagecontext.json before starting the container so the app can read it on startup
-echo "Step 5.1: Writing storagecontext.json to /config..." >&2
+step "Writing storagecontext.json"
 storagecontext_file="${config_volume_path}/storagecontext.json"
 # Prepare changed params for VMInstall context
 changed_params_json="[
@@ -570,16 +590,16 @@ cat > "${storagecontext_file}" <<JSON
 JSON
 # Set ownership to mapped UID/GID so container process can write to it
 chown "${mapped_uid}:${mapped_gid}" "${storagecontext_file}"
-echo "  storagecontext.json written at: ${storagecontext_file} (owner: ${mapped_uid}:${mapped_gid})" >&2
+log "storagecontext.json written at: ${storagecontext_file} (owner: ${mapped_uid}:${mapped_gid})"
 
 # 5.2) Write LXC notes/description
-echo "Step 5.2: Writing LXC notes..." >&2
+step "Writing LXC notes"
 # For self-install, deployer_base_url points to this container
 # ve_context_key must match the key in storagecontext.json (ve_${proxmox_hostname})
 # Use --deployer-url if provided (for NAT/port-forwarding), otherwise use container hostname
 if [ -n "$deployer_url" ]; then
   deployer_base_url="$deployer_url"
-  echo "  Using external deployer URL: ${deployer_base_url}" >&2
+  log "Using external deployer URL: ${deployer_base_url}"
 else
   deployer_base_url="http://${hostname}:3080"
 fi
@@ -607,19 +627,19 @@ execute_script_from_github \
   "uid=${LXC_UID}" \
   "gid=${LXC_GID}" \
   "is_deployer=true" || {
-  echo "Error: Failed to write LXC notes" >&2
+  log "Error: Failed to write LXC notes"
   exit 1
 }
 
 # 6) Ensure container is running
-echo "Step 6: Ensuring container is running..." >&2
+step "Starting container"
 if ! pct status "${vm_id}" | grep -q "running"; then
   pct start "${vm_id}" || {
-    echo "Error: Failed to start container" >&2
+    log "Error: Failed to start container"
     exit 1
   }
   # Wait for container to be ready
-  echo "  Waiting for container to be ready..." >&2
+  log "Waiting for container to be ready..."
   sleep 3
   for i in 1 2 3 4 5; do
     if pct status "${vm_id}" | grep -q "running"; then
@@ -630,15 +650,13 @@ if ! pct status "${vm_id}" | grep -q "running"; then
 fi
 
 if ! pct status "${vm_id}" | grep -q "running"; then
-  echo "Warning: Container may not be fully ready" >&2
+  log "Warning: Container may not be fully ready"
 else
-  echo "  Container is running" >&2
+  log "Container is running"
 fi
 
-  # Fix volume ownership from host side (Proxmox may UID-shift bind-mount
-  # content for unprivileged containers; chown from inside may fail with EPERM
-  # if the on-disk UID is outside the container's mapped range)
-  echo "  Fixing volume ownership (mapped_uid=${mapped_uid}, mapped_gid=${mapped_gid})..." >&2
+  # Fix volume ownership from host side
+  log "Fixing volume ownership (mapped_uid=${mapped_uid}, mapped_gid=${mapped_gid})..."
   chown "${mapped_uid}:${mapped_gid}" "${config_volume_path}" 2>/dev/null || true
   chown "${mapped_uid}:${mapped_gid}" "${secure_volume_path}" 2>/dev/null || true
   mkdir -p "${secure_volume_path}/.ssh"
@@ -646,33 +664,33 @@ fi
   chmod 700 "${secure_volume_path}/.ssh"
 
 # 7) Setup SSH access — all from host side via secure_volume_path
-echo "Step 7: Setting up SSH access..." >&2
+step "Setting up SSH access"
 ssh_dir="${secure_volume_path}/.ssh"
 
 # Check if key already exists (e.g. from a previous install with persistent /secure volume)
 container_pubkey=""
 if [ -f "${ssh_dir}/id_ed25519.pub" ]; then
   container_pubkey=$(cat "${ssh_dir}/id_ed25519.pub" 2>/dev/null | grep -v "^$" || echo "")
-  [ -n "$container_pubkey" ] && echo "  Found existing SSH public key" >&2
+  [ -n "$container_pubkey" ] && log "Found existing SSH public key"
 elif [ -f "${ssh_dir}/id_rsa.pub" ]; then
   container_pubkey=$(cat "${ssh_dir}/id_rsa.pub" 2>/dev/null | grep -v "^$" || echo "")
-  [ -n "$container_pubkey" ] && echo "  Found existing SSH public key (RSA)" >&2
+  [ -n "$container_pubkey" ] && log "Found existing SSH public key (RSA)"
 fi
 
 # Generate key if none exists (on host, write directly to secure volume)
 if [ -z "$container_pubkey" ]; then
-  echo "  Generating SSH keypair..." >&2
+  log "Generating SSH keypair..."
   ssh-keygen -t ed25519 -f "${ssh_dir}/id_ed25519" -N "" -C "oci-lxc-deployer@auto-generated" \
     >/dev/null 2>&1
   chown "${mapped_uid}:${mapped_gid}" "${ssh_dir}/id_ed25519" "${ssh_dir}/id_ed25519.pub" 2>/dev/null || true
   chmod 600 "${ssh_dir}/id_ed25519"
   chmod 644 "${ssh_dir}/id_ed25519.pub"
   container_pubkey=$(cat "${ssh_dir}/id_ed25519.pub" 2>/dev/null | grep -v "^$" || echo "")
-  [ -n "$container_pubkey" ] && echo "  SSH keypair generated" >&2
+  [ -n "$container_pubkey" ] && log "SSH keypair generated"
 fi
 
 if [ -z "$container_pubkey" ]; then
-  echo "Error: Failed to generate SSH keypair at ${ssh_dir}" >&2
+  log "Error: Failed to generate SSH keypair at ${ssh_dir}"
   exit 1
 fi
 
@@ -687,12 +705,12 @@ else
 fi
 
 if [ -f "${actual_auth_keys}" ] && grep -qF "${container_pubkey}" "${actual_auth_keys}" 2>/dev/null; then
-  echo "  SSH key already in root authorized_keys" >&2
+  log "SSH key already in root authorized_keys"
 else
   echo "${container_pubkey}" >> "${actual_auth_keys}"
   chmod 600 "${actual_auth_keys}"
   chown root:root "${actual_auth_keys}" 2>/dev/null || true
-  echo "  Added SSH key to root authorized_keys" >&2
+  log "Added SSH key to root authorized_keys"
 fi
 
 # Pre-populate known_hosts with PVE host key
@@ -705,18 +723,18 @@ if [ -n "$host_pubkey" ]; then
   echo "${host_pubkey}" >> "${ssh_dir}/known_hosts"
   chown "${mapped_uid}:${mapped_gid}" "${ssh_dir}/known_hosts"
   chmod 644 "${ssh_dir}/known_hosts"
-  echo "  PVE host key added to known_hosts" >&2
+  log "PVE host key added to known_hosts"
 fi
 
-echo "  SSH access configured" >&2
+log "SSH access configured"
 
-# 8) Application startup note (no API configuration; app reads storagecontext.json)
-echo "Step 8: Application startup context ready (no API calls)" >&2
+# 8) Application startup context
+step "Application startup context ready"
 
 # 9) Enable HTTPS via reconfigure (optional)
 https_done=""
 if [ "$enable_https" = "true" ]; then
-  echo "Step 9: Enabling HTTPS via reconfigure..." >&2
+  step "Enabling HTTPS via reconfigure"
 
   # Resolve container IP (use static_ip if set, otherwise query from container)
   container_ip=""
@@ -729,12 +747,12 @@ if [ "$enable_https" = "true" ]; then
   fi
 
   if [ -z "$container_ip" ]; then
-    echo "Warning: Could not determine container IP, skipping HTTPS setup" >&2
+    log "Warning: Could not determine container IP, skipping HTTPS setup"
   else
 
   # Wait for deployer API to be ready
   deployer_api="http://${container_ip}:3080"
-  echo "  Waiting for deployer API at ${deployer_api}..." >&2
+  log "Waiting for deployer API at ${deployer_api}..."
   for i in $(seq 1 30); do
     if curl -sf "${deployer_api}/api/applications" >/dev/null 2>&1; then
       break
@@ -743,7 +761,7 @@ if [ "$enable_https" = "true" ]; then
   done
 
   if ! curl -sf "${deployer_api}/api/applications" >/dev/null 2>&1; then
-    echo "Warning: Deployer API not ready after 60s, skipping HTTPS setup" >&2
+    log "Warning: Deployer API not ready after 60s, skipping HTTPS setup"
   else
     # Ensure container can resolve PVE hostname (needed for SSH from deployer to host)
     # Only add /etc/hosts entry if DNS resolution fails inside the container
@@ -755,7 +773,7 @@ if [ "$enable_https" = "true" ]; then
       fi
       if [ -n "$pve_host_ip" ]; then
         pct exec "${vm_id}" -- sh -c "echo '${pve_host_ip} ${proxmox_hostname} ${proxmox_hostname%%.*}' >> /etc/hosts"
-        echo "  Added /etc/hosts entry: ${pve_host_ip} ${proxmox_hostname}" >&2
+        log "Added /etc/hosts entry: ${pve_host_ip} ${proxmox_hostname}"
       fi
     fi
 
@@ -764,17 +782,17 @@ if [ "$enable_https" = "true" ]; then
       python3 -c "import sys,json; print(json.load(sys.stdin)['key'])" 2>/dev/null || echo "")
 
     if [ -z "$ve_key" ]; then
-      echo "Warning: Could not resolve VE context for '${proxmox_hostname}', skipping HTTPS setup" >&2
+      log "Warning: Could not resolve VE context for '${proxmox_hostname}', skipping HTTPS setup"
     else
-      echo "  VE context: ${ve_key}" >&2
+      log "VE context: ${ve_key}"
 
       # Verify SSH connection is ready (deployer needs SSH to PVE host for reconfigure)
-      echo "  Verifying SSH connection to PVE host (${proxmox_hostname}:22)..." >&2
+      log "Verifying SSH connection to PVE host (${proxmox_hostname}:22)..."
       ssh_ok=""
       for i in $(seq 1 5); do
         ssh_check=$(curl -s --max-time 5 \
           "${deployer_api}/api/ssh/check?host=${proxmox_hostname}&port=22" 2>/dev/null || echo "")
-        echo "  SSH check attempt $i: ${ssh_check}" >&2
+        log "SSH check attempt $i: ${ssh_check}"
         if printf '%s' "$ssh_check" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('permissionOk') else 1)" 2>/dev/null; then
           ssh_ok="true"
           break
@@ -783,31 +801,31 @@ if [ "$enable_https" = "true" ]; then
       done
 
       if [ "$ssh_ok" != "true" ]; then
-        echo "Warning: SSH connection to PVE host not ready, skipping HTTPS setup" >&2
+        log "Warning: SSH connection to PVE host not ready, skipping HTTPS setup"
       else
-        echo "  SSH connection verified" >&2
+        log "SSH connection verified"
 
         # Generate CA certificate (required for SSL addon)
-        echo "  Generating CA certificate..." >&2
+        log "Generating CA certificate..."
         ca_resp=$(curl -s -X POST \
           "${deployer_api}/api/${ve_key}/ve/certificates/ca/generate" 2>/dev/null || echo "")
         ca_ok=$(printf '%s' "$ca_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
         if [ "$ca_ok" = "true" ]; then
-          echo "  CA certificate generated" >&2
+          log "CA certificate generated"
         else
-          echo "  CA certificate: $(printf '%s' "$ca_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','already exists or failed'))" 2>/dev/null || echo "see response")" >&2
+          log "CA certificate: $(printf '%s' "$ca_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','already exists or failed'))" 2>/dev/null || echo "see response")"
         fi
 
         # Set domain suffix for SSL certificates
-        echo "  Setting domain suffix to ${domain_suffix}..." >&2
+        log "Setting domain suffix to ${domain_suffix}..."
         suffix_resp=$(curl -s -X POST -H "Content-Type: application/json" \
           -d "{\"domain_suffix\":\"${domain_suffix}\"}" \
           "${deployer_api}/api/${ve_key}/ve/certificates/domain-suffix" 2>/dev/null || echo "")
         suffix_ok=$(printf '%s' "$suffix_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
         if [ "$suffix_ok" = "true" ]; then
-          echo "  Domain suffix set to ${domain_suffix}" >&2
+          log "Domain suffix set to ${domain_suffix}"
         else
-          echo "  Domain suffix: $(printf '%s' "$suffix_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")" >&2
+          log "Domain suffix: $(printf '%s' "$suffix_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")"
         fi
 
         # Enable SSL addon on the existing container
@@ -816,18 +834,18 @@ if [ "$enable_https" = "true" ]; then
         pct exec "${vm_id}" -- sh -c "printf '%s' '${params_json}' > /tmp/ssl-params.json"
 
         # Run reinstall via oci-lxc-cli (already in OCI image via npm install -g)
-        echo "  Running reinstall with SSL via oci-lxc-cli..." >&2
+        log "Running reinstall with SSL via oci-lxc-cli..."
         pct exec "${vm_id}" -- oci-lxc-cli remote \
           --server http://localhost:3080 \
           --ve "${proxmox_hostname}" \
           --insecure \
           --timeout 600 \
-          /tmp/ssl-params.json >&2 \
+          /tmp/ssl-params.json >>"$LOG_FILE" 2>&1 \
           && https_done="true" || true
 
         # Fallback: if CLI died (container replaced before finished), check HTTPS
         if [ "$https_done" != "true" ]; then
-          echo "  CLI exited, checking HTTPS on ${container_ip}:3443..." >&2
+          log "CLI exited, checking HTTPS on ${container_ip}:3443..."
           for i in $(seq 1 24); do
             if curl -sk --connect-timeout 3 "https://${container_ip}:3443/" >/dev/null 2>&1; then
               https_done="true"
@@ -838,9 +856,9 @@ if [ "$enable_https" = "true" ]; then
         fi
 
         if [ "$https_done" = "true" ]; then
-          echo "  HTTPS enabled." >&2
+          log "HTTPS enabled."
         else
-          echo "  Warning: HTTPS did not come up within 120s" >&2
+          log "Warning: HTTPS did not come up within 120s"
         fi
 
       fi
@@ -850,13 +868,14 @@ if [ "$enable_https" = "true" ]; then
   fi # end container_ip check
 fi
 
+# Success — disable error trap and clean up log
+trap - EXIT
+cleanup_log
+
 echo "" >&2
 echo "Installation complete!" >&2
 echo "  Container ID: ${vm_id}" >&2
 echo "  Hostname: ${hostname}" >&2
-echo "  Config: ${config_volume_path}" >&2
-echo "  Secure: ${secure_volume_path}" >&2
-echo "" >&2
 if [ "$enable_https" = "true" ] && [ "$https_done" = "true" ]; then
   echo "  Access the web interface at https://${hostname}:3443" >&2
 else
