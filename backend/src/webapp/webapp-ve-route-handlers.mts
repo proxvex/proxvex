@@ -174,6 +174,7 @@ export class WebAppVeRouteHandlers {
     task: string,
     veContextKey: string,
     body: IPostVeConfigurationBody,
+    userAccessToken?: string,
   ): Promise<{
     success: boolean;
     restartKey?: string;
@@ -498,21 +499,10 @@ export class WebAppVeRouteHandlers {
         value: p.value,
       }));
 
-      // Inject short-lived ZITADEL token for OIDC addon scripts (zero-secret mode)
-      if (selectedAddons.includes("addon-oidc")) {
-        const { getZitadelClient } = await import("@src/services/zitadel-client.service.mjs");
-        const zitadelClient = getZitadelClient();
-        if (zitadelClient) {
-          try {
-            const zitadelToken = await zitadelClient.getAccessToken();
-            inputs.push({ id: "ZITADEL_PAT", value: zitadelToken });
-            this.logger.info("[ve-route-handlers] Injected ZITADEL service token for OIDC addon");
-          } catch (err) {
-            this.logger.warn("[ve-route-handlers] Failed to obtain ZITADEL token, falling back to file-based PAT", {
-              error: err instanceof Error ? err.message : err,
-            });
-          }
-        }
+      // Inject user's access token for OIDC addon scripts (delegated access)
+      if (selectedAddons.includes("addon-oidc") && userAccessToken) {
+        inputs.push({ id: "ZITADEL_PAT", value: userAccessToken });
+        this.logger.info("[ve-route-handlers] Injected user access token for OIDC addon");
       }
 
       const { exec, restartKey } = this.executionSetup.setupExecution(

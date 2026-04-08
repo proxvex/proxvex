@@ -39,6 +39,7 @@ Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `-
    ```
    mkdir -p .livetest-data
    cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs \
+     --local ../livetest-local \
      --storageContextFilePath ../.livetest-data/storagecontext.json \
      --secretsFilePath ../.livetest-data/secret.txt &
    ```
@@ -78,6 +79,7 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
      kill $(lsof -ti :3201 -sTCP:LISTEN) 2>/dev/null; sleep 2
      mkdir -p ../.livetest-data
      cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs \
+       --local ../livetest-local \
        --storageContextFilePath ../.livetest-data/storagecontext.json \
        --secretsFilePath ../.livetest-data/secret.txt &
      ```

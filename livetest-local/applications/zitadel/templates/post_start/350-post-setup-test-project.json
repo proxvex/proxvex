@@ -1,17 +1,8 @@
 {
   "name": "Setup Test Project in Zitadel",
-  "description": "Creates a test project with roles, a human test user, and a machine user in Zitadel. Requires the ephemeral admin PAT (must run before hardening step 360). Stores test credentials in /bootstrap/test-oidc.json for downstream OIDC checks.",
+  "description": "Creates a test project with roles, a human test user, and a machine user in Zitadel. Requires the ephemeral admin PAT (must run before hardening step 360).",
   "execute_on": "lxc",
-  "skip_if_all_missing": ["setup_test_project"],
   "parameters": [
-    {
-      "id": "setup_test_project",
-      "name": "Setup Test Project",
-      "type": "boolean",
-      "required": false,
-      "internal": true,
-      "description": "Set to true to create a test project, test user, and machine user in Zitadel."
-    },
     {
       "id": "hostname",
       "name": "Hostname",

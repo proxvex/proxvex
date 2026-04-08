@@ -104,6 +104,9 @@ export async function executeScenarios(
 
   const depsRestoredFromSnapshot = planned.some((p) => p.skipExecution && p.isDependency);
 
+  // OIDC credentials for delegated access (loaded after Zitadel installation)
+  let oidcCredentials: { issuerUrl: string; clientId: string; clientSecret: string } | undefined;
+
   try {
     for (let i = 0; i < planned.length; i++) {
       const step = planned[i]!;
@@ -225,9 +228,12 @@ export async function executeScenarios(
       const scenarioFixtureDir = fixtureBaseDir
         ? path.join(fixtureBaseDir, scenario.id.replace("/", "-"))
         : undefined;
+      // Use OIDC credentials for scenarios with addon-oidc (delegated access)
+      const useOidc = oidcCredentials && allAddons.includes("addon-oidc");
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
         paramsFile, allAddons, scenario.cli_timeout, scenarioFixtureDir,
+        useOidc ? oidcCredentials : undefined,
       );
 
       if (cliResult.exitCode !== 0) {
@@ -296,6 +302,27 @@ export async function executeScenarios(
         application: scenario.application, scenarioId: scenario.id,
         cliOutput: cliResult.output,
       });
+
+      // After Zitadel installation: load test-deployer credentials for OIDC addon
+      if (scenario.application === "zitadel" && task === "installation" && !oidcCredentials) {
+        try {
+          const credJson = await nestedSsh(
+            config.pveHost, config.portPveSsh,
+            `pct exec ${step.vmId} -- cat /bootstrap/test-deployer.json`,
+          );
+          const creds = JSON.parse(credJson.trim());
+          if (creds.client_id && creds.client_secret && creds.issuer_url) {
+            oidcCredentials = {
+              issuerUrl: creds.issuer_url,
+              clientId: creds.client_id,
+              clientSecret: creds.client_secret,
+            };
+            logOk("Test OIDC deployer credentials loaded from Zitadel bootstrap");
+          }
+        } catch {
+          logInfo("No test-deployer.json found (OIDC delegated access not available)");
+        }
+      }
 
       // Wait for services
       const appMeta = appMetaMap.get(scenario.application) ?? {};

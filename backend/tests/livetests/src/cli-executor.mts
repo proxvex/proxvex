@@ -97,6 +97,7 @@ export function runCli(
   addons?: string[],
   cliTimeout = 600,
   fixturePath?: string,
+  oidcCredentials?: { issuerUrl: string; clientId: string; clientSecret: string },
 ): Promise<CliJsonResult> {
   return new Promise((resolve) => {
     // Auto-detect dev mode: if TypeScript source exists, use tsx
@@ -111,6 +112,14 @@ export function runCli(
       "--timeout", String(cliTimeout),
       "--json",
     ];
+
+    if (oidcCredentials) {
+      cliArgs.push(
+        "--oidc-issuer", oidcCredentials.issuerUrl,
+        "--oidc-client-id", oidcCredentials.clientId,
+        "--oidc-client-secret", oidcCredentials.clientSecret,
+      );
+    }
 
     if (addons && addons.length > 0) {
       cliArgs.push("--enable-addons", addons.join(","));

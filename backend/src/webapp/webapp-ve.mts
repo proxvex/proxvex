@@ -124,11 +124,17 @@ export class WebAppVE {
         }
       }
 
+      // Extract user's access token for OIDC addon (delegated access)
+      const userAccessToken =
+        (req.session as any)?.accessToken                      // Browser: session cookie
+        || req.headers.authorization?.replace("Bearer ", "");  // CLI: Bearer token
+
       const result = await this.routeHandlers.handleVeConfiguration(
         application,
         task,
         veContextKey,
         req.body,
+        userAccessToken,
       );
       if (result.success && result.restartKey) {
         // Set vmInstallKey in message group if it exists

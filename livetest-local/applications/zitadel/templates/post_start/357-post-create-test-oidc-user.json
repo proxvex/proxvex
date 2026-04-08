@@ -1,0 +1,49 @@
+{
+  "name": "Create Test OIDC Deployer User",
+  "description": "Creates a machine user with ORG_OWNER role and client credentials for test OIDC operations. The deployer CLI authenticates as this user to create OIDC apps for other applications.",
+  "execute_on": "lxc",
+  "skip_if_all_missing": ["zitadel_project_id"],
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Hostname of this Zitadel instance"
+    },
+    {
+      "id": "compose_project",
+      "name": "Compose Project",
+      "type": "string",
+      "required": true,
+      "description": "Docker Compose project name"
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Domain suffix for constructing external URLs"
+    },
+    {
+      "id": "ssl_mode",
+      "name": "SSL Mode",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "SSL mode for protocol detection"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Create Test OIDC Deployer User",
+      "script": "post-create-test-oidc-user.sh",
+      "outputs": [
+        "test_deployer_client_id",
+        "test_deployer_client_secret"
+      ]
+    }
+  ]
+}
