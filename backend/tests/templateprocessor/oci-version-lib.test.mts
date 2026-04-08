@@ -251,11 +251,10 @@ print(version)
         writeFileSync(cachePath, JSON.stringify(cacheContent));
       }
 
-      // Override cache paths so tests don't touch real files
+      // Override cache path so tests don't touch real files
       const patchedCode = `
-_CACHE_TEST_PATH = ${JSON.stringify(cachePath)}
-_CACHE_PROD_PATH = ${JSON.stringify(join(cacheDir, "prod-cache.json"))}
-_cache = None  # Reset lazy cache
+_TEST_CACHE_PATH = ${JSON.stringify(cachePath)}
+_test_cache = None  # Reset lazy cache
 ${code}`;
       const result = runPython(patchedCode);
 
@@ -326,7 +325,7 @@ print(",".join(tags))
 
     it("should detect test mode correctly", () => {
       const result = runWithCache(`
-_load_cache()
+_load_test_cache()
 print(_is_test_mode())
 `, {
         _meta: { mode: "test" },
@@ -337,7 +336,7 @@ print(_is_test_mode())
 
     it("should not be test mode with empty cache", () => {
       const result = runWithCache(`
-_load_cache()
+_load_test_cache()
 print(_is_test_mode())
 `);
       expect(result.stdout).toBe("False");

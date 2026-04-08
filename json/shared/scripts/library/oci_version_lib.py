@@ -3,166 +3,61 @@
 Resolves the actual version of an OCI image using skopeo.
 
 Resolution strategy:
-1. Cache lookup (test-mode cache or production cache)
+1. Test-mode: return pre-populated versions from /tmp/.oci-version-cache.json
 2. OCI labels (org.opencontainers.image.version, io.hass.version, etc.)
 3. Image tag (if not "latest")
 4. Digest matching: compare the digest of "latest" against versioned remote tags
-
-Cache files:
-- /tmp/.oci-version-cache.json          — test override (highest priority)
-- /var/cache/oci-lxc-deployer/version-cache.json — production cache (24h TTL)
 
 Requires skopeo to be available on the host.
 """
 
 import json
-import os
 import re
 import subprocess
 import sys
-import time
 from typing import Optional
 
 # ============================================================================
-# Cache configuration
+# Test mode: pre-populated by test infrastructure to avoid skopeo calls
 # ============================================================================
-_CACHE_TEST_PATH = "/tmp/.oci-version-cache.json"
-_CACHE_PROD_PATH = "/var/cache/oci-lxc-deployer/version-cache.json"
-_CACHE_TTL = 86400       # 24 hours
-_CACHE_PRUNE_AGE = 604800  # 7 days
-
-_cache: Optional[dict] = None  # lazy-loaded, once per script run
+_TEST_CACHE_PATH = "/tmp/.oci-version-cache.json"
+_test_cache: Optional[dict] = None  # lazy-loaded, once per script run
 
 
 def _log(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
-# ============================================================================
-# Cache helpers
-# ============================================================================
-
-def _load_cache() -> dict:
-    """Load cache from disk (test path has priority). Lazy, once per run."""
-    global _cache
-    if _cache is not None:
-        return _cache
-
-    for path in (_CACHE_TEST_PATH, _CACHE_PROD_PATH):
-        try:
-            with open(path, "r") as f:
-                _cache = json.load(f)
-                if _is_test_mode():
-                    _log(f"Using test cache: {path}")
-                return _cache
-        except Exception:
-            continue
-
-    _cache = {"_meta": {}, "versions": {}, "inspect": {}, "tags": {}}
-    return _cache
-
-
-def _save_cache() -> None:
-    """Persist cache to production path (skip in test mode). Atomic write."""
-    if _cache is None or _is_test_mode():
-        return
-
-    # Prune old entries
-    now = time.time()
-    for section in ("inspect", "tags"):
-        store = _cache.get(section, {})
-        keys_to_remove = [
-            k for k, v in store.items()
-            if isinstance(v, dict) and now - v.get("_ts", 0) > _CACHE_PRUNE_AGE
-        ]
-        for k in keys_to_remove:
-            del store[k]
-
+def _load_test_cache() -> dict:
+    """Load test cache if present. Returns empty dict in production."""
+    global _test_cache
+    if _test_cache is not None:
+        return _test_cache
     try:
-        cache_dir = os.path.dirname(_CACHE_PROD_PATH)
-        os.makedirs(cache_dir, exist_ok=True)
-        tmp_path = _CACHE_PROD_PATH + ".tmp"
-        with open(tmp_path, "w") as f:
-            json.dump(_cache, f)
-        os.rename(tmp_path, _CACHE_PROD_PATH)
+        with open(_TEST_CACHE_PATH, "r") as f:
+            _test_cache = json.load(f)
+            if _test_cache.get("_meta", {}).get("mode") == "test":
+                _log(f"Using test cache: {_TEST_CACHE_PATH}")
+                return _test_cache
     except Exception:
-        pass  # best-effort
+        pass
+    _test_cache = {}
+    return _test_cache
 
 
 def _is_test_mode() -> bool:
-    """Check if cache is in test mode (pre-populated by test infrastructure)."""
-    return (_cache or {}).get("_meta", {}).get("mode") == "test"
-
-
-def _cache_get_inspect(image_ref: str) -> Optional[dict]:
-    """Get cached inspect result if fresh enough."""
-    cache = _load_cache()
-    entry = cache.get("inspect", {}).get(image_ref)
-    if not entry or not isinstance(entry, dict):
-        return None
-    # Test mode: never expire
-    if _is_test_mode():
-        return entry
-    # Production: check TTL
-    if time.time() - entry.get("_ts", 0) > _CACHE_TTL:
-        return None
-    return entry
-
-
-def _cache_set_inspect(image_ref: str, data: dict) -> None:
-    """Store inspect result in cache."""
-    cache = _load_cache()
-    cache.setdefault("inspect", {})[image_ref] = {**data, "_ts": time.time()}
-    _save_cache()
-
-
-def _cache_get_tags(image_repo: str) -> Optional[list]:
-    """Get cached tag list if fresh enough."""
-    cache = _load_cache()
-    entry = cache.get("tags", {}).get(image_repo)
-    if not entry or not isinstance(entry, dict):
-        return None
-    if _is_test_mode():
-        return entry.get("tags", [])
-    if time.time() - entry.get("_ts", 0) > _CACHE_TTL:
-        return None
-    return entry.get("tags", [])
-
-
-def _cache_set_tags(image_repo: str, tags: list) -> None:
-    """Store tag list in cache."""
-    cache = _load_cache()
-    cache.setdefault("tags", {})[image_repo] = {"tags": tags, "_ts": time.time()}
-    _save_cache()
-
-
-def _cache_get_version(image_ref: str) -> Optional[str]:
-    """Get cached resolved version (direct lookup)."""
-    cache = _load_cache()
-    return cache.get("versions", {}).get(image_ref)
-
-
-def _cache_set_version(image_ref: str, version: str) -> None:
-    """Store resolved version in cache."""
-    cache = _load_cache()
-    cache.setdefault("versions", {})[image_ref] = version
-    _save_cache()
+    """Check if running in test mode (pre-populated cache with mode=test)."""
+    return _load_test_cache().get("_meta", {}).get("mode") == "test"
 
 
 # ============================================================================
-# Skopeo wrappers (with cache)
+# Skopeo wrappers
 # ============================================================================
 
 def oci_skopeo_inspect(image_ref: str, timeout: int = 30) -> Optional[dict]:
-    """Inspect an image via skopeo. Returns parsed JSON or None on failure.
-    Uses cache to avoid redundant API calls."""
-    cached = _cache_get_inspect(image_ref)
-    if cached is not None:
-        return cached
-
-    # Test mode: don't call skopeo, return None (forces graceful fallback)
+    """Inspect an image via skopeo. Returns parsed JSON or None on failure."""
     if _is_test_mode():
-        return None
+        return _load_test_cache().get("inspect", {}).get(image_ref) or None
 
     cmd = ["skopeo", "inspect", "--override-os", "linux", "--override-arch", "amd64"]
     ref = image_ref if image_ref.startswith("docker://") else f"docker://{image_ref}"
@@ -172,21 +67,17 @@ def oci_skopeo_inspect(image_ref: str, timeout: int = 30) -> Optional[dict]:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         if result.returncode != 0:
             return None
-        data = json.loads(result.stdout)
-        _cache_set_inspect(image_ref, data)
-        return data
+        return json.loads(result.stdout)
     except Exception:
         return None
 
 
 def skopeo_list_tags(image_repo: str, timeout: int = 30) -> list[str]:
-    """List all tags for an image repository via skopeo. Uses cache."""
-    cached = _cache_get_tags(image_repo)
-    if cached is not None:
-        return cached
-
-    # Test mode: don't call skopeo
+    """List all tags for an image repository via skopeo."""
     if _is_test_mode():
+        entry = _load_test_cache().get("tags", {}).get(image_repo)
+        if isinstance(entry, dict):
+            return entry.get("tags", [])
         return []
 
     ref = image_repo if image_repo.startswith("docker://") else f"docker://{image_repo}"
@@ -198,9 +89,7 @@ def skopeo_list_tags(image_repo: str, timeout: int = 30) -> list[str]:
         if result.returncode != 0:
             return []
         data = json.loads(result.stdout)
-        tags = data.get("Tags", [])
-        _cache_set_tags(image_repo, tags)
-        return tags
+        return data.get("Tags", [])
     except Exception:
         return []
 
@@ -310,11 +199,12 @@ def resolve_image_version(
     if tag != "latest":
         return _clean_tag(tag)
 
-    # Check version cache first (direct hit, no skopeo needed)
-    cached_version = _cache_get_version(image_ref)
-    if cached_version:
-        _log(f"Resolved version from cache: {cached_version}")
-        return cached_version
+    # Test mode: return pre-populated version if available
+    if _is_test_mode():
+        cached = _load_test_cache().get("versions", {}).get(image_ref)
+        if cached:
+            _log(f"Resolved version from test cache: {cached}")
+            return cached
 
     # Inspect the image
     data = oci_skopeo_inspect(f"{repo}:{tag}")
@@ -325,7 +215,6 @@ def resolve_image_version(
     version = extract_version_from_labels(data)
     if version:
         _log(f"Resolved version from labels: {version}")
-        _cache_set_version(image_ref, version)
         return version
 
     # Try digest matching
@@ -333,7 +222,6 @@ def resolve_image_version(
     if digest:
         version = resolve_version_by_digest(repo, digest, local_tags)
         if version:
-            _cache_set_version(image_ref, version)
             return version
 
     return "unknown"
