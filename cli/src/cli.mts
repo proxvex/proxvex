@@ -40,6 +40,7 @@ export class RemoteCli {
       params: { name: string; value: IParameterValue }[];
       selectedAddons?: string[];
       stackId?: string;
+      stackIds?: string[];
     } | undefined;
 
     if (!this.options.generateTemplate) {
