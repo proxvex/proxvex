@@ -1,0 +1,38 @@
+<div class="cmd-list">
+  @for (cmd of commands; track cmd.seq) {
+    <div class="cmd-row" [class.skipped]="cmd.skipped" [class.expanded]="expandedSeq === cmd.seq">
+      <span class="cmd-seq">{{ cmd.seq }}</span>
+      <span class="cmd-content">
+        <span class="cmd-name">{{ cmd.name }}</span>
+        @for (b of cmd.badges; track b.label) {
+          <span class="cmd-badge" [class]="b.cls">{{ b.label }}</span>
+        }
+      </span>
+      <button class="cmd-info" (click)="toggle(cmd.seq)" matTooltip="Details">
+        <mat-icon>{{ expandedSeq === cmd.seq ? 'expand_less' : 'info_outline' }}</mat-icon>
+      </button>
+    </div>
+
+    @if (expandedSeq === cmd.seq) {
+      <div class="cmd-details">
+        @for (d of cmd.details; track d.label) {
+          <div class="cmd-detail" [attr.title]="d.tooltip ?? null">
+            <span class="detail-key">{{ d.label }}</span>
+            @if (d.type === 'badge') {
+              <span class="detail-val">
+                <span class="cmd-badge" [class]="d.badgeCls ?? ''">{{ d.badgeLabel ?? d.value }}</span>
+                @if (d.badgeLabel) {
+                  {{ d.value }}
+                }
+              </span>
+            } @else if (d.type === 'warn') {
+              <span class="detail-val warn">{{ d.value }}</span>
+            } @else {
+              <span class="detail-val">{{ d.value }}</span>
+            }
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

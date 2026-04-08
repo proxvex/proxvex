@@ -30,6 +30,7 @@ export class App implements OnInit, OnDestroy {
   auth = inject(AuthService);
   private routerSub?: Subscription;
   private previousUrl = '';
+  hideHeader = false;
 
   sshConfigs: ISsh[] = [];
   currentHost = '';
@@ -46,6 +47,7 @@ export class App implements OnInit, OnDestroy {
         this.loadSshConfigs();
       }
       this.previousUrl = e.urlAfterRedirects;
+      this.hideHeader = e.urlAfterRedirects.startsWith('/application-overview');
     });
 
     // Single call to fetch SSH configs (sets VE context key via service tap)

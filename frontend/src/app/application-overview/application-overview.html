@@ -1,0 +1,183 @@
+@if (data) {
+<div class="overview-page">
+  <!-- Header -->
+  <div class="page-header">
+    <button mat-icon-button (click)="goBack()" matTooltip="Back">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div class="header-info">
+      <h1>{{ data.name }}</h1>
+      <p class="subtitle">{{ data.description }}</p>
+    </div>
+  </div>
+
+  <!-- Description (Markdown) -->
+  @if (renderedMarkdown) {
+    <section class="overview-section">
+      <h2>Description</h2>
+      <div class="markdown-content" [innerHTML]="renderedMarkdown"></div>
+    </section>
+  }
+
+  <!-- Extends Hierarchy -->
+  @if (data.extendsHierarchy.length > 1) {
+    <section class="overview-section">
+      <h2>Extends Hierarchy</h2>
+      <div class="hierarchy-chain">
+        @for (item of data.extendsHierarchy; track item.id; let i = $index; let last = $last) {
+          <a class="hierarchy-chip" [class.current]="i === 0"
+             [routerLink]="['/application-overview', item.id]">
+            {{ item.name }}
+          </a>
+          @if (!last) {
+            <mat-icon class="hierarchy-arrow">arrow_forward</mat-icon>
+          }
+        }
+      </div>
+    </section>
+  }
+
+  <!-- Dependencies & Stack -->
+  @if (data.dependencies.length > 0 || data.stacktype?.length) {
+    <section class="overview-section">
+      <h2>Dependencies &amp; Stack</h2>
+
+      @if (data.stacktype?.length) {
+        <div class="stack-row">
+          @for (st of data.stacktype; track st.name) {
+            <span class="stack-badge" [class]="'stack-' + st.role">
+              {{ st.name }}
+              <span class="stack-role">{{ st.role }}</span>
+            </span>
+          }
+        </div>
+      }
+
+      @if (data.dependencies.length > 0) {
+        <div class="deps-list">
+          @for (dep of data.dependencies; track dep.application) {
+            <div class="dep-card">
+              <a [routerLink]="['/application-overview', dep.application]" class="dep-link">{{ dep.name }}</a>
+              <span class="dep-id">{{ dep.application }}</span>
+              @if (dep.description) {
+                <p class="dep-description">{{ dep.description }}</p>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- Task Selector -->
+  <div class="task-bar">
+    <span class="task-label">Task</span>
+    <mat-button-toggle-group [(value)]="selectedTask" (change)="onTaskChange()">
+      @for (task of tasks; track task) {
+        <mat-button-toggle [value]="task">{{ task }}</mat-button-toggle>
+      }
+    </mat-button-toggle-group>
+  </div>
+
+  <!-- Parameters -->
+  <section class="overview-section">
+    <h2>Parameters — {{ selectedTask }} ({{ filteredParameters.length }})</h2>
+
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">Source</span>
+        <mat-button-toggle-group [(value)]="filterOrigin" (valueChange)="applyFilters()">
+          <mat-button-toggle value="all">All</mat-button-toggle>
+          <mat-button-toggle value="local">Local</mat-button-toggle>
+          <mat-button-toggle value="public">Repo</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Template</span>
+        <mat-button-toggle-group [(value)]="filterScope" (valueChange)="applyFilters()">
+          <mat-button-toggle value="all">All</mat-button-toggle>
+          <mat-button-toggle value="application">App</mat-button-toggle>
+          <mat-button-toggle value="shared">Shared</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Flags</span>
+        <div class="flag-checkboxes">
+          <button type="button" class="tri-state" [class]="'tri-' + flagRequired" (click)="cycleFlag('required')">
+            <span class="tri-icon">{{ flagRequired === 'yes' ? '✓' : flagRequired === 'no' ? '✗' : '' }}</span>
+            <span class="param-badge badge-required">required</span>
+          </button>
+          <button type="button" class="tri-state" [class]="'tri-' + flagAdvanced" (click)="cycleFlag('advanced')">
+            <span class="tri-icon">{{ flagAdvanced === 'yes' ? '✓' : flagAdvanced === 'no' ? '✗' : '' }}</span>
+            <span class="param-badge badge-advanced">advanced</span>
+          </button>
+          <button type="button" class="tri-state" [class]="'tri-' + flagInternal" (click)="cycleFlag('internal')">
+            <span class="tri-icon">{{ flagInternal === 'yes' ? '✓' : flagInternal === 'no' ? '✗' : '' }}</span>
+            <span class="param-badge badge-internal">internal</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Binding</span>
+        <mat-button-toggle-group [(value)]="filterBinding" (valueChange)="applyFilters()">
+          <mat-button-toggle value="all">All</mat-button-toggle>
+          <mat-button-toggle value="value">Value</mat-button-toggle>
+          <mat-button-toggle value="default">Default</mat-button-toggle>
+          <mat-button-toggle value="parameter">Param</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="params-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Default / Value / Parameter</th>
+            <th>Template</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of filteredParameters; track p.id) {
+            <tr [attr.title]="p.description ?? null">
+              <td class="param-cell">
+                <span class="param-name">{{ p.name }}</span>
+                <code class="param-id">{{ p.id }}</code>
+                @for (badge of paramBadges(p); track badge.label) {
+                  <span class="param-badge" [class]="badge.cls">{{ badge.label }}</span>
+                }
+              </td>
+              <td>
+                @if (p.sourceType === 'value' || p.sourceType === 'default') {
+                  <code class="default-value">{{ p.default }}</code>
+                  @if (p.defaultSource) {
+                    <span class="default-source">from {{ p.defaultSource }}</span>
+                  }
+                } @else {
+                  <span class="no-default">-</span>
+                }
+              </td>
+              <td>
+                <span class="origin-badge" [class]="'origin-' + p.origin">{{ originLabel(p.origin) }}</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (filteredParameters.length === 0) {
+      <div class="empty-hint">No parameters match the current filters.</div>
+    }
+  </section>
+
+  <!-- Commands -->
+  <section class="overview-section">
+    <h2>Commands — {{ selectedTask }} ({{ data.templates.length }})</h2>
+    <app-commands-table [commands]="commandRows"></app-commands-table>
+  </section>
+</div>
+}

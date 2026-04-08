@@ -68,7 +68,7 @@ export class ZitadelApiService {
 
   /** Search for projects the user has access to */
   async searchProjects(): Promise<ZitadelProject[]> {
-    const resp = await this.apiCall<{ result?: Array<{ id: string; name: string }> }>(
+    const resp = await this.apiCall<{ result?: { id: string; name: string }[] }>(
       'POST', '/management/v1/projects/_search', {}
     );
     return (resp.result ?? []).map(p => ({ id: p.id, name: p.name }));
@@ -76,7 +76,7 @@ export class ZitadelApiService {
 
   /** Search for OIDC apps in a project */
   async searchApps(projectId: string): Promise<ZitadelApp[]> {
-    const resp = await this.apiCall<{ result?: Array<{ id: string; name: string; oidcConfig?: { clientId: string } }> }>(
+    const resp = await this.apiCall<{ result?: { id: string; name: string; oidcConfig?: { clientId: string } }[] }>(
       'POST', `/management/v1/projects/${projectId}/apps/_search`, {}
     );
     return (resp.result ?? []).map(a => ({

@@ -478,6 +478,7 @@ export class TemplateProcessor extends EventEmitter {
         skipped: shouldSkip,
         conditional: isConditional,
         category: tmplRef.category,
+        templateData: tmplData,
       });
     }
 

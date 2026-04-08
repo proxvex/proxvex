@@ -940,6 +940,10 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
 
+  openApplicationOverview(): void {
+    window.open(`/application-overview/${encodeURIComponent(this.data.app.id)}`, '_blank');
+  }
+
   openTemplateTrace(): void {
     this.configService.getTemplateTrace(this.data.app.id, this.task).subscribe({
       next: (trace) => {

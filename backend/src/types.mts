@@ -249,6 +249,9 @@ export enum ApiUri {
   LogRotation = "/api/maintenance/log-rotation",
   LogRotationCheck = "/api/maintenance/log-rotation/check",
 
+  // Application overview
+  ApplicationOverview = "/api/application-overview/:applicationId",
+
   // Dependency check
   DependencyCheck = "/api/:veContext/dependency-check/:application",
 
@@ -774,6 +777,75 @@ export interface ITemplateProcessorLoadResult {
   templateTrace?: ITemplateTraceEntry[];
   parameterTrace?: IParameterTraceEntry[];
   traceInfo?: ITemplateTraceInfo;
+}
+
+// Application overview response types
+export interface IApplicationOverviewResponse {
+  applicationId: string;
+  name: string;
+  description: string;
+  markdownContent: string | null;
+  extendsHierarchy: { id: string; name: string }[];
+  dependencies: IApplicationOverviewDependency[];
+  stacktype?: IApplicationOverviewStacktype[] | undefined;
+  parameters: IApplicationOverviewParameter[];
+  templates: IApplicationOverviewTemplate[];
+}
+
+export interface IApplicationOverviewStacktype {
+  name: string;
+  role: "provider" | "consumer";
+}
+
+export interface IApplicationOverviewDependency {
+  application: string;
+  name: string;
+  description?: string | undefined;
+}
+
+export interface IApplicationOverviewParameter {
+  id: string;
+  name: string;
+  type: string;
+  required: boolean;
+  advanced: boolean;
+  internal: boolean;
+  secure: boolean;
+  default?: string | number | boolean | undefined;
+  description?: string | undefined;
+  defaultSource?: string | undefined;
+  origin:
+    | "application-local"
+    | "application-json"
+    | "shared-local"
+    | "shared-json";
+  sourceType: "value" | "default" | "parameter";
+}
+
+export interface IApplicationOverviewTemplate {
+  seq: number;
+  name: string;
+  path: string;
+  origin:
+    | "application-local"
+    | "application-json"
+    | "shared-local"
+    | "shared-json"
+    | "unknown";
+  isShared: boolean;
+  category?: string | undefined;
+  executeOn?: string | undefined;
+  skipped: boolean;
+  skipReason?: string | undefined;
+  skipIfAllMissing?: string[] | undefined;
+  skipIfPropertySet?: string | undefined;
+  implements?: string | undefined;
+  addedByAddon?: string | undefined;
+  scriptName?: string | undefined;
+  scriptPath?: string | undefined;
+  scriptOrigin?: string | undefined;
+  outputs: string[];
+  parameters: string[];
 }
 
 // Addon install body (shared between frontend service and backend route)

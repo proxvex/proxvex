@@ -50,6 +50,7 @@
 
     <div class="card-actions">
       <button type="button" data-testid="install-app-btn" (click)="openProxmoxConfigDialog(app)" [disabled]="(app.errors?.length ?? 0) > 0">Install</button>
+      <button type="button" class="secondary" [routerLink]="['/application-overview', app.id]">Overview</button>
       @if (app.framework && app.source === 'local') {
         <button type="button" class="secondary" [routerLink]="['/create-application']" [queryParams]="{applicationId: app.id}">Edit in Framework</button>
       }
