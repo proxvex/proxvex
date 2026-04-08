@@ -379,33 +379,102 @@ export class PersistenceManager {
     };
 
     for (const [appId, appDir] of allApps) {
-      const testDir = path.join(appDir, "tests");
-      const testFile = path.join(testDir, "test.json");
+      // Collect test directories: own + inherited from extends chain
+      // Base-app tests are included first, local tests override by name
+      const testDirs: string[] = [];
+      const ownTestDir = path.join(appDir, "tests");
+      try {
+        const appJsonPath = path.join(appDir, "application.json");
+        if (fs.existsSync(appJsonPath)) {
+          const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
+          // Walk extends chain to collect base test directories
+          let ext = appJson.extends as string | undefined;
+          while (ext) {
+            const baseAppName = ext.replace(/^json:/, "");
+            const baseDir = path.join(this.pathes.jsonPath, "applications", baseAppName, "tests");
+            if (fs.existsSync(baseDir)) testDirs.push(baseDir);
+            // Check if base also extends
+            try {
+              const baseJsonPath = path.join(this.pathes.jsonPath, "applications", baseAppName, "application.json");
+              if (fs.existsSync(baseJsonPath)) {
+                const baseJson = JSON.parse(fs.readFileSync(baseJsonPath, "utf-8"));
+                ext = baseJson.extends as string | undefined;
+                // Stop at framework-level extends (docker-compose, oci-image)
+                if (ext && !ext.includes("/") && !ext.startsWith("json:")) ext = undefined;
+              } else { ext = undefined; }
+            } catch { ext = undefined; }
+          }
+        }
+      } catch { /* ignore */ }
+      if (fs.existsSync(ownTestDir)) testDirs.push(ownTestDir);
+
+      // Merge test.json from all test directories (base first, local overrides)
+      type TestDef = {
+        task?: string;
+        wait_seconds?: number;
+        cli_timeout?: number;
+        verify?: Record<string, boolean | number | string>;
+        cleanup?: Record<string, string>;
+        depends_on?: string[];
+        addons?: string[];
+      };
+      const mergedDefs: Record<string, TestDef> = {};
+      const testDirForScenario = new Map<string, string>(); // scenario name → test dir with params/uploads
+      for (const td of testDirs) {
+        const tf = path.join(td, "test.json");
+        if (fs.existsSync(tf)) {
+          try {
+            const defs: Record<string, TestDef> = JSON.parse(fs.readFileSync(tf, "utf-8"));
+            for (const [name, def] of Object.entries(defs)) {
+              mergedDefs[name] = { ...mergedDefs[name], ...def };
+              testDirForScenario.set(name, td);
+            }
+          } catch { /* ignore parse errors */ }
+        }
+      }
+
+      // Also check for params files in base dirs (for scenarios not overridden locally)
+      for (const td of testDirs) {
+        for (const name of Object.keys(mergedDefs)) {
+          const paramsFile = path.join(td, `${name}.json`);
+          if (fs.existsSync(paramsFile) && !testDirForScenario.has(name)) {
+            testDirForScenario.set(name, td);
+          }
+        }
+      }
+
+      const testDir = testDirs[testDirs.length - 1] ?? ownTestDir; // primary test dir
 
       // Get application stacktype for dependency derivation
+      // Check own application.json first, then walk extends chain
       let appStacktypes: string[] = [];
       try {
         const appJsonPath = path.join(appDir, "application.json");
         if (fs.existsSync(appJsonPath)) {
           const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
-          const st = appJson.stacktype;
+          let st = appJson.stacktype;
+          // If no stacktype locally, check base apps in extends chain
+          if (!st) {
+            let ext = appJson.extends as string | undefined;
+            while (ext && !st) {
+              const baseName = ext.replace(/^json:/, "");
+              try {
+                const baseJsonPath = path.join(this.pathes.jsonPath, "applications", baseName, "application.json");
+                if (fs.existsSync(baseJsonPath)) {
+                  const baseJson = JSON.parse(fs.readFileSync(baseJsonPath, "utf-8"));
+                  st = baseJson.stacktype;
+                  ext = baseJson.extends as string | undefined;
+                  if (ext && !ext.includes("/") && !ext.startsWith("json:")) ext = undefined;
+                } else { ext = undefined; }
+              } catch { ext = undefined; }
+            }
+          }
           appStacktypes = st ? (Array.isArray(st) ? st : [st]) : [];
         }
       } catch { /* ignore */ }
 
-      if (fs.existsSync(testFile)) {
-        // Explicit test definitions from test.json
-        const defs: Record<string, {
-          task?: string;
-          wait_seconds?: number;
-          cli_timeout?: number;
-          verify?: Record<string, boolean | number | string>;
-          cleanup?: Record<string, string>;
-          depends_on?: string[];
-          addons?: string[];
-        }> = JSON.parse(fs.readFileSync(testFile, "utf-8"));
-
-        for (const [name, def] of Object.entries(defs)) {
+      if (Object.keys(mergedDefs).length > 0) {
+        for (const [name, def] of Object.entries(mergedDefs)) {
           const scenario: ITestScenarioResponse = {
             id: `${appId}/${name}`,
             application: appId,
@@ -418,30 +487,37 @@ export class PersistenceManager {
             scenario.selectedAddons = def.addons;
           }
 
-          // Read scenario params file if it exists
-          const paramsFile = path.join(testDir, `${name}.json`);
-          if (fs.existsSync(paramsFile)) {
-            const paramsContent = JSON.parse(fs.readFileSync(paramsFile, "utf-8"));
-            if (paramsContent.params) scenario.params = paramsContent.params;
-            if (paramsContent.selectedAddons) scenario.selectedAddons = paramsContent.selectedAddons;
-            if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
+          // Read scenario params file — check all test dirs (local overrides base)
+          for (const td of testDirs) {
+            const paramsFile = path.join(td, `${name}.json`);
+            if (fs.existsSync(paramsFile)) {
+              const paramsContent = JSON.parse(fs.readFileSync(paramsFile, "utf-8"));
+              if (paramsContent.params) scenario.params = paramsContent.params;
+              if (paramsContent.selectedAddons) scenario.selectedAddons = paramsContent.selectedAddons;
+              if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
+            }
           }
 
           // Auto-generate description from app name, variant, and addons
           scenario.description = buildScenarioDescription(appId, name, scenario.selectedAddons);
 
-          // Read upload files as base64
-          const uploadsDir = path.join(testDir, "uploads");
-          if (fs.existsSync(uploadsDir)) {
-            const files = fs.readdirSync(uploadsDir).filter(
-              f => fs.statSync(path.join(uploadsDir, f)).isFile(),
-            );
-            if (files.length > 0) {
-              scenario.uploads = files.map(f => ({
-                name: f,
-                content: fs.readFileSync(path.join(uploadsDir, f)).toString("base64"),
-              }));
+          // Read upload files — merge from all test dirs (local overrides base by filename)
+          const uploadMap = new Map<string, { dir: string; file: string }>();
+          for (const td of testDirs) {
+            const uploadsDir = path.join(td, "uploads");
+            if (fs.existsSync(uploadsDir)) {
+              for (const f of fs.readdirSync(uploadsDir)) {
+                if (fs.statSync(path.join(uploadsDir, f)).isFile()) {
+                  uploadMap.set(f, { dir: uploadsDir, file: f });
+                }
+              }
             }
+          }
+          if (uploadMap.size > 0) {
+            scenario.uploads = [...uploadMap.values()].map(({ dir, file }) => ({
+              name: file,
+              content: fs.readFileSync(path.join(dir, file)).toString("base64"),
+            }));
           }
 
           // Auto-derive depends_on from stacktype + addon dependencies
