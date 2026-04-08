@@ -74,7 +74,7 @@ export class OutputProcessor {
    */
   private validateExpectedOutputs(
     expectedOutputs:
-      | Array<{ id: string; default?: boolean } | string>
+      | Array<{ id: string; default?: boolean; optional?: boolean } | string>
       | undefined,
     actualOutputIds: Set<string>,
     commandName: string,
@@ -86,8 +86,8 @@ export class OutputProcessor {
     const expectedIds = new Set<string>();
     for (const output of expectedOutputs) {
       const id = typeof output === "string" ? output : output.id;
-      // Skip outputs with default values (they're optional)
-      if (typeof output === "object" && output.default !== undefined) {
+      // Skip optional outputs (marked with default or optional flag)
+      if (typeof output === "object" && (output.default !== undefined || output.optional)) {
         continue;
       }
       expectedIds.add(id);
