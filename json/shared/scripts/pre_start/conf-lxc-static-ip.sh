@@ -42,8 +42,17 @@ nameserver6="{{ nameserver6 }}"
 [ "$nameserver4" = "NOT_DEFINED" ] && nameserver4=""
 [ "$nameserver6" = "NOT_DEFINED" ] && nameserver6=""
 
-# Auto-detect static IP usage
+# Nameserver-only mode: set DNS without changing network config
 if [ -z "$static_ip" ] && [ -z "$static_ip6" ]; then
+  if [ -n "$nameserver4" ] || [ -n "$nameserver6" ]; then
+    nameservers=""
+    [ -n "$nameserver4" ] && nameservers="$nameserver4"
+    [ -n "$nameserver6" ] && nameservers="${nameservers:+$nameservers }$nameserver6"
+    pct set {{ vm_id }} --nameserver "$nameservers" >&2
+    echo "DNS nameserver set (no static IP): $nameservers" >&2
+    output_result "skipped" ""
+    exit 0
+  fi
   echo "Static IP configuration not requested, skipping." >&2
   output_result "skipped" ""
   exit 0

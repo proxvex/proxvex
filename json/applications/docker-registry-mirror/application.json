@@ -1,0 +1,89 @@
+{
+  "name": "Docker Registry Mirror",
+  "description": "Pull-through cache for Docker Hub. Caches images locally to avoid rate limits. Uses hostname registry-1.docker.io so DNS redirects all Docker pulls through the mirror.",
+  "extends": "oci-image",
+  "icon": "icon.svg",
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "required": false,
+      "type": "string",
+      "description": "Hostname for the LXC container. Must be registry-1.docker.io for transparent proxying.",
+      "template": "100-conf-create-configure-lxc.json",
+      "templatename": "Create and Configure LXC",
+      "default": "registry-1.docker.io"
+    },
+    {
+      "id": "volumes",
+      "name": "Volumes",
+      "type": "string",
+      "multiline": true,
+      "required": false,
+      "description": "One per line: key=/container/path",
+      "template": "150-conf-create-storage-volumes-for-lxc.json",
+      "templatename": "Create Storage Volumes for LXC",
+      "default": "data=var/lib/registry"
+    },
+    {
+      "id": "envs",
+      "name": "Environment Variables",
+      "type": "string",
+      "advanced": true,
+      "multiline": true,
+      "default": "REGISTRY_HTTP_ADDR=0.0.0.0:5000\nREGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io\nUID=0\nGID=0",
+      "description": "Environment variables for the registry container.",
+      "template": "107-conf-oci-lxc-configuration.json",
+      "templatename": "Configure LXC for OCI"
+    }
+  ],
+  "properties": [
+    {
+      "id": "oci_image",
+      "value": "registry:2"
+    },
+    {
+      "id": "nameserver4",
+      "value": "8.8.8.8"
+    },
+    {
+      "id": "ssl_mode",
+      "value": "native"
+    },
+    {
+      "id": "https_port",
+      "value": "5000"
+    },
+    {
+      "id": "ssl.addon_volumes",
+      "value": "certs=/certs,0755,0:0"
+    },
+    {
+      "id": "ssl.needs_server_cert",
+      "value": "true"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "value": "true"
+    },
+    {
+      "id": "startup_order",
+      "value": "5"
+    },
+    {
+      "id": "startup_up",
+      "value": "10"
+    }
+  ],
+  "installation": {},
+  "check": {
+    "check": [
+      "check-registry-mirror.json"
+    ]
+  },
+  "supported_addons": ["addon-ssl"],
+  "tags": ["infrastructure"],
+  "url": "https://docs.docker.com/registry/",
+  "documentation": "https://docs.docker.com/registry/recipes/mirror/",
+  "source": "https://github.com/distribution/distribution"
+}

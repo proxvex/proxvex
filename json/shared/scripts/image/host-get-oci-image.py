@@ -330,12 +330,47 @@ def import_to_proxmox(storage: str, tarball_path: str, image_name: str, tag: str
     template_path = f"{storage}:vztmpl/{filename}"
     return template_path
 
+def ensure_ca(deployer_url: str, ve_context: str) -> None:
+    """Ensure the deployer CA certificate is trusted on the host.
+
+    Downloads the CA cert from the deployer and installs it so that skopeo
+    trusts TLS connections to a local registry mirror (registry-1.docker.io).
+    """
+    ca_path = "/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
+    if os.path.isfile(ca_path):
+        return  # Already installed
+
+    if not deployer_url or not ve_context:
+        return  # No deployer info available
+
+    ca_url = f"{deployer_url}/api/{ve_context}/ve/certificates/ca/download"
+    log(f"Installing deployer CA certificate from {ca_url}")
+    try:
+        result = subprocess.run(
+            ["curl", "-fsSL", "-k", "-o", ca_path, ca_url],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            log(f"Warning: Could not download CA certificate: {result.stderr.strip()}")
+            return
+        subprocess.run(["update-ca-certificates"], capture_output=True, timeout=10)
+        log("CA certificate installed successfully")
+    except Exception as e:
+        log(f"Warning: CA certificate installation failed: {e}")
+
+
 def main() -> None:
     """Main function."""
     # Check if skopeo is available
     if not check_skopeo():
         error("skopeo is required but not found. Please install it with: apt install skopeo")
-    
+
+    # Ensure deployer CA is trusted (for local registry mirror)
+    deployer_url = "{{ deployer_base_url }}"
+    ve_context = "{{ ve_context_key }}"
+    if deployer_url and deployer_url != "NOT_DEFINED" and ve_context and ve_context != "NOT_DEFINED":
+        ensure_ca(deployer_url, ve_context)
+
     # Get parameters from template variables
     oci_image = "{{ oci_image }}"
     storage = "{{ storage }}"

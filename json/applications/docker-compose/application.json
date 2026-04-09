@@ -68,6 +68,7 @@
     "post_start": [
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
+      "309-post-trust-registry-ca-in-docker.json",
       "320-post-upload-docker-compose-files.json",
       "330-svc-start-docker-compose.json",
       "335-post-update-version-from-docker.json",
@@ -97,6 +98,7 @@
     "post_start": [
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
+      "309-post-trust-registry-ca-in-docker.json",
       "315-post-update-compose-image-tags.json",
       "330-svc-start-docker-compose.json",
       "335-post-update-version-from-docker.json",

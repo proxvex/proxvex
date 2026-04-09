@@ -1,0 +1,34 @@
+{
+  "execute_on": "ve",
+  "name": "Check Registry Mirror",
+  "description": "Verifies the Docker Registry Mirror is working: DNS resolves locally, CA is trusted, and skopeo can inspect images through the mirror.",
+  "parameters": [
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer URL",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend"
+    },
+    {
+      "id": "ve_context_key",
+      "name": "VE Context",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "advanced": true,
+      "description": "Registry hostname to check"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Check Registry Mirror",
+      "script": "check-registry-mirror.sh"
+    }
+  ]
+}
