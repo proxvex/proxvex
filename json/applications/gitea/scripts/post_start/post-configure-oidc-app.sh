@@ -21,13 +21,8 @@ echo "  Issuer URL:    ${OIDC_ISSUER_URL}" >&2
 echo "  Discovery URL: ${DISCOVERY_URL}" >&2
 echo "  Client ID:     ${OIDC_CLIENT_ID}" >&2
 
-# Get Gitea container IP
-GITEA_IP=$(pct exec "$VMID" -- hostname -i 2>/dev/null | awk '{print $1}')
-if [ -z "$GITEA_IP" ]; then
-  echo "ERROR: Cannot determine Gitea container IP" >&2
-  exit 1
-fi
-GITEA_URL="http://${GITEA_IP}:3000"
+# Use container hostname directly (dnsmasq resolves it)
+GITEA_URL="http://${HOSTNAME}:3000"
 echo "  Gitea API:     ${GITEA_URL}" >&2
 
 # Wait for Gitea API to be ready
