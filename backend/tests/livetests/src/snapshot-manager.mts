@@ -245,6 +245,13 @@ export class SnapshotManager {
     this.log(`Rollback to @${name} complete`);
   }
 
+  /** Delete a snapshot (best-effort, ignores errors) */
+  deleteSnapshot(name: string): void {
+    try {
+      this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${name} 2>/dev/null; true`, 30000);
+    } catch { /* ignore */ }
+  }
+
   /**
    * Wait for the nested VM to become reachable via SSH after boot.
    * Polls SSH on the port-forwarded port until success or timeout.

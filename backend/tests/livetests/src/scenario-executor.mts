@@ -224,6 +224,17 @@ export async function executeScenarios(
         logInfo("Deployer reload not available (continuing)");
       }
 
+      // Pre-test snapshot: save state before execution so we can rollback on failure
+      const preTestSnapName = snapMgr ? `pre-${scenario.id.replace("/", "-")}` : null;
+      if (snapMgr && preTestSnapName && !step.isDependency) {
+        try {
+          snapMgr.create(preTestSnapName, buildHash);
+          logInfo(`Pre-test snapshot @${preTestSnapName} created`);
+        } catch {
+          logInfo("Warning: pre-test snapshot failed (non-fatal)");
+        }
+      }
+
       // Run CLI
       logInfo(`Running: ${scenario.application} ${task}...`);
       const scenarioFixtureDir = fixtureBaseDir
@@ -240,6 +251,18 @@ export async function executeScenarios(
       if (cliResult.exitCode !== 0) {
         const errMsg = `Scenario failed: ${scenario.id} (${task})`;
         logFail(errMsg);
+
+        // Rollback to pre-test snapshot to restore clean state
+        if (snapMgr && preTestSnapName) {
+          try {
+            logInfo(`Rolling back to @${preTestSnapName} (restoring pre-test state)`);
+            snapMgr.rollback(preTestSnapName);
+            logOk("Pre-test state restored");
+          } catch {
+            logInfo("Warning: pre-test rollback failed");
+          }
+        }
+
         result.errors.push(errMsg);
         result.failed++;
         result.steps.push({
@@ -396,6 +419,13 @@ export async function executeScenarios(
             Object.entries(finalVerify).map(([k, v]) => [k, !!v]),
           ),
         }));
+      }
+
+      // Clean up pre-test snapshot on success (no longer needed)
+      if (snapMgr && preTestSnapName && !step.isDependency) {
+        try {
+          snapMgr.deleteSnapshot(preTestSnapName);
+        } catch { /* ignore */ }
       }
 
       // Create snapshot after dependency is installed
