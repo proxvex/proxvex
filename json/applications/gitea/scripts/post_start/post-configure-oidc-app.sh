@@ -49,7 +49,7 @@ ADMIN_PASS="$GITEA_ADMIN_PASS"
 AUTH_CHECK=$(curl -sk -o /dev/null -w "%{http_code}" -u "${ADMIN_USER}:${ADMIN_PASS}" "${GITEA_URL}/api/v1/user" 2>/dev/null)
 if [ "$AUTH_CHECK" != "200" ]; then
   echo "Admin user not found, creating via CLI..." >&2
-  pct exec "$VMID" -- su-exec git gitea admin user create --admin --username "${ADMIN_USER}" --password "${ADMIN_PASS}" --email "admin@localhost" --must-change-password=false >&2 2>&1
+  pct exec "$VMID" -- /usr/sbin/su-exec git /usr/local/bin/gitea admin user create --admin --username "${ADMIN_USER}" --password "${ADMIN_PASS}" --email "admin@localhost" --must-change-password=false >&2 2>&1
   sleep 2
 fi
 
