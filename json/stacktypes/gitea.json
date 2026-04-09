@@ -1,0 +1,15 @@
+{
+  "name": "Gitea",
+  "description": "Admin credentials for Gitea instances",
+  "variables": [
+    { "name": "GITEA_ADMIN_PASSWORD" }
+  ],
+  "provides": [
+    { "name": "GITEA_HOST", "description": "Hostname of the Gitea container" },
+    { "name": "GITEA_PORT", "description": "Gitea HTTP port (default: 3000)" },
+    { "name": "GITEA_ADMIN_USERNAME", "description": "Admin username (default: admin)" }
+  ],
+  "dependencies": [
+    { "application": "gitea" }
+  ]
+}
