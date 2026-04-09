@@ -11,7 +11,7 @@
  * passwords match the snapshot state.
  */
 import { execSync } from "node:child_process";
-import { existsSync, copyFileSync, mkdirSync } from "node:fs";
+import { existsSync, copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 export interface SnapshotConfig {
@@ -37,10 +37,13 @@ export class SnapshotManager {
    * Files are saved as storagecontext-NNN-<label>.json in the context dir.
    */
   private saveContextSnapshot(label: string): void {
-    if (process.env.DEPLOYER_PLAINTEXT_CONTEXT !== "1") return;
-    if (!this.localContextPath) return;
     const src = path.join(this.localContextPath, "storagecontext.json");
     if (!existsSync(src)) return;
+    // Only save if context is plaintext (not encrypted)
+    try {
+      const head = readFileSync(src, "utf-8").slice(0, 4);
+      if (head === "enc:") return;
+    } catch { return; }
     try {
       const idx = String(this.debugIndex++).padStart(3, "0");
       const dest = path.join(this.localContextPath, `storagecontext-${idx}-${label}.json`);
