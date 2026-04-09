@@ -436,6 +436,8 @@ export class VeExecution extends EventEmitter {
     vm_id: string | number,
     command: string,
     tmplCommand: ICommand,
+    execUid?: number,
+    execGid?: number,
     timeoutMs?: number,
   ): Promise<IVeExecuteMessage> {
     // In test mode, lxc-attach is not needed - execute locally
@@ -444,8 +446,11 @@ export class VeExecution extends EventEmitter {
       return await this.runOnVeHost(command, tmplCommand, timeoutMs);
     }
 
-    // Production: use lxc-attach
-    const lxcCmd = ["lxc-attach", "-n", String(vm_id), "--"];
+    // Production: use lxc-attach with optional uid/gid
+    const lxcCmd = ["lxc-attach", "-n", String(vm_id)];
+    if (execUid !== undefined && !isNaN(execUid)) lxcCmd.push("--uid", String(execUid));
+    if (execGid !== undefined && !isNaN(execGid)) lxcCmd.push("--gid", String(execGid));
+    lxcCmd.push("--");
 
     // In production mode, we need to execute via SSH with lxc-attach
     // But interpreter from shebang should still be respected

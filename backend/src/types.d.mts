@@ -89,7 +89,7 @@ export interface ICommand {
     } | string)[];
     description?: string;
     /** @internal execute_on is set internally from template.execute_on, not part of the schema */
-    execute_on?: "ve" | "lxc" | string;
+    execute_on?: "ve" | "lxc" | string | { where: string; uid?: boolean; gid?: boolean };
     /** @internal category is set internally from the template's category for look-ahead skip logic */
     category?: string;
 }
@@ -136,7 +136,7 @@ export interface IParameterOverride {
     description?: string;
 }
 export interface ITemplate {
-    execute_on?: "ve" | "lxc" | string;
+    execute_on?: "ve" | "lxc" | string | { where: string; uid?: boolean; gid?: boolean };
     skip_if_all_missing?: string[];
     skip_if_property_set?: string;
     name: string;

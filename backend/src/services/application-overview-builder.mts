@@ -376,7 +376,8 @@ export class ApplicationOverviewBuilder {
             : "unknown";
 
       const tmplData = pt.templateData;
-      const executeOn = tmplData?.execute_on;
+      const rawExecuteOn = tmplData?.execute_on;
+      const executeOn = typeof rawExecuteOn === "object" ? (rawExecuteOn as { where: string }).where : rawExecuteOn;
 
       // Build skip reason
       let skipReason: string | undefined;
