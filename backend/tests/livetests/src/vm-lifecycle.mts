@@ -111,11 +111,15 @@ export async function restoreBestSnapshot(
     }
 
     // Reload deployer to pick up the restored context (stack passwords)
-    try {
-      await fetch(`${apiUrl}/api/reload`, { method: "POST", signal: AbortSignal.timeout(5000) });
-      logInfo("Deployer reloaded after snapshot restore");
-    } catch {
-      logInfo("Warning: deployer reload after snapshot restore failed (non-fatal)");
+    let reloaded = false;
+    for (const url of [apiUrl, apiUrl.replace("https://", "http://")]) {
+      try {
+        const r = await fetch(`${url}/api/reload`, { method: "POST", signal: AbortSignal.timeout(10000) });
+        if (r.ok) { logInfo("Deployer reloaded after snapshot restore"); reloaded = true; break; }
+      } catch { /* try next */ }
+    }
+    if (!reloaded) {
+      logInfo("Warning: deployer reload after snapshot restore failed — stacks may be stale");
     }
 
     logOk(`Dependencies restored from VM snapshot @${best.name}`);
