@@ -11,7 +11,8 @@
  * passwords match the snapshot state.
  */
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, copyFileSync, mkdirSync } from "node:fs";
+import path from "node:path";
 
 export interface SnapshotConfig {
   enabled: boolean;
@@ -20,6 +21,8 @@ export interface SnapshotConfig {
 const CONTEXT_BACKUP_DIR = "/root/.deployer-context-backup";
 
 export class SnapshotManager {
+  private debugIndex = 0;
+
   constructor(
     private outerPveHost: string,
     private nestedVmId: number,
@@ -27,6 +30,24 @@ export class SnapshotManager {
     private log: (msg: string) => void = console.log,
     private localContextPath?: string,
   ) {}
+
+  /**
+   * Save a copy of the storagecontext for debugging.
+   * Only active when DEPLOYER_PLAINTEXT_CONTEXT=1.
+   * Files are saved as storagecontext-NNN-<label>.json in the context dir.
+   */
+  private saveContextSnapshot(label: string): void {
+    if (process.env.DEPLOYER_PLAINTEXT_CONTEXT !== "1") return;
+    if (!this.localContextPath) return;
+    const src = path.join(this.localContextPath, "storagecontext.json");
+    if (!existsSync(src)) return;
+    try {
+      const idx = String(this.debugIndex++).padStart(3, "0");
+      const dest = path.join(this.localContextPath, `storagecontext-${idx}-${label}.json`);
+      copyFileSync(src, dest);
+      this.log(`Context snapshot saved: ${path.basename(dest)}`);
+    } catch { /* ignore */ }
+  }
 
   /** SSH to the outer PVE host (port 22) for qm commands */
   private outerSsh(cmd: string, timeout = 60000): string {
@@ -141,6 +162,9 @@ export class SnapshotManager {
   create(name: string, buildHash?: string): void {
     this.log(`Creating VM snapshot @${name}...`);
 
+    // Save debug snapshot before backup
+    this.saveContextSnapshot(`before-create-${name}`);
+
     // Backup local context to nested VM (embedded in snapshot)
     this.backupContext();
 
@@ -159,6 +183,7 @@ export class SnapshotManager {
       30000,
     );
 
+    this.saveContextSnapshot(`after-create-${name}`);
     this.log(`Snapshot @${name} created`);
   }
 
@@ -169,6 +194,7 @@ export class SnapshotManager {
    */
   rollback(name: string): void {
     this.log(`Rolling back to @${name}...`);
+    this.saveContextSnapshot(`before-rollback-${name}`);
 
     // Delete snapshots newer than the target so rollback succeeds.
     // PVE requires the target to be the most recent snapshot on each disk.
@@ -211,6 +237,7 @@ export class SnapshotManager {
 
     // Restore local context from VM (passwords match snapshot state)
     this.restoreContext();
+    this.saveContextSnapshot(`after-rollback-${name}`);
 
     this.log(`Rollback to @${name} complete`);
   }
