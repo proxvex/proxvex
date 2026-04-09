@@ -136,7 +136,7 @@ if env_dict:
 # OCI containers start the entrypoint immediately but the network interface
 # may not be ready yet (host-managed=1 with DHCP). We prepend a wait loop
 # that checks /sys/class/net/eth0/operstate until the link is up.
-NETWORK_WAIT = 'while [ "$(cat /sys/class/net/eth0/operstate 2>/dev/null)" != "up" ]; do sleep 1; done; '
+NETWORK_WAIT = 'i=0; while [ $i -lt 30 ]; do grep -q "00000000" /proc/net/route 2>/dev/null && break; i=$((i+1)); sleep 1; done; '
 wrapped = False
 final_lines = []
 for line in new_lines:
