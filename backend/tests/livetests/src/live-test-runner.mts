@@ -367,19 +367,11 @@ async function main() {
 
       // b) Skopeo insecure config for registry-1.docker.io
       const skopeoCheck = nestedSsh(config.pveHost, config.portPveSsh,
-        `test -f /etc/containers/registries.conf.d/mirror.conf && echo "exists" || echo "missing"`,
+        `grep -q registry-1.docker.io /etc/containers/registries.conf.d/mirror.conf 2>/dev/null && echo "exists" || echo "missing"`,
         5000);
       if (skopeoCheck.trim() === "missing") {
         nestedSsh(config.pveHost, config.portPveSsh,
-          `mkdir -p /etc/containers/registries.conf.d && cat > /etc/containers/registries.conf.d/mirror.conf << 'EOF'
-[[registry]]
-location = "registry-1.docker.io"
-insecure = true
-
-[[registry]]
-location = "index.docker.io"
-insecure = true
-EOF`,
+          `mkdir -p /etc/containers/registries.conf.d && printf '[[registry]]\\nlocation = "registry-1.docker.io"\\ninsecure = true\\n\\n[[registry]]\\nlocation = "index.docker.io"\\ninsecure = true\\n' > /etc/containers/registries.conf.d/mirror.conf`,
           10000);
         logOk("Skopeo insecure config for registry mirror written");
       } else {

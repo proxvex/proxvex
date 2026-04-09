@@ -31,6 +31,8 @@ import shutil
 import platform as platform_module
 from typing import Optional, Tuple
 
+_mirror_active = False  # Set to True if local registry mirror is detected
+
 
 def get_host_arch() -> str:
     """
@@ -207,7 +209,11 @@ def detect_ostype_from_inspect(inspect_output: dict) -> str:
 def skopeo_inspect(image_ref: str, username: Optional[str] = None, password: Optional[str] = None) -> dict:
     """Inspect image using skopeo and return JSON output."""
     cmd = ['skopeo', 'inspect', '--format', '{{json .}}']
-    
+
+    # Disable TLS verification when using a local registry mirror
+    if _mirror_active:
+        cmd.append('--tls-verify=false')
+
     # Add authentication if provided
     if username and password:
         cmd.extend(['--creds', f'{username}:{password}'])
@@ -246,7 +252,11 @@ def skopeo_copy(image_ref: str, output_path: str, username: Optional[str] = None
         platform: Target platform (e.g., linux/amd64) (optional)
     """
     cmd = ['skopeo', 'copy']
-    
+
+    # Disable TLS verification when using a local registry mirror (self-signed cert)
+    if _mirror_active:
+        cmd.append('--src-tls-verify=false')
+
     # Add platform override (platform is always set at this point, either from param or auto-detected)
     if platform:
         # Parse platform (e.g., linux/amd64 -> arch=amd64, os=linux)
@@ -359,12 +369,12 @@ def ensure_ca(deployer_url: str, ve_context: str) -> None:
         log(f"Warning: CA certificate installation failed: {e}")
 
 
-def ensure_registry_mirror_hosts() -> None:
+def ensure_registry_mirror_hosts() -> bool:
     """Ensure Docker Hub hostnames resolve to the local registry mirror.
 
     If a container named 'docker-registry-mirror' exists on the network,
     add /etc/hosts entries so registry-1.docker.io and index.docker.io
-    point to its IP. Skopeo and Docker use these hostnames for pulls.
+    point to its IP. Returns True if a local mirror is active.
     """
     import socket
     hosts_path = "/etc/hosts"
@@ -373,23 +383,22 @@ def ensure_registry_mirror_hosts() -> None:
 
     try:
         with open(hosts_path, "r") as f:
-            content = f.read()
-            if marker in content:
-                return  # Already configured
+            if marker in f.read():
+                return True  # Already configured
 
-        # Resolve the mirror container hostname
         try:
             ip = socket.gethostbyname("docker-registry-mirror")
         except socket.gaierror:
-            return  # No mirror container found
+            return False
 
-        # Add entries for both Docker Hub hostnames
         entries = f"{ip} {' '.join(mirror_hosts)}  {marker}\n"
         with open(hosts_path, "a") as f:
             f.write(entries)
         log(f"Added /etc/hosts: {ip} -> {', '.join(mirror_hosts)}")
+        return True
     except Exception as e:
         log(f"Warning: Could not update /etc/hosts for registry mirror: {e}")
+        return False
 
 
 def main() -> None:
@@ -405,7 +414,9 @@ def main() -> None:
         ensure_ca(deployer_url, ve_context)
 
     # Ensure Docker Hub hostnames resolve to local mirror (if present)
-    ensure_registry_mirror_hosts()
+    # If mirror is active, disable TLS verification (mirror uses self-signed cert)
+    global _mirror_active
+    _mirror_active = ensure_registry_mirror_hosts()
 
     # Get parameters from template variables
     oci_image = "{{ oci_image }}"
