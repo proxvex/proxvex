@@ -41,12 +41,25 @@ if [ $RETRIES -eq 0 ]; then
   exit 1
 fi
 
-# Get admin token (create if needed)
-# Gitea creates admin user from GITEA_ADMIN_* env vars on first start
+# Create admin user if not exists.
+# The first registered user in Gitea automatically becomes admin.
 ADMIN_USER="$GITEA_ADMIN_USER"
 ADMIN_PASS="$GITEA_ADMIN_PASS"
 
-# Try to create API token
+# Register first user via API (becomes admin automatically)
+REG_RESULT=$(curl -sk -X POST "${GITEA_URL}/api/v1/admin/users" \
+  -u "${ADMIN_USER}:${ADMIN_PASS}" \
+  -H "Content-Type: application/json" \
+  -d "{}" 2>/dev/null)
+
+# If auth fails, try registering the user (open registration on first run)
+if ! echo "$REG_RESULT" | grep -q '"id"'; then
+  curl -sk -X POST "${GITEA_URL}/user/sign_up" \
+    -d "user_name=${ADMIN_USER}&password=${ADMIN_PASS}&retype=${ADMIN_PASS}&email=admin@localhost" 2>/dev/null
+  echo "Registered admin user via sign_up form" >&2
+fi
+
+# Get or create API token
 TOKEN=$(curl -sk -X POST "${GITEA_URL}/api/v1/users/${ADMIN_USER}/tokens" \
   -u "${ADMIN_USER}:${ADMIN_PASS}" \
   -H "Content-Type: application/json" \
@@ -54,7 +67,8 @@ TOKEN=$(curl -sk -X POST "${GITEA_URL}/api/v1/users/${ADMIN_USER}/tokens" \
   | sed -n 's/.*"sha1":"\([^"]*\)".*/\1/p')
 
 if [ -z "$TOKEN" ]; then
-  echo "ERROR: Could not create admin API token (check GITEA_ADMIN credentials)" >&2
+  echo "ERROR: Could not create admin API token" >&2
+  echo "Try creating admin user via CLI on the container" >&2
   exit 1
 fi
 echo "Admin API token obtained" >&2
