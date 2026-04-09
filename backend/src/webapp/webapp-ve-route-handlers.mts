@@ -263,7 +263,7 @@ export class WebAppVeRouteHandlers {
             const st = stacktypeData.find((s: any) => s.name === stName);
             if (st?.dependencies) {
               for (const dep of st.dependencies) {
-                if (!allDeps.some(d => d.application === dep.application)) {
+                if (dep.application !== application && !allDeps.some(d => d.application === dep.application)) {
                   allDeps.push(dep);
                 }
               }
@@ -420,7 +420,7 @@ export class WebAppVeRouteHandlers {
             const st = stacktypeData.find((s: any) => s.name === stName);
             if (st?.dependencies) {
               for (const dep of st.dependencies) {
-                if (!allDeps.some(d => d.application === dep.application)) {
+                if (dep.application !== application && !allDeps.some(d => d.application === dep.application)) {
                   allDeps.push(dep);
                 }
               }
