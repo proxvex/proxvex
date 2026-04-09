@@ -24,8 +24,20 @@ echo "  Issuer URL:    ${OIDC_ISSUER_URL}" >&2
 echo "  Discovery URL: ${DISCOVERY_URL}" >&2
 echo "  Client ID:     ${OIDC_CLIENT_ID}" >&2
 
+# Detect execution mode: docker-compose (has docker) or OCI-image (direct binary)
+HAS_DOCKER=$(pct exec "$VMID" -- sh -c "command -v docker" 2>/dev/null) || true
+
+gitea_exec() {
+  if [ -n "$HAS_DOCKER" ]; then
+    pct exec "$VMID" -- docker exec gitea gitea "$@"
+  else
+    # OCI-image: gitea refuses to run as root, use env to bypass
+    pct exec "$VMID" -- env GITEA_ALLOW_ROOT=true /app/gitea/gitea "$@"
+  fi
+}
+
 # Check if auth source already exists
-EXISTING=$(pct exec "$VMID" -- docker exec gitea gitea admin auth list 2>/dev/null \
+EXISTING=$(gitea_exec admin auth list 2>/dev/null \
   | grep -w "${AUTH_NAME}" || true)
 
 if [ -n "$EXISTING" ]; then
@@ -35,7 +47,7 @@ if [ -n "$EXISTING" ]; then
 fi
 
 # Add OpenID Connect authentication source via gitea CLI
-pct exec "$VMID" -- docker exec gitea gitea admin auth add-oauth \
+gitea_exec admin auth add-oauth \
   --name "${AUTH_NAME}" \
   --provider openidConnect \
   --key "${OIDC_CLIENT_ID}" \
