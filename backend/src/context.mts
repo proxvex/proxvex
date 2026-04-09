@@ -187,8 +187,8 @@ export class Context {
   private writeAll(): void {
     try {
       const json = JSON.stringify(this.context, null, 2);
-      const enc = this.encrypt(json);
-      writeFileSync(this.storageContextFilePath, enc, "utf-8");
+      const out = process.env.DEPLOYER_PLAINTEXT_CONTEXT === "1" ? json : this.encrypt(json);
+      writeFileSync(this.storageContextFilePath, out, "utf-8");
     } catch (err) {
       logger.error("Failed to write context", { error: err });
     }

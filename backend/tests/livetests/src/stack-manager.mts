@@ -8,6 +8,7 @@
 
 import { nestedSsh } from "./ssh-helpers.mjs";
 import type { PlannedScenario } from "./livetest-types.mjs";
+import type { SnapshotManager } from "./snapshot-manager.mjs";
 import { logOk, logInfo } from "./log-helpers.mjs";
 
 export interface StackMaps {
@@ -51,7 +52,9 @@ export async function destroyStaleVms(
   sshPort: number,
   apiUrl: string,
   appStacktypes: Map<string, string | string[]>,
+  snapMgr?: SnapshotManager,
 ): Promise<void> {
+  let contextRestoreAttempted = false;
   for (const p of planned) {
     if (!p.skipExecution || !p.isDependency) continue;
     const rawSt = appStacktypes.get(p.scenario.application);
@@ -65,11 +68,39 @@ export async function destroyStaleVms(
       } catch { stackMissing = true; }
     }
     if (stackMissing) {
-      logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stack missing — destroying (context mismatch)`);
-      nestedSsh(pveHost, sshPort,
-        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
-        30000);
-      p.skipExecution = false;
+      // Stack missing but container is running — context is stale.
+      // This happens when a previous failed test run overwrote the deployer context.
+      // Try to restore context from the snapshot backup on the nested VM.
+      if (!contextRestoreAttempted) {
+        contextRestoreAttempted = true;
+        logInfo("Stacks missing for running VMs — restoring context from snapshot backup");
+        try {
+          snapMgr?.restoreContextPublic();
+          const reloadResp = await fetch(`${apiUrl}/api/reload`, { method: "POST", signal: AbortSignal.timeout(10000) });
+          if (reloadResp.ok) {
+            logOk("Context restored and deployer reloaded — rechecking stacks");
+            // Recheck this VM's stacks after restore
+            stackMissing = false;
+            for (const st of sts) {
+              const sid = `${st}_${p.stackName}`;
+              try {
+                const r = await fetch(`${apiUrl}/api/stack/${sid}`, { signal: AbortSignal.timeout(3000) });
+                if (!r.ok) stackMissing = true;
+              } catch { stackMissing = true; }
+            }
+          }
+        } catch {
+          logInfo("Warning: context restore failed");
+        }
+      }
+
+      if (stackMissing) {
+        logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stack missing — destroying (context mismatch)`);
+        nestedSsh(pveHost, sshPort,
+          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+          30000);
+        p.skipExecution = false;
+      }
     }
   }
 }

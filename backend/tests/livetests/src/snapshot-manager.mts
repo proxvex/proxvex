@@ -112,6 +112,9 @@ export class SnapshotManager {
    * Restore local context files from the nested VM.
    * Called after snapshot rollback so passwords match the restored state.
    */
+  /** Public wrapper for restoreContext (used for retry after failed reload) */
+  restoreContextPublic(): void { this.restoreContext(); }
+
   private restoreContext(): void {
     if (!this.localContextPath) return;
 
