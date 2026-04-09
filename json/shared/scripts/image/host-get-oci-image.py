@@ -359,6 +359,39 @@ def ensure_ca(deployer_url: str, ve_context: str) -> None:
         log(f"Warning: CA certificate installation failed: {e}")
 
 
+def ensure_registry_mirror_hosts() -> None:
+    """Ensure Docker Hub hostnames resolve to the local registry mirror.
+
+    If a container named 'docker-registry-mirror' exists on the network,
+    add /etc/hosts entries so registry-1.docker.io and index.docker.io
+    point to its IP. Skopeo and Docker use these hostnames for pulls.
+    """
+    import socket
+    hosts_path = "/etc/hosts"
+    marker = "# oci-lxc-deployer: registry mirror"
+    mirror_hosts = ["registry-1.docker.io", "index.docker.io"]
+
+    try:
+        with open(hosts_path, "r") as f:
+            content = f.read()
+            if marker in content:
+                return  # Already configured
+
+        # Resolve the mirror container hostname
+        try:
+            ip = socket.gethostbyname("docker-registry-mirror")
+        except socket.gaierror:
+            return  # No mirror container found
+
+        # Add entries for both Docker Hub hostnames
+        entries = f"{ip} {' '.join(mirror_hosts)}  {marker}\n"
+        with open(hosts_path, "a") as f:
+            f.write(entries)
+        log(f"Added /etc/hosts: {ip} -> {', '.join(mirror_hosts)}")
+    except Exception as e:
+        log(f"Warning: Could not update /etc/hosts for registry mirror: {e}")
+
+
 def main() -> None:
     """Main function."""
     # Check if skopeo is available
@@ -370,6 +403,9 @@ def main() -> None:
     ve_context = "{{ ve_context_key }}"
     if deployer_url and deployer_url != "NOT_DEFINED" and ve_context and ve_context != "NOT_DEFINED":
         ensure_ca(deployer_url, ve_context)
+
+    # Ensure Docker Hub hostnames resolve to local mirror (if present)
+    ensure_registry_mirror_hosts()
 
     # Get parameters from template variables
     oci_image = "{{ oci_image }}"

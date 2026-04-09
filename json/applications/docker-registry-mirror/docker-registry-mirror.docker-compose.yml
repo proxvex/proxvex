@@ -1,0 +1,20 @@
+services:
+  registry:
+    image: registry:2
+    restart: unless-stopped
+    environment:
+      REGISTRY_HTTP_ADDR: "0.0.0.0:443"
+      REGISTRY_HTTP_TLS_CERTIFICATE: "/certs/fullchain.pem"
+      REGISTRY_HTTP_TLS_KEY: "/certs/privkey.pem"
+      REGISTRY_PROXY_REMOTEURL: "https://registry-1.docker.io"
+    volumes:
+      - /data:/var/lib/registry
+      - /certs:/certs:ro
+    ports:
+      - "443:443"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://localhost:443/v2/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

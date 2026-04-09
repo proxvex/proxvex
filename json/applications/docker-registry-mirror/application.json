@@ -1,50 +1,27 @@
 {
   "name": "Docker Registry Mirror",
-  "description": "Pull-through cache for Docker Hub. Caches images locally to avoid rate limits. Uses hostname registry-1.docker.io so DNS redirects all Docker pulls through the mirror.",
-  "extends": "oci-image",
+  "description": "Pull-through cache for Docker Hub. Caches images locally to avoid rate limits.",
+  "extends": "docker-compose",
   "icon": "icon.svg",
   "parameters": [
     {
       "id": "hostname",
       "name": "Hostname",
+      "type": "string",
       "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container. Must be registry-1.docker.io for transparent proxying.",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "registry-1.docker.io"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "data=var/lib/registry"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "REGISTRY_HTTP_ADDR=0.0.0.0:5000\nREGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io\nUID=0\nGID=0",
-      "description": "Environment variables for the registry container.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
+      "description": "Hostname for the Docker Compose container.",
+      "template": "application.json",
+      "default": "docker-registry-mirror"
     }
   ],
   "properties": [
     {
-      "id": "oci_image",
-      "value": "registry:2"
+      "id": "compose_file",
+      "default": "file:docker-registry-mirror.docker-compose.yml"
     },
     {
-      "id": "nameserver4",
-      "value": "8.8.8.8"
+      "id": "ostype",
+      "value": "alpine"
     },
     {
       "id": "ssl_mode",
@@ -52,11 +29,11 @@
     },
     {
       "id": "https_port",
-      "value": "5000"
+      "value": "443"
     },
     {
       "id": "ssl.addon_volumes",
-      "value": "certs=/certs,0755,0:0"
+      "value": "certs=certs,0755,0:0"
     },
     {
       "id": "ssl.needs_server_cert",
@@ -65,6 +42,10 @@
     {
       "id": "ssl.needs_ca_cert",
       "value": "true"
+    },
+    {
+      "id": "ssl_additional_san",
+      "value": "DNS:registry-1.docker.io,DNS:index.docker.io"
     },
     {
       "id": "startup_order",
@@ -82,6 +63,7 @@
     ]
   },
   "supported_addons": ["addon-ssl"],
+  "required_addons": ["addon-ssl"],
   "tags": ["infrastructure"],
   "url": "https://docs.docker.com/registry/",
   "documentation": "https://docs.docker.com/registry/recipes/mirror/",

@@ -15,7 +15,8 @@
     { "id": "gid", "name": "GID", "type": "string", "default": "0", "advanced": true },
     { "id": "mapped_uid", "name": "Mapped UID", "type": "string", "advanced": true, "description": "UID mapping on the host for unprivileged containers" },
     { "id": "mapped_gid", "name": "Mapped GID", "type": "string", "advanced": true, "description": "GID mapping on the host for unprivileged containers" },
-    { "id": "cert_dir_override", "name": "Cert Dir Override", "type": "string", "advanced": true, "description": "If set, use this path directly as cert directory instead of computing from shared_volpath" }
+    { "id": "cert_dir_override", "name": "Cert Dir Override", "type": "string", "advanced": true, "description": "If set, use this path directly as cert directory instead of computing from shared_volpath" },
+    { "id": "ssl_additional_san", "name": "Additional SANs", "type": "string", "advanced": true, "description": "Extra SAN entries for the server certificate (e.g. DNS:registry-1.docker.io,DNS:index.docker.io)" }
   ],
   "commands": [{
     "name": "Generate Certificates",

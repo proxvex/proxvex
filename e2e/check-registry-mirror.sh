@@ -2,95 +2,84 @@
 # Standalone check script for Docker Registry Mirror on PVE host.
 #
 # Usage:
-#   ./check-registry-mirror.sh <deployer-hostname> <ve-context>
+#   ./check-registry-mirror.sh <deployer-url> <ve-context>
 #
 # Example:
-#   ./check-registry-mirror.sh oci-lxc-deployer ve_pve1
-#   ./check-registry-mirror.sh oci-lxc-deployer.local ve_pve1.cluster
-#
-# The script:
-# 1. Checks DNS resolves registry-1.docker.io to a local IP
-# 2. Downloads and installs the deployer CA certificate
-# 3. Tests skopeo inspect through the mirror
+#   ./check-registry-mirror.sh http://oci-lxc-deployer:3080 ve_pve1.cluster
 
 set -e
 
-DEPLOYER_HOST="${1:-oci-lxc-deployer}"
+DEPLOYER_URL="${1:-}"
 VE_CONTEXT="${2:-}"
-DEPLOYER_PORT="${3:-3080}"
-REGISTRY_HOST="registry-1.docker.io"
+MIRROR_HOST="docker-registry-mirror"
 CA_CERT="/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
 
-if [ -z "$VE_CONTEXT" ]; then
-  echo "Usage: $0 <deployer-hostname> <ve-context> [deployer-port]" >&2
-  echo "Example: $0 oci-lxc-deployer ve_pve1.cluster" >&2
+if [ -z "$DEPLOYER_URL" ] || [ -z "$VE_CONTEXT" ]; then
+  echo "Usage: $0 <deployer-url> <ve-context>" >&2
+  echo "Example: $0 http://oci-lxc-deployer:3080 ve_pve1.cluster" >&2
   exit 1
 fi
 
-DEPLOYER_URL="http://${DEPLOYER_HOST}:${DEPLOYER_PORT}"
 echo "=== Docker Registry Mirror Check ===" >&2
-echo "Deployer: ${DEPLOYER_URL}" >&2
-echo "VE Context: ${VE_CONTEXT}" >&2
-echo "Registry: ${REGISTRY_HOST}" >&2
-echo "" >&2
-
 ERRORS=""
 add_error() { ERRORS="${ERRORS}${ERRORS:+\n}$1"; }
 
-# 1. DNS check
-echo "[1/3] Checking DNS for ${REGISTRY_HOST}..." >&2
-RESOLVED_IP=$(nslookup "$REGISTRY_HOST" 2>/dev/null | awk '/^Address:/ && !/127\.0\.0\.53/ && !/::1/ {print $2}' | tail -1)
-if [ -z "$RESOLVED_IP" ]; then
-  add_error "DNS: Cannot resolve ${REGISTRY_HOST}"
-  echo "  FAIL: Cannot resolve ${REGISTRY_HOST}" >&2
+# 1. DNS: docker-registry-mirror must be reachable
+echo "[1/4] Checking DNS for ${MIRROR_HOST}..." >&2
+MIRROR_IP=$(nslookup "$MIRROR_HOST" 2>/dev/null | awk '/^Address:/ && !/127\.0\.0\.53/ && !/::1/ {print $2}' | tail -1)
+if [ -z "$MIRROR_IP" ]; then
+  add_error "DNS: Cannot resolve ${MIRROR_HOST}"
+  echo "  FAIL" >&2
 else
-  case "$RESOLVED_IP" in
-    10.*|172.1[6-9].*|172.2[0-9].*|172.3[0-1].*|192.168.*)
-      echo "  OK: ${REGISTRY_HOST} -> ${RESOLVED_IP} (local)" >&2
-      ;;
-    *)
-      add_error "DNS: ${REGISTRY_HOST} resolves to ${RESOLVED_IP} (expected local address)"
-      echo "  FAIL: ${REGISTRY_HOST} -> ${RESOLVED_IP} (not local!)" >&2
-      ;;
-  esac
+  echo "  OK: ${MIRROR_HOST} -> ${MIRROR_IP}" >&2
 fi
 
-# 2. CA certificate
-echo "[2/3] Checking CA certificate..." >&2
+# 2. /etc/hosts: registry-1.docker.io + index.docker.io -> mirror IP
+echo "[2/4] Setting /etc/hosts entries..." >&2
+MARKER="# oci-lxc-deployer: registry mirror"
+if [ -n "$MIRROR_IP" ]; then
+  if grep -q "$MARKER" /etc/hosts 2>/dev/null; then
+    echo "  OK: Already configured" >&2
+  else
+    echo "${MIRROR_IP} registry-1.docker.io index.docker.io  ${MARKER}" >> /etc/hosts
+    echo "  OK: Added ${MIRROR_IP} -> registry-1.docker.io, index.docker.io" >&2
+  fi
+else
+  echo "  SKIP: No mirror IP" >&2
+fi
+
+# 3. CA certificate
+echo "[3/4] Checking CA certificate..." >&2
 if [ -f "$CA_CERT" ]; then
-  echo "  OK: CA certificate already installed at ${CA_CERT}" >&2
+  echo "  OK: Already installed" >&2
 else
   CA_URL="${DEPLOYER_URL}/api/${VE_CONTEXT}/ve/certificates/ca/download"
-  echo "  Downloading from ${CA_URL}..." >&2
   if curl -fsSL -k -o "$CA_CERT" "$CA_URL" 2>/dev/null; then
     update-ca-certificates >/dev/null 2>&1
-    echo "  OK: CA certificate installed" >&2
+    echo "  OK: Installed from ${CA_URL}" >&2
   else
     add_error "CA: Could not download from ${CA_URL}"
-    echo "  FAIL: Could not download CA certificate" >&2
+    echo "  FAIL" >&2
   fi
 fi
 
-# 3. Skopeo inspect
-echo "[3/3] Testing skopeo inspect through mirror..." >&2
+# 4. Skopeo inspect through mirror
+echo "[4/4] Testing skopeo inspect..." >&2
 if command -v skopeo >/dev/null 2>&1; then
-  INSPECT_RESULT=$(skopeo inspect "docker://${REGISTRY_HOST}/library/alpine:latest" 2>&1)
+  INSPECT_RESULT=$(skopeo inspect "docker://registry-1.docker.io/library/alpine:latest" 2>&1)
   if echo "$INSPECT_RESULT" | grep -q '"Digest"'; then
-    DIGEST=$(echo "$INSPECT_RESULT" | grep '"Digest"' | head -1 | sed 's/.*"Digest": *"//' | sed 's/".*//')
-    echo "  OK: alpine:latest inspected (${DIGEST})" >&2
+    echo "  OK: alpine:latest inspected through mirror" >&2
   else
-    add_error "Skopeo: Failed to inspect alpine:latest: $(echo "$INSPECT_RESULT" | head -2)"
-    echo "  FAIL: $(echo "$INSPECT_RESULT" | head -2)" >&2
+    add_error "Skopeo: $(echo "$INSPECT_RESULT" | head -2)"
+    echo "  FAIL" >&2
   fi
 else
   echo "  SKIP: skopeo not installed" >&2
 fi
 
-# Result
 echo "" >&2
 if [ -n "$ERRORS" ]; then
   printf "=== FAILED ===\n%b\n" "$ERRORS" >&2
   exit 1
 fi
-
 echo "=== PASSED ===" >&2

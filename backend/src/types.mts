@@ -34,6 +34,10 @@ export interface IApplicationBase {
   stacktype?: string | string[];
   /** Addon IDs this application supports. Merged with parent via extends. */
   supported_addons?: string[];
+  /** Addon IDs preselected by default (user can deselect). */
+  default_addons?: string[];
+  /** Addon IDs that are always active (user cannot deselect). */
+  required_addons?: string[];
   uploadfiles?: IUploadFile[];
   errors?: string[];
   /** User-configurable parameters defined directly in application.json (new approach) */
@@ -68,6 +72,8 @@ export interface IApplicationWeb {
   framework?: string | undefined;
   extends?: string | undefined;
   stacktype?: string | string[] | undefined;
+  default_addons?: string[] | undefined;
+  required_addons?: string[] | undefined;
   errors?: IJsonError[];
   verification?: IApplicationVerification | undefined;
 }
@@ -559,6 +565,8 @@ export interface IApplicationFrameworkDataResponse {
   tags?: string[];
   stacktype?: string | string[];
   supported_addons?: string[];
+  default_addons?: string[];
+  required_addons?: string[];
   parameterValues: { id: string; value: string | number | boolean }[];
 }
 

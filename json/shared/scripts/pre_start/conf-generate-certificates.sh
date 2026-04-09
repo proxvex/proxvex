@@ -38,8 +38,10 @@ GID_VAL="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
 CERT_DIR_OVERRIDE="{{ cert_dir_override }}"
+ADDITIONAL_SAN="{{ ssl_additional_san }}"
 
 [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
+[ "$ADDITIONAL_SAN" = "NOT_DEFINED" ] && ADDITIONAL_SAN=""
 [ "$NEEDS_SERVER_CERT" = "NOT_DEFINED" ] && NEEDS_SERVER_CERT="true"
 [ "$NEEDS_CA_CERT" = "NOT_DEFINED" ] && NEEDS_CA_CERT="false"
 
@@ -98,7 +100,7 @@ if [ "$NEEDS_SERVER_CERT" != "false" ]; then
     if [ -f "$CHECK_FILE" ] && ! cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
       echo "FQDN mismatch detected, regenerating server certificate for ${FQDN}" >&2
     fi
-    cert_generate_server "$CA_KEY_B64" "$CA_CERT_B64" "$FQDN" "$CERT_DIR" "$HOSTNAME"
+    cert_generate_server "$CA_KEY_B64" "$CA_CERT_B64" "$FQDN" "$CERT_DIR" "$HOSTNAME" "$ADDITIONAL_SAN"
     GENERATED=true
   fi
 fi

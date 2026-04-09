@@ -132,6 +132,7 @@ export class AddonSectionComponent {
   @Input() addonFormGroups = new Map<string, FormGroup>();
   @Input() showAdvanced = false;
   @Input() availableStacks: IStack[] = [];
+  @Input() requiredAddons: string[] = [];
   @Input() title = 'Optional Addons';
   @Input() description = '';
 
@@ -146,16 +147,17 @@ export class AddonSectionComponent {
   @Output() stackSelected = new EventEmitter<IStack>();
   @Output() createStackRequested = new EventEmitter<void>();
 
-  /** Check if an addon is disabled due to insufficient permissions */
+  /** Check if an addon is disabled (required or insufficient permissions) */
   isAddonDisabled(addonId: string): boolean {
+    if (this.requiredAddons.includes(addonId)) return true;
     if (addonId !== 'addon-oidc') return false;
-    // OIDC addon requires ORG_OWNER or PROJECT_OWNER role (UX only — ZITADEL enforces server-side)
     if (!this.auth.isOidcEnabled) return false;
     return !this.auth.canConfigureOidc;
   }
 
   /** Tooltip reason when an addon is disabled */
   getAddonDisabledReason(addonId: string): string {
+    if (this.requiredAddons.includes(addonId)) return 'Required by this application';
     if (!this.isAddonDisabled(addonId)) return '';
     return 'Insufficient permissions: requires ORG_OWNER or PROJECT_OWNER role in ZITADEL';
   }
