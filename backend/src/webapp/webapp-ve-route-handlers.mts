@@ -254,6 +254,23 @@ export class WebAppVeRouteHandlers {
         const appDeps = (appConfig as any)?.dependencies as { application: string }[] | undefined;
         const allDeps = [...(appDeps ?? [])];
 
+        // Merge stacktype dependencies (e.g. postgres stacktype → postgres app)
+        const appStacktype = (appConfig as any)?.stacktype;
+        const stacktypes = appStacktype ? (Array.isArray(appStacktype) ? appStacktype : [appStacktype]) : [];
+        if (stacktypes.length > 0) {
+          const stacktypeData = this.pm.getStacktypes();
+          for (const stName of stacktypes) {
+            const st = stacktypeData.find((s: any) => s.name === stName);
+            if (st?.dependencies) {
+              for (const dep of st.dependencies) {
+                if (!allDeps.some(d => d.application === dep.application)) {
+                  allDeps.push(dep);
+                }
+              }
+            }
+          }
+        }
+
         // Merge addon dependencies
         const addonIds = body.selectedAddons ?? [];
         if (addonIds.length > 0) {
@@ -394,6 +411,22 @@ export class WebAppVeRouteHandlers {
       {
         const appDependencies = (loaded.application as any)?.dependencies as { application: string }[] | undefined;
         const allDeps = [...(appDependencies ?? [])];
+        // Merge stacktype dependencies
+        const loadedStacktype = (loaded.application as any)?.stacktype;
+        const loadedStacktypes = loadedStacktype ? (Array.isArray(loadedStacktype) ? loadedStacktype : [loadedStacktype]) : [];
+        if (loadedStacktypes.length > 0) {
+          const stacktypeData = this.pm.getStacktypes();
+          for (const stName of loadedStacktypes) {
+            const st = stacktypeData.find((s: any) => s.name === stName);
+            if (st?.dependencies) {
+              for (const dep of st.dependencies) {
+                if (!allDeps.some(d => d.application === dep.application)) {
+                  allDeps.push(dep);
+                }
+              }
+            }
+          }
+        }
         if (selectedAddons.length > 0) {
           const addonSvc = this.pm.getAddonService();
           for (const addonId of selectedAddons) {

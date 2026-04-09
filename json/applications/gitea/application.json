@@ -81,9 +81,6 @@
       "value": "native"
     }
   ],
-  "dependencies": [
-    { "application": "postgres" }
-  ],
   "installation": {},
   "url": "https://github.com/go-gitea/gitea",
   "source": "https://github.com/go-gitea/gitea",
