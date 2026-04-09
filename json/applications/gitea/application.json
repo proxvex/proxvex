@@ -23,7 +23,7 @@
       "description": "One per line: key=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "data=data\ntimezone=etc/timezone\nlocaltime=etc/localtime"
+      "default": "data=var/lib/gitea\nconfig=etc/gitea"
     },
     {
       "id": "envs",
@@ -62,15 +62,19 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "gitea/gitea:latest"
+      "value": "gitea/gitea:latest-rootless"
     },
     {
       "id": "uid",
-      "value": "0"
+      "value": "1000"
+    },
+    {
+      "id": "gid",
+      "value": "1000"
     },
     {
       "id": "username",
-      "value": "root"
+      "value": "git"
     },
     {
       "id": "ssl_mode",
