@@ -79,6 +79,7 @@ function loadConfig(instanceName?: string): {
   veSshPort: number;
   vmId: number;
   snapshot: { enabled: boolean } | undefined;
+  registryMirror: { dnsForwarder: string } | undefined;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
   const configPath = path.join(projectRoot, "e2e/config.json");
@@ -127,6 +128,11 @@ function loadConfig(instanceName?: string): {
   // Snapshot config (for VM-level snapshots)
   const snapshot = inst.snapshot?.enabled ? { enabled: true } : undefined;
 
+  // Registry mirror config
+  const registryMirror = inst.registryMirror?.dnsForwarder
+    ? { dnsForwarder: inst.registryMirror.dnsForwarder }
+    : undefined;
+
   return {
     instance,
     pveHost,
@@ -139,6 +145,7 @@ function loadConfig(instanceName?: string): {
     veSshPort,
     vmId: inst.vmId,
     snapshot,
+    registryMirror,
   };
 }
 
@@ -339,6 +346,48 @@ async function main() {
     logOk("OCI version cache written (test mode)");
   } catch {
     logInfo("Warning: Could not write OCI version cache (non-fatal)");
+  }
+
+  // Set up registry mirror DNS + insecure config on nested PVE host
+  if (config.registryMirror) {
+    const fwd = config.registryMirror.dnsForwarder;
+    try {
+      // a) dnsmasq forwarding for docker-registry-mirror hostname
+      const dnsCheck = nestedSsh(config.pveHost, config.portPveSsh,
+        `grep -q 'server=/docker-registry-mirror/' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null && echo "exists" || echo "missing"`,
+        5000);
+      if (dnsCheck.trim() === "missing") {
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `echo "server=/docker-registry-mirror/${fwd}" >> /etc/dnsmasq.d/e2e-nat.conf && systemctl restart dnsmasq`,
+          10000);
+        logOk(`dnsmasq forwarding: docker-registry-mirror -> ${fwd}`);
+      } else {
+        logOk("dnsmasq forwarding already configured");
+      }
+
+      // b) Skopeo insecure config for registry-1.docker.io
+      const skopeoCheck = nestedSsh(config.pveHost, config.portPveSsh,
+        `test -f /etc/containers/registries.conf.d/mirror.conf && echo "exists" || echo "missing"`,
+        5000);
+      if (skopeoCheck.trim() === "missing") {
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `mkdir -p /etc/containers/registries.conf.d && cat > /etc/containers/registries.conf.d/mirror.conf << 'EOF'
+[[registry]]
+location = "registry-1.docker.io"
+insecure = true
+
+[[registry]]
+location = "index.docker.io"
+insecure = true
+EOF`,
+          10000);
+        logOk("Skopeo insecure config for registry mirror written");
+      } else {
+        logOk("Skopeo insecure config already exists");
+      }
+    } catch {
+      logInfo("Warning: Could not configure registry mirror (non-fatal)");
+    }
   }
 
   // Fetch application metadata (stacktypes, extends, tags)

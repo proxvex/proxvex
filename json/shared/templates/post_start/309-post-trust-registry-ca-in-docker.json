@@ -21,7 +21,8 @@
   "commands": [
     {
       "name": "Trust Registry CA",
-      "script": "post-trust-registry-ca-in-docker.sh"
+      "script": "post-trust-registry-ca-in-docker.sh",
+      "library": "registry-mirror-common.sh"
     }
   ]
 }

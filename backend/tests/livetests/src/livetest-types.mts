@@ -75,6 +75,7 @@ export interface E2EConfig {
     veHost?: string;
     veSshPort?: number;
     snapshot?: { enabled: boolean };
+    registryMirror?: { dnsForwarder: string };
   }>;
   defaults: Record<string, unknown>;
   ports: {
