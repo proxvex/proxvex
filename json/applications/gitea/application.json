@@ -77,6 +77,10 @@
       "value": "git"
     },
     {
+      "id": "database_name",
+      "default": "gitea"
+    },
+    {
       "id": "ssl_mode",
       "value": "native"
     }
