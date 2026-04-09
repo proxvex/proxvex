@@ -49,6 +49,7 @@ export async function executeScenarios(
     bridge: string;
     deployerUrl: string;
     snapshot?: { enabled: boolean };
+    portForwarding?: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
   },
   apiUrl: string,
   veHost: string,
@@ -312,8 +313,24 @@ export async function executeScenarios(
           );
           const creds = JSON.parse(credJson.trim());
           if (creds.client_id && creds.client_secret && creds.issuer_url) {
+            let issuerUrl = creds.issuer_url as string;
+            // Rewrite issuer URL for external access via port forwarding
+            // e.g. http://zitadel-default:8080 -> http://ubuntupve:1808
+            const portFwd = (config as any).portForwarding as Array<{ port: number; hostname: string; ip: string; containerPort: number }> | undefined;
+            if (portFwd) {
+              for (const fwd of portFwd) {
+                if (issuerUrl.includes(fwd.hostname)) {
+                  issuerUrl = issuerUrl.replace(
+                    new RegExp(`${fwd.hostname}(:\\d+)?`),
+                    `${config.pveHost}:${fwd.port}`,
+                  );
+                  logInfo(`Rewritten OIDC issuer URL for external access: ${issuerUrl}`);
+                  break;
+                }
+              }
+            }
             oidcCredentials = {
-              issuerUrl: creds.issuer_url,
+              issuerUrl,
               clientId: creds.client_id,
               clientSecret: creds.client_secret,
             };
