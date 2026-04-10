@@ -27,11 +27,18 @@ resolve_host_volume() {
   fi
 
   # 2. Fallback: bind-mount directory (docker-compose apps)
-  _rhv_bind="/mnt/volumes/${_rhv_host}/${_rhv_key}"
-  if [ -d "$_rhv_bind" ]; then
-    printf '%s' "$_rhv_bind"
-    return 0
-  fi
+  # Try common base paths and both underscore/hyphen key variants
+  _rhv_key_underscore=$(echo "$_rhv_key" | tr '-' '_')
+  _rhv_key_hyphen=$(echo "$_rhv_key" | tr '_' '-')
+  for _rhv_base in /rpool/volumes /mnt/volumes /mnt/pve-volumes; do
+    for _rhv_try in "$_rhv_key" "$_rhv_key_underscore" "$_rhv_key_hyphen"; do
+      _rhv_bind="${_rhv_base}/${_rhv_host}/${_rhv_try}"
+      if [ -d "$_rhv_bind" ]; then
+        printf '%s' "$_rhv_bind"
+        return 0
+      fi
+    done
+  done
 
   echo "ERROR: resolve_host_volume failed for ${_rhv_host}/${_rhv_key}" >&2
   return 1
