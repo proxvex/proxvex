@@ -2,7 +2,9 @@
   "name": "Bootstrap Zitadel Project",
   "description": "One-time bootstrap: Creates a Zitadel project (pve-<hostname>), service account with PROJECT_OWNER role, and OIDC app. Invalidates the admin PAT after setup (zero-persistent-secret design). Only runs during initial installation when bootstrap volume is available.",
   "execute_on": "ve",
-  "skip_if_all_missing": ["bootstrap_zitadel"],
+  "skip_if_all_missing": [
+    "bootstrap_zitadel"
+  ],
   "parameters": [
     {
       "id": "bootstrap_zitadel",
@@ -26,13 +28,6 @@
       "type": "string",
       "required": true,
       "description": "Hostname of this PVE node"
-    },
-    {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "advanced": true,
-      "description": "Path to the shared volume mount point on PVE host"
     },
     {
       "id": "domain_suffix",

@@ -51,24 +51,22 @@ upload_sanitize_name() {
 #   $1 - content: Base64 encoded file content
 #   $2 - destination: Target path in format {volume_key}:{filename}
 #   $3 - label: Human-readable label for logging
-#   $4 - shared_volpath: Base path for shared volumes
-#   $5 - hostname: Container hostname
-#   $6 - uid: User ID for file ownership (default: 0)
-#   $7 - gid: Group ID for file ownership (default: 0)
-#   $8 - mapped_uid: Mapped UID on host (optional)
-#   $9 - mapped_gid: Mapped GID on host (optional)
+#   $4 - hostname: Container hostname
+#   $5 - uid: User ID for file ownership (default: 0)
+#   $6 - gid: Group ID for file ownership (default: 0)
+#   $7 - mapped_uid: Mapped UID on host (optional)
+#   $8 - mapped_gid: Mapped GID on host (optional)
 # Returns: 0 on success, 1 if skipped or error
 # ============================================================================
 upload_pre_start_file() {
   _content="$1"
   _destination="$2"
   _label="$3"
-  _shared_volpath="$4"
-  _hostname="$5"
-  _uid="${6:-0}"
-  _gid="${7:-0}"
-  _mapped_uid="${8:-}"
-  _mapped_gid="${9:-}"
+  _hostname="$4"
+  _uid="${5:-0}"
+  _gid="${6:-0}"
+  _mapped_uid="${7:-}"
+  _mapped_gid="${8:-}"
 
   # Validate content and destination
   if ! upload_is_defined "$_content" || ! upload_is_defined "$_destination"; then
@@ -112,7 +110,7 @@ upload_pre_start_file() {
 
       # Compute target directory
       _safe_key=$(upload_sanitize_name "$_volume_key")
-      _target_dir=$(resolve_host_volume "$_shared_volpath" "$_safe_host" "$_safe_key")
+      _target_dir=$(resolve_host_volume "$_safe_host" "$_safe_key")
       _target_path="${_target_dir}/${_filename}"
 
       # Verify directory exists (should have been created by template 150)

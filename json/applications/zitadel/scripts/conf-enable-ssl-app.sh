@@ -11,7 +11,6 @@
 # 4. Fixing cert permissions for non-root Traefik user
 set -eu
 
-SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 COMPOSE_B64="{{ compose_file }}"
 HTTPS_PORT="{{ https_port }}"
@@ -63,7 +62,7 @@ COMPOSE_SSL_B64=$(base64 < "$TMPFILE" | tr -d '\n')
 
 # Fix cert permissions for non-root Traefik user
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-CERT_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "certs")
+CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
 
 if [ -d "$CERT_DIR" ]; then
   chmod 0755 "$CERT_DIR" 2>/dev/null || true

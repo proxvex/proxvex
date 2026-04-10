@@ -18,13 +18,6 @@
       "description": "Container hostname"
     },
     {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "advanced": true,
-      "description": "Path to the shared volume mount point"
-    },
-    {
       "id": "oidc_issuer_url",
       "name": "OIDC Issuer URL",
       "type": "string",

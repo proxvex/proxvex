@@ -19,7 +19,6 @@
 # Get template variables
 ADDON_CONTENT="{{ addon_content }}"
 ADDON_PATH="{{ addon_path }}"
-SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 UID_VAL="{{ uid }}"
 GID_VAL="{{ gid }}"
@@ -31,7 +30,6 @@ upload_pre_start_file \
   "$ADDON_CONTENT" \
   "$ADDON_PATH" \
   "Addon configuration" \
-  "$SHARED_VOLPATH" \
   "$HOSTNAME" \
   "$UID_VAL" \
   "$GID_VAL" \

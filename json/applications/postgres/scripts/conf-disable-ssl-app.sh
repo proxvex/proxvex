@@ -6,13 +6,12 @@
 # when the SSL addon is disabled.
 set -eu
 
-SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 
 # Sanitize hostname for volume path
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
-PG_CONF="$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "data")/pgdata/postgresql.conf"
+PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data")/pgdata/postgresql.conf"
 
 SSL_START="# oci-lxc-deployer SSL start"
 SSL_END="# oci-lxc-deployer SSL end"

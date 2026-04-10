@@ -548,5 +548,4 @@ if [ "$WAS_RUNNING" -eq 1 ]; then
   pct start "$VMID" >/dev/null 2>&1 || true
 fi
 
-# Output shared_volpath as empty — managed volumes are resolved via pvesm path
-printf '[{"id":"volumes_attached","value":"true"},{"id":"shared_volpath","value":""},{"id":"cert_dir_override","value":"%s"}]\n' "$CERT_DIR_OVERRIDE"
+printf '[{"id":"volumes_attached","value":"true"},{"id":"cert_dir_override","value":"%s"}]\n' "$CERT_DIR_OVERRIDE"

@@ -28,7 +28,6 @@ ZITADEL_HOST="{{ ZITADEL_HOST }}"
 ZITADEL_PROTO_INPUT="{{ ZITADEL_PROTO }}"
 ZITADEL_PORT_INPUT="{{ ZITADEL_PORT }}"
 HOSTNAME="{{ hostname }}"
-SHARED_VOLPATH="{{ shared_volpath }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_ISSUER_URL_INPUT="{{ oidc_issuer_url }}"
 OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
@@ -71,7 +70,7 @@ else
 fi
 
 # --- Read admin PAT from bootstrap volume ---
-PAT_FILE="$(resolve_host_volume "$SHARED_VOLPATH" "$ZITADEL_HOST" "bootstrap")/admin-client.pat"
+PAT_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap")/admin-client.pat"
 
 if [ ! -f "$PAT_FILE" ]; then
   echo "ERROR: Admin PAT file not found at ${PAT_FILE}" >&2

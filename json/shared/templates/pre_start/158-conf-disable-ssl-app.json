@@ -4,13 +4,6 @@
   "execute_on": "ve",
   "parameters": [
     {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "advanced": true,
-      "description": "Path to the shared volume mount point"
-    },
-    {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",
@@ -22,7 +15,9 @@
     {
       "name": "Disable SSL App Configuration",
       "script": "conf-disable-ssl-app.sh",
-      "outputs": ["ssl_app_disabled"]
+      "outputs": [
+        "ssl_app_disabled"
+      ]
     }
   ]
 }

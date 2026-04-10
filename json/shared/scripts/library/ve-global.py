@@ -7,15 +7,10 @@ import os
 import subprocess
 
 
-def resolve_host_volume(shared_volpath: str, hostname: str, volume_key: str) -> str:
-    """Resolve host-side path for a container volume.
-
-    Resolution order:
-    1. Proxmox-managed volume via pvesm path
-    2. Legacy fallback: shared_volpath/volumes/hostname/key
+def resolve_host_volume(hostname: str, volume_key: str) -> str:
+    """Resolve host-side path for a container volume via pvesm.
 
     Args:
-        shared_volpath: Base path for shared volumes (may be empty for managed volumes)
         hostname: Sanitized container hostname
         volume_key: Sanitized volume key (e.g. "data", "certs", "bootstrap")
 
@@ -25,7 +20,6 @@ def resolve_host_volume(shared_volpath: str, hostname: str, volume_key: str) -> 
     volname = f"{hostname}-{volume_key}"
     storage = os.environ.get("VOLUME_STORAGE", "local-zfs")
 
-    # Try to find managed volume via pvesm
     try:
         result = subprocess.run(
             ["pvesm", "list", storage, "--content", "rootdir"],
@@ -45,9 +39,5 @@ def resolve_host_volume(shared_volpath: str, hostname: str, volume_key: str) -> 
                             return path
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
-
-    # Legacy fallback
-    if shared_volpath and shared_volpath != "NOT_DEFINED":
-        return os.path.join(shared_volpath, "volumes", hostname, volume_key)
 
     raise RuntimeError(f"resolve_host_volume failed for {hostname}/{volume_key}")

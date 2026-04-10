@@ -18,13 +18,6 @@
       "description": "Hostname of the application container"
     },
     {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "advanced": true,
-      "description": "Path to the shared volume mount point on PVE host"
-    },
-    {
       "id": "oidc_app_name",
       "name": "OIDC Application Name",
       "type": "string",
@@ -86,7 +79,11 @@
     {
       "name": "Setup OIDC Client",
       "script": "conf-setup-oidc-client.sh",
-      "outputs": ["oidc_issuer_url", "oidc_client_id", "oidc_client_secret"]
+      "outputs": [
+        "oidc_issuer_url",
+        "oidc_client_id",
+        "oidc_client_secret"
+      ]
     }
   ]
 }

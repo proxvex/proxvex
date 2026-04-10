@@ -350,10 +350,10 @@ resolve_shared_volume_path() {
 # Set default volume paths if not provided
 volume_base=$(detect_volume_base_path)
 if [ -z "$config_volume_path" ]; then
-  config_volume_path=$(resolve_host_volume "$volume_base" "$hostname" "config")
+  config_volume_path=$(resolve_host_volume "$hostname" "config")
 fi
 if [ -z "$secure_volume_path" ]; then
-  secure_volume_path=$(resolve_host_volume "$volume_base" "$hostname" "secure")
+  secure_volume_path=$(resolve_host_volume "$hostname" "secure")
 fi
 
 # Get Proxmox hostname for VE context (use FQDN)
@@ -578,8 +578,8 @@ execute_script_from_github \
 
 # Resolve volume paths via managed volume lookup (sanitize hostname to match volume names)
 _safe_host=$(echo "$hostname" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-config_volume_path=$(resolve_host_volume "" "$_safe_host" "config")
-secure_volume_path=$(resolve_host_volume "" "$_safe_host" "secure")
+config_volume_path=$(resolve_host_volume "$_safe_host" "config")
+secure_volume_path=$(resolve_host_volume "$_safe_host" "secure")
 log "Config volume: ${config_volume_path}"
 log "Secure volume: ${secure_volume_path}"
 

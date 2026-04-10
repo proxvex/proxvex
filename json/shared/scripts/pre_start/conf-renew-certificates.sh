@@ -19,13 +19,8 @@
 CERT_RENEW_REQUESTS="{{ cert_renew_requests }}"
 CA_KEY_B64="{{ ca_key_b64 }}"
 CA_CERT_B64="{{ ca_cert_b64 }}"
-SHARED_VOLPATH="{{ shared_volpath }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 
-# Default shared_volpath if not set
-if [ -z "$SHARED_VOLPATH" ] || [ "$SHARED_VOLPATH" = "NOT_DEFINED" ]; then
-  SHARED_VOLPATH="/mnt"
-fi
 
 if [ -z "$DOMAIN_SUFFIX" ] || [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then
   DOMAIN_SUFFIX=".local"
@@ -38,7 +33,7 @@ echo "$CERT_RENEW_REQUESTS" | while IFS= read -r HOSTNAME; do
 
   FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
   SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-  CERT_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "certs")
+  CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
 
   echo "Renewing: ${HOSTNAME} -> ${CERT_DIR}" >&2
 

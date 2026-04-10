@@ -17,10 +17,24 @@ TIMEOUT=120
 
 CONF_FILE="/etc/pve/lxc/${VMID}.conf"
 
-# Find on_start.d scripts via oci-deployer bind mount
-OCI_DEPLOYER_PATH=$(awk -F'[ ,]' '/mp=\/etc\/lxc-oci-deployer/{print $2}' "$CONF_FILE" 2>/dev/null)
+# Find on_start.d scripts via oci-deployer mount (managed volume or bind mount)
+OCI_DEPLOYER_PATH=""
+_mp_line=$(grep 'mp=/etc/lxc-oci-deployer' "$CONF_FILE" 2>/dev/null | head -1)
+if [ -n "$_mp_line" ]; then
+  _mp_source=$(echo "$_mp_line" | sed -E 's/^mp[0-9]+: *//' | cut -d, -f1)
+  case "$_mp_source" in
+    /*)
+      # Bind mount: source is a host path
+      OCI_DEPLOYER_PATH="$_mp_source"
+      ;;
+    *)
+      # Managed volume: resolve via pvesm path
+      OCI_DEPLOYER_PATH=$(pvesm path "$_mp_source" 2>/dev/null || true)
+      ;;
+  esac
+fi
 if [ -z "$OCI_DEPLOYER_PATH" ]; then
-  echo "No oci-deployer bind mount found, skipping" >&2
+  echo "No oci-deployer mount found, skipping" >&2
   printf '[{"id":"hook_status","value":"no_hooks"}]\n'
   exit 0
 fi

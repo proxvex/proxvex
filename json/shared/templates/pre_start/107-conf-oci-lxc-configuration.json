@@ -32,6 +32,14 @@
       "multiline": true,
       "default": "",
       "description": "Environment variables to substitute in initial_command."
+    },
+    {
+      "id": "entrypoint_override",
+      "name": "Entrypoint Override",
+      "type": "string",
+      "advanced": true,
+      "default": "",
+      "description": "Override the PVE-generated entrypoint. Fixes OCI images where PVE strips quotes from CMD arguments."
     }
   ],
   "commands": [

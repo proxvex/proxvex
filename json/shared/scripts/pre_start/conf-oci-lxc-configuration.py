@@ -148,8 +148,10 @@ final_lines = []
 for line in new_lines:
     if line.strip().startswith("entrypoint:") and NETWORK_WAIT not in line:
         if ep_override:
-            # Use override as-is (no network-wait wrapper needed)
-            final_lines.append(f"entrypoint: {ep_override}\n")
+            # Use override (no network-wait wrapper needed)
+            # Replace single quotes with double quotes for PVE config compatibility
+            ep_fixed = ep_override.replace("'", '"')
+            final_lines.append(f"entrypoint: {ep_fixed}\n")
             print(f"Replaced entrypoint with override: {ep_override}", file=sys.stderr)
         else:
             ep_value = line.split(":", 1)[1].strip()

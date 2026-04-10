@@ -4,13 +4,6 @@
   "description": "Writes the on_start_container dispatcher and drop-in scripts (acme-renew, ssl-proxy) to the host-side volume directory. Files appear inside the container at /etc/lxc-oci-deployer/ via bind mount.",
   "parameters": [
     {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "required": false,
-      "description": "Host-side base path for volumes"
-    },
-    {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",

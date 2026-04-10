@@ -23,7 +23,6 @@ ZITADEL_HOST="{{ ZITADEL_HOST }}"
 ZITADEL_PROTO_INPUT="{{ ZITADEL_PROTO }}"
 ZITADEL_PORT_INPUT="{{ ZITADEL_PORT }}"
 HOSTNAME="{{ hostname }}"
-SHARED_VOLPATH="{{ shared_volpath }}"
 OIDC_APP_NAME="{{ oidc_app_name }}"
 OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
@@ -76,7 +75,7 @@ fi
 # --- Check for pre-provisioned credentials ---
 # If the Zitadel bootstrap (340) already created an OIDC app for this application,
 # the credentials are stored in deployer-oidc.json. Use them directly without API access.
-DEPLOYER_CRED_FILE="$(resolve_host_volume "$SHARED_VOLPATH" "$ZITADEL_HOST" "bootstrap")/deployer-oidc.json"
+DEPLOYER_CRED_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap")/deployer-oidc.json"
 if [ -f "$DEPLOYER_CRED_FILE" ] && [ "$OIDC_APP_NAME" = "oci-lxc-deployer" ]; then
   echo "Using pre-provisioned credentials from ${DEPLOYER_CRED_FILE}" >&2
   CRED_ISSUER=$(sed -n 's/.*"issuer_url": *"\([^"]*\)".*/\1/p' "$DEPLOYER_CRED_FILE")
@@ -108,7 +107,7 @@ if [ -n "$ZITADEL_PAT_INPUT" ] && [ "$ZITADEL_PAT_INPUT" != "NOT_DEFINED" ]; the
   PAT="$ZITADEL_PAT_INPUT"
   echo "PAT provided via template variable (zero-secret mode)" >&2
 else
-  PAT_FILE="$(resolve_host_volume "$SHARED_VOLPATH" "$ZITADEL_HOST" "bootstrap")/admin-client.pat"
+  PAT_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap")/admin-client.pat"
   if [ -f "$PAT_FILE" ]; then
     PAT=$(cat "$PAT_FILE")
     if [ -n "$PAT" ]; then
@@ -120,7 +119,7 @@ fi
 if [ -z "$PAT" ]; then
   echo "ERROR: No Zitadel PAT available." >&2
   echo "Either ZITADEL_PAT must be set or admin-client.pat must exist at:" >&2
-  echo "  $(resolve_host_volume "$SHARED_VOLPATH" "$ZITADEL_HOST" "bootstrap")/admin-client.pat" >&2
+  echo "  $(resolve_host_volume "$ZITADEL_HOST" "bootstrap")/admin-client.pat" >&2
   echo '[]'
   exit 1
 fi
@@ -289,7 +288,7 @@ if [ -z "$CLIENT_ID" ]; then
 fi
 
 # --- Client secret handling (create-only: never regenerate for existing apps) ---
-OIDC_CRED_FILE="$(resolve_host_volume "$SHARED_VOLPATH" "$ZITADEL_HOST" "bootstrap")/${OIDC_APP_NAME}.oidc.json"
+OIDC_CRED_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap")/${OIDC_APP_NAME}.oidc.json"
 
 if [ -z "$CLIENT_SECRET" ]; then
   # Try to read from stored credentials first (create-only: don't regenerate)

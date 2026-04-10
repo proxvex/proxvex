@@ -55,15 +55,7 @@
       "advanced": true,
       "description": "Whether the volume should be included in Proxmox backups"
     },
-    {
-      "id": "volume_shared",
-      "name": "Shared Volume",
-      "type": "boolean",
-      "default": true,
-      "advanced": true,
-      "description": "Allow the volume to be shared across containers (reuse by hostname)"
-    },
-    {
+{
       "id": "uid",
       "name": "UID",
       "type": "string",
@@ -100,7 +92,6 @@
       "script": "conf-create-storage-volumes-for-lxc.sh",
       "outputs": [
         "volumes_attached",
-        "shared_volpath",
         "cert_dir_override"
       ]
     }

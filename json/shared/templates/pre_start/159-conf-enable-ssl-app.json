@@ -4,13 +4,6 @@
   "execute_on": "ve",
   "parameters": [
     {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "advanced": true,
-      "description": "Path to the shared volume mount point"
-    },
-    {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",
@@ -54,7 +47,13 @@
     {
       "name": "Enable SSL App Configuration",
       "script": "conf-enable-ssl-app.sh",
-      "outputs": ["ssl_app_enabled", {"id": "compose_file", "default": true}]
+      "outputs": [
+        "ssl_app_enabled",
+        {
+          "id": "compose_file",
+          "default": true
+        }
+      ]
     }
   ]
 }

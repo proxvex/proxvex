@@ -7,7 +7,6 @@ upload_pre_start_file \
   "{{ upload_mosquitto_configuration_content }}" \
   "{{ upload_mosquitto_configuration_destination }}" \
   "Mosquitto Configuration" \
-  "{{ shared_volpath }}" \
   "{{ hostname }}" \
   "{{ uid }}" \
   "{{ gid }}" \

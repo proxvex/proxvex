@@ -9,7 +9,6 @@
 #   2. Fresh install (no postgresql.conf): write initdb script for first start
 set -eu
 
-SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 UID_VAL="{{ uid }}"
 GID_VAL="{{ gid }}"
@@ -25,9 +24,9 @@ EFFECTIVE_GID="$GID_VAL"
 # Sanitize hostname for volume path
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
-CERTS_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "certs")
-PG_CONF="$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "data")/pgdata/postgresql.conf"
-INITDB_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "initdb")
+CERTS_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
+PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data")/pgdata/postgresql.conf"
+INITDB_DIR=$(resolve_host_volume "$SAFE_HOST" "initdb")
 
 SSL_START="# oci-lxc-deployer SSL start"
 SSL_END="# oci-lxc-deployer SSL end"

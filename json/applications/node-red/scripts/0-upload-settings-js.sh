@@ -7,7 +7,6 @@ upload_pre_start_file \
   "{{ upload_settings_js_content }}" \
   "{{ upload_settings_js_destination }}" \
   "settings.js" \
-  "{{ shared_volpath }}" \
   "{{ hostname }}" \
   "{{ uid }}" \
   "{{ gid }}" \
