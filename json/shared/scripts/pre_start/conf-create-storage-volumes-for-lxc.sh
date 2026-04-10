@@ -77,10 +77,7 @@ if [ -z "$VOLUME_SIZE" ] || [ "$VOLUME_SIZE" = "NOT_DEFINED" ]; then
   VOLUME_SIZE="4G"
 fi
 
-PCT_CONFIG=""
-if [ "$ATTACH_TO_CT" -eq 1 ]; then
-  PCT_CONFIG=$(pct config "$VMID" 2>/dev/null || true)
-fi
+PCT_CONFIG=$(pct config "$VMID" 2>/dev/null || true)
 
 is_number() {
   case "$1" in
@@ -144,11 +141,12 @@ elif is_number "$GID_VALUE"; then
   fi
 fi
 
-log "storage-volumes: vm_id=$VMID host=$HOSTNAME storage=$VOLUME_STORAGE uid=$UID_VALUE gid=$GID_VALUE host_uid=$EFFECTIVE_UID host_gid=$EFFECTIVE_GID attach=$ATTACH_TO_CT"
+log "storage-volumes: vm_id=$VMID host=$HOSTNAME storage=$VOLUME_STORAGE uid=$UID_VALUE gid=$GID_VALUE host_uid=$EFFECTIVE_UID host_gid=$EFFECTIVE_GID"
 
 # Track used mp indices
 USED_MPS=$(pct config "$VMID" | awk -F: '/^mp[0-9]+:/ { sub(/^mp/,"",$1); print $1 }' | tr '\n' ' ')
 ASSIGNED_MPS=""
+VOLUME_PERMS=""
 
 find_next_mp() {
   for i in $(seq 0 31); do
