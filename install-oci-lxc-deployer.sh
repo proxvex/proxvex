@@ -554,30 +554,32 @@ log "Using UID/GID: ${LXC_UID}/${LXC_GID} (mapped: ${mapped_uid}/${mapped_gid})"
 export VOLUMES="config=/config
 secure=/secure,0700"
 
-# Execute storage volumes script and capture the shared_volpath from JSON output
-shared_volpath=$(execute_script_from_github \
+# Export VOLUME_STORAGE so resolve_host_volume can find managed volumes
+export VOLUME_STORAGE="${rootfs_storage}"
+
+# Execute storage volumes script — creates per-container managed volumes
+execute_script_from_github \
   "json/shared/scripts/pre_start/conf-create-storage-volumes-for-lxc.sh" \
-  "shared_volpath" \
+  "-" \
   "vm_id=${vm_id}" \
   "hostname=${hostname}" \
   "volumes=\$VOLUMES" \
   "volume_storage=${rootfs_storage}" \
   "volume_size=4G" \
   "volume_backup=true" \
-  "volume_shared=true" \
   "uid=${LXC_UID}" \
   "gid=${LXC_GID}" \
   "mapped_uid=${mapped_uid}" \
   "mapped_gid=${mapped_gid}" \
-  "addon_volumes=")
-
-if [ -z "$shared_volpath" ]; then
-  log "Error: Failed to create/attach storage volumes or get shared volume path"
+  "addon_volumes=" || {
+  log "Error: Failed to create/attach storage volumes"
   exit 1
-fi
+}
 
-config_volume_path=$(resolve_host_volume "$shared_volpath" "$hostname" "config")
-secure_volume_path=$(resolve_host_volume "$shared_volpath" "$hostname" "secure")
+# Resolve volume paths via managed volume lookup (sanitize hostname to match volume names)
+_safe_host=$(echo "$hostname" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+config_volume_path=$(resolve_host_volume "" "$_safe_host" "config")
+secure_volume_path=$(resolve_host_volume "" "$_safe_host" "secure")
 log "Config volume: ${config_volume_path}"
 log "Secure volume: ${secure_volume_path}"
 

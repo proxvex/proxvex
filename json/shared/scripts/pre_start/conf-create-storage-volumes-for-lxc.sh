@@ -1,14 +1,16 @@
 #!/bin/sh
-# Create Proxmox storage volumes and optionally attach them (mpX) to an LXC container
+# Create Proxmox-managed storage volumes and attach them (mpX) to an LXC container
+#
+# Each volume gets its own Proxmox-managed subvolume so pct snapshot
+# captures all data. Volumes are mounted via pct set (not bind mounts).
 #
 # Requires:
-#   - vm_id: LXC container ID (optional; if omitted, no attach happens)
+#   - vm_id: LXC container ID (required)
 #   - hostname: Container hostname (required when volumes are provided)
 #   - volumes: key=container_path (one per line)
 #   - volume_storage: Proxmox storage ID for volumes
 #   - volume_size: default size for new volumes (e.g., 4G)
 #   - volume_backup: include in backups (true/false)
-#   - volume_shared: allow shared mount (true/false)
 #   - uid/gid/mapped_uid/mapped_gid: ownership mapping
 
 set -eu
@@ -20,7 +22,6 @@ ADDON_VOLUMES="{{ addon_volumes }}"
 VOLUME_STORAGE="{{ volume_storage }}"
 VOLUME_SIZE="{{ volume_size }}"
 VOLUME_BACKUP="{{ volume_backup }}"
-VOLUME_SHARED="{{ volume_shared }}"
 UID_VALUE="{{ uid }}"
 GID_VALUE="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
@@ -29,9 +30,8 @@ MAPPED_GID="{{ mapped_gid }}"
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
 
-ATTACH_TO_CT=0
-if [ -n "$VMID" ] && [ "$VMID" != "NOT_DEFINED" ]; then
-  ATTACH_TO_CT=1
+if [ -z "$VMID" ] || [ "$VMID" = "NOT_DEFINED" ]; then
+  fail "vm_id is required for volume creation"
 fi
 
 if [ -z "$VOLUMES" ] || [ "$VOLUMES" = "NOT_DEFINED" ]; then
@@ -105,10 +105,8 @@ map_id_via_idmap() {
 }
 
 IS_UNPRIV=0
-if [ "$ATTACH_TO_CT" -eq 1 ]; then
-  if echo "$PCT_CONFIG" | grep -aqE '^unprivileged:\s*1\s*$'; then
-    IS_UNPRIV=1
-  fi
+if echo "$PCT_CONFIG" | grep -aqE '^unprivileged:\s*1\s*$'; then
+  IS_UNPRIV=1
 fi
 
 EFFECTIVE_UID="$UID_VALUE"
@@ -149,11 +147,8 @@ fi
 log "storage-volumes: vm_id=$VMID host=$HOSTNAME storage=$VOLUME_STORAGE uid=$UID_VALUE gid=$GID_VALUE host_uid=$EFFECTIVE_UID host_gid=$EFFECTIVE_GID attach=$ATTACH_TO_CT"
 
 # Track used mp indices
-USED_MPS=""
+USED_MPS=$(pct config "$VMID" | awk -F: '/^mp[0-9]+:/ { sub(/^mp/,"",$1); print $1 }' | tr '\n' ' ')
 ASSIGNED_MPS=""
-if [ "$ATTACH_TO_CT" -eq 1 ]; then
-  USED_MPS=$(pct config "$VMID" | awk -F: '/^mp[0-9]+:/ { sub(/^mp/,"",$1); print $1 }' | tr '\n' ' ')
-fi
 
 find_next_mp() {
   for i in $(seq 0 31); do
@@ -167,10 +162,8 @@ find_next_mp() {
 
 # Stop container if running (mp changes require stop)
 WAS_RUNNING=0
-if [ "$ATTACH_TO_CT" -eq 1 ]; then
-  if pct status "$VMID" 2>/dev/null | grep -aq 'status: running'; then
-    WAS_RUNNING=1
-  fi
+if pct status "$VMID" 2>/dev/null | grep -aq 'status: running'; then
+  WAS_RUNNING=1
 fi
 
 NEEDS_STOP=0
@@ -178,16 +171,10 @@ NEEDS_STOP=0
 # Collect existing mount targets - do NOT remove them (user may have created them)
 TMPFILE=$(mktemp)
 printf "%s\n" "$VOLUMES" > "$TMPFILE"
-EXISTING_TARGETS=""
-if [ "$ATTACH_TO_CT" -eq 1 ]; then
-  # Get all existing mount target paths from container config
-  EXISTING_TARGETS=$(pct config "$VMID" 2>/dev/null | grep -aE "^mp[0-9]+:" | sed -E 's/.*mp=([^,]+).*/\1/' | tr '\n' ' ' || true)
-fi
+EXISTING_TARGETS=$(pct config "$VMID" 2>/dev/null | grep -aE "^mp[0-9]+:" | sed -E 's/.*mp=([^,]+).*/\1/' | tr '\n' ' ' || true)
 
 # Refresh used mp list
-if [ "$ATTACH_TO_CT" -eq 1 ]; then
-  USED_MPS=$(pct config "$VMID" | awk -F: '/^mp[0-9]+:/ { sub(/^mp/,"",$1); print $1 }' | tr '\n' ' ')
-fi
+USED_MPS=$(pct config "$VMID" | awk -F: '/^mp[0-9]+:/ { sub(/^mp/,"",$1); print $1 }' | tr '\n' ' ')
 
 sanitize_name() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
@@ -438,50 +425,11 @@ CERT_DIR_OVERRIDE=""
 
 log "storage-volumes: vm_id=$VMID host=$HOSTNAME storage=$VOLUME_STORAGE type=$STORAGE_TYPE"
 
-# Different storage strategies based on storage type
-if [ "$STORAGE_TYPE" = "zfspool" ]; then
-  # ZFS: Use pvesm to create subvolumes (existing behavior)
-  SHARED_VOLNAME="subvol-${SHARED_OWNER_VMID}-${SHARED_NAME_KEY}"
+# --- Create per-container managed volumes ---
+# Each volume key gets its own Proxmox-managed subvolume so pct snapshot
+# captures all data automatically.
 
-  SHARED_VOLID=$(get_existing_volid "$SHARED_NAME_KEY" "$STORAGE_TYPE")
-  if [ -z "$SHARED_VOLID" ]; then
-    log "Creating shared ZFS subvolume $SHARED_VOLNAME in storage $VOLUME_STORAGE (size $VOLUME_SIZE)"
-    SHARED_VOLID=$(alloc_volume "$SHARED_VOLNAME" "$VOLUME_SIZE" "$SHARED_OWNER_VMID" || true)
-    if [ -z "$SHARED_VOLID" ]; then
-      _pool=$(get_zfs_pool)
-      if [ -n "$_pool" ] && zfs list -H -o name "${_pool}/${SHARED_VOLNAME}" >/dev/null 2>&1; then
-        SHARED_VOLID="${VOLUME_STORAGE}:${SHARED_VOLNAME}"
-      fi
-    fi
-  fi
-
-  if [ -z "$SHARED_VOLID" ]; then
-    fail "Failed to allocate or find shared volume for ${SHARED_VOLNAME}"
-  fi
-
-  SHARED_VOLNAME_REAL="${SHARED_VOLID#*:}"
-  SHARED_VOLPATH=$(resolve_volume_path "$SHARED_VOLID" "$SHARED_VOLNAME_REAL" "$STORAGE_TYPE" || true)
-  if [ -z "$SHARED_VOLPATH" ]; then
-    fail "Failed to resolve path for shared volume ${SHARED_VOLID}"
-  fi
-
-else
-  # Non-ZFS (LVM, dir, etc.): Use filesystem-based approach
-  # 1. Try to find a free partition and format it
-  # 2. If no free partition, use directories on root filesystem
-  SHARED_VOLNAME="${SHARED_NAME_KEY}"
-
-  log "Using filesystem-based storage for volumes"
-  SHARED_VOLPATH=$(setup_filesystem_storage "$SHARED_VOLNAME")
-
-  if [ -z "$SHARED_VOLPATH" ]; then
-    fail "Failed to setup filesystem storage at $SHARED_VOLPATH"
-  fi
-
-  # For non-ZFS, we don't have a volume ID - just the path
-  SHARED_VOLID="filesystem:${SHARED_VOLNAME}"
-  log "Filesystem storage ready at: $SHARED_VOLPATH"
-fi
+CERT_DIR_OVERRIDE=""
 
 while IFS= read -r line <&3; do
   [ -z "$line" ] && continue
@@ -494,89 +442,112 @@ while IFS= read -r line <&3; do
   VOLUME_PATH=$(printf '%s' "$VOLUME_PATH" | sed -E 's#^/*#/#')
 
   SAFE_KEY=$(sanitize_name "$VOLUME_KEY")
-  SUBDIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "$SAFE_KEY")
-  mkdir -p "$SUBDIR"
 
+  # Check if mount target already exists on the container
+  case " $EXISTING_TARGETS " in
+    *" $VOLUME_PATH "*)
+      log "Skipping $VOLUME_KEY ($VOLUME_PATH) - mount already exists"
+      continue
+      ;;
+  esac
+
+  # Allocate a Proxmox-managed subvolume for this volume
+  VOL_NAME="${SAFE_HOST}-${SAFE_KEY}"
+  VOLID=$(get_existing_volid "$VOL_NAME" "$STORAGE_TYPE")
+  if [ -z "$VOLID" ]; then
+    log "Creating managed volume $VOL_NAME for $VOLUME_KEY (size $VOLUME_SIZE)"
+    VOLID=$(alloc_volume "$VOL_NAME" "$VOLUME_SIZE" "$VMID" || true)
+    if [ -z "$VOLID" ]; then
+      fail "Failed to allocate volume $VOL_NAME"
+    fi
+  else
+    log "Reusing existing volume $VOL_NAME"
+  fi
+
+  # Resolve host-side path for permissions
+  VOLPATH=$(resolve_volume_path "$VOLID" "${VOLID#*:}" "$STORAGE_TYPE" || true)
+  if [ -z "$VOLPATH" ]; then
+    fail "Failed to resolve path for volume $VOLID"
+  fi
+
+  # Set permissions and ownership on the volume
   PERM=$(printf '%s' "$VOLUME_OPTS" | tr ',' '\n' | awk '/^[0-9]{3,4}$/ {print $1; exit}')
   if [ -n "$PERM" ]; then
-    chmod "$PERM" "$SUBDIR" 2>/dev/null || true
-    # Track permissions for post-mount fixup inside the container
-    # (Host chmod may not be visible inside unprivileged LXC containers)
+    chmod "$PERM" "$VOLPATH" 2>/dev/null || true
     VOLUME_PERMS="${VOLUME_PERMS:+$VOLUME_PERMS
 }${VOLUME_PATH}:${PERM}"
   fi
-  if [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
-    chown "$EFFECTIVE_UID:$EFFECTIVE_GID" "$SUBDIR" 2>/dev/null || true
-  fi
 
-  # If mount target already exists, update it to point to the correct subdirectory
-  if [ "$ATTACH_TO_CT" -eq 1 ]; then
-    case " $EXISTING_TARGETS " in
-      *" $VOLUME_PATH "*)
-        EXISTING_MP=$(pct config "$VMID" 2>/dev/null | grep -aE "^mp[0-9]+:.*mp=${VOLUME_PATH}(,|$)" | head -n1 || true)
-        EXISTING_HOST_PATH=$(echo "$EXISTING_MP" | sed -E 's/^mp[0-9]+:\s*([^,]+).*/\1/')
-        EXISTING_MP_KEY=$(echo "$EXISTING_MP" | cut -d: -f1)
-
-        if [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" = "$SUBDIR" ]; then
-          log "Skipping mount for $VOLUME_PATH - already exists with correct path"
-        elif [ -n "$EXISTING_HOST_PATH" ] && [ "$EXISTING_HOST_PATH" != "$SUBDIR" ] && [ -n "$EXISTING_MP_KEY" ]; then
-          # Existing mount points to wrong path — update to correct subdirectory
-          log "Updating ${EXISTING_MP_KEY}: ${EXISTING_HOST_PATH} -> ${SUBDIR}"
-          if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
-            pct stop "$VMID" >&2 || true
-            NEEDS_STOP=1
-          fi
-          OPTS="mp=$VOLUME_PATH"
-          pct set "$VMID" -${EXISTING_MP_KEY} "${SUBDIR},${OPTS}" >&2
-          # Tell cert generation to use the subdirectory directly (only for cert volumes)
-          if [ "$VOLUME_PATH" = "/etc/ssl/addon" ]; then
-            CERT_DIR_OVERRIDE="$SUBDIR"
-          fi
-          log "Mount updated to: ${SUBDIR}"
+  # Parse per-volume uid:gid override (e.g. certs=/etc/ssl/addon,0700,0:0)
+  VOL_UID_OVERRIDE=$(printf '%s' "$VOLUME_OPTS" | tr ',' '\n' | grep -E '^[0-9]+:[0-9]+$' | head -1 || true)
+  if [ -n "$VOL_UID_OVERRIDE" ]; then
+    _vol_uid=$(echo "$VOL_UID_OVERRIDE" | cut -d: -f1)
+    _vol_gid=$(echo "$VOL_UID_OVERRIDE" | cut -d: -f2)
+    # Map through idmap if unprivileged
+    _eff_uid="$_vol_uid"
+    _eff_gid="$_vol_gid"
+    if is_number "$_vol_uid"; then
+      _mid=$(map_id_via_idmap u "$_vol_uid")
+      if [ -n "$_mid" ]; then
+        _eff_uid="$_mid"
+      elif [ "$IS_UNPRIV" -eq 1 ]; then
+        if printf '%s' "$PCT_CONFIG" | grep -q 'lxc\.idmap' 2>/dev/null; then
+          _eff_uid="$_vol_uid"
         else
-          log "Skipping mount for $VOLUME_PATH - already exists"
+          _eff_uid=$((_vol_uid + 100000))
         fi
-        continue
-        ;;
-    esac
+      fi
+    fi
+    if is_number "$_vol_gid"; then
+      _mid=$(map_id_via_idmap g "$_vol_gid")
+      if [ -n "$_mid" ]; then
+        _eff_gid="$_mid"
+      elif [ "$IS_UNPRIV" -eq 1 ]; then
+        if printf '%s' "$PCT_CONFIG" | grep -q 'lxc\.idmap' 2>/dev/null; then
+          _eff_gid="$_vol_gid"
+        else
+          _eff_gid=$((_vol_gid + 100000))
+        fi
+      fi
+    fi
+    chown "$_eff_uid:$_eff_gid" "$VOLPATH" 2>/dev/null || true
+  elif [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
+    chown "$EFFECTIVE_UID:$EFFECTIVE_GID" "$VOLPATH" 2>/dev/null || true
   fi
 
-  if [ "$ATTACH_TO_CT" -eq 1 ]; then
-    MP=$(find_next_mp)
-    if [ -z "$MP" ]; then
-      fail "No free mp slots available"
-    fi
-    ASSIGNED_MPS="$ASSIGNED_MPS ${MP#mp}"
-
-    OPTS="mp=$VOLUME_PATH"
-    if [ "$VOLUME_BACKUP" = "true" ] || [ "$VOLUME_BACKUP" = "1" ]; then
-      OPTS="$OPTS,backup=1"
-    fi
-    if [ "$VOLUME_SHARED" = "true" ] || [ "$VOLUME_SHARED" = "1" ]; then
-      OPTS="$OPTS,shared=1"
-    fi
-
-    if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
-      pct stop "$VMID" >&2 || true
-      NEEDS_STOP=1
-    fi
-
-    pct set "$VMID" -${MP} "${SUBDIR},${OPTS}" >&2
-
-    log "Attached ${SUBDIR} to ${VOLUME_PATH} via ${MP}"
-  else
-    log "Prepared ${SUBDIR} (no CT attach)"
+  # Track cert dir for downstream templates
+  if [ "$VOLUME_PATH" = "/etc/ssl/addon" ]; then
+    CERT_DIR_OVERRIDE="$VOLPATH"
   fi
+
+  # Attach managed volume to container
+  MP=$(find_next_mp)
+  if [ -z "$MP" ]; then
+    fail "No free mp slots available"
+  fi
+  ASSIGNED_MPS="$ASSIGNED_MPS ${MP#mp}"
+
+  OPTS="mp=$VOLUME_PATH"
+  if [ "$VOLUME_BACKUP" = "true" ] || [ "$VOLUME_BACKUP" = "1" ]; then
+    OPTS="$OPTS,backup=1"
+  fi
+
+  if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
+    pct stop "$VMID" >&2 || true
+    NEEDS_STOP=1
+  fi
+
+  pct set "$VMID" -${MP} "${VOLID},${OPTS}" >&2
+
+  log "Attached ${VOLID} (${VOLPATH}) to ${VOLUME_PATH} via ${MP}"
 
 done 3< "$TMPFILE"
 
 rm -f "$TMPFILE"
 
-if [ "$ATTACH_TO_CT" -eq 1 ]; then
-  if [ "$WAS_RUNNING" -eq 1 ]; then
-    pct start "$VMID" >/dev/null 2>&1 || true
-  fi
-  printf '[{"id":"volumes_attached","value":"true"},{"id":"shared_volpath","value":"%s"},{"id":"cert_dir_override","value":"%s"}]\n' "$SHARED_VOLPATH" "$CERT_DIR_OVERRIDE"
-else
-  printf '[{"id":"volumes_attached","value":"false"},{"id":"shared_volpath","value":"%s"}]\n' "$SHARED_VOLPATH"
+if [ "$WAS_RUNNING" -eq 1 ]; then
+  pct start "$VMID" >/dev/null 2>&1 || true
 fi
+
+# Output shared_volpath as empty — managed volumes are resolved via pvesm path
+printf '[{"id":"volumes_attached","value":"true"},{"id":"shared_volpath","value":""},{"id":"cert_dir_override","value":"%s"}]\n' "$CERT_DIR_OVERRIDE"
