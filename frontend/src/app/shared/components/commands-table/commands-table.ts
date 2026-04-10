@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +14,7 @@ import { ICommandRow } from './commands-table.types';
 })
 export class CommandsTableComponent {
   @Input() commands: ICommandRow[] = [];
+  @Output() stderrClick = new EventEmitter<ICommandRow>();
 
   expandedSeq: number | null = null;
 

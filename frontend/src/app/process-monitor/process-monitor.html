@@ -12,101 +12,63 @@
             }
           </mat-panel-title>
         </mat-expansion-panel-header>
-        <ng-container *ngTemplateOutlet="groupContent; context: { group: group }"></ng-container>
+
+        <app-commands-table
+          [commands]="buildCommandRows(group)"
+          (stderrClick)="onStderrClick($event, group)">
+        </app-commands-table>
+
+        <!-- Error actions -->
+        @if (getFailedMessage(group); as failed) {
+          <div class="error-actions">
+            <div class="error-message">
+              @if (failed.error?.message) {
+                {{ failed.error!.message }}
+              }
+              <span class="exit-code">Exit code: {{ failed.exitCode }}</span>
+            </div>
+            @if (failed.stderr) {
+              <pre class="error-stderr">{{ failed.stderr }}</pre>
+            }
+            <div class="action-buttons">
+              @if (group.restartKey) {
+                <button class="action-btn restart-btn" (click)="triggerRestart(group)" title="Restart from last successful step">
+                  Restart
+                </button>
+                <button class="action-btn restart-full-btn" (click)="triggerRestartFull(group)" title="Restart installation from beginning">
+                  Restart from Beginning
+                </button>
+              }
+              <button class="action-btn download-btn" (click)="downloadLogs(group)" title="Download logs as JSON">
+                Download Logs
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Success actions -->
+        @if (getFinishedMessage(group); as finished) {
+          <div class="success-actions">
+            <span class="success-text">{{ finished.result }}</span>
+            @if (finished.redirectUrl) {
+              <div class="redirect-info">
+                <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>
+                <a [href]="finished.redirectUrl" class="redirect-link">{{ finished.redirectUrl }}</a>
+                <button class="action-btn" type="button" (click)="redirectNow()">Jetzt weiterleiten</button>
+              </div>
+            } @else {
+              <div class="action-buttons">
+                <button class="action-btn" type="button" (click)="close()">Close</button>
+                <button class="action-btn download-btn" (click)="downloadLogs(group)" title="Download logs as JSON">
+                  Download Logs
+                </button>
+              </div>
+            }
+          </div>
+        }
       </mat-expansion-panel>
     }
   </mat-accordion>
 } @else {
   <div>No process messages available.</div>
 }
-
-<!-- Shared template for group content -->
-<ng-template #groupContent let-group="group">
-  <ul class="success-list">
-    @for (msg of group.messages; track msg.index) {
-      <!-- Completed step -->
-      @if (msg.exitCode === 0 && !msg.partial) {
-        <li>
-          <span class="success-icon">✓</span>
-          <span class="command-text">{{ msg.command }}</span>
-          @if (msg.stderr) {
-            <button mat-icon-button type="button" (click)="openStderrDialog(msg)" class="info-button" [attr.aria-label]="'Show stderr output for ' + msg.command">
-              <mat-icon>info</mat-icon>
-            </button>
-          }
-        </li>
-      }
-      <!-- Currently running step with live stderr -->
-      @if (msg.partial) {
-        <li class="running-item">
-          <span class="running-icon">⟳</span>
-          <span class="command-text">{{ msg.command }}</span>
-        </li>
-        @if (msg.stderr) {
-          <li class="running-stderr-item">
-            <pre class="running-stderr">{{ msg.stderr }}</pre>
-          </li>
-        }
-      }
-      <!-- Failed step -->
-      @if (msg.exitCode !== 0 && !msg.finished && !msg.partial) {
-        <li class="error-item">
-          <div class="error-block" data-testid="installation-error">
-            <div class="error-header">
-              <span class="error-icon">✗</span>
-              <strong>{{ msg.command }}</strong>
-              <span class="exit-code">Exit code: {{ msg.exitCode }}</span>
-            </div>
-            @if (msg.error?.message) {
-              <div class="error-message">{{ msg.error.message }}</div>
-            }
-            @if (msg.stderr) {
-              <pre class="error-stderr">{{ msg.stderr }}</pre>
-            }
-            <div class="restart-buttons">
-              @if (group.restartKey) {
-                <button class="restart-btn" (click)="triggerRestart(group)" title="Restart from last successful step">
-                  ↻ Restart
-                </button>
-                <button class="restart-full-btn" (click)="triggerRestartFull(group)" title="Restart installation from beginning with same parameters">
-                  ↻↻ Restart from Beginning
-                </button>
-              }
-              <button class="download-logs-btn" (click)="downloadLogs(group)" title="Download execution data as JSON for analysis">
-                ⬇ Download Logs
-              </button>
-            </div>
-          </div>
-        </li>
-      }
-      <!-- Finished (success summary) -->
-      @if (msg.finished) {
-        <li class="finished-item">
-          <div class="success-block" data-testid="installation-success">
-            <span class="success-icon-large">✓</span>
-            <strong>{{ msg.result }}</strong>
-            @if (msg.redirectUrl) {
-              <div class="redirect-info">
-                <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>
-                <a [href]="msg.redirectUrl" class="redirect-link">{{ msg.redirectUrl }}</a>
-                <button class="back-btn" type="button" (click)="redirectNow()">Jetzt weiterleiten</button>
-              </div>
-            } @else {
-              <button class="back-btn" type="button" (click)="close()">Schließen</button>
-              <button class="download-logs-btn" (click)="downloadLogs(group)" title="Download execution data as JSON for analysis">
-                ⬇ Download Logs
-              </button>
-            }
-          </div>
-        </li>
-      }
-    }
-    <!-- Pending steps -->
-    @for (step of getPendingSteps(group); track step.name) {
-      <li class="pending">
-        <span class="pending-icon">○</span>
-        <span class="command-text pending-text">{{ step.name }}</span>
-      </li>
-    }
-  </ul>
-</ng-template>

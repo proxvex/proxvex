@@ -1,5 +1,6 @@
 import { IVEContext, IVMContext } from "@src/backend-types.mjs";
-import { ICommand, IVeExecuteMessage } from "@src/types.mjs";
+import { ICommand, IPlannedStep, IVeExecuteMessage } from "@src/types.mjs";
+import { IProcessedTemplate } from "@src/templates/templateprocessor-types.mjs";
 import { IRestartInfo } from "@src/ve-execution/ve-execution-constants.mjs";
 import { VeExecution } from "@src/ve-execution/ve-execution.mjs";
 import { WebAppVeMessageManager } from "./webapp-ve-message-manager.mjs";
@@ -29,6 +30,7 @@ export class WebAppVeExecutionSetup {
     application: string,
     task: string,
     sshCommand: string = "ssh",
+    processedTemplates?: IProcessedTemplate[],
   ): { exec: VeExecution; restartKey: string } {
     const exec = new VeExecution(
       commands,
@@ -45,10 +47,7 @@ export class WebAppVeExecutionSetup {
 
     // Pre-populate planned steps so the frontend can show all steps immediately
     const group = messageManager.findOrCreateMessageGroup(application, task, restartKey);
-    group.plannedSteps = commands.map(c => ({
-      name: c.name,
-      ...(c.description && { description: c.description }),
-    }));
+    group.plannedSteps = this.buildPlannedSteps(commands, processedTemplates);
 
     exec.on("message", (msg: IVeExecuteMessage) => {
       messageManager.handleExecutionMessage(msg, application, task, restartKey);
@@ -91,6 +90,36 @@ export class WebAppVeExecutionSetup {
   /**
    * Sets up restart execution result handlers.
    */
+  private buildPlannedSteps(commands: ICommand[], processedTemplates?: IProcessedTemplate[]): IPlannedStep[] {
+    // Build a lookup from template name to shared/local info
+    const templateInfo = new Map<string, { isShared: boolean; isLocal: boolean }>();
+    if (processedTemplates) {
+      for (const pt of processedTemplates) {
+        const isLocal = pt.path.startsWith("local/");
+        templateInfo.set(pt.name, { isShared: pt.isShared, isLocal });
+        // Also map by template display name for matching against command names
+        if (pt.templateData?.name) {
+          templateInfo.set(pt.templateData.name, { isShared: pt.isShared, isLocal });
+        }
+      }
+    }
+
+    return commands.map(c => {
+      const step: IPlannedStep = {
+        name: c.name,
+        ...(c.description && { description: c.description }),
+      };
+      // Try to find template info by command name (strip "(skipped)" suffix)
+      const cleanName = c.name.replace(/\s*\(skipped\)\s*$/, '');
+      const info = templateInfo.get(cleanName);
+      if (info) {
+        step.isShared = info.isShared;
+        step.isLocal = info.isLocal;
+      }
+      return step;
+    });
+  }
+
   setupRestartExecutionResultHandlers(
     exec: VeExecution,
     restartKey: string,
