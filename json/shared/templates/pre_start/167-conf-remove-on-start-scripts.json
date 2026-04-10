@@ -4,6 +4,13 @@
   "description": "Removes addon on_start.d drop-in scripts from the host-side volume directory when an addon is disabled.",
   "parameters": [
     {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "required": false,
+      "description": "Host-side base path for volumes"
+    },
+    {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",
