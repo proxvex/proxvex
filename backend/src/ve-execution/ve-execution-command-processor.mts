@@ -33,6 +33,8 @@ export interface CommandProcessorDependencies {
    * Throws if 0 or 2+ containers match.
    */
   resolveApplicationToVmId?: (appId: string) => Promise<number>;
+  /** Global VE libraries keyed by language: "sh" -> content, "py" -> content */
+  globalVeLibraries?: Map<string, string>;
 }
 
 /**
@@ -186,8 +188,36 @@ export class VeExecutionCommandProcessor {
   }
 
   /**
+   * Detect script language from content (shebang or file extension).
+   * Returns "sh" for shell, "py" for Python.
+   */
+  private detectLanguage(content: string): "sh" | "py" {
+    const firstLine = content.split("\n")[0] ?? "";
+    if (/python/.test(firstLine)) return "py";
+    if (/\.py$/.test(firstLine)) return "py";
+    return "sh";
+  }
+
+  /**
+   * Get global VE library content for the given language, if available.
+   */
+  private getGlobalVeLibrary(content: string): string | null {
+    if (!this.deps.globalVeLibraries) return null;
+    const lang = this.detectLanguage(content);
+    return this.deps.globalVeLibraries.get(lang) ?? null;
+  }
+
+  /**
+   * Check if command targets the VE host (execute_on: "ve").
+   */
+  private isVeTarget(cmd: ICommand): boolean {
+    return cmd.execute_on === "ve";
+  }
+
+  /**
    * Loads command content from script file or command string.
    * If a library is specified, it will be prepended to the content.
+   * For VE-target commands, the global VE library is always prepended.
    * Extracts interpreter from library's shebang when library is present,
    * otherwise from script's shebang.
    */
@@ -227,19 +257,36 @@ export class VeExecutionCommandProcessor {
         }
       }
 
-      // If library is specified, prepend it
-      if (cmd.libraryContent !== undefined) {
-        return `${cmd.libraryContent}\n\n# --- Script starts here ---\n${scriptContent}`;
+      // Assemble: global VE library + template library + script
+      const globalLib = this.isVeTarget(cmd)
+        ? this.getGlobalVeLibrary(cmd.libraryContent ?? scriptContent)
+        : null;
+
+      if (globalLib || cmd.libraryContent !== undefined) {
+        const parts: string[] = [];
+        if (globalLib) parts.push(globalLib);
+        if (cmd.libraryContent !== undefined) parts.push(cmd.libraryContent);
+        const libBlock = parts.join("\n\n");
+        return `${libBlock}\n\n# --- Script starts here ---\n${scriptContent}`;
       }
 
       return scriptContent;
     } else if (cmd.script !== undefined) {
       throw new Error(`Script content missing for ${cmd.script}`);
     } else if (cmd.command !== undefined) {
-      // Support library with command (not just script)
-      if (cmd.libraryContent !== undefined) {
-        return `${cmd.libraryContent}\n\n# --- Command starts here ---\n${cmd.command}`;
+      // Assemble: global VE library + template library + command
+      const globalLib = this.isVeTarget(cmd)
+        ? this.getGlobalVeLibrary(cmd.libraryContent ?? cmd.command)
+        : null;
+
+      if (globalLib || cmd.libraryContent !== undefined) {
+        const parts: string[] = [];
+        if (globalLib) parts.push(globalLib);
+        if (cmd.libraryContent !== undefined) parts.push(cmd.libraryContent);
+        const libBlock = parts.join("\n\n");
+        return `${libBlock}\n\n# --- Command starts here ---\n${cmd.command}`;
       }
+
       return cmd.command;
     }
     return null;

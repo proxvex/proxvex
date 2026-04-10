@@ -164,6 +164,26 @@ export class VeExecution extends EventEmitter {
   }
 
   /**
+   * Load global VE libraries (ve-global.sh, ve-global.py) from the repository.
+   * These are auto-injected into all execute_on:ve scripts.
+   */
+  private loadGlobalVeLibraries(): Map<string, string> {
+    const libs = new Map<string, string>();
+    const repos = this.resolveRepositories();
+    if (!repos) return libs;
+
+    for (const [lang, filename] of [["sh", "ve-global.sh"], ["py", "ve-global.py"]] as const) {
+      const content = repos.getScript({
+        name: filename,
+        scope: "shared",
+        category: "library",
+      });
+      if (content) libs.set(lang, content);
+    }
+    return libs;
+  }
+
+  /**
    * Updates helper modules with current state (called when state might have changed).
    */
   private updateHelperModules(): void {
@@ -209,6 +229,7 @@ export class VeExecution extends EventEmitter {
         this.outputsRaw = raw;
       },
       resolveApplicationToVmId: (appId) => this.resolveApplicationToVmId(appId),
+      globalVeLibraries: this.loadGlobalVeLibraries(),
     });
     this.stateManager = new VeExecutionStateManager({
       outputs: this.outputs,
