@@ -34,7 +34,7 @@ OCI_OWNER="${OCI_OWNER:-modbus2mqtt}"
 OWNER="${OWNER:-modbus2mqtt}"
 #OWNER="modbus2mqtt"
 REPO="oci-lxc-deployer"
-BRANCH="main"
+BRANCH="${BRANCH:-main}"
 OCI_IMAGE="ghcr.io/${OCI_OWNER}/oci-lxc-deployer:latest"
 
 # Local script path - when set, scripts are loaded from local filesystem instead of GitHub
