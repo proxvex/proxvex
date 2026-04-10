@@ -78,6 +78,21 @@ execute_script_from_github() {
   fi
   script_content=$(printf '%s' "$script_content" | sed $sed_args)
 
+  # Auto-inject global VE library (resolve_host_volume etc.)
+  case "$path" in
+    *.py) _ve_global_lib="json/shared/scripts/library/ve-global.py" ;;
+    *)    _ve_global_lib="json/shared/scripts/library/ve-global.sh" ;;
+  esac
+  if [ -n "$LOCAL_SCRIPT_PATH" ] && [ -f "${LOCAL_SCRIPT_PATH}/${_ve_global_lib}" ]; then
+    _ve_global_content=$(cat "${LOCAL_SCRIPT_PATH}/${_ve_global_lib}")
+  else
+    _ve_global_url="https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${_ve_global_lib}"
+    _ve_global_content=$(curl -fsSL "$_ve_global_url" 2>/dev/null || true)
+  fi
+  if [ -n "$_ve_global_content" ]; then
+    script_content=$(printf '%s\n\n%s' "$_ve_global_content" "$script_content")
+  fi
+
   # Some Python scripts depend on shared helpers but are still executed via stdin.
   # Prepend the helper library explicitly when needed.
   case "$path" in
@@ -169,6 +184,17 @@ execute_script_from_github() {
       ;;
   esac
 }
+
+# Load global VE library (resolve_host_volume etc.)
+if [ -n "$LOCAL_SCRIPT_PATH" ] && [ -f "${LOCAL_SCRIPT_PATH}/json/shared/scripts/library/ve-global.sh" ]; then
+  . "${LOCAL_SCRIPT_PATH}/json/shared/scripts/library/ve-global.sh"
+else
+  _ve_lib_url="https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/json/shared/scripts/library/ve-global.sh"
+  _ve_lib_content=$(curl -fsSL "$_ve_lib_url" 2>/dev/null || true)
+  if [ -n "$_ve_lib_content" ]; then
+    eval "$_ve_lib_content"
+  fi
+fi
 
 # Defaults
 vm_id=""
@@ -324,10 +350,10 @@ resolve_shared_volume_path() {
 # Set default volume paths if not provided
 volume_base=$(detect_volume_base_path)
 if [ -z "$config_volume_path" ]; then
-  config_volume_path="${volume_base}/${hostname}/config"
+  config_volume_path=$(resolve_host_volume "$volume_base" "$hostname" "config")
 fi
 if [ -z "$secure_volume_path" ]; then
-  secure_volume_path="${volume_base}/${hostname}/secure"
+  secure_volume_path=$(resolve_host_volume "$volume_base" "$hostname" "secure")
 fi
 
 # Get Proxmox hostname for VE context (use FQDN)
@@ -550,8 +576,8 @@ if [ -z "$shared_volpath" ]; then
   exit 1
 fi
 
-config_volume_path="${shared_volpath}/volumes/${hostname}/config"
-secure_volume_path="${shared_volpath}/volumes/${hostname}/secure"
+config_volume_path=$(resolve_host_volume "$shared_volpath" "$hostname" "config")
+secure_volume_path=$(resolve_host_volume "$shared_volpath" "$hostname" "secure")
 log "Config volume: ${config_volume_path}"
 log "Secure volume: ${secure_volume_path}"
 
