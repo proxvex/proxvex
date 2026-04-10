@@ -144,7 +144,10 @@ for line in new_lines:
         # Extract current entrypoint value
         ep_value = line.split(":", 1)[1].strip()
         # Wrap with /bin/sh -c "wait; exec original"
-        wrapped_ep = f'entrypoint: /bin/sh -c \'{NETWORK_WAIT}exec {ep_value}\'\n'
+        # Use double quotes for the outer shell to avoid breaking on inner single quotes
+        # (e.g. nginx -g 'daemon off;')
+        escaped_ep = ep_value.replace('\\', '\\\\').replace('"', '\\"').replace('$', '\\$')
+        wrapped_ep = f'entrypoint: /bin/sh -c "{NETWORK_WAIT}exec {escaped_ep}"\n'
         final_lines.append(wrapped_ep)
         print(f"Wrapped entrypoint with network-wait: {ep_value}", file=sys.stderr)
         wrapped = True

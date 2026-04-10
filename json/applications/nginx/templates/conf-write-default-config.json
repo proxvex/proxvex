@@ -1,0 +1,54 @@
+{
+  "name": "Write Default Nginx Config",
+  "description": "Writes a minimal default.conf to the conf volume if empty. nginx requires at least one .conf file in conf.d/ to start.",
+  "execute_on": "ve",
+  "parameters": [
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "description": "Host-side base path for volumes"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    },
+    {
+      "id": "uid",
+      "name": "UID",
+      "type": "string",
+      "default": "0",
+      "description": "Application user ID"
+    },
+    {
+      "id": "gid",
+      "name": "GID",
+      "type": "string",
+      "default": "0",
+      "description": "Application group ID"
+    },
+    {
+      "id": "mapped_uid",
+      "name": "Mapped UID",
+      "type": "string",
+      "default": "",
+      "description": "Host-mapped user ID"
+    },
+    {
+      "id": "mapped_gid",
+      "name": "Mapped GID",
+      "type": "string",
+      "default": "",
+      "description": "Host-mapped group ID"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Write default.conf",
+      "script": "conf-write-default-config.sh"
+    }
+  ]
+}

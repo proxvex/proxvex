@@ -44,7 +44,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "nginxinc/nginx-unprivileged:alpine"
+      "value": "nginxinc/nginx-unprivileged:1-alpine"
     },
     {
       "id": "uid",
@@ -58,6 +58,16 @@
     { "id": "oidc_callback_path", "value": "/oauth2/callback" },
     { "id": "oidc_required_role", "value": "" }
   ],
+  "installation": {
+    "pre_start": [
+      "conf-write-default-config.json"
+    ]
+  },
+  "reconfigure": {
+    "pre_start": [
+      "conf-write-default-config.json"
+    ]
+  },
   "url": "https://github.com/nginx/docker-nginx-unprivileged",
   "source": "https://github.com/nginx/docker-nginx-unprivileged",
   "tags": [
