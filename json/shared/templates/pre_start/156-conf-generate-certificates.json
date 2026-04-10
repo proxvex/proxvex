@@ -24,6 +24,12 @@
       "internal": true
     },
     {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "required": false
+    },
+    {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",
