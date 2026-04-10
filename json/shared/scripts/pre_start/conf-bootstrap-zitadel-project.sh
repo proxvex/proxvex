@@ -71,7 +71,7 @@ else
 fi
 
 # --- Read admin PAT from bootstrap volume ---
-PAT_FILE="${SHARED_VOLPATH}/volumes/${ZITADEL_HOST}/bootstrap/admin-client.pat"
+PAT_FILE="$(resolve_host_volume "$SHARED_VOLPATH" "$ZITADEL_HOST" "bootstrap")/admin-client.pat"
 
 if [ ! -f "$PAT_FILE" ]; then
   echo "ERROR: Admin PAT file not found at ${PAT_FILE}" >&2

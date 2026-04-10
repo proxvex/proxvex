@@ -25,10 +25,9 @@ EFFECTIVE_GID="$GID_VAL"
 # Sanitize hostname for volume path
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
-VOLUMES_BASE="${SHARED_VOLPATH}/volumes/${SAFE_HOST}"
-CERTS_DIR="${VOLUMES_BASE}/certs"
-PG_CONF="${VOLUMES_BASE}/data/pgdata/postgresql.conf"
-INITDB_DIR="${VOLUMES_BASE}/initdb"
+CERTS_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "certs")
+PG_CONF="$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "data")/pgdata/postgresql.conf"
+INITDB_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "initdb")
 
 SSL_START="# oci-lxc-deployer SSL start"
 SSL_END="# oci-lxc-deployer SSL end"

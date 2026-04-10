@@ -54,7 +54,7 @@ is_set() {
 }
 
 SAFE_HOST=$(sanitize_name "$HOSTNAME")
-VOLUME_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/oci-deployer"
+VOLUME_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "oci-deployer")
 
 if [ ! -d "$VOLUME_DIR" ]; then
   log "Warning: Volume directory $VOLUME_DIR does not exist, skipping"

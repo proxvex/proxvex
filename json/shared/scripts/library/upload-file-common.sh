@@ -112,7 +112,7 @@ upload_pre_start_file() {
 
       # Compute target directory
       _safe_key=$(upload_sanitize_name "$_volume_key")
-      _target_dir="${_shared_volpath}/volumes/${_safe_host}/${_safe_key}"
+      _target_dir=$(resolve_host_volume "$_shared_volpath" "$_safe_host" "$_safe_key")
       _target_path="${_target_dir}/${_filename}"
 
       # Verify directory exists (should have been created by template 150)

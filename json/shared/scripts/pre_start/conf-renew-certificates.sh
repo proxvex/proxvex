@@ -38,7 +38,7 @@ echo "$CERT_RENEW_REQUESTS" | while IFS= read -r HOSTNAME; do
 
   FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
   SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-  CERT_DIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/certs"
+  CERT_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "certs")
 
   echo "Renewing: ${HOSTNAME} -> ${CERT_DIR}" >&2
 
