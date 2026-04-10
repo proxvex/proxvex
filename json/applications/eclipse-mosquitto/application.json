@@ -56,7 +56,7 @@
     },
     {
       "id": "ssl.addon_volumes",
-      "value": "certs=/mosquitto/config/certs,0700,1883:1883"
+      "value": "certs=/mosquitto/config/certs,0700,1883:1883\noci_deployer=/etc/lxc-oci-deployer,0755,0:0"
     },
     {
       "id": "ssl.needs_server_cert",
