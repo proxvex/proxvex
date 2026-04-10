@@ -430,7 +430,7 @@ template_path=$(execute_script_from_github \
   "json/shared/scripts/image/host-get-oci-image.py" \
   "template_path" \
   "oci_image=${OCI_IMAGE}" \
-  "storage=${storage}" \
+  "storage=local" \
   "registry_username=" \
   "registry_password=" \
   "platform=linux/amd64")
@@ -444,7 +444,7 @@ oci_outputs=$(execute_script_from_github \
   "json/shared/scripts/image/host-get-oci-image.py" \
   "ostype,arch,application_id,application_name,oci_image,oci_image_tag" \
   "oci_image=${OCI_IMAGE}" \
-  "storage=${storage}" \
+  "storage=local" \
   "registry_username=" \
   "registry_password=" \
   "platform=linux/amd64")

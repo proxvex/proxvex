@@ -450,7 +450,8 @@ while IFS= read -r line <&3; do
   esac
 
   # Allocate a Proxmox-managed subvolume for this volume
-  VOL_NAME="${SAFE_HOST}-${SAFE_KEY}"
+  # pvesm requires name format: subvol-<VMID>-<suffix>
+  VOL_NAME="subvol-${VMID}-${SAFE_HOST}-${SAFE_KEY}"
   VOLID=$(get_existing_volid "$VOL_NAME" "$STORAGE_TYPE")
   if [ -z "$VOLID" ]; then
     log "Creating managed volume $VOL_NAME for $VOLUME_KEY (size $VOLUME_SIZE)"
