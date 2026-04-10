@@ -144,7 +144,7 @@ elif is_number "$UID_VALUE"; then
   elif [ "$IS_UNPRIV" -eq 1 ]; then
     # Check if custom idmap exists (passthrough UIDs) - if so, UID is already
     # a 1:1 mapped passthrough and should be used directly on the host
-    HAS_IDMAP=$(echo "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null || echo 0)
+    HAS_IDMAP=$(printf '%s' "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null) || HAS_IDMAP=0
     if [ "$HAS_IDMAP" -gt 0 ]; then
       EFFECTIVE_UID="$UID_VALUE"
     else
@@ -160,7 +160,7 @@ elif is_number "$GID_VALUE"; then
   if [ -n "$MID" ]; then
     EFFECTIVE_GID="$MID"
   elif [ "$IS_UNPRIV" -eq 1 ]; then
-    HAS_IDMAP=$(echo "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null || echo 0)
+    HAS_IDMAP=$(printf '%s' "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null) || HAS_IDMAP=0
     if [ "$HAS_IDMAP" -gt 0 ]; then
       EFFECTIVE_GID="$GID_VALUE"
     else
@@ -187,7 +187,7 @@ compute_effective_uid() {
   if [ -n "$_mid" ]; then
     echo "$_mid"
   elif [ "$IS_UNPRIV" -eq 1 ]; then
-    HAS_IDMAP=$(echo "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null || echo 0)
+    HAS_IDMAP=$(printf '%s' "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null) || HAS_IDMAP=0
     if [ "$HAS_IDMAP" -gt 0 ]; then
       echo "$_cuid"
     else
@@ -210,7 +210,7 @@ compute_effective_gid() {
   if [ -n "$_mid" ]; then
     echo "$_mid"
   elif [ "$IS_UNPRIV" -eq 1 ]; then
-    HAS_IDMAP=$(echo "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null || echo 0)
+    HAS_IDMAP=$(printf '%s' "$PCT_CONFIG" | grep -c 'lxc\.idmap' 2>/dev/null) || HAS_IDMAP=0
     if [ "$HAS_IDMAP" -gt 0 ]; then
       echo "$_cgid"
     else

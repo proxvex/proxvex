@@ -80,6 +80,7 @@ cert_check_fqdn_match() {
 #   $3 - fqdn:        Fully qualified domain name
 #   $4 - target_dir:  Directory to write certificate files
 #   $5 - hostname:    Short hostname (for SAN)
+#   $6 - extra_san:   Additional SAN entries (optional, comma-separated DNS:x,DNS:y)
 # Returns: 0 on success, 1 on failure
 # ============================================================================
 cert_generate_server() {
@@ -88,6 +89,7 @@ cert_generate_server() {
   _fqdn="$3"
   _target_dir="$4"
   _hostname="$5"
+  _extra_san="${6:-}"
 
   _tmp_ca_dir=$(mktemp -d)
 
@@ -95,6 +97,7 @@ cert_generate_server() {
   echo "$_ca_cert_b64" | base64 -d > "$_tmp_ca_dir/ca.crt"
 
   _san="DNS:${_fqdn},DNS:${_hostname},DNS:localhost,IP:127.0.0.1"
+  [ -n "$_extra_san" ] && _san="${_san},${_extra_san}"
 
   # Generate server key
   openssl genrsa -out "$_target_dir/privkey.pem" 2048 2>/dev/null

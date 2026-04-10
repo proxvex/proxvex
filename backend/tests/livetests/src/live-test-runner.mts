@@ -79,6 +79,8 @@ function loadConfig(instanceName?: string): {
   veSshPort: number;
   vmId: number;
   snapshot: { enabled: boolean } | undefined;
+  registryMirror: { dnsForwarder: string } | undefined;
+  portForwarding: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
   const configPath = path.join(projectRoot, "e2e/config.json");
@@ -127,6 +129,14 @@ function loadConfig(instanceName?: string): {
   // Snapshot config (for VM-level snapshots)
   const snapshot = inst.snapshot?.enabled ? { enabled: true } : undefined;
 
+  // Registry mirror config
+  const registryMirror = inst.registryMirror?.dnsForwarder
+    ? { dnsForwarder: inst.registryMirror.dnsForwarder }
+    : undefined;
+
+  // Port forwarding config (for accessing containers from outside the nested VM)
+  const portForwarding = inst.portForwarding ?? [];
+
   return {
     instance,
     pveHost,
@@ -139,6 +149,8 @@ function loadConfig(instanceName?: string): {
     veSshPort,
     vmId: inst.vmId,
     snapshot,
+    registryMirror,
+    portForwarding,
   };
 }
 
@@ -339,6 +351,85 @@ async function main() {
     logOk("OCI version cache written (test mode)");
   } catch {
     logInfo("Warning: Could not write OCI version cache (non-fatal)");
+  }
+
+  // Set up registry mirror DNS + insecure config on nested PVE host
+  if (config.registryMirror) {
+    const fwd = config.registryMirror.dnsForwarder;
+    try {
+      // a) dnsmasq forwarding for docker-registry-mirror hostname
+      const dnsCheck = nestedSsh(config.pveHost, config.portPveSsh,
+        `grep -q 'server=/docker-registry-mirror/' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null && echo "exists" || echo "missing"`,
+        5000);
+      if (dnsCheck.trim() === "missing") {
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `echo "server=/docker-registry-mirror/${fwd}" >> /etc/dnsmasq.d/e2e-nat.conf && systemctl restart dnsmasq`,
+          10000);
+        logOk(`dnsmasq forwarding: docker-registry-mirror -> ${fwd}`);
+      } else {
+        logOk("dnsmasq forwarding already configured");
+      }
+
+      // b) Skopeo insecure config for registry-1.docker.io
+      const skopeoCheck = nestedSsh(config.pveHost, config.portPveSsh,
+        `grep -q registry-1.docker.io /etc/containers/registries.conf.d/mirror.conf 2>/dev/null && echo "exists" || echo "missing"`,
+        5000);
+      if (skopeoCheck.trim() === "missing") {
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `mkdir -p /etc/containers/registries.conf.d && printf '[[registry]]\\nlocation = "registry-1.docker.io"\\ninsecure = true\\n\\n[[registry]]\\nlocation = "index.docker.io"\\ninsecure = true\\n' > /etc/containers/registries.conf.d/mirror.conf`,
+          10000);
+        logOk("Skopeo insecure config for registry mirror written");
+      } else {
+        logOk("Skopeo insecure config already exists");
+      }
+    } catch {
+      logInfo("Warning: Could not configure registry mirror (non-fatal)");
+    }
+  }
+
+  // Set up port forwarding for containers that need external access (e.g. Zitadel for OIDC)
+  if (config.portForwarding.length > 0) {
+    try {
+      for (const fwd of config.portForwarding) {
+        // a) dnsmasq static DHCP lease on nested VM
+        const dhcpCheck = nestedSsh(config.pveHost, config.portPveSsh,
+          `grep -q 'dhcp-host=${fwd.hostname}' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null && echo "exists" || echo "missing"`,
+          5000);
+        if (dhcpCheck.trim() === "missing") {
+          nestedSsh(config.pveHost, config.portPveSsh,
+            `echo "dhcp-host=${fwd.hostname},${fwd.ip}" >> /etc/dnsmasq.d/e2e-nat.conf`,
+            5000);
+        }
+
+        // b) iptables DNAT on nested VM (inner forwarding)
+        const innerCheck = nestedSsh(config.pveHost, config.portPveSsh,
+          `iptables -t nat -C PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${fwd.ip}:${fwd.containerPort} 2>/dev/null && echo "exists" || echo "missing"`,
+          5000);
+        if (innerCheck.trim() === "missing") {
+          nestedSsh(config.pveHost, config.portPveSsh,
+            `iptables -t nat -A PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${fwd.ip}:${fwd.containerPort} && iptables -A FORWARD -p tcp -d ${fwd.ip} --dport ${fwd.containerPort} -j ACCEPT`,
+            5000);
+        }
+
+        // c) iptables DNAT on outer PVE host (port 22, not nested port)
+        // Forwards external port to nested VM which then forwards to container
+        const nestedVmIp = "10.99.1.10";
+        try {
+          nestedSsh(config.pveHost, 22,
+            `iptables -t nat -C PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${nestedVmIp}:${fwd.port} 2>/dev/null || (iptables -t nat -A PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${nestedVmIp}:${fwd.port} && iptables -A FORWARD -p tcp -d ${nestedVmIp} --dport ${fwd.port} -j ACCEPT)`,
+            10000);
+        } catch {
+          // Outer host may not be directly accessible via SSH port 22
+        }
+
+        logOk(`Port forwarding: ${fwd.hostname} (${fwd.ip}:${fwd.containerPort}) -> external port ${fwd.port}`);
+      }
+
+      // Restart dnsmasq to apply DHCP changes
+      nestedSsh(config.pveHost, config.portPveSsh, `systemctl restart dnsmasq`, 10000);
+    } catch {
+      logInfo("Warning: Could not configure port forwarding (non-fatal)");
+    }
   }
 
   // Fetch application metadata (stacktypes, extends, tags)

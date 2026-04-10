@@ -417,6 +417,16 @@ export class ApplicationPersistenceHandler {
             appData.iconContent = parent.iconContent;
             appData.iconType = parent.iconType;
           }
+          // Inherit key fields for lightweight reads (API list, test discovery)
+          if (!appData.stacktype && parent.stacktype) {
+            appData.stacktype = parent.stacktype;
+          }
+          if (!appData.dependencies && parent.dependencies) {
+            appData.dependencies = parent.dependencies;
+          }
+          if ((!appData.description || appData.description === "No description available") && parent.description) {
+            appData.description = parent.description;
+          }
         } catch (e: Error | any) {
           this.addErrorToOptions(opts, e);
         }
@@ -480,6 +490,28 @@ export class ApplicationPersistenceHandler {
                 ...(appData.supports ?? []),
               ]),
             ];
+          }
+          // Inherit properties: parent as base, child overrides by id
+          if (parent.properties?.length) {
+            const childIds = new Set((appData.properties ?? []).map((p) => p.id));
+            const inherited = parent.properties.filter((p) => !childIds.has(p.id));
+            appData.properties = [...inherited, ...(appData.properties ?? [])];
+          }
+          // Inherit parameters: parent as base, child overrides by id
+          if (parent.parameters?.length) {
+            const childIds = new Set((appData.parameters ?? []).map((p) => p.id));
+            const inherited = parent.parameters.filter((p) => !childIds.has(p.id));
+            appData.parameters = [...inherited, ...(appData.parameters ?? [])];
+          }
+          // Inherit stacktype, dependencies, description if not defined locally
+          if (!appData.stacktype && parent.stacktype) {
+            appData.stacktype = parent.stacktype;
+          }
+          if (!appData.dependencies && parent.dependencies) {
+            appData.dependencies = parent.dependencies;
+          }
+          if ((!appData.description || appData.description === "No description available") && parent.description) {
+            appData.description = parent.description;
           }
         } catch (e: Error | any) {
           this.addErrorToOptions(opts, e);

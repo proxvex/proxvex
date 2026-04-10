@@ -1,0 +1,6 @@
+{
+  "default": {
+    "addons": ["addon-ssl"],
+    "wait_seconds": 15
+  }
+}

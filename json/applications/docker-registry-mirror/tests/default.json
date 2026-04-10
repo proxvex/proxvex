@@ -1,0 +1,6 @@
+{
+  "params": [
+    { "name": "volume_storage", "value": "local-zfs" }
+  ],
+  "selectedAddons": ["addon-ssl"]
+}

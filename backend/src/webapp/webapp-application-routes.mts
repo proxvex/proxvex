@@ -300,6 +300,10 @@ export function registerApplicationRoutes(
       if (application.stacktype) response.stacktype = application.stacktype;
       if (application.supported_addons?.length)
         response.supported_addons = application.supported_addons;
+      if (application.default_addons?.length)
+        response.default_addons = application.default_addons;
+      if (application.required_addons?.length)
+        response.required_addons = application.required_addons;
 
       returnResponse<IApplicationFrameworkDataResponse>(res, response);
     } catch (err: any) {

@@ -248,10 +248,28 @@ export class WebAppVeRouteHandlers {
       }
 
       // Read application + addon dependencies for dependency-host-discovery
+      let appConfig: any = null;
       try {
-        const appConfig = this.pm.getRepositories().getApplication(application);
+        appConfig = this.pm.getRepositories().getApplication(application);
         const appDeps = (appConfig as any)?.dependencies as { application: string }[] | undefined;
         const allDeps = [...(appDeps ?? [])];
+
+        // Merge stacktype dependencies (e.g. postgres stacktype → postgres app)
+        const appStacktype = (appConfig as any)?.stacktype;
+        const stacktypes = appStacktype ? (Array.isArray(appStacktype) ? appStacktype : [appStacktype]) : [];
+        if (stacktypes.length > 0) {
+          const stacktypeData = this.pm.getStacktypes();
+          for (const stName of stacktypes) {
+            const st = stacktypeData.find((s: any) => s.name === stName);
+            if (st?.dependencies) {
+              for (const dep of st.dependencies) {
+                if (dep.application !== application && !allDeps.some(d => d.application === dep.application)) {
+                  allDeps.push(dep);
+                }
+              }
+            }
+          }
+        }
 
         // Merge addon dependencies
         const addonIds = body.selectedAddons ?? [];
@@ -281,7 +299,10 @@ export class WebAppVeRouteHandlers {
       // Pre-inject ca_key_b64 marker so skip_if_all_missing in template 156
       // does not skip cert generation when addon-ssl is selected.
       // The actual CA key is injected later by certificateInjector.
-      if ((body.selectedAddons ?? []).some((a: string) => a === "addon-ssl" || a === "addon-acme")) {
+      // Merge required_addons (always active, cannot be deselected by user)
+      const appRequiredAddons = ((appConfig as any)?.required_addons ?? []) as string[];
+      const allRequestedAddons = [...new Set([...(body.selectedAddons ?? []), ...appRequiredAddons])];
+      if (allRequestedAddons.some((a: string) => a === "addon-ssl" || a === "addon-acme")) {
         if (!initialInputs.some(p => p.id === "ca_key_b64")) {
           initialInputs.push({ id: "ca_key_b64", value: "pending" });
         }
@@ -306,7 +327,7 @@ export class WebAppVeRouteHandlers {
       // Insert addon templates at correct positions for each phase
       // For reconfigure with installedAddons: only inject changed addons (delta)
       const installedAddons = body.installedAddons ?? [];
-      let selectedAddons = body.selectedAddons ?? [];
+      let selectedAddons = [...new Set([...(body.selectedAddons ?? []), ...appRequiredAddons])];
       let disabledAddons = body.disabledAddons ?? [];
 
       if (installedAddons.length > 0 && task === "reconfigure") {
@@ -320,9 +341,10 @@ export class WebAppVeRouteHandlers {
         const keptAddons = selectedAddons.filter(a => installedSet.has(a));
         // Removed addons = installed but not selected (merge with explicitly disabled)
         const removedAddons = installedAddons.filter(a => !selectedSet.has(a));
-        disabledAddons = [...new Set([...disabledAddons, ...removedAddons])];
+        disabledAddons = [...new Set([...disabledAddons, ...removedAddons])]
+          .filter(a => !appRequiredAddons.includes(a)); // required_addons cannot be disabled
         // Inject templates for both new and kept addons
-        selectedAddons = [...newAddons, ...keptAddons];
+        selectedAddons = [...new Set([...newAddons, ...keptAddons, ...appRequiredAddons])];
       }
 
       if (selectedAddons.length > 0) {
@@ -389,6 +411,22 @@ export class WebAppVeRouteHandlers {
       {
         const appDependencies = (loaded.application as any)?.dependencies as { application: string }[] | undefined;
         const allDeps = [...(appDependencies ?? [])];
+        // Merge stacktype dependencies
+        const loadedStacktype = (loaded.application as any)?.stacktype;
+        const loadedStacktypes = loadedStacktype ? (Array.isArray(loadedStacktype) ? loadedStacktype : [loadedStacktype]) : [];
+        if (loadedStacktypes.length > 0) {
+          const stacktypeData = this.pm.getStacktypes();
+          for (const stName of loadedStacktypes) {
+            const st = stacktypeData.find((s: any) => s.name === stName);
+            if (st?.dependencies) {
+              for (const dep of st.dependencies) {
+                if (dep.application !== application && !allDeps.some(d => d.application === dep.application)) {
+                  allDeps.push(dep);
+                }
+              }
+            }
+          }
+        }
         if (selectedAddons.length > 0) {
           const addonSvc = this.pm.getAddonService();
           for (const addonId of selectedAddons) {

@@ -314,6 +314,24 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
             }
           }
         }
+
+        // Pre-select default_addons (user can deselect) and required_addons (locked)
+        const preselect = [
+          ...(this.data.app.default_addons ?? []),
+          ...(this.data.app.required_addons ?? []),
+        ];
+        for (const addonId of preselect) {
+          if (!this.selectedAddons().includes(addonId)) {
+            const addon = this.availableAddons.find(a => a.id === addonId);
+            if (addon) {
+              try {
+                this.applyAddonToggle(addonId, true, addon);
+              } catch (err) {
+                console.error(`Failed to pre-select addon ${addonId}:`, err);
+              }
+            }
+          }
+        }
       },
       error: () => {
         // Don't show error for addons - they're optional
@@ -470,6 +488,9 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   toggleAddon(addonId: string, checked: boolean): void {
+    // Prevent deselecting required addons
+    if (!checked && (this.data.app.required_addons ?? []).includes(addonId)) return;
+
     const addon = this.availableAddons.find(a => a.id === addonId);
 
     // Gate: CA must be configured before enabling an addon with certtype parameters

@@ -1,0 +1,28 @@
+{
+  "execute_on": "lxc",
+  "name": "Trust Registry CA in Docker",
+  "description": "Downloads the deployer CA certificate and installs it so Docker trusts the local registry mirror (registry-1.docker.io). Skipped if no local mirror is detected via DNS.",
+  "parameters": [
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer URL",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: deployer base URL for CA download"
+    },
+    {
+      "id": "ve_context_key",
+      "name": "VE Context",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: VE context key for CA download"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Trust Registry CA",
+      "script": "post-trust-registry-ca-in-docker.sh",
+      "library": "registry-mirror-common.sh"
+    }
+  ]
+}

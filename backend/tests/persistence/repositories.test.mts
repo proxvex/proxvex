@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { FileSystemRepositories } from "@src/persistence/repositories.mjs";
 import { FileSystemPersistence } from "@src/persistence/filesystem-persistence.mjs";
+import { TemplateResolver } from "@src/templates/template-resolver.mjs";
 import type { IConfiguredPathes } from "@src/backend-types.mjs";
 
 describe("FileSystemRepositories", () => {
@@ -324,6 +325,55 @@ describe("FileSystemRepositories", () => {
 
       expect(ref).not.toBeNull();
       expect(ref!.applicationId).toBe("child-app");
+    });
+  });
+
+  describe("resolveScriptContent — app-specific script overrides shared", () => {
+    it("should find app-specific script over shared script (same category)", () => {
+      // Setup: shared script in post_start/
+      fs.mkdirSync(path.join(pathes.jsonPath, "shared", "scripts", "post_start"), { recursive: true });
+      fs.writeFileSync(
+        path.join(pathes.jsonPath, "shared", "scripts", "post_start", "my-script.sh"),
+        "#!/bin/sh\necho shared",
+      );
+
+      // Setup: app-specific override in post_start/
+      fs.mkdirSync(path.join(pathes.jsonPath, "applications", "child-app", "scripts", "post_start"), { recursive: true });
+      fs.writeFileSync(
+        path.join(pathes.jsonPath, "applications", "child-app", "scripts", "post_start", "my-script.sh"),
+        "#!/bin/sh\necho app-specific",
+      );
+      fs.writeFileSync(
+        path.join(pathes.jsonPath, "applications", "child-app", "application.json"),
+        JSON.stringify({ name: "Child App" }),
+      );
+
+      // Import TemplateResolver to use resolveScriptContent
+      const resolver = new TemplateResolver(repositories);
+      const result = resolver.resolveScriptContent("child-app", "my-script.sh", "post_start");
+
+      expect(result.content).not.toBeNull();
+      expect(result.content).toContain("app-specific");
+      expect(result.ref?.scope).toBe("application");
+    });
+
+    it("should fall back to shared script when app has no override", () => {
+      // Setup: only shared script
+      fs.mkdirSync(path.join(pathes.jsonPath, "shared", "scripts", "post_start"), { recursive: true });
+      fs.writeFileSync(
+        path.join(pathes.jsonPath, "shared", "scripts", "post_start", "my-script.sh"),
+        "#!/bin/sh\necho shared",
+      );
+      fs.writeFileSync(
+        path.join(pathes.jsonPath, "applications", "child-app", "application.json"),
+        JSON.stringify({ name: "Child App" }),
+      );
+
+      const resolver = new TemplateResolver(repositories);
+      const result = resolver.resolveScriptContent("child-app", "my-script.sh", "post_start");
+
+      expect(result.content).not.toBeNull();
+      expect(result.content).toContain("shared");
     });
   });
 });

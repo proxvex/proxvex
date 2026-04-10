@@ -14,7 +14,14 @@
       "deployerPort": "${DEPLOYER_PORT}",
       "snapshot": {
         "enabled": true
-      }
+      },
+      "registryMirror": {
+        "dnsForwarder": "192.168.4.1"
+      },
+      "portForwarding": [
+        { "port": 1808, "hostname": "zitadel-default", "ip": "10.0.0.226", "containerPort": 1443 },
+        { "port": 1809, "hostname": "gitea-default", "ip": "10.0.0.203", "containerPort": 3000 }
+      ]
     },
     "local-test": {
       "description": "Local development testing",

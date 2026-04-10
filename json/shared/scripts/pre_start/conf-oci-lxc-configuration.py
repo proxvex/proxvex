@@ -132,6 +132,28 @@ if env_dict:
 
     print(f"Set {env_count} environment variable(s) (skipped {env_skipped}, replaced {env_runtime_removed} runtime defaults)", file=sys.stderr)
 
+# 4. Wrap entrypoint to wait for network before starting the application.
+# OCI containers start the entrypoint immediately but the network interface
+# may not be ready yet (host-managed=1 with DHCP). We prepend a wait loop
+# that checks /sys/class/net/eth0/operstate until the link is up.
+NETWORK_WAIT = 'i=0; while [ $i -lt 30 ]; do grep -q "00000000" /proc/net/route 2>/dev/null && break; i=$((i+1)); sleep 1; done; '
+wrapped = False
+final_lines = []
+for line in new_lines:
+    if line.strip().startswith("entrypoint:") and NETWORK_WAIT not in line:
+        # Extract current entrypoint value
+        ep_value = line.split(":", 1)[1].strip()
+        # Wrap with /bin/sh -c "wait; exec original"
+        wrapped_ep = f'entrypoint: /bin/sh -c \'{NETWORK_WAIT}exec {ep_value}\'\n'
+        final_lines.append(wrapped_ep)
+        print(f"Wrapped entrypoint with network-wait: {ep_value}", file=sys.stderr)
+        wrapped = True
+    else:
+        final_lines.append(line)
+new_lines = final_lines
+if not wrapped:
+    print("No entrypoint found to wrap (skipping network-wait)", file=sys.stderr)
+
 # Write back config
 try:
     with open(config_file, 'w') as f:

@@ -12,6 +12,8 @@ export interface CommandProcessorDependencies {
     vm_id: string | number,
     command: string,
     tmplCommand: ICommand,
+    execUid?: number,
+    execGid?: number,
     timeoutMs?: number,
   ) => Promise<IVeExecuteMessage>;
   runOnVeHost: (
@@ -322,7 +324,33 @@ export class VeExecutionCommandProcessor {
       throw new Error(cmd.name + " is missing the execute_on property");
     }
 
-    switch (cmd.execute_on) {
+    // Normalize execute_on: extract target string and optional uid/gid flags
+    let target: string;
+    let useUid = false;
+    let useGid = false;
+    if (typeof cmd.execute_on === "object" && cmd.execute_on !== null) {
+      target = (cmd.execute_on as { where: string }).where;
+      useUid = !!(cmd.execute_on as { uid?: boolean }).uid;
+      useGid = !!(cmd.execute_on as { gid?: boolean }).gid;
+    } else {
+      target = cmd.execute_on as string;
+    }
+
+    // Resolve uid/gid from application config if flags are set
+    let execUid: number | undefined;
+    let execGid: number | undefined;
+    if (useUid || useGid) {
+      const resolvedUid = this.deps.variableResolver.replaceVars("{{ uid }}");
+      const resolvedGid = this.deps.variableResolver.replaceVars("{{ gid }}");
+      if (useUid && resolvedUid && resolvedUid !== "NOT_DEFINED" && !resolvedUid.includes("{{")) {
+        execUid = parseInt(resolvedUid, 10);
+      }
+      if (useGid && resolvedGid && resolvedGid !== "NOT_DEFINED" && !resolvedGid.includes("{{")) {
+        execGid = parseInt(resolvedGid, 10);
+      }
+    }
+
+    switch (target) {
       case "lxc": {
         const execStrLxc = this.deps.variableResolver.replaceVars(rawStr);
         const vm_id = this.getVmId();
@@ -332,9 +360,7 @@ export class VeExecutionCommandProcessor {
           this.deps.messageEmitter.emitStandardMessage(cmd, msg, null, -1, -1);
           throw new Error(msg);
         }
-        // When sshCommand !== "ssh", runOnLxc will set remoteCommand to undefined
-        // to execute locally. We don't need to pass it explicitly here.
-        await this.deps.runOnLxc(vm_id, execStrLxc, cmd);
+        await this.deps.runOnLxc(vm_id, execStrLxc, cmd, execUid, execGid);
         return undefined;
       }
       case "ve": {
@@ -342,30 +368,22 @@ export class VeExecutionCommandProcessor {
         return await this.deps.runOnVeHost(execStrVe, cmd);
       }
       default: {
-        if (
-          typeof cmd.execute_on === "string" &&
-          /^host:.*/.test(cmd.execute_on)
-        ) {
-          const hostname = cmd.execute_on.split(":")[1] ?? "";
-          // Pass raw (unreplaced) string; executeOnHost will replace with vmctx.data
+        if (/^host:.*/.test(target)) {
+          const hostname = target.split(":")[1] ?? "";
           await this.deps.executeOnHost(hostname, rawStr, cmd);
           return undefined;
-        } else if (
-          typeof cmd.execute_on === "string" &&
-          /^application:.*/.test(cmd.execute_on)
-        ) {
-          // Execute on a container identified by application_id
-          const appId = cmd.execute_on.slice("application:".length).trim();
+        } else if (/^application:.*/.test(target)) {
+          const appId = target.slice("application:".length).trim();
           if (!this.deps.resolveApplicationToVmId) {
             throw new Error("resolveApplicationToVmId is not configured");
           }
           const vm_id = await this.deps.resolveApplicationToVmId(appId);
           const execStr = this.deps.variableResolver.replaceVars(rawStr);
-          await this.deps.runOnLxc(vm_id, execStr, cmd);
+          await this.deps.runOnLxc(vm_id, execStr, cmd, execUid, execGid);
           return undefined;
         } else {
           throw new Error(
-            cmd.name + " has invalid execute_on: " + cmd.execute_on,
+            cmd.name + " has invalid execute_on: " + target,
           );
         }
       }

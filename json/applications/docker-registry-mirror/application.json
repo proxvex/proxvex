@@ -1,0 +1,71 @@
+{
+  "name": "Docker Registry Mirror",
+  "description": "Pull-through cache for Docker Hub. Caches images locally to avoid rate limits.",
+  "extends": "docker-compose",
+  "icon": "icon.svg",
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": false,
+      "description": "Hostname for the Docker Compose container.",
+      "template": "application.json",
+      "default": "docker-registry-mirror"
+    }
+  ],
+  "properties": [
+    {
+      "id": "compose_file",
+      "default": "file:docker-registry-mirror.docker-compose.yml"
+    },
+    {
+      "id": "ostype",
+      "value": "alpine"
+    },
+    {
+      "id": "ssl_mode",
+      "value": "native"
+    },
+    {
+      "id": "https_port",
+      "value": "443"
+    },
+    {
+      "id": "ssl.addon_volumes",
+      "value": "certs=certs,0755,0:0"
+    },
+    {
+      "id": "ssl.needs_server_cert",
+      "value": "true"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "value": "true"
+    },
+    {
+      "id": "ssl_additional_san",
+      "value": "DNS:registry-1.docker.io,DNS:index.docker.io"
+    },
+    {
+      "id": "startup_order",
+      "value": "5"
+    },
+    {
+      "id": "startup_up",
+      "value": "10"
+    }
+  ],
+  "installation": {},
+  "check": {
+    "check": [
+      "check-registry-mirror.json"
+    ]
+  },
+  "supported_addons": ["addon-ssl"],
+  "required_addons": ["addon-ssl"],
+  "tags": ["infrastructure"],
+  "url": "https://docs.docker.com/registry/",
+  "documentation": "https://docs.docker.com/registry/recipes/mirror/",
+  "source": "https://github.com/distribution/distribution"
+}

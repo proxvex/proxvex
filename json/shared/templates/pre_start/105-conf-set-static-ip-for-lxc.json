@@ -4,7 +4,8 @@
   "description": "Edit LXC network settings for a container with static IPs.",
   "skip_if_all_missing": [
     "static_ip",
-    "static_ip6"
+    "static_ip6",
+    "nameserver4"
   ],
   "parameters": [
     {

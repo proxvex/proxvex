@@ -1,6 +1,7 @@
 {
-  "params": [],
-  "selectedAddons": [
-    "addon-acme"
-  ]
+  "params": [
+    { "name": "acme_san", "value": "${ACME_SAN}" },
+    { "name": "acme_staging", "value": "true" }
+  ],
+  "selectedAddons": ["addon-acme"]
 }

@@ -357,7 +357,7 @@ export class TemplateProcessor extends EventEmitter {
       {
         ...opts,
         templateCategory: "list", // enumValuesTemplate always uses "list" category
-        ...(executeOn ? { enumValuesExecuteOn: executeOn } : {}),
+        ...(executeOn ? { enumValuesExecuteOn: typeof executeOn === "object" ? (executeOn as { where: string }).where : executeOn } : {}),
       },
       (innerOpts) => this.#processTemplate(innerOpts),
       (message) => this.emit("message", message),
@@ -824,7 +824,7 @@ export class TemplateProcessor extends EventEmitter {
                 ? executionMode
                 : determineExecutionMode(),
             veContext,
-            ...(executeOn ? { enumValuesExecuteOn: executeOn } : {}),
+            ...(executeOn ? { enumValuesExecuteOn: typeof executeOn === "object" ? (executeOn as { where: string }).where : executeOn } : {}),
             processedTemplates: new Map(),
             templateReferences: new Map(),
             outputSources: new Map(),

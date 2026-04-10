@@ -9,7 +9,24 @@
         { "const": "ve" },
         { "const": "lxc" },
         { "type": "string", "pattern": "^host:.*$" },
-        { "type": "string", "pattern": "^application:.*$" }
+        { "type": "string", "pattern": "^application:.*$" },
+        {
+          "type": "object",
+          "properties": {
+            "where": {
+              "anyOf": [
+                { "const": "ve" },
+                { "const": "lxc" },
+                { "type": "string", "pattern": "^host:.*$" },
+                { "type": "string", "pattern": "^application:.*$" }
+              ]
+            },
+            "uid": { "type": "boolean", "description": "Run as the application's uid (from application.json)" },
+            "gid": { "type": "boolean", "description": "Run as the application's gid (from application.json)" }
+          },
+          "required": ["where"],
+          "additionalProperties": false
+        }
       ]
     },
     "skip_if_all_missing": {

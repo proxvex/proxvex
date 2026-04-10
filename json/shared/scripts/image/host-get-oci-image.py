@@ -31,6 +31,8 @@ import shutil
 import platform as platform_module
 from typing import Optional, Tuple
 
+_mirror_active = False  # Set to True if local registry mirror is detected
+
 
 def get_host_arch() -> str:
     """
@@ -207,7 +209,11 @@ def detect_ostype_from_inspect(inspect_output: dict) -> str:
 def skopeo_inspect(image_ref: str, username: Optional[str] = None, password: Optional[str] = None) -> dict:
     """Inspect image using skopeo and return JSON output."""
     cmd = ['skopeo', 'inspect', '--format', '{{json .}}']
-    
+
+    # Disable TLS verification when using a local registry mirror
+    if _mirror_active:
+        cmd.append('--tls-verify=false')
+
     # Add authentication if provided
     if username and password:
         cmd.extend(['--creds', f'{username}:{password}'])
@@ -246,7 +252,11 @@ def skopeo_copy(image_ref: str, output_path: str, username: Optional[str] = None
         platform: Target platform (e.g., linux/amd64) (optional)
     """
     cmd = ['skopeo', 'copy']
-    
+
+    # Disable TLS verification when using a local registry mirror (self-signed cert)
+    if _mirror_active:
+        cmd.append('--src-tls-verify=false')
+
     # Add platform override (platform is always set at this point, either from param or auto-detected)
     if platform:
         # Parse platform (e.g., linux/amd64 -> arch=amd64, os=linux)
@@ -330,12 +340,84 @@ def import_to_proxmox(storage: str, tarball_path: str, image_name: str, tag: str
     template_path = f"{storage}:vztmpl/{filename}"
     return template_path
 
+def ensure_ca(deployer_url: str, ve_context: str) -> None:
+    """Ensure the deployer CA certificate is trusted on the host.
+
+    Downloads the CA cert from the deployer and installs it so that skopeo
+    trusts TLS connections to a local registry mirror (registry-1.docker.io).
+    """
+    ca_path = "/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
+    if os.path.isfile(ca_path):
+        return  # Already installed
+
+    if not deployer_url or not ve_context:
+        return  # No deployer info available
+
+    ca_url = f"{deployer_url}/api/{ve_context}/ve/certificates/ca/download"
+    log(f"Installing deployer CA certificate from {ca_url}")
+    try:
+        result = subprocess.run(
+            ["curl", "-fsSL", "-k", "-o", ca_path, ca_url],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            log(f"Warning: Could not download CA certificate: {result.stderr.strip()}")
+            return
+        subprocess.run(["update-ca-certificates"], capture_output=True, timeout=10)
+        log("CA certificate installed successfully")
+    except Exception as e:
+        log(f"Warning: CA certificate installation failed: {e}")
+
+
+def ensure_registry_mirror_hosts() -> bool:
+    """Ensure Docker Hub hostnames resolve to the local registry mirror.
+
+    If a container named 'docker-registry-mirror' exists on the network,
+    add /etc/hosts entries so registry-1.docker.io and index.docker.io
+    point to its IP. Returns True if a local mirror is active.
+    """
+    import socket
+    hosts_path = "/etc/hosts"
+    marker = "# oci-lxc-deployer: registry mirror"
+    mirror_hosts = ["registry-1.docker.io", "index.docker.io"]
+
+    try:
+        with open(hosts_path, "r") as f:
+            if marker in f.read():
+                return True  # Already configured
+
+        try:
+            ip = socket.gethostbyname("docker-registry-mirror")
+        except socket.gaierror:
+            return False
+
+        entries = f"{ip} {' '.join(mirror_hosts)}  {marker}\n"
+        with open(hosts_path, "a") as f:
+            f.write(entries)
+        log(f"Added /etc/hosts: {ip} -> {', '.join(mirror_hosts)}")
+        return True
+    except Exception as e:
+        log(f"Warning: Could not update /etc/hosts for registry mirror: {e}")
+        return False
+
+
 def main() -> None:
     """Main function."""
     # Check if skopeo is available
     if not check_skopeo():
         error("skopeo is required but not found. Please install it with: apt install skopeo")
-    
+
+    # Ensure deployer CA is trusted (for local registry mirror)
+    deployer_url = "{{ deployer_base_url }}"
+    ve_context = "{{ ve_context_key }}"
+    if deployer_url and deployer_url != "NOT_DEFINED" and ve_context and ve_context != "NOT_DEFINED":
+        ensure_ca(deployer_url, ve_context)
+
+    # Ensure Docker Hub hostnames resolve to local mirror (if present)
+    # If mirror is active, disable TLS verification (mirror uses self-signed cert)
+    global _mirror_active
+    _mirror_active = ensure_registry_mirror_hosts()
+
     # Get parameters from template variables
     oci_image = "{{ oci_image }}"
     storage = "{{ storage }}"

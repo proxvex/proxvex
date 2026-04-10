@@ -9,12 +9,13 @@
     ],
     "create_ct": [
       { "name": "050-set-project-parameters.json", "category": "create_ct" },
+      { "name": "185-host-resolve-dependency-hosts.json", "category": "pre_start" },
+      { "name": "187-create-postgres-database.json", "category": "pre_start" },
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
       "107-conf-oci-lxc-configuration.json",
-      "160-conf-bind-multiple-volumes-to-lxc.json",
-      "185-host-resolve-dependency-hosts.json"
+      "160-conf-bind-multiple-volumes-to-lxc.json"
     ],
     "start": [
       "200-start-lxc.json",

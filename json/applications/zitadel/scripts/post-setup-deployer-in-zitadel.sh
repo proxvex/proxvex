@@ -44,7 +44,7 @@ if ! command -v curl > /dev/null 2>&1; then
 fi
 
 # --- Read admin PAT from Docker tmpfs ---
-# The PAT is in the zitadel-api container at /zitadel/tmp/admin-client.pat
+# The PAT is in the zitadel-api container at /zitadel/bootstrap/admin-client.pat
 echo "Reading admin PAT from Docker container..." >&2
 
 # Detect docker compose command
@@ -69,8 +69,8 @@ ZITADEL_CONTAINER_ID=$(docker ps -q -f name=zitadel-api 2>/dev/null | head -1)
 if [ -n "$ZITADEL_CONTAINER_ID" ]; then
   GO_PID_FMT=$(printf '%s.State.Pid%s' '{{' '}}')
   CONTAINER_PID=$(docker inspect -f "$GO_PID_FMT" "$ZITADEL_CONTAINER_ID" 2>/dev/null)
-  if [ -n "$CONTAINER_PID" ] && [ -f "/proc/${CONTAINER_PID}/root/zitadel/tmp/admin-client.pat" ]; then
-    PAT=$(cat "/proc/${CONTAINER_PID}/root/zitadel/tmp/admin-client.pat" 2>/dev/null)
+  if [ -n "$CONTAINER_PID" ] && [ -f "/proc/${CONTAINER_PID}/root/zitadel/bootstrap/admin-client.pat" ]; then
+    PAT=$(cat "/proc/${CONTAINER_PID}/root/zitadel/bootstrap/admin-client.pat" 2>/dev/null)
   fi
 fi
 

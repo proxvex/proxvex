@@ -53,6 +53,14 @@
       "default": false,
       "advanced": true,
       "description": "Install CA chain certificate (chain.pem)."
+    },
+    {
+      "id": "acme_staging",
+      "name": "Staging Mode",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
+      "description": "Use Let's Encrypt staging server (for testing, no rate limits)."
     }
   ],
 

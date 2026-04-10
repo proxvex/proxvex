@@ -550,14 +550,19 @@ export class FileSystemRepositories
         }
       }
     } else {
-      const appPath = this.getApplicationPath(ref.applicationId);
-      if (appPath) {
+      // Search through application hierarchy (child -> parent) for the script
+      const hierarchy = ref.applicationId ? this.getApplicationHierarchy(ref.applicationId) : [];
+      for (const appId of hierarchy) {
+        const appPath = this.getApplicationPath(appId);
+        if (!appPath) continue;
         scriptPath = TemplatePathResolver.resolveScriptPath(
           ref.name,
           appPath,
           this.pathes,
           ref.category || "root",
         );
+        if (scriptPath && fs.existsSync(scriptPath)) break;
+        scriptPath = null;
       }
     }
     return scriptPath;
@@ -627,17 +632,25 @@ export class FileSystemRepositories
 
   private getApplicationPath(applicationId?: string): string | null {
     if (!applicationId) return null;
-    const normalizedId = applicationId.startsWith("json:")
-      ? applicationId.replace(/^json:/, "")
-      : applicationId;
+
+    // "json:" prefix forces resolution to json/ directory (skips local)
+    if (applicationId.startsWith("json:")) {
+      const name = applicationId.replace(/^json:/, "");
+      const jsonCandidate = path.join(this.pathes.jsonPath, "applications", name);
+      if (fs.existsSync(path.join(jsonCandidate, "application.json"))) {
+        return jsonCandidate;
+      }
+      return null;
+    }
+
     const allApps = this.persistence.getAllAppNames();
-    const cached = allApps.get(normalizedId);
+    const cached = allApps.get(applicationId);
     if (cached) return cached;
 
     const localCandidate = path.join(
       this.pathes.localPath,
       "applications",
-      normalizedId,
+      applicationId,
     );
     if (fs.existsSync(path.join(localCandidate, "application.json"))) {
       return localCandidate;
@@ -646,7 +659,7 @@ export class FileSystemRepositories
     const jsonCandidate = path.join(
       this.pathes.jsonPath,
       "applications",
-      normalizedId,
+      applicationId,
     );
     if (fs.existsSync(path.join(jsonCandidate, "application.json"))) {
       return jsonCandidate;

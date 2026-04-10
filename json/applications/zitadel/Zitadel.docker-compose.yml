@@ -65,7 +65,7 @@ services:
       - zitadel
 
   zitadel-login:
-    image: ghcr.io/zitadel/zitadel-login:latest
+    image: ghcr.io/zitadel/zitadel-login:v4.12.3
     restart: unless-stopped
     environment:
       ZITADEL_API_URL: http://zitadel-api:8080
@@ -84,6 +84,11 @@ configs:
   traefik-dynamic-http:
     content: |
       http:
+        middlewares:
+          zitadel-host:
+            headers:
+              customRequestHeaders:
+                Host: "{{ ZITADEL_EXTERNALDOMAIN }}"
         routers:
           zitadel-login:
             rule: "PathPrefix(`/ui/v2/login`)"
@@ -94,6 +99,8 @@ configs:
           zitadel-api:
             rule: "PathPrefix(`/`)"
             service: zitadel-api
+            middlewares:
+              - zitadel-host
             priority: 100
             entryPoints:
               - web
@@ -113,6 +120,11 @@ configs:
           - certFile: /certs/fullchain.pem
             keyFile: /certs/privkey.pem
       http:
+        middlewares:
+          zitadel-host:
+            headers:
+              customRequestHeaders:
+                Host: "{{ ZITADEL_EXTERNALDOMAIN }}"
         routers:
           zitadel-login:
             rule: "PathPrefix(`/ui/v2/login`)"
@@ -124,6 +136,8 @@ configs:
           zitadel-api:
             rule: "PathPrefix(`/`)"
             service: zitadel-api
+            middlewares:
+              - zitadel-host
             priority: 100
             entryPoints:
               - websecure

@@ -8,6 +8,7 @@
 
 import { nestedSsh } from "./ssh-helpers.mjs";
 import type { PlannedScenario } from "./livetest-types.mjs";
+import type { SnapshotManager } from "./snapshot-manager.mjs";
 import { logOk, logInfo } from "./log-helpers.mjs";
 
 export interface StackMaps {
@@ -51,7 +52,9 @@ export async function destroyStaleVms(
   sshPort: number,
   apiUrl: string,
   appStacktypes: Map<string, string | string[]>,
+  snapMgr?: SnapshotManager,
 ): Promise<void> {
+  let contextRestoreAttempted = false;
   for (const p of planned) {
     if (!p.skipExecution || !p.isDependency) continue;
     const rawSt = appStacktypes.get(p.scenario.application);
@@ -65,11 +68,39 @@ export async function destroyStaleVms(
       } catch { stackMissing = true; }
     }
     if (stackMissing) {
-      logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stack missing — destroying (context mismatch)`);
-      nestedSsh(pveHost, sshPort,
-        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
-        30000);
-      p.skipExecution = false;
+      // Stack missing but container is running — context is stale.
+      // This happens when a previous failed test run overwrote the deployer context.
+      // Try to restore context from the snapshot backup on the nested VM.
+      if (!contextRestoreAttempted) {
+        contextRestoreAttempted = true;
+        logInfo("Stacks missing for running VMs — restoring context from snapshot backup");
+        try {
+          snapMgr?.restoreContextPublic();
+          const reloadResp = await fetch(`${apiUrl}/api/reload`, { method: "POST", signal: AbortSignal.timeout(10000) });
+          if (reloadResp.ok) {
+            logOk("Context restored and deployer reloaded — rechecking stacks");
+            // Recheck this VM's stacks after restore
+            stackMissing = false;
+            for (const st of sts) {
+              const sid = `${st}_${p.stackName}`;
+              try {
+                const r = await fetch(`${apiUrl}/api/stack/${sid}`, { signal: AbortSignal.timeout(3000) });
+                if (!r.ok) stackMissing = true;
+              } catch { stackMissing = true; }
+            }
+          }
+        } catch {
+          logInfo("Warning: context restore failed");
+        }
+      }
+
+      if (stackMissing) {
+        logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stack missing — destroying (context mismatch)`);
+        nestedSsh(pveHost, sshPort,
+          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+          30000);
+        p.skipExecution = false;
+      }
     }
   }
 }
@@ -132,15 +163,35 @@ export async function ensureStacks(
     }
 
     if (!stackExists) {
+      // Populate entries with external variables from process environment
+      const entries: Array<{ name: string; value: string }> = [];
+      try {
+        const stResp = await fetch(`${apiUrl}/api/stacktypes`, { signal: AbortSignal.timeout(5000) });
+        if (stResp.ok) {
+          const stData = await stResp.json() as { stacktypes: Array<{ name: string; entries?: Array<{ name: string; external?: boolean }> }> };
+          const stDef = stData.stacktypes.find(s => s.name === stacktype);
+          if (stDef?.entries) {
+            for (const v of stDef.entries) {
+              if (v.external && process.env[v.name]) {
+                entries.push({ name: v.name, value: process.env[v.name]! });
+              }
+            }
+          }
+        }
+      } catch { /* ignore — stack will be created without external entries */ }
+
       try {
         const resp = await fetch(`${apiUrl}/api/stacks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: stackName, stacktype, entries: [] }),
+          body: JSON.stringify({ name: stackName, stacktype, entries }),
           signal: AbortSignal.timeout(10000),
         });
         if (resp.ok) {
           logOk(`Stack '${stackId}' created (type: ${stacktype})`);
+          if (entries.length > 0) {
+            logInfo(`  External variables injected: ${entries.map(e => e.name).join(", ")}`);
+          }
         }
       } catch {
         // Stack creation failed — may already exist from concurrent run

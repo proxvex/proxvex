@@ -1074,4 +1074,99 @@ print(result)
       expect(capturedCommand).toBe("pg_dump production");
     });
   });
+
+  describe("execute_on with uid/gid object", () => {
+    it("should pass uid and gid to runOnLxc when execute_on is object with uid/gid flags", async () => {
+      let capturedUid: number | undefined;
+      let capturedGid: number | undefined;
+
+      const outputs = new Map<string, string | number | boolean>();
+      outputs.set("vm_id", 203);
+      const inputs = [
+        { id: "vm_id", value: 203 as string | number | boolean },
+      ];
+      const defaults = new Map<string, string | number | boolean>();
+      defaults.set("uid", "1000");
+      defaults.set("gid", "1000");
+      const variableResolver = new VariableResolver(
+        () => outputs,
+        () => inputs,
+        () => defaults,
+      );
+      const eventEmitter = new EventEmitter();
+      const messageEmitter = new VeExecutionMessageEmitter(eventEmitter);
+
+      const processor = new VeExecutionCommandProcessor({
+        outputs,
+        inputs,
+        variableResolver,
+        messageEmitter,
+        runOnLxc: async (_vmId, _cmd, _tmplCmd, uid, gid) => {
+          capturedUid = uid;
+          capturedGid = gid;
+          return { command: "test", stderr: "", result: null, exitCode: 0 };
+        },
+        runOnVeHost: async () => { throw new Error("should not be called"); },
+        executeOnHost: async () => { throw new Error("should not be called"); },
+        outputsRaw: undefined,
+        setOutputsRaw: () => {},
+      });
+
+      const cmd: ICommand = {
+        name: "test-uid-gid",
+        execute_on: { where: "lxc", uid: true, gid: true },
+      };
+
+      await processor.executeCommandByTarget(cmd, "echo hello");
+
+      expect(capturedUid).toBe(1000);
+      expect(capturedGid).toBe(1000);
+    });
+
+    it("should not pass uid/gid when execute_on is plain string", async () => {
+      let capturedUid: number | undefined;
+      let capturedGid: number | undefined;
+
+      const outputs = new Map<string, string | number | boolean>();
+      outputs.set("vm_id", 203);
+      const inputs = [
+        { id: "vm_id", value: 203 as string | number | boolean },
+      ];
+      const defaults = new Map<string, string | number | boolean>();
+      defaults.set("uid", "1000");
+      const variableResolver = new VariableResolver(
+        () => outputs,
+        () => inputs,
+        () => defaults,
+      );
+      const eventEmitter = new EventEmitter();
+      const messageEmitter = new VeExecutionMessageEmitter(eventEmitter);
+
+      const processor = new VeExecutionCommandProcessor({
+        outputs,
+        inputs,
+        variableResolver,
+        messageEmitter,
+        runOnLxc: async (_vmId, _cmd, _tmplCmd, uid, gid) => {
+          capturedUid = uid;
+          capturedGid = gid;
+          return { command: "test", stderr: "", result: null, exitCode: 0 };
+        },
+        runOnVeHost: async () => { throw new Error("should not be called"); },
+        executeOnHost: async () => { throw new Error("should not be called"); },
+        outputsRaw: undefined,
+        setOutputsRaw: () => {},
+      });
+
+      const cmd: ICommand = {
+        name: "test-plain",
+        execute_on: "lxc",
+      };
+
+      await processor.executeCommandByTarget(cmd, "echo hello");
+
+      expect(capturedUid).toBeUndefined();
+      expect(capturedGid).toBeUndefined();
+    });
+  });
 });

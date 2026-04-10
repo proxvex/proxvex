@@ -34,6 +34,10 @@ export interface IApplicationBase {
   stacktype?: string | string[];
   /** Addon IDs this application supports. Merged with parent via extends. */
   supported_addons?: string[];
+  /** Addon IDs preselected by default (user can deselect). */
+  default_addons?: string[];
+  /** Addon IDs that are always active (user cannot deselect). */
+  required_addons?: string[];
   uploadfiles?: IUploadFile[];
   errors?: string[];
   /** User-configurable parameters defined directly in application.json (new approach) */
@@ -68,6 +72,8 @@ export interface IApplicationWeb {
   framework?: string | undefined;
   extends?: string | undefined;
   stacktype?: string | string[] | undefined;
+  default_addons?: string[] | undefined;
+  required_addons?: string[] | undefined;
   errors?: IJsonError[];
   verification?: IApplicationVerification | undefined;
 }
@@ -113,7 +119,7 @@ export interface ICommand {
   outputs?: ({ id: string; default?: boolean; optional?: boolean } | string)[]; // Expected outputs from this command/script
   description?: string;
   /** @internal execute_on is set internally from template.execute_on, not part of the schema */
-  execute_on?: "ve" | "lxc" | string;
+  execute_on?: "ve" | "lxc" | string | { where: string; uid?: boolean; gid?: boolean };
   /** @internal category is set internally from the template's category for look-ahead skip logic */
   category?: string;
 }
@@ -170,7 +176,7 @@ export interface IParameterOverride {
 }
 
 export interface ITemplate {
-  execute_on?: "ve" | "lxc" | string; // string allows "host:hostname" pattern. Optional if template only has properties commands
+  execute_on?: "ve" | "lxc" | string | { where: string; uid?: boolean; gid?: boolean };
   skip_if_all_missing?: string[];
   skip_if_property_set?: string;
   implements?: string;
@@ -559,6 +565,8 @@ export interface IApplicationFrameworkDataResponse {
   tags?: string[];
   stacktype?: string | string[];
   supported_addons?: string[];
+  default_addons?: string[];
+  required_addons?: string[];
   parameterValues: { id: string; value: string | number | boolean }[];
 }
 

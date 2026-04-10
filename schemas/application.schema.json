@@ -66,6 +66,16 @@
       "items": { "type": "string" },
       "description": "Addon IDs this application supports. Merged with parent via extends."
     },
+    "default_addons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Addon IDs preselected by default (user can deselect)."
+    },
+    "required_addons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Addon IDs that are always active and cannot be deselected by the user."
+    },
     "oidc_roles": {
       "type": "array",
       "description": "Zitadel role definitions for OIDC authentication. Required when 'addon-oidc' is in supported_addons.",

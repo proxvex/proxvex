@@ -353,7 +353,9 @@ export class VeExecutionSshExecutor {
       command: structuredClone(tmplCommand.name),
     };
     if (tmplCommand.execute_on) {
-      message.execute_on = structuredClone(tmplCommand.execute_on);
+      message.execute_on = typeof tmplCommand.execute_on === "object"
+        ? (tmplCommand.execute_on as { where: string }).where
+        : tmplCommand.execute_on;
     }
     return message;
   }

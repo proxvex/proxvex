@@ -1,7 +1,7 @@
 {
   "name": "Configure OIDC in Application",
   "description": "Configure the application to use OIDC authentication. The shared script is a no-op. Applications override this in their own scripts/ directory.",
-  "execute_on": "ve",
+  "execute_on": { "where": "lxc", "uid": true, "gid": true },
   "parameters": [
     {
       "id": "vm_id",
@@ -46,6 +46,14 @@
       "default": "",
       "advanced": true,
       "description": "Domain suffix for constructing URLs"
+    },
+    {
+      "id": "GITEA_ADMIN_PASSWORD",
+      "name": "Gitea Admin Password",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Admin password for Gitea REST API access (from gitea stack)"
     }
   ],
   "commands": [

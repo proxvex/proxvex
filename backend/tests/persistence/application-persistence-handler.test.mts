@@ -603,6 +603,86 @@ describe("ApplicationPersistenceHandler", () => {
       expect(result.iconContent).toBeDefined();
       expect(result.iconType).toBe("image/png");
     });
+
+    it("should inherit properties from parent via extends", () => {
+      // Parent with properties, parameters, stacktype, dependencies, description
+      mkdirSync(persistenceHelper.resolve(Volume.JsonApplications, "parent-props"), { recursive: true });
+      persistenceHelper.writeJsonSync(Volume.JsonApplications, "parent-props/application.json", {
+        name: "Parent",
+        description: "Parent Description",
+        stacktype: ["postgres", "oidc"],
+        dependencies: [{ application: "postgres" }],
+        properties: [
+          { id: "compose_file", default: "file:Docker.yml" },
+          { id: "ostype", value: "alpine" },
+        ],
+        parameters: [
+          { id: "hostname", name: "Hostname", type: "string", default: "parent-host" },
+        ],
+        installation: {},
+      });
+
+      // Child only overrides name and adds one property
+      mkdirSync(persistenceHelper.resolve(Volume.LocalRoot, "applications/child-props"), { recursive: true });
+      persistenceHelper.writeJsonSync(Volume.LocalRoot, "applications/child-props/application.json", {
+        name: "Child",
+        extends: "parent-props",
+        properties: [
+          { id: "ostype", value: "debian" }, // override parent
+        ],
+        installation: {},
+      });
+
+      const opts: IReadApplicationOptions = {
+        applicationHierarchy: [],
+        error: new VEConfigurationError("", "child-props"),
+        taskTemplates: [],
+      };
+
+      const result = handler.readApplication("child-props", opts);
+      expect(result.name).toBe("Child");
+      expect(result.description).toBe("Parent Description");
+      expect(result.stacktype).toEqual(["postgres", "oidc"]);
+      expect(result.dependencies).toEqual([{ application: "postgres" }]);
+
+      // Properties: child overrides ostype, inherits compose_file
+      const props = result.properties ?? [];
+      expect(props.find((p) => p.id === "compose_file")?.default).toBe("file:Docker.yml");
+      expect(props.find((p) => p.id === "ostype")?.value).toBe("debian");
+
+      // Parameters: inherited from parent
+      const params = result.parameters ?? [];
+      expect(params.find((p) => p.id === "hostname")?.default).toBe("parent-host");
+    });
+
+    it("should inherit stacktype in lightweight read (for API list)", () => {
+      mkdirSync(persistenceHelper.resolve(Volume.JsonApplications, "parent-st"), { recursive: true });
+      persistenceHelper.writeJsonSync(Volume.JsonApplications, "parent-st/application.json", {
+        name: "Parent",
+        description: "Parent Desc",
+        stacktype: ["postgres"],
+        installation: {},
+      });
+
+      mkdirSync(persistenceHelper.resolve(Volume.LocalRoot, "applications/child-st"), { recursive: true });
+      persistenceHelper.writeJsonSync(Volume.LocalRoot, "applications/child-st/application.json", {
+        name: "Child",
+        extends: "parent-st",
+        installation: {},
+      });
+
+      const opts: IReadApplicationOptions = {
+        applicationHierarchy: [],
+        error: new VEConfigurationError("", "child-st"),
+        taskTemplates: [],
+      };
+
+      // readApplicationLightweight is private, but getAllApplications uses it
+      // Test via readApplication which also calls readApplicationLightweight for parent
+      const result = handler.readApplication("child-st", opts);
+      expect(result.stacktype).toEqual(["postgres"]);
+      expect(result.description).toBe("Parent Desc");
+    });
   });
 
   describe("readApplicationIcon()", () => {

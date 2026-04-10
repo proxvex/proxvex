@@ -53,6 +53,20 @@
       "type": "string",
       "required": false,
       "description": "Comma-separated service=version pairs. For OCI-image apps: main=version to pull a specific tag."
+    },
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer URL",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: deployer base URL for CA certificate download"
+    },
+    {
+      "id": "ve_context_key",
+      "name": "VE Context",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: VE context key for CA certificate download"
     }
   ],
   "commands": [

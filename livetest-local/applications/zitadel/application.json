@@ -1,9 +1,10 @@
 {
+  "name": "zitadel",
   "extends": "json:zitadel",
   "installation": {
     "post_start": [
-      { "name": "350-post-setup-test-project.json", "after": "340-post-setup-deployer-in-zitadel.json" },
-      { "name": "357-post-create-test-oidc-user.json", "after": "350-post-setup-test-project.json" }
+      "350-post-setup-test-project.json",
+      "357-post-create-test-oidc-user.json"
     ]
   }
 }

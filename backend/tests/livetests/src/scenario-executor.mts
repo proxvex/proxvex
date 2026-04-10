@@ -49,6 +49,7 @@ export async function executeScenarios(
     bridge: string;
     deployerUrl: string;
     snapshot?: { enabled: boolean };
+    portForwarding?: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
   },
   apiUrl: string,
   veHost: string,
@@ -102,8 +103,6 @@ export async function executeScenarios(
     ? new SnapshotManager(config.pveHost, config.vmId, config.portPveSsh, (msg) => logInfo(msg), localContextPath)
     : null;
 
-  const depsRestoredFromSnapshot = planned.some((p) => p.skipExecution && p.isDependency);
-
   // OIDC credentials for delegated access (loaded after Zitadel installation)
   let oidcCredentials: { issuerUrl: string; clientId: string; clientSecret: string } | undefined;
 
@@ -120,19 +119,9 @@ export async function executeScenarios(
 
       const stepStartTime = new Date();
 
-      // Skip dependencies restored from snapshot
-      if (depsRestoredFromSnapshot && step.isDependency) {
-        logOk(`Skipping ${scenario.id} (restored from snapshot)`);
-        result.steps.push({
-          vmId: step.vmId, hostname: step.hostname,
-          application: scenario.application, scenarioId: scenario.id,
-        });
-        continue;
-      }
-
-      // Skip dependencies that are already running
+      // Skip dependencies that were restored from snapshot or are already running
       if (step.skipExecution) {
-        logOk(`Skipping ${scenario.id} (already running)`);
+        logOk(`Skipping ${scenario.id} (${step.isDependency ? "restored from snapshot" : "already running"})`);
         result.steps.push({
           vmId: step.vmId, hostname: step.hostname,
           application: scenario.application, scenarioId: scenario.id,
@@ -223,6 +212,17 @@ export async function executeScenarios(
         logInfo("Deployer reload not available (continuing)");
       }
 
+      // Pre-test snapshot: save state before execution so we can rollback on failure
+      const preTestSnapName = snapMgr ? `pre-${scenario.id.replace("/", "-")}` : null;
+      if (snapMgr && preTestSnapName && !step.isDependency) {
+        try {
+          snapMgr.create(preTestSnapName, buildHash);
+          logInfo(`Pre-test snapshot @${preTestSnapName} created`);
+        } catch {
+          logInfo("Warning: pre-test snapshot failed (non-fatal)");
+        }
+      }
+
       // Run CLI
       logInfo(`Running: ${scenario.application} ${task}...`);
       const scenarioFixtureDir = fixtureBaseDir
@@ -239,6 +239,18 @@ export async function executeScenarios(
       if (cliResult.exitCode !== 0) {
         const errMsg = `Scenario failed: ${scenario.id} (${task})`;
         logFail(errMsg);
+
+        // Rollback to pre-test snapshot to restore clean state
+        if (snapMgr && preTestSnapName) {
+          try {
+            logInfo(`Rolling back to @${preTestSnapName} (restoring pre-test state)`);
+            snapMgr.rollback(preTestSnapName);
+            logOk("Pre-test state restored");
+          } catch {
+            logInfo("Warning: pre-test rollback failed");
+          }
+        }
+
         result.errors.push(errMsg);
         result.failed++;
         result.steps.push({
@@ -312,8 +324,24 @@ export async function executeScenarios(
           );
           const creds = JSON.parse(credJson.trim());
           if (creds.client_id && creds.client_secret && creds.issuer_url) {
+            let issuerUrl = creds.issuer_url as string;
+            // Rewrite issuer URL for external access via port forwarding
+            // e.g. http://zitadel-default:8080 -> http://ubuntupve:1808
+            const portFwd = (config as any).portForwarding as Array<{ port: number; hostname: string; ip: string; containerPort: number }> | undefined;
+            if (portFwd) {
+              for (const fwd of portFwd) {
+                if (issuerUrl.includes(fwd.hostname)) {
+                  issuerUrl = issuerUrl.replace(
+                    new RegExp(`${fwd.hostname}(:\\d+)?`),
+                    `${config.pveHost}:${fwd.port}`,
+                  );
+                  logInfo(`Rewritten OIDC issuer URL for external access: ${issuerUrl}`);
+                  break;
+                }
+              }
+            }
             oidcCredentials = {
-              issuerUrl: creds.issuer_url,
+              issuerUrl,
               clientId: creds.client_id,
               clientSecret: creds.client_secret,
             };
@@ -379,6 +407,13 @@ export async function executeScenarios(
             Object.entries(finalVerify).map(([k, v]) => [k, !!v]),
           ),
         }));
+      }
+
+      // Clean up pre-test snapshot on success (no longer needed)
+      if (snapMgr && preTestSnapName && !step.isDependency) {
+        try {
+          snapMgr.deleteSnapshot(preTestSnapName);
+        } catch { /* ignore */ }
       }
 
       // Create snapshot after dependency is installed
