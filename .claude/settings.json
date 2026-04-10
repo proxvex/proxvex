@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git rm json/shared/scripts/upgrade-oci-lxc.sh json/shared/scripts/upgrade-start.sh json/shared/templates/221-upgrade-oci-lxc.json json/shared/templates/231-upgrade-start.json)"
+      "Bash(git rm json/shared/scripts/upgrade-oci-lxc.sh json/shared/scripts/upgrade-start.sh json/shared/templates/221-upgrade-oci-lxc.json json/shared/templates/231-upgrade-start.json)",
+      "Bash(git fetch:*)"
     ]
   },
   "hooks": {
@@ -9,8 +10,14 @@
       {
         "matcher": "Edit|Write",
         "hooks": [
-          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/mark-backend-edit.sh\"'" },
-          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/mark-json-edit.sh\"'" }
+          {
+            "type": "command",
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/mark-backend-edit.sh\"'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/mark-json-edit.sh\"'"
+          }
         ]
       }
     ],
@@ -18,8 +25,14 @@
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-backend.sh\"'" },
-          { "type": "command", "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-json.sh\"'" }
+          {
+            "type": "command",
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-backend.sh\"'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-json.sh\"'"
+          }
         ]
       }
     ]

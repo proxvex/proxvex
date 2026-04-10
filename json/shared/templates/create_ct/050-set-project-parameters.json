@@ -3,34 +3,13 @@
   "description": "Project-wide defaults (vm_id_start, mirrors, OIDC, ACME). Override in local/shared/templates/create_ct/.",
   "commands": [
     {
-      "properties": {
-        "id": "vm_id_start",
-        "default": "100"
-      }
-    },
-    {
-      "properties": {
-        "id": "oidc_issuer_url",
-        "default": ""
-      }
-    },
-    {
-      "properties": {
-        "id": "acme_san",
-        "default": ""
-      }
-    },
-    {
-      "properties": {
-        "id": "alpine_mirror",
-        "default": ""
-      }
-    },
-    {
-      "properties": {
-        "id": "debian_mirror",
-        "default": ""
-      }
+      "properties": [
+        { "id": "vm_id_start", "default": "100" },
+        { "id": "oidc_issuer_url", "default": "" },
+        { "id": "acme_san", "default": "" },
+        { "id": "alpine_mirror", "default": "" },
+        { "id": "debian_mirror", "default": "" }
+      ]
     }
   ]
 }

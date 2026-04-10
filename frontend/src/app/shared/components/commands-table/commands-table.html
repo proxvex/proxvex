@@ -1,17 +1,51 @@
 <div class="cmd-list">
   @for (cmd of commands; track cmd.seq) {
-    <div class="cmd-row" [class.skipped]="cmd.skipped" [class.expanded]="expandedSeq === cmd.seq">
-      <span class="cmd-seq">{{ cmd.seq }}</span>
+    <div class="cmd-row"
+      [class.skipped]="cmd.skipped"
+      [class.expanded]="expandedSeq === cmd.seq"
+      [class.status-completed]="cmd.status === 'completed'"
+      [class.status-running]="cmd.status === 'running'"
+      [class.status-failed]="cmd.status === 'failed'"
+      [class.status-finished]="cmd.status === 'finished'"
+      [class.status-pending]="cmd.status === 'pending'">
+
+      <!-- Status indicator or sequence number -->
+      @if (cmd.status) {
+        <span class="cmd-status" [class]="'status-' + cmd.status">
+          @switch (cmd.status) {
+            @case ('completed') { <span class="status-dot dot-green"></span> }
+            @case ('finished') { <span class="status-dot dot-green"></span> }
+            @case ('running') { <span class="status-dot dot-blue pulse"></span> }
+            @case ('failed') { <span class="status-dot dot-red"></span> }
+            @case ('pending') { <span class="status-dot dot-gray"></span> }
+          }
+        </span>
+      } @else {
+        <span class="cmd-seq">{{ cmd.seq }}</span>
+      }
+
       <span class="cmd-content">
         <span class="cmd-name">{{ cmd.name }}</span>
         @for (b of cmd.badges; track b.label) {
           <span class="cmd-badge" [class]="b.cls">{{ b.label }}</span>
         }
       </span>
-      <button class="cmd-info" (click)="toggle(cmd.seq)" matTooltip="Details">
-        <mat-icon>{{ expandedSeq === cmd.seq ? 'expand_less' : 'info_outline' }}</mat-icon>
-      </button>
+
+      @if (cmd.hasStderr) {
+        <button class="cmd-info" (click)="stderrClick.emit(cmd)" matTooltip="Show output">
+          <mat-icon>description</mat-icon>
+        </button>
+      }
+      @if (cmd.details.length > 0) {
+        <button class="cmd-info" (click)="toggle(cmd.seq)" matTooltip="Details">
+          <mat-icon>{{ expandedSeq === cmd.seq ? 'expand_less' : 'info_outline' }}</mat-icon>
+        </button>
+      }
     </div>
+
+    @if (cmd.liveStderr) {
+      <pre class="cmd-live-stderr">{{ cmd.liveStderr }}</pre>
+    }
 
     @if (expandedSeq === cmd.seq) {
       <div class="cmd-details">

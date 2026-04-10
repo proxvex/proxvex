@@ -9,11 +9,13 @@ import { Subscription } from 'rxjs';
 import { IVeExecuteMessagesResponse, ISingleExecuteMessagesResponse, IParameterValue, IVeExecuteMessage, IPlannedStep } from '../../shared/types';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { StderrDialogComponent } from './stderr-dialog.component';
+import { CommandsTableComponent } from '../shared/components/commands-table/commands-table';
+import { ICommandRow } from '../shared/components/commands-table/commands-table.types';
 
 @Component({
   selector: 'app-process-monitor',
   standalone: true,
-  imports: [CommonModule, MatExpansionModule, MatIconModule, MatButtonModule],
+  imports: [CommonModule, MatExpansionModule, MatIconModule, MatButtonModule, CommandsTableComponent],
   templateUrl: './process-monitor.html',
   styleUrl: './process-monitor.scss',
 })
@@ -24,7 +26,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   private sseSubscription?: Subscription;
   private redirectTimer?: number;
   private countdownInterval?: number;
-  private initialExpandedState = new Map<string, boolean>();  // Track initial expanded state per group
+  private initialExpandedState = new Map<string, boolean>();
   private veConfigurationService = inject(VeConfigurationService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
@@ -33,14 +35,12 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   private el = inject(ElementRef);
   private lastSeenIndex = -1;
   private storedParams: Record<string, { name: string; value: IParameterValue }[]> = {};
-  private storedVmInstallKeys: Record<string, string> = {}; // Map from restartKey to vmInstallKey
+  private storedVmInstallKeys: Record<string, string> = {};
 
   ngOnInit() {
-    // Get original parameters and vmInstallKey from navigation state
-    // Try getCurrentNavigation first (during navigation), then history.state (after navigation)
     const navigation = this.router.getCurrentNavigation();
-    const state = (navigation?.extras?.state || history.state) as { 
-      originalParams?: { name: string; value: IParameterValue }[], 
+    const state = (navigation?.extras?.state || history.state) as {
+      originalParams?: { name: string; value: IParameterValue }[],
       restartKey?: string,
       vmInstallKey?: string
     } | null;
@@ -63,6 +63,107 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     }
   }
 
+  // --- CommandsTable integration ---
+
+  private stepBadges(name: string, step?: IPlannedStep): { label: string; cls: string }[] {
+    const badges: { label: string; cls: string }[] = [];
+    const isSkipped = name.includes('(skipped)');
+    if (isSkipped) badges.push({ label: 'skipped', cls: 'badge-skipped' });
+    if (step?.isShared !== undefined) {
+      badges.push(step.isShared
+        ? { label: 'shared', cls: 'badge-shared' }
+        : { label: 'app', cls: 'badge-app' });
+    }
+    if (step?.isLocal) {
+      badges.push({ label: 'local', cls: 'badge-local' });
+    }
+    return badges;
+  }
+
+  private findPlannedStep(group: ISingleExecuteMessagesResponse, cmdName: string): IPlannedStep | undefined {
+    if (!group.plannedSteps) return undefined;
+    return group.plannedSteps.find(s => s.name === cmdName || s.name.replace(/\s*\(skipped\)\s*$/, '') === cmdName);
+  }
+
+  buildCommandRows(group: ISingleExecuteMessagesResponse): ICommandRow[] {
+    const rows: ICommandRow[] = [];
+    let seq = 1;
+    let prevName = '';
+
+    for (const msg of group.messages) {
+      if (msg.finished) continue;
+
+      const cmdName = msg.command || msg.commandtext || 'Unknown';
+      const cleanName = cmdName.replace(/\s*\(skipped\)\s*$/, '');
+
+      // Collapse consecutive commands with same name (e.g. properties-only templates)
+      if (cleanName === prevName && rows.length > 0) continue;
+      prevName = cleanName;
+
+      const isSkipped = cmdName.includes('(skipped)') || msg.result === 'skipped';
+      const step = this.findPlannedStep(group, cmdName);
+
+      const status = msg.partial
+        ? 'running' as const
+        : (msg.exitCode !== undefined && msg.exitCode !== 0)
+          ? 'failed' as const
+          : 'completed' as const;
+
+      rows.push({
+        seq: seq++,
+        name: cleanName,
+        badges: this.stepBadges(cmdName, step),
+        skipped: isSkipped,
+        details: [],
+        status,
+        hasStderr: !msg.partial && !!msg.stderr,
+        liveStderr: msg.partial ? msg.stderr : undefined,
+      });
+    }
+
+    // Pending steps
+    prevName = rows.length > 0 ? rows[rows.length - 1]!.name : '';
+    for (const step of this.getPendingSteps(group)) {
+      const cleanName = step.name.replace(/\s*\(skipped\)\s*$/, '');
+      if (cleanName === prevName) continue;
+      prevName = cleanName;
+
+      const isStepSkipped = step.name.includes('(skipped)');
+      rows.push({
+        seq: seq++,
+        name: cleanName,
+        badges: this.stepBadges(step.name, step),
+        skipped: isStepSkipped,
+        details: [],
+        status: 'pending',
+      });
+    }
+
+    return rows;
+  }
+
+  onStderrClick(cmd: ICommandRow, group: ISingleExecuteMessagesResponse): void {
+    const msg = group.messages.find(m => (m.command || m.commandtext) === cmd.name);
+    if (msg) {
+      this.openStderrDialog(msg);
+    }
+  }
+
+  getRunningStderr(group: ISingleExecuteMessagesResponse): string | null {
+    const running = group.messages.find(m => m.partial);
+    return running?.stderr || null;
+  }
+
+  getFailedMessage(group: ISingleExecuteMessagesResponse): IVeExecuteMessage | null {
+    return group.messages.find(m => !m.partial && !m.finished && m.exitCode !== undefined && m.exitCode !== 0) ?? null;
+  }
+
+  getFinishedMessage(group: ISingleExecuteMessagesResponse): IVeExecuteMessage | null {
+    return group.messages.find(m => m.finished) ?? null;
+  }
+
+  // --- Streaming & message management (unchanged) ---
+
   private startStreaming() {
     this.stopStreaming();
     this.sseSubscription = this.veConfigurationService.streamExecuteMessages().subscribe({
@@ -74,11 +175,9 @@ export class ProcessMonitor implements OnInit, OnDestroy {
             this.mergeSingleMessage(event.data.application, event.data.task, event.data.message);
           }
           this.checkAllFinished();
-          this.scrollToActivePanel();
         });
       },
       complete: () => {
-        // SSE connection permanently closed — fall back to single poll
         this.fetchMessagesFallback();
       }
     });
@@ -117,8 +216,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     const anyInProgress = this.messages.some(g => this.isInProgress(g));
     if (!anyInProgress && this.sseSubscription) {
       this.stopStreaming();
-
-      // Check for redirect URL in finished messages
       if (!this.redirectUrl) {
         for (const group of this.messages) {
           const finishedMsg = group.messages.find(m => m.finished && m.redirectUrl);
@@ -155,7 +252,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   }
 
   private mergeSingleMessage(application: string, task: string, msg: IVeExecuteMessage) {
-    // Track index
     if (msg.index !== undefined && msg.index > this.lastSeenIndex) {
       this.lastSeenIndex = msg.index;
     }
@@ -165,7 +261,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       return;
     }
 
-    // Find existing group
     const groupIdx = this.messages.findIndex(
       g => g.application === application && g.task === task
     );
@@ -176,7 +271,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
 
     const group = this.messages[groupIdx]!;
 
-    // Partial message (no index): find or create a partial entry by command name
     if (msg.partial) {
       const existingIdx = group.messages.findIndex(m => m.partial && m.command === msg.command);
       if (existingIdx >= 0) {
@@ -192,7 +286,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
         newGroups[groupIdx] = { ...group, messages: newMessages };
         this.messages = newGroups;
       } else {
-        // New partial — append
         const newGroups = [...this.messages];
         newGroups[groupIdx] = { ...group, messages: [...group.messages, msg] };
         this.messages = newGroups;
@@ -200,7 +293,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       return;
     }
 
-    // Final message: replace the partial entry for the same command (if any)
     const partialIdx = group.messages.findIndex(m => m.partial && m.command === msg.command);
     if (partialIdx >= 0) {
       const partialMsg = group.messages[partialIdx]!;
@@ -217,7 +309,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       return;
     }
 
-    // Final message with index: try to find by index
     if (msg.index !== undefined) {
       const existingMsgIdx = group.messages.findIndex(m => m.index === msg.index);
       if (existingMsgIdx >= 0) {
@@ -237,21 +328,18 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       }
     }
 
-    // New message — append
     const newGroups = [...this.messages];
     newGroups[groupIdx] = { ...group, messages: [...group.messages, msg] };
     this.messages = newGroups;
   }
 
   private mergeMessages(newMsgs: IVeExecuteMessagesResponse) {
-    // Store vmInstallKeys
     for (const group of newMsgs) {
       if (group.vmInstallKey && group.restartKey) {
         this.storedVmInstallKeys[group.restartKey] = group.vmInstallKey;
       }
     }
 
-    // Track highest seen index for delta-polling
     for (const group of newMsgs) {
       for (const msg of group.messages) {
         if (msg.index !== undefined && msg.index > this.lastSeenIndex) {
@@ -265,7 +353,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       return;
     }
 
-    // Create new array (immutable update) to avoid NG0100 errors
     this.messages = this.messages.map(existing => {
       const newGroup = newMsgs.find(
         g => g.application === existing.application && g.task === existing.task
@@ -273,7 +360,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       if (!newGroup) {
         return existing;
       }
-      // With delta-polling, new messages are guaranteed to be new — just append
       const hasNewMessages = newGroup.messages.length > 0;
       const hasNewPlannedSteps = newGroup.plannedSteps && !existing.plannedSteps;
       if (!hasNewMessages && !newGroup.vmInstallKey && !hasNewPlannedSteps) {
@@ -287,7 +373,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       };
     });
 
-    // Add completely new groups
     for (const newGroup of newMsgs) {
       const exists = this.messages.some(
         g => g.application === newGroup.application && g.task === newGroup.task
@@ -298,6 +383,8 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     }
   }
 
+  // --- Group state helpers ---
+
   hasError(group: ISingleExecuteMessagesResponse): boolean {
     const finishedMsg = group.messages.find(msg => msg.finished);
     if (finishedMsg) {
@@ -306,30 +393,26 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     return group.messages.some(msg => !msg.partial && (msg.error || (msg.exitCode !== undefined && msg.exitCode !== 0)));
   }
 
-  /** Check if group is still in progress (not finished and not errored) */
   isInProgress(group: ISingleExecuteMessagesResponse): boolean {
     const hasFinished = group.messages.some(msg => msg.finished);
     const hasError = group.messages.some(msg => !msg.partial && (msg.error || (msg.exitCode !== undefined && msg.exitCode !== 0)));
     return !hasFinished && !hasError;
   }
 
-  /** Get initial expanded state for a group (only computed once per group) */
   shouldBeExpanded(group: ISingleExecuteMessagesResponse): boolean {
     const key = `${group.application}:${group.task}`;
     if (!this.initialExpandedState.has(key)) {
-      // First time seeing this group - store initial state based on whether it's in progress
       this.initialExpandedState.set(key, this.isInProgress(group));
     }
     return this.initialExpandedState.get(key)!;
   }
 
+  // --- Actions ---
+
   triggerRestart(group: ISingleExecuteMessagesResponse) {
     if (!group.restartKey) return;
-
-    // Parameters are contained in the restart context, no need to send them
     this.veConfigurationService.restartExecution(group.restartKey).subscribe({
       next: () => {
-        // Clear old messages for this group to show fresh run (immutable)
         if (this.messages) {
           this.messages = this.messages.filter(
             g => !(g.application === group.application && g.task === group.task)
@@ -346,24 +429,17 @@ export class ProcessMonitor implements OnInit, OnDestroy {
 
   triggerRestartFull(group: ISingleExecuteMessagesResponse) {
     if (!group.restartKey) return;
-    
-    // Try to get vmInstallKey from group (from backend response) or stored state
     const vmInstallKey = group.vmInstallKey || this.storedVmInstallKeys[group.restartKey];
-    
     if (!vmInstallKey) {
       console.error('vmInstallKey not found for restart key:', group.restartKey);
       alert('Installation context not found. Please start installation again.');
       return;
     }
-    
-    // Use the new restartInstallation endpoint with vmInstallKey
     this.veConfigurationService.restartInstallation(vmInstallKey).subscribe({
       next: (response) => {
-        // Update stored vmInstallKey if returned in response
         if (response.vmInstallKey && group.restartKey) {
           this.storedVmInstallKeys[group.restartKey] = response.vmInstallKey;
         }
-        // Clear old messages for this group to show fresh run (immutable)
         if (this.messages) {
           this.messages = this.messages.filter(
             g => !(g.application === group.application && g.task === group.task)
@@ -380,7 +456,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
 
   openStderrDialog(msg: IVeExecuteMessage): void {
     if (!msg.stderr) return;
-    
     this.dialog.open(StderrDialogComponent, {
       width: '700px',
       maxWidth: '90vw',
@@ -404,15 +479,6 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     return group.messages.filter(m => m.exitCode === 0 && !m.finished).length;
   }
 
-  private scrollToActivePanel(): void {
-    setTimeout(() => {
-      const container = this.el.nativeElement as HTMLElement;
-      const runningItem = container.querySelector('.running-item');
-      if (!runningItem) return;
-      runningItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-  }
-
   downloadLogs(group: ISingleExecuteMessagesResponse): void {
     const data = {
       application: group.application,
@@ -434,5 +500,4 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   close(): void {
     window.history.back();
   }
-
 }

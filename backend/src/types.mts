@@ -398,6 +398,8 @@ export interface IDependencyCheckResponse {
 export interface IPlannedStep {
   name: string;
   description?: string;
+  isShared?: boolean;
+  isLocal?: boolean;
 }
 
 export interface ISingleExecuteMessagesResponse {

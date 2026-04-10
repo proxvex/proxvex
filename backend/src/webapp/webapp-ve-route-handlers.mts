@@ -553,6 +553,7 @@ export class WebAppVeRouteHandlers {
         application,
         task,
         sshCommand,
+        loaded.processedTemplates,
       );
 
       // Persist shared_volpath per VE context whenever it appears in outputs
@@ -731,6 +732,7 @@ export class WebAppVeRouteHandlers {
         application,
         task,
         sshCommand,
+        loaded.processedTemplates,
       );
 
     this.executionSetup.setupRestartExecutionResultHandlers(
@@ -853,6 +855,7 @@ export class WebAppVeRouteHandlers {
       installCtx.application,
       installCtx.task,
       sshCommand,
+      loaded.processedTemplates,
     );
 
     // Respond immediately with restartKey, run execution in background
