@@ -103,8 +103,6 @@ export async function executeScenarios(
     ? new SnapshotManager(config.pveHost, config.vmId, config.portPveSsh, (msg) => logInfo(msg), localContextPath)
     : null;
 
-  const depsRestoredFromSnapshot = planned.some((p) => p.skipExecution && p.isDependency);
-
   // OIDC credentials for delegated access (loaded after Zitadel installation)
   let oidcCredentials: { issuerUrl: string; clientId: string; clientSecret: string } | undefined;
 
@@ -121,19 +119,9 @@ export async function executeScenarios(
 
       const stepStartTime = new Date();
 
-      // Skip dependencies restored from snapshot
-      if (depsRestoredFromSnapshot && step.isDependency) {
-        logOk(`Skipping ${scenario.id} (restored from snapshot)`);
-        result.steps.push({
-          vmId: step.vmId, hostname: step.hostname,
-          application: scenario.application, scenarioId: scenario.id,
-        });
-        continue;
-      }
-
-      // Skip dependencies that are already running
+      // Skip dependencies that were restored from snapshot or are already running
       if (step.skipExecution) {
-        logOk(`Skipping ${scenario.id} (already running)`);
+        logOk(`Skipping ${scenario.id} (${step.isDependency ? "restored from snapshot" : "already running"})`);
         result.steps.push({
           vmId: step.vmId, hostname: step.hostname,
           application: scenario.application, scenarioId: scenario.id,
