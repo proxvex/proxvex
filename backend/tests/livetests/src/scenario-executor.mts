@@ -104,7 +104,16 @@ export async function executeScenarios(
     : null;
 
   // OIDC credentials for delegated access (loaded after Zitadel installation)
+  // Only used if the deployer itself has OIDC enabled (not for app-level OIDC addons)
   let oidcCredentials: { issuerUrl: string; clientId: string; clientSecret: string } | undefined;
+  let deployerOidcEnabled = false;
+  try {
+    const authResp = await fetch(`${apiUrl}/api/auth/config`, { signal: AbortSignal.timeout(3000) });
+    if (authResp.ok) {
+      const authConfig = await authResp.json() as { enabled?: boolean };
+      deployerOidcEnabled = !!authConfig.enabled;
+    }
+  } catch { /* deployer has no OIDC */ }
 
   try {
     for (let i = 0; i < planned.length; i++) {
@@ -228,8 +237,8 @@ export async function executeScenarios(
       const scenarioFixtureDir = fixtureBaseDir
         ? path.join(fixtureBaseDir, scenario.id.replace("/", "-"))
         : undefined;
-      // Use OIDC credentials for scenarios with addon-oidc (delegated access)
-      const useOidc = oidcCredentials && allAddons.includes("addon-oidc");
+      // Use OIDC credentials only if the deployer itself requires OIDC auth
+      const useOidc = deployerOidcEnabled && oidcCredentials;
       const cliResult = await runCli(
         projectRoot, apiUrl, veHost,
         paramsFile, allAddons, scenario.cli_timeout, scenarioFixtureDir,

@@ -190,22 +190,20 @@ export class VeExecutionCommandProcessor {
   }
 
   /**
-   * Detect script language from content (shebang or file extension).
+   * Detect script language from filename extension.
    * Returns "sh" for shell, "py" for Python.
    */
-  private detectLanguage(content: string): "sh" | "py" {
-    const firstLine = content.split("\n")[0] ?? "";
-    if (/python/.test(firstLine)) return "py";
-    if (/\.py$/.test(firstLine)) return "py";
+  private detectLanguage(filename?: string): "sh" | "py" {
+    if (filename && /\.py$/.test(filename)) return "py";
     return "sh";
   }
 
   /**
    * Get global VE library content for the given language, if available.
    */
-  private getGlobalVeLibrary(content: string): string | null {
+  private getGlobalVeLibrary(cmd: ICommand): string | null {
     if (!this.deps.globalVeLibraries) return null;
-    const lang = this.detectLanguage(content);
+    const lang = this.detectLanguage(cmd.script ?? cmd.library);
     return this.deps.globalVeLibraries.get(lang) ?? null;
   }
 
@@ -261,7 +259,7 @@ export class VeExecutionCommandProcessor {
 
       // Assemble: global VE library + template library + script
       const globalLib = this.isVeTarget(cmd)
-        ? this.getGlobalVeLibrary(cmd.libraryContent ?? scriptContent)
+        ? this.getGlobalVeLibrary(cmd)
         : null;
 
       if (globalLib || cmd.libraryContent !== undefined) {
@@ -278,7 +276,7 @@ export class VeExecutionCommandProcessor {
     } else if (cmd.command !== undefined) {
       // Assemble: global VE library + template library + command
       const globalLib = this.isVeTarget(cmd)
-        ? this.getGlobalVeLibrary(cmd.libraryContent ?? cmd.command)
+        ? this.getGlobalVeLibrary(cmd)
         : null;
 
       if (globalLib || cmd.libraryContent !== undefined) {
