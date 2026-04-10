@@ -39,6 +39,7 @@ DEBIAN_MIRROR="{{ debian_mirror }}"
 COMPOSE_PROJECT="{{ compose_project }}"
 UID_VALUE="{{ uid }}"
 GID_VALUE="{{ gid }}"
+ACME_STAGING="{{ acme_staging }}"
 SMB_USER="{{ smb_user }}"
 SMB_PASSWORD="{{ smb_password }}"
 
@@ -134,6 +135,7 @@ if is_set "$CF_API_TOKEN" && is_set "$ACME_SAN"; then
 CF_API_TOKEN="$CF_API_TOKEN"
 ACME_SAN="$ACME_SAN"
 ACME_EMAIL="$ACME_EMAIL"
+ACME_STAGING="$ACME_STAGING"
 CERT_DIR="$CERT_DIR"
 NEEDS_SERVER_CERT="$NEEDS_SERVER_CERT"
 NEEDS_CA_CERT="$NEEDS_CA_CERT"
@@ -168,6 +170,12 @@ for d in $ACME_SAN; do
   [ -n "$d" ] && ACME_ISSUE_ARGS="$ACME_ISSUE_ARGS -d $d"
 done
 unset IFS
+
+# --- Use staging server if requested ---
+if [ "$ACME_STAGING" = "true" ]; then
+  ACME_ISSUE_ARGS="$ACME_ISSUE_ARGS --server letsencrypt_test"
+  echo "Using Let's Encrypt STAGING server (no rate limits)" >&2
+fi
 
 # --- Detect OS ---
 OS_TYPE=""

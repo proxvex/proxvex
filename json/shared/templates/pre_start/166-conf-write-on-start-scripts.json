@@ -81,6 +81,13 @@
       "description": "Whether to write CA/intermediate certificate"
     },
     {
+      "id": "acme_staging",
+      "name": "ACME Staging",
+      "type": "string",
+      "default": "",
+      "description": "Use Let's Encrypt staging server when true"
+    },
+    {
       "id": "alpine_mirror",
       "name": "Alpine Mirror",
       "type": "string",

@@ -184,6 +184,10 @@ export function buildParams(
         val,
       );
     }
+    // Resolve environment variable references: ${VAR_NAME}
+    value = value.replace(/\$\{([A-Z_][A-Z0-9_]*)\}/g, (_match, envName: string) => {
+      return process.env[envName] ?? "";
+    });
 
     if (p.append) {
       let appendVal = p.append;

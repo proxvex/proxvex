@@ -163,15 +163,35 @@ export async function ensureStacks(
     }
 
     if (!stackExists) {
+      // Populate entries with external variables from process environment
+      const entries: Array<{ name: string; value: string }> = [];
+      try {
+        const stResp = await fetch(`${apiUrl}/api/stacktypes`, { signal: AbortSignal.timeout(5000) });
+        if (stResp.ok) {
+          const stData = await stResp.json() as { stacktypes: Array<{ name: string; entries?: Array<{ name: string; external?: boolean }> }> };
+          const stDef = stData.stacktypes.find(s => s.name === stacktype);
+          if (stDef?.entries) {
+            for (const v of stDef.entries) {
+              if (v.external && process.env[v.name]) {
+                entries.push({ name: v.name, value: process.env[v.name]! });
+              }
+            }
+          }
+        }
+      } catch { /* ignore — stack will be created without external entries */ }
+
       try {
         const resp = await fetch(`${apiUrl}/api/stacks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: stackName, stacktype, entries: [] }),
+          body: JSON.stringify({ name: stackName, stacktype, entries }),
           signal: AbortSignal.timeout(10000),
         });
         if (resp.ok) {
           logOk(`Stack '${stackId}' created (type: ${stacktype})`);
+          if (entries.length > 0) {
+            logInfo(`  External variables injected: ${entries.map(e => e.name).join(", ")}`);
+          }
         }
       } catch {
         // Stack creation failed — may already exist from concurrent run
