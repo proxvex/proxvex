@@ -2,7 +2,9 @@
   "execute_on": "ve",
   "name": "Upload Addon Config Files",
   "description": "Uploads addon configuration files to volume directories before container start. Uses the addon_path property to determine destination.",
-  "skip_if_all_missing": ["addon_content"],
+  "skip_if_all_missing": [
+    "addon_content"
+  ],
   "parameters": [
     {
       "id": "addon_content",
@@ -21,7 +23,7 @@
       "id": "shared_volpath",
       "name": "Shared Volume Path",
       "type": "string",
-      "required": true,
+      "required": false,
       "description": "Base path for shared volumes on the host"
     },
     {

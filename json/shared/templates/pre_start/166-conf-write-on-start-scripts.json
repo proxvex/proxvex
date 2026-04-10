@@ -7,7 +7,7 @@
       "id": "shared_volpath",
       "name": "Shared Volume Path",
       "type": "string",
-      "required": true,
+      "required": false,
       "description": "Host-side base path for volumes"
     },
     {
