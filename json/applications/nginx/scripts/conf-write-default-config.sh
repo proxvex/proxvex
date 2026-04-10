@@ -16,7 +16,6 @@ CONF_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "conf")
 
 if [ ! -d "$CONF_DIR" ]; then
   echo "Volume directory not found: $CONF_DIR" >&2
-  echo '[]'
   exit 0
 fi
 
@@ -52,5 +51,3 @@ if [ -n "$EFF_UID" ] && [ "$EFF_UID" != "NOT_DEFINED" ] && [ -n "$EFF_GID" ] && 
   chmod 644 "$CONF_DIR"/*.conf 2>/dev/null || true
   echo "Fixed permissions in $CONF_DIR (${EFF_UID}:${EFF_GID})" >&2
 fi
-
-echo '[]'

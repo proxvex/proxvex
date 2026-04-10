@@ -133,6 +133,7 @@ export class AddonSectionComponent {
   @Input() showAdvanced = false;
   @Input() availableStacks: IStack[] = [];
   @Input() requiredAddons: string[] = [];
+  @Input() appParameterIds: string[] = [];
   @Input() title = 'Optional Addons';
   @Input() description = '';
 
@@ -147,9 +148,17 @@ export class AddonSectionComponent {
   @Output() stackSelected = new EventEmitter<IStack>();
   @Output() createStackRequested = new EventEmitter<void>();
 
-  /** Check if an addon is disabled (required or insufficient permissions) */
+  /** Check if an addon is disabled (required, exclusive conflict, or insufficient permissions) */
   isAddonDisabled(addonId: string): boolean {
     if (this.requiredAddons.includes(addonId)) return true;
+    // Disabled if a mutually exclusive addon is selected
+    for (const group of AddonSectionComponent.EXCLUSIVE_GROUPS) {
+      if (group.includes(addonId)) {
+        for (const other of group) {
+          if (other !== addonId && this.isAddonSelected(other)) return true;
+        }
+      }
+    }
     if (addonId !== 'addon-oidc') return false;
     if (!this.auth.isOidcEnabled) return false;
     return !this.auth.canConfigureOidc;
@@ -158,6 +167,15 @@ export class AddonSectionComponent {
   /** Tooltip reason when an addon is disabled */
   getAddonDisabledReason(addonId: string): string {
     if (this.requiredAddons.includes(addonId)) return 'Required by this application';
+    for (const group of AddonSectionComponent.EXCLUSIVE_GROUPS) {
+      if (group.includes(addonId)) {
+        const active = group.find(other => other !== addonId && this.isAddonSelected(other));
+        if (active) {
+          const activeAddon = this.availableAddons.find(a => a.id === active);
+          return `Mutually exclusive with ${activeAddon?.name ?? active}`;
+        }
+      }
+    }
     if (!this.isAddonDisabled(addonId)) return '';
     return 'Insufficient permissions: requires ORG_OWNER or PROJECT_OWNER role in ZITADEL';
   }
@@ -174,6 +192,11 @@ export class AddonSectionComponent {
     return !!addon.parameters && addon.parameters.length > 0;
   }
 
+  // Mutually exclusive addon groups: enabling one disables the others
+  private static readonly EXCLUSIVE_GROUPS: string[][] = [
+    ['addon-ssl', 'addon-acme'],
+  ];
+
   onAddonToggle(addonId: string, checked: boolean): void {
     const addon = this.availableAddons.find(a => a.id === addonId);
 
@@ -183,7 +206,7 @@ export class AddonSectionComponent {
         width: '500px',
       }).afterClosed().subscribe(confirmed => {
         if (confirmed) {
-          this.addonToggled.emit({ addonId, checked: true });
+          this.emitWithExclusivity(addonId, true);
         } else {
           this.addonToggled.emit({ addonId, checked: false });
         }
@@ -191,6 +214,22 @@ export class AddonSectionComponent {
       return;
     }
 
+    this.emitWithExclusivity(addonId, checked);
+  }
+
+  /** When enabling an addon, disable mutually exclusive addons */
+  private emitWithExclusivity(addonId: string, checked: boolean): void {
+    if (checked) {
+      for (const group of AddonSectionComponent.EXCLUSIVE_GROUPS) {
+        if (group.includes(addonId)) {
+          for (const other of group) {
+            if (other !== addonId && this.isAddonSelected(other)) {
+              this.addonToggled.emit({ addonId: other, checked: false });
+            }
+          }
+        }
+      }
+    }
     this.addonToggled.emit({ addonId, checked });
   }
 
@@ -211,7 +250,10 @@ export class AddonSectionComponent {
   }
 
   getAddonGroupedParametersAll(addon: IAddonWithParameters): Record<string, IParameter[]> {
-    const params = (addon.parameters ?? []).filter(p => !p.advanced || this.showAdvanced);
+    const appIds = new Set(this.appParameterIds);
+    const params = (addon.parameters ?? []).filter(p =>
+      (!p.advanced || this.showAdvanced) && !appIds.has(p.id)
+    );
     return { [addon.name]: params };
   }
 }

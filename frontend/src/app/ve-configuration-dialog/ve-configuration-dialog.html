@@ -113,6 +113,7 @@
 			[availableStacks]="availableStacks()"
 			[isLoading]="addonsLoading()"
 			[requiredAddons]="data.app.required_addons ?? []"
+			[appParameterIds]="getAppParameterIds()"
 			(addonToggled)="toggleAddon($event.addonId, $event.checked)"
 			(addonExpandedChanged)="toggleAddonExpandedById($event)"
 			(stackSelected)="onStackSelected($event)"

@@ -487,6 +487,10 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     });
   }
 
+  getAppParameterIds(): string[] {
+    return this.unresolvedParameters.map(p => p.id);
+  }
+
   toggleAddon(addonId: string, checked: boolean): void {
     // Prevent deselecting required addons
     if (!checked && (this.data.app.required_addons ?? []).includes(addonId)) return;

@@ -8,6 +8,7 @@ import sys
 vm_id = "{{ vm_id }}"
 hostname = "{{ hostname }}"
 initial_command = """{{ initial_command }}"""
+entrypoint_override = """{{ entrypoint_override }}"""
 envs_str = """{{ envs }}"""
 
 if not vm_id or vm_id == "NOT_DEFINED":
@@ -135,21 +136,28 @@ if env_dict:
 # 4. Wrap entrypoint to wait for network before starting the application.
 # OCI containers start the entrypoint immediately but the network interface
 # may not be ready yet (host-managed=1 with DHCP). We prepend a wait loop
-# that checks /sys/class/net/eth0/operstate until the link is up.
+# that checks /proc/net/route until a default gateway appears.
+#
+# If entrypoint_override is set, use it instead of the PVE-generated value.
+# This fixes OCI images where PVE strips quotes from CMD arguments
+# (e.g. nginx -g 'daemon off;' becomes nginx -g daemon off;).
 NETWORK_WAIT = 'i=0; while [ $i -lt 30 ]; do grep -q "00000000" /proc/net/route 2>/dev/null && break; i=$((i+1)); sleep 1; done; '
+ep_override = entrypoint_override if entrypoint_override and entrypoint_override != "NOT_DEFINED" else None
 wrapped = False
 final_lines = []
 for line in new_lines:
     if line.strip().startswith("entrypoint:") and NETWORK_WAIT not in line:
-        # Extract current entrypoint value
-        ep_value = line.split(":", 1)[1].strip()
-        # Wrap with /bin/sh -c "wait; exec original"
-        # Use double quotes for the outer shell to avoid breaking on inner single quotes
-        # (e.g. nginx -g 'daemon off;')
-        escaped_ep = ep_value.replace('\\', '\\\\').replace('"', '\\"').replace('$', '\\$')
-        wrapped_ep = f'entrypoint: /bin/sh -c "{NETWORK_WAIT}exec {escaped_ep}"\n'
-        final_lines.append(wrapped_ep)
-        print(f"Wrapped entrypoint with network-wait: {ep_value}", file=sys.stderr)
+        if ep_override:
+            # Use override as-is (no network-wait wrapper needed)
+            final_lines.append(f"entrypoint: {ep_override}\n")
+            print(f"Replaced entrypoint with override: {ep_override}", file=sys.stderr)
+        else:
+            ep_value = line.split(":", 1)[1].strip()
+            # Wrap with network-wait using single quotes; escape inner single quotes
+            escaped_ep = ep_value.replace("'", "'\\''")
+            wrapped_ep = f"entrypoint: /bin/sh -c '{NETWORK_WAIT}exec {escaped_ep}'\n"
+            final_lines.append(wrapped_ep)
+            print(f"Wrapped entrypoint with network-wait: {ep_value}", file=sys.stderr)
         wrapped = True
     else:
         final_lines.append(line)
