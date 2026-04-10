@@ -140,22 +140,77 @@ if [ "$clone_ok" != true ]; then
   fail "Failed to clone container $SOURCE_VMID to $TARGET_VMID"
 fi
 
+# --- Rename managed volumes to hostname-based names ---
+# pct restore creates volumes with generic names (disk-1, disk-2).
+# We rename them to match the source naming convention (hostname-key)
+# so resolve_host_volume can find them.
+#
+# Source: mp0: local-zfs:subvol-221-postgres-default-data,mp=/var/lib/postgresql/data
+# After restore: mp0: local-zfs:subvol-250-disk-1,mp=/var/lib/postgresql/data
+# After rename:  mp0: local-zfs:subvol-250-postgres-default-data,mp=/var/lib/postgresql/data
+
+# Build mapping: source volume suffix -> target mpkey
+# by comparing source config (original names) with target config (disk-N names)
+SOURCE_MPS=$(pct config "$SOURCE_VMID" 2>/dev/null | grep -aE "^mp[0-9]+:.*${ROOTFS_STORAGE}:" || true)
+TARGET_MPS=$(pct config "$TARGET_VMID" 2>/dev/null | grep -aE "^mp[0-9]+:.*${ROOTFS_STORAGE}:" || true)
+
+if [ -n "$SOURCE_MPS" ] && [ -n "$TARGET_MPS" ]; then
+  # Get ZFS pool name for rename operations
+  _pool=""
+  if [ -r /etc/pve/storage.cfg ]; then
+    _pool=$(awk -v storage="$ROOTFS_STORAGE" '
+      $1 ~ /^zfspool:/ { inblock=0 }
+      $1 == "zfspool:" && $2 == storage { inblock=1 }
+      inblock && $1 == "pool" { print $2; exit }
+    ' /etc/pve/storage.cfg 2>/dev/null || true)
+  fi
+
+  if [ -n "$_pool" ]; then
+    # Match source and target by mount point (mp=)
+    echo "$TARGET_MPS" | while IFS= read -r target_line; do
+      [ -z "$target_line" ] && continue
+      _tgt_mpkey=$(echo "$target_line" | cut -d: -f1)
+      _tgt_mp=$(echo "$target_line" | sed -E 's/.*mp=([^,]+).*/\1/')
+      _tgt_volname=$(echo "$target_line" | sed -E "s/^${_tgt_mpkey}: *${ROOTFS_STORAGE}:([^,]+).*/\1/")
+
+      # Find matching source mp by container mount path
+      _src_volname=""
+      echo "$SOURCE_MPS" | while IFS= read -r src_line; do
+        _src_mp=$(echo "$src_line" | sed -E 's/.*mp=([^,]+).*/\1/')
+        if [ "$_src_mp" = "$_tgt_mp" ]; then
+          _src_mpkey=$(echo "$src_line" | cut -d: -f1)
+          _src_volname=$(echo "$src_line" | sed -E "s/^${_src_mpkey}: *${ROOTFS_STORAGE}:([^,]+).*/\1/")
+          echo "$_src_volname"
+          break
+        fi
+      done | read -r _src_volname || true
+
+      if [ -n "$_src_volname" ] && [ "$_tgt_volname" != "$_src_volname" ]; then
+        # Extract suffix from source: subvol-221-postgres-default-data -> postgres-default-data
+        _suffix=$(echo "$_src_volname" | sed -E "s/^subvol-[0-9]+-//")
+        _new_volname="subvol-${TARGET_VMID}-${_suffix}"
+
+        if [ "$_tgt_volname" != "$_new_volname" ]; then
+          log "Renaming volume: ${_tgt_volname} -> ${_new_volname}"
+          # Get all mount options after the volume name
+          _tgt_opts=$(echo "$target_line" | sed -E "s/^${_tgt_mpkey}: *${ROOTFS_STORAGE}:[^,]+,?//")
+          zfs rename "${_pool}/${_tgt_volname}" "${_pool}/${_new_volname}" 2>&1 >&2 || {
+            log "Warning: zfs rename failed for ${_tgt_volname}"
+            continue
+          }
+          pct set "$TARGET_VMID" -"${_tgt_mpkey}" "${ROOTFS_STORAGE}:${_new_volname},${_tgt_opts}" >&2 || {
+            log "Warning: pct set failed for ${_tgt_mpkey}"
+          }
+        fi
+      fi
+    done
+  fi
+fi
+
 # Source container keeps running — it will be destroyed by post-cleanup-previous-container
 
-# Determine volume_storage from oci-lxc-deployer-volumes volume
-# Search all storages for a volume whose name contains "oci-lxc-deployer-volumes"
-VOLUME_STORAGE=""
-for store in $(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 {print $1}'); do
-  if pvesm list "$store" 2>/dev/null | grep -q "oci-lxc-deployer-volumes"; then
-    VOLUME_STORAGE="$store"
-    break
-  fi
-done
-if [ -n "$VOLUME_STORAGE" ]; then
-  log "Detected volume_storage=$VOLUME_STORAGE (from oci-lxc-deployer-volumes)"
-else
-  log "Warning: could not detect volume_storage (no oci-lxc-deployer-volumes found)"
-fi
+# Determine volume_storage from rootfs storage
+VOLUME_STORAGE="$ROOTFS_STORAGE"
 
 # Extract installed addons from source
 INSTALLED_ADDONS=$(extract_addons "$SOURCE_DESC$SOURCE_CONF_TEXT")

@@ -1,14 +1,16 @@
 /**
- * Whole-VM snapshot manager for live integration tests.
+ * Per-container snapshot manager for live integration tests.
  *
- * Creates snapshots of the entire nested PVE VM (QEMU) from the outer
- * Proxmox host using `qm snapshot`. A single snapshot captures everything:
- * all LXC containers, their disks, configs, volumes, and the ZFS pool.
+ * Creates snapshots of individual LXC containers using `pct snapshot`
+ * on the nested PVE host. Each snapshot captures the container's rootfs
+ * and all Proxmox-managed volumes automatically.
+ *
+ * A dependency-group snapshot (e.g. "dep-zitadel-default") is applied
+ * to all containers in the group (postgres + zitadel).
  *
  * For dev instances (deployer runs locally), the local context files
  * (storagecontext.json, secret.txt) are copied to the nested VM before
- * snapshot creation and restored after rollback. This ensures stack
- * passwords match the snapshot state.
+ * snapshot creation and restored after rollback.
  */
 import { execSync } from "node:child_process";
 import { existsSync, copyFileSync, mkdirSync, readFileSync } from "node:fs";
@@ -34,12 +36,11 @@ export class SnapshotManager {
   /**
    * Save a copy of the storagecontext for debugging.
    * Only active when DEPLOYER_PLAINTEXT_CONTEXT=1.
-   * Files are saved as storagecontext-NNN-<label>.json in the context dir.
    */
   private saveContextSnapshot(label: string): void {
+    if (!this.localContextPath) return;
     const src = path.join(this.localContextPath, "storagecontext.json");
     if (!existsSync(src)) return;
-    // Only save if context is plaintext (not encrypted)
     try {
       const head = readFileSync(src, "utf-8").slice(0, 4);
       if (head === "enc:") return;
@@ -52,7 +53,7 @@ export class SnapshotManager {
     } catch { /* ignore */ }
   }
 
-  /** SSH to the outer PVE host (port 22) for qm commands */
+  /** SSH to the outer PVE host (port 22) for qm commands (baseline only) */
   private outerSsh(cmd: string, timeout = 60000): string {
     return execSync(
       `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 root@${this.outerPveHost} ${JSON.stringify(cmd)}`,
@@ -89,8 +90,28 @@ export class SnapshotManager {
     return "dep-" + scenarioId.replace(/\//g, "-");
   }
 
-  /** Check if a snapshot exists for the nested VM */
-  exists(name: string): boolean {
+  /** Check if a snapshot exists on a specific container */
+  private existsOnContainer(vmId: number, name: string): boolean {
+    try {
+      this.nestedSsh(
+        `pct listsnapshot ${vmId} 2>/dev/null | grep -q ' ${name} \\| ${name}$'`,
+        10000,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if a snapshot exists on ALL containers in the group.
+   * Falls back to qm snapshot check for backward compatibility with old snapshots.
+   */
+  exists(name: string, vmIds?: number[]): boolean {
+    if (vmIds && vmIds.length > 0) {
+      return vmIds.every((vmId) => this.existsOnContainer(vmId, name));
+    }
+    // Fallback: check qm snapshot (old whole-VM snapshots)
     try {
       this.outerSsh(
         `qm listsnapshot ${this.nestedVmId} | grep -q ' ${name} '`,
@@ -104,7 +125,7 @@ export class SnapshotManager {
 
   /**
    * Backup local context files to the nested VM.
-   * Called before snapshot creation so passwords are embedded in the snapshot.
+   * Called before snapshot creation so passwords are embedded.
    */
   private backupContext(): void {
     if (!this.localContextPath) return;
@@ -122,9 +143,7 @@ export class SnapshotManager {
       if (existsSync(secretFile)) {
         this.scpToNested(secretFile, `${CONTEXT_BACKUP_DIR}/secret.txt`);
       }
-      // Flush to disk so live snapshot captures the files
       this.nestedSsh("sync");
-      // Verify backup was written
       const verify = this.nestedSsh(`ls ${CONTEXT_BACKUP_DIR}/ 2>&1`);
       this.log(`Local context backed up to nested VM (${verify.replace(/\n/g, ", ")})`);
     } catch (err) {
@@ -132,10 +151,6 @@ export class SnapshotManager {
     }
   }
 
-  /**
-   * Restore local context files from the nested VM.
-   * Called after snapshot rollback so passwords match the restored state.
-   */
   /** Public wrapper for restoreContext (used for retry after failed reload) */
   restoreContextPublic(): void { this.restoreContext(); }
 
@@ -158,110 +173,153 @@ export class SnapshotManager {
   }
 
   /**
-   * Create a live snapshot of the entire nested PVE VM.
-   * No VM stop needed — ZFS snapshots are atomic.
-   * Takes ~2s on ZFS backend.
+   * Create per-container snapshots for a dependency group.
+   * Each container in vmIds gets a snapshot with the given name.
    */
-  create(name: string, buildHash?: string): void {
-    this.log(`Creating VM snapshot @${name}...`);
+  create(name: string, buildHash?: string, vmIds?: number[]): void {
+    this.log(`Creating snapshot @${name}...`);
 
-    // Save debug snapshot before backup
     this.saveContextSnapshot(`before-create-${name}`);
-
-    // Backup local context to nested VM (embedded in snapshot)
     this.backupContext();
 
-    // Delete existing snapshot with same name (idempotent)
-    try {
+    if (vmIds && vmIds.length > 0) {
+      // Per-container snapshots via pct
+      const desc = buildHash ? `build:${buildHash}` : "livetest";
+      for (const vmId of vmIds) {
+        // Delete existing snapshot with same name (idempotent)
+        try {
+          this.nestedSsh(`pct delsnapshot ${vmId} ${name} 2>/dev/null; true`, 30000);
+        } catch { /* ignore */ }
+
+        this.nestedSsh(
+          `pct snapshot ${vmId} ${name} --description ${JSON.stringify(desc)}`,
+          30000,
+        );
+        this.log(`  pct snapshot ${vmId} @${name}`);
+      }
+    } else {
+      // Fallback: whole-VM snapshot (for baseline etc.)
+      try {
+        this.outerSsh(
+          `qm delsnapshot ${this.nestedVmId} ${name} 2>/dev/null; true`,
+          30000,
+        );
+      } catch { /* ignore */ }
+
+      const desc = buildHash ? `build:${buildHash}` : "livetest";
       this.outerSsh(
-        `qm delsnapshot ${this.nestedVmId} ${name} 2>/dev/null; true`,
+        `qm snapshot ${this.nestedVmId} ${name} --vmstate 0 --description ${JSON.stringify(desc)}`,
         30000,
       );
-    } catch { /* ignore */ }
-
-    // Create live snapshot (no VM stop needed, --vmstate 0 skips RAM)
-    const desc = buildHash ? `build:${buildHash}` : "livetest";
-    this.outerSsh(
-      `qm snapshot ${this.nestedVmId} ${name} --vmstate 0 --description ${JSON.stringify(desc)}`,
-      30000,
-    );
+    }
 
     this.saveContextSnapshot(`after-create-${name}`);
     this.log(`Snapshot @${name} created`);
   }
 
   /**
-   * Rollback the entire nested PVE VM to a snapshot.
-   * Stops the VM, rolls back, starts it, waits for SSH.
-   * Restores local context files from the VM so passwords match.
+   * Rollback per-container snapshots for a dependency group.
+   * Each container is stopped, rolled back, and started.
+   * No VM reboot needed — other containers stay running.
    */
-  rollback(name: string): void {
+  rollback(name: string, vmIds?: number[]): void {
     this.log(`Rolling back to @${name}...`);
     this.saveContextSnapshot(`before-rollback-${name}`);
 
-    // Delete snapshots newer than the target so rollback succeeds.
-    // PVE requires the target to be the most recent snapshot on each disk.
-    try {
-      const snapList = this.outerSsh(`qm listsnapshot ${this.nestedVmId}`, 15000);
-      const allNames: string[] = [];
-      for (const line of snapList.split("\n")) {
-        const m = line.match(/[`|]\->\s+(\S+)/);
-        if (m && m[1] !== "current") allNames.push(m[1]);
-      }
-      const targetIdx = allNames.indexOf(name);
-      if (targetIdx >= 0) {
-        // Delete all snapshots after the target (in reverse order)
-        for (let i = allNames.length - 1; i > targetIdx; i--) {
-          this.log(`Deleting intermediate snapshot @${allNames[i]}`);
-          try {
-            this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${allNames[i]}`, 30000);
-          } catch { /* ignore — may already be gone */ }
+    if (vmIds && vmIds.length > 0) {
+      // Per-container rollback via pct
+      for (const vmId of vmIds) {
+        // Delete snapshots newer than target on this container
+        try {
+          const snapList = this.nestedSsh(`pct listsnapshot ${vmId}`, 10000);
+          const allNames: string[] = [];
+          for (const line of snapList.split("\n")) {
+            const m = line.match(/[`|]\->\s+(\S+)/);
+            if (m && m[1] !== "current") allNames.push(m[1]);
+          }
+          const targetIdx = allNames.indexOf(name);
+          if (targetIdx >= 0) {
+            for (let i = allNames.length - 1; i > targetIdx; i--) {
+              this.log(`  Deleting @${allNames[i]} on CT ${vmId}`);
+              try {
+                this.nestedSsh(`pct delsnapshot ${vmId} ${allNames[i]}`, 30000);
+              } catch { /* ignore */ }
+            }
+          }
+        } catch {
+          this.log(`Warning: could not clean intermediate snapshots on CT ${vmId}`);
+        }
+
+        try {
+          this.nestedSsh(`pct stop ${vmId} 2>/dev/null; true`, 30000);
+          this.nestedSsh(`pct rollback ${vmId} ${name}`, 60000);
+          this.nestedSsh(`pct start ${vmId}`, 30000);
+          this.log(`  pct rollback ${vmId} @${name}`);
+        } catch (err) {
+          this.log(`Warning: rollback of CT ${vmId} failed: ${err}`);
         }
       }
-    } catch {
-      this.log("Warning: could not clean intermediate snapshots");
+    } else {
+      // Fallback: whole-VM rollback (old snapshots)
+      try {
+        const snapList = this.outerSsh(`qm listsnapshot ${this.nestedVmId}`, 15000);
+        const allNames: string[] = [];
+        for (const line of snapList.split("\n")) {
+          const m = line.match(/[`|]\->\s+(\S+)/);
+          if (m && m[1] !== "current") allNames.push(m[1]);
+        }
+        const targetIdx = allNames.indexOf(name);
+        if (targetIdx >= 0) {
+          for (let i = allNames.length - 1; i > targetIdx; i--) {
+            this.log(`Deleting intermediate snapshot @${allNames[i]}`);
+            try {
+              this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${allNames[i]}`, 30000);
+            } catch { /* ignore */ }
+          }
+        }
+      } catch {
+        this.log("Warning: could not clean intermediate snapshots");
+      }
+
+      try {
+        this.outerSsh(`qm stop ${this.nestedVmId}`, 60000);
+      } catch {
+        this.log("Warning: qm stop failed (may already be stopped)");
+      }
+
+      this.outerSsh(`qm rollback ${this.nestedVmId} ${name}`, 120000);
+      this.outerSsh(`qm start ${this.nestedVmId}`, 30000);
+      this.waitForNestedVm();
     }
 
-    // Stop nested VM
-    try {
-      this.outerSsh(`qm stop ${this.nestedVmId}`, 60000);
-    } catch {
-      this.log("Warning: qm stop failed (may already be stopped)");
-    }
-
-    // Rollback
-    this.outerSsh(`qm rollback ${this.nestedVmId} ${name}`, 120000);
-
-    // Start
-    this.outerSsh(`qm start ${this.nestedVmId}`, 30000);
-
-    // Wait for nested VM to be reachable via SSH
-    this.waitForNestedVm();
-
-    // Restore local context from VM (passwords match snapshot state)
     this.restoreContext();
     this.saveContextSnapshot(`after-rollback-${name}`);
-
     this.log(`Rollback to @${name} complete`);
   }
 
-  /** Delete a snapshot (best-effort, ignores errors) */
-  deleteSnapshot(name: string): void {
-    try {
-      this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${name} 2>/dev/null; true`, 30000);
-    } catch { /* ignore */ }
+  /** Delete a snapshot from all containers in the group */
+  deleteSnapshot(name: string, vmIds?: number[]): void {
+    if (vmIds && vmIds.length > 0) {
+      for (const vmId of vmIds) {
+        try {
+          this.nestedSsh(`pct delsnapshot ${vmId} ${name} 2>/dev/null; true`, 30000);
+        } catch { /* ignore */ }
+      }
+    } else {
+      try {
+        this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${name} 2>/dev/null; true`, 30000);
+      } catch { /* ignore */ }
+    }
   }
 
   /**
    * Wait for the nested VM to become reachable via SSH after boot.
-   * Polls SSH on the port-forwarded port until success or timeout.
    */
   private waitForNestedVm(timeoutMs = 120000): void {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       try {
         this.nestedSsh("echo ok", 5000);
-        // Extra wait for PVE to start onboot containers
         this.sleep(5);
         return;
       } catch {
@@ -276,17 +334,18 @@ export class SnapshotManager {
   }
 
   /**
-   * Check if a snapshot's description contains the expected build hash.
-   * Returns true if no buildHash is provided (skip validation).
+   * Check if a snapshot's description matches the build hash.
+   * Uses pct listsnapshot on the first vmId, or qm listsnapshot as fallback.
    */
-  private matchesBuild(name: string, buildHash?: string): boolean {
+  private matchesBuild(name: string, buildHash?: string, vmIds?: number[]): boolean {
     if (!buildHash) return true;
     try {
-      const output = this.outerSsh(
-        `qm listsnapshot ${this.nestedVmId}`,
-        15000,
-      );
-      // qm listsnapshot format: " `-> name   date   description"
+      let output: string;
+      if (vmIds && vmIds.length > 0) {
+        output = this.nestedSsh(`pct listsnapshot ${vmIds[0]}`, 10000);
+      } else {
+        output = this.outerSsh(`qm listsnapshot ${this.nestedVmId}`, 15000);
+      }
       for (const line of output.split("\n")) {
         if (line.includes(` ${name} `) || line.includes(` ${name}\t`)) {
           return line.includes(`build:${buildHash}`);
@@ -301,12 +360,17 @@ export class SnapshotManager {
   /**
    * Find the best (latest) snapshot for a dependency chain.
    * Walks backwards through deps and returns the first existing snapshot.
-   * If buildHash is provided, only snapshots matching the hash are considered.
+   * vmIdMap maps scenario index to the list of VMIDs in that dependency group.
    */
-  findBestSnapshot(depScenarioIds: string[], buildHash?: string): { name: string; index: number } | null {
+  findBestSnapshot(
+    depScenarioIds: string[],
+    buildHash?: string,
+    vmIdMap?: Map<number, number[]>,
+  ): { name: string; index: number } | null {
     for (let i = depScenarioIds.length - 1; i >= 0; i--) {
       const name = this.snapshotName(depScenarioIds[i]!);
-      if (this.exists(name) && this.matchesBuild(name, buildHash)) {
+      const vmIds = vmIdMap?.get(i);
+      if (this.exists(name, vmIds) && this.matchesBuild(name, buildHash, vmIds)) {
         return { name, index: i };
       }
     }

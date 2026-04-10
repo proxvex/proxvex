@@ -221,11 +221,19 @@ export async function executeScenarios(
         logInfo("Deployer reload not available (continuing)");
       }
 
+      // Collect VMIDs of all dependency containers installed so far
+      // (used for per-container snapshots)
+      const depVmIds = planned
+        .slice(0, i)
+        .filter((p) => allDepIds.has(p.scenario.id) && p.skipExecution)
+        .map((p) => p.vmId);
+
       // Pre-test snapshot: save state before execution so we can rollback on failure
       const preTestSnapName = snapMgr ? `pre-${scenario.id.replace("/", "-")}` : null;
+      const preTestVmIds = [...depVmIds, step.vmId];
       if (snapMgr && preTestSnapName && !step.isDependency) {
         try {
-          snapMgr.create(preTestSnapName, buildHash);
+          snapMgr.create(preTestSnapName, buildHash, preTestVmIds);
           logInfo(`Pre-test snapshot @${preTestSnapName} created`);
         } catch {
           logInfo("Warning: pre-test snapshot failed (non-fatal)");
@@ -253,7 +261,7 @@ export async function executeScenarios(
         if (snapMgr && preTestSnapName) {
           try {
             logInfo(`Rolling back to @${preTestSnapName} (restoring pre-test state)`);
-            snapMgr.rollback(preTestSnapName);
+            snapMgr.rollback(preTestSnapName, preTestVmIds);
             logOk("Pre-test state restored");
           } catch {
             logInfo("Warning: pre-test rollback failed");
@@ -421,7 +429,7 @@ export async function executeScenarios(
       // Clean up pre-test snapshot on success (no longer needed)
       if (snapMgr && preTestSnapName && !step.isDependency) {
         try {
-          snapMgr.deleteSnapshot(preTestSnapName);
+          snapMgr.deleteSnapshot(preTestSnapName, preTestVmIds);
         } catch { /* ignore */ }
       }
 
@@ -429,9 +437,14 @@ export async function executeScenarios(
       if (snapMgr && allDepIds.has(step.scenario.id) && !step.skipExecution) {
         try {
           const depSnapName = snapMgr.snapshotName(step.scenario.id);
-          snapMgr.create(depSnapName, buildHash);
+          // Snapshot all dependency containers installed up to and including this one
+          const depGroupVmIds = planned
+            .slice(0, i + 1)
+            .filter((p) => allDepIds.has(p.scenario.id))
+            .map((p) => p.vmId);
+          snapMgr.create(depSnapName, buildHash, depGroupVmIds);
         } catch (err) {
-          logInfo(`VM snapshot creation failed (non-fatal): ${err}`);
+          logInfo(`Snapshot creation failed (non-fatal): ${err}`);
         }
       }
     }

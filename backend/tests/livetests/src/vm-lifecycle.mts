@@ -82,12 +82,22 @@ export async function restoreBestSnapshot(
     (msg) => logInfo(msg), localContextPath,
   );
   const depIds = depSteps.map((p) => p.scenario.id);
-  const best = snapMgr.findBestSnapshot(depIds, buildHash);
+
+  // Build vmId map: for each dep index, collect all VMIDs up to that point
+  // (a dependency snapshot covers all containers installed so far)
+  const vmIdMap = new Map<number, number[]>();
+  for (let i = 0; i < depSteps.length; i++) {
+    vmIdMap.set(i, depSteps.slice(0, i + 1).map((p) => p.vmId));
+  }
+
+  const best = snapMgr.findBestSnapshot(depIds, buildHash, vmIdMap);
   if (!best) return;
+
+  const bestVmIds = vmIdMap.get(best.index) ?? [];
 
   try {
     logStep("Snapshot", `Restoring to @${best.name}`);
-    snapMgr.rollback(best.name);
+    snapMgr.rollback(best.name, bestVmIds);
 
     // Stop ghost containers that are not dependencies in this run
     const depVmIds = new Set(depSteps.map((p) => p.vmId));
