@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(git rm json/shared/scripts/upgrade-oci-lxc.sh json/shared/scripts/upgrade-start.sh json/shared/templates/221-upgrade-oci-lxc.json json/shared/templates/231-upgrade-start.json)",
-      "Bash(git fetch:*)"
+      "Bash(ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm delsnapshot 9000 deployer-installed')",
+      "Bash(ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm stop 9000 2>/dev/null; true; qm rollback 9000 baseline; qm start 9000')",
+      "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=2 -p 1022 root@ubuntupve 'echo ok')",
+      "Bash(break)",
+      "Bash(DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev gitea/default)",
+      "Bash(curl -sk --connect-timeout 5 http://localhost:3201/api/applications)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p 1022 root@ubuntupve 'echo ok')",
+      "Bash(ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm status 9000')"
     ]
   },
   "hooks": {
