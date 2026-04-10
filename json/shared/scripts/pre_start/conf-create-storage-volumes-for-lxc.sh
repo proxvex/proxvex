@@ -494,7 +494,7 @@ while IFS= read -r line <&3; do
   VOLUME_PATH=$(printf '%s' "$VOLUME_PATH" | sed -E 's#^/*#/#')
 
   SAFE_KEY=$(sanitize_name "$VOLUME_KEY")
-  SUBDIR="${SHARED_VOLPATH}/volumes/${SAFE_HOST}/${SAFE_KEY}"
+  SUBDIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "$SAFE_KEY")
   mkdir -p "$SUBDIR"
 
   PERM=$(printf '%s' "$VOLUME_OPTS" | tr ',' '\n' | awk '/^[0-9]{3,4}$/ {print $1; exit}')
