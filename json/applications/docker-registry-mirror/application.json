@@ -33,7 +33,7 @@
     },
     {
       "id": "ssl.addon_volumes",
-      "value": "certs=certs,0755,0:0"
+      "value": "certs=certs,0755,0:0\noci_deployer=/etc/lxc-oci-deployer,0755,0:0"
     },
     {
       "id": "ssl.needs_server_cert",
