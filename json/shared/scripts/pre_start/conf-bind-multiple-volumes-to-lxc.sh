@@ -28,8 +28,6 @@
 
 VMID="{{ vm_id}}"
 HOSTNAME="{{ hostname}}"
-HOST_MOUNTPOINT="{{ host_mountpoint}}"
-BASE_PATH="{{ base_path}}"
 VOLUMES="{{ volumes}}"
 ADDON_VOLUMES="{{ addon_volumes}}"
 
@@ -221,22 +219,51 @@ compute_effective_gid() {
   fi
 }
 
-# Construct the full host path: <host_mountpoint>/<base_path>/<hostname>
-# If host_mountpoint is not set, use /mnt/<base_path>/<hostname>
-if [ -n "$HOST_MOUNTPOINT" ] && [ "$HOST_MOUNTPOINT" != "" ]; then
-  HOST_PATH="$HOST_MOUNTPOINT/$BASE_PATH/$HOSTNAME"
-else
-  HOST_PATH="/mnt/$BASE_PATH/$HOSTNAME"
+# Create or reuse a Proxmox-managed volume as data root for this container.
+# All bind-mount subdirectories live inside this volume so pct snapshot captures everything.
+SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+VOL_NAME="subvol-${VMID}-${SAFE_HOST}-app"
+VOLUME_STORAGE="{{ volume_storage }}"
+if [ -z "$VOLUME_STORAGE" ] || [ "$VOLUME_STORAGE" = "NOT_DEFINED" ]; then
+  # Auto-detect from rootfs
+  VOLUME_STORAGE=$(pct config "$VMID" 2>/dev/null | grep "^rootfs:" | sed 's/^rootfs: *//; s/:.*//')
+  [ -z "$VOLUME_STORAGE" ] && VOLUME_STORAGE="local-zfs"
 fi
 
-# Create base path if it doesn't exist
-if [ ! -d "$(dirname "$HOST_PATH")" ]; then
-  mkdir -p "$(dirname "$HOST_PATH")" >&2
+_vol_type=$(pvesm status -storage "$VOLUME_STORAGE" 2>/dev/null | awk 'NR==2 {print $2}' || true)
+HOST_PATH=""
+
+# Check if managed volume already exists
+_existing_volid=$(pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
+  | awk -v pat="${SAFE_HOST}-app\$" '$1 ~ pat {print $1; exit}' || true)
+
+if [ -n "$_existing_volid" ]; then
+  HOST_PATH=$(pvesm path "$_existing_volid" 2>/dev/null || true)
+  echo "Reusing managed app volume: $_existing_volid ($HOST_PATH)" >&2
 fi
 
-# Create hostname-specific directory if it doesn't exist
-if [ ! -d "$HOST_PATH" ]; then
-  mkdir -p "$HOST_PATH" >&2
+if [ -z "$HOST_PATH" ] || [ ! -d "$HOST_PATH" ]; then
+  # Allocate new managed volume
+  _alloc_raw=""
+  if [ "$_vol_type" = "zfspool" ]; then
+    _alloc_raw=$(pvesm alloc "$VOLUME_STORAGE" "$VMID" "$VOL_NAME" "4G" --format subvol 2>&1 || true)
+  else
+    _alloc_raw=$(pvesm alloc "$VOLUME_STORAGE" "$VMID" "$VOL_NAME" "4G" 2>&1 || true)
+  fi
+  # Extract volume ID
+  case "$_alloc_raw" in
+    *"'"*) _volid=$(echo "$_alloc_raw" | sed -n "s/.*'\\([^']*\\)'.*/\\1/p") ;;
+    *) _volid=$(echo "$_alloc_raw" | tr -d '[:space:]') ;;
+  esac
+  if [ -n "$_volid" ]; then
+    HOST_PATH=$(pvesm path "$_volid" 2>/dev/null || true)
+    echo "Created managed app volume: $_volid ($HOST_PATH)" >&2
+  fi
+fi
+
+if [ -z "$HOST_PATH" ] || [ ! -d "$HOST_PATH" ]; then
+  echo "Error: Failed to create or find managed app volume for $HOSTNAME" >&2
+  exit 1
 fi
 
 # Helper function: Is container running?

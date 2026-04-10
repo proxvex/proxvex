@@ -74,11 +74,6 @@ upload_pre_start_file() {
   fi
 
   # Validate required parameters
-  if ! upload_is_defined "$_shared_volpath"; then
-    echo "shared_volpath not defined - cannot upload $_label" >&2
-    return 1
-  fi
-
   if ! upload_is_defined "$_hostname"; then
     echo "hostname not defined - cannot upload $_label" >&2
     return 1

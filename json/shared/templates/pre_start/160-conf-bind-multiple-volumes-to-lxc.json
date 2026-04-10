@@ -23,20 +23,12 @@
       "description": "Container hostname; used in volume directory paths."
     },
     {
-      "id": "host_mountpoint",
-      "name": "Host Mountpoint",
+      "id": "volume_storage",
+      "name": "Volume Storage",
       "type": "string",
       "default": "",
-      "description": "Host mountpoint for volumes (optional).",
+      "description": "Proxmox storage ID for managed app volume.",
       "advanced": true
-    },
-    {
-      "id": "base_path",
-      "name": "Base Path",
-      "type": "string",
-      "default": "volumes",
-      "advanced": true,
-      "description": "Base subdirectory under mountpoint; default 'volumes'."
     },
     {
       "id": "volumes",
