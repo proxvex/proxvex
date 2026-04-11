@@ -113,17 +113,10 @@ if [ "$clone_ok" != true ]; then
   fail "Failed to clone container $SOURCE_VMID to $TARGET_VMID"
 fi
 
-# Remove cloned volume mounts from target.
-# Template 150/160 creates fresh volumes for the new container.
-pct config "$TARGET_VMID" | while IFS= read -r line; do
-  case "$line" in
-    mp[0-9]*:*)
-      mpkey=$(echo "$line" | cut -d: -f1)
-      log "Removing cloned mount $mpkey from target"
-      pct set "$TARGET_VMID" -delete "$mpkey" >&2 || true
-      ;;
-  esac
-done
+# Keep cloned volume mounts on target.
+# pct clone --full copies all volumes with their data (compose files,
+# docker cache, app data). Template 150/160 will detect existing mounts
+# and skip re-creation.
 
 # Volume mounts are NOT restored on target — Template 150/160 in the
 # pre_start flow creates fresh managed volumes for the new container.
