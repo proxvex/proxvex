@@ -294,6 +294,8 @@ export class VeExecutionCommandProcessor {
 
   /**
    * Gets vm_id from inputs or outputs.
+   * Falls back to previouse_vm_id for upgrade/reconfigure tasks
+   * where vm_id is not yet assigned (e.g. image phase before clone).
    */
   getVmId(): string | number | undefined {
     if (
@@ -307,6 +309,13 @@ export class VeExecutionCommandProcessor {
       if (typeof v === "string" || typeof v === "number") {
         return v;
       }
+    }
+    // Fallback: use previouse_vm_id (old container) for pre-clone commands
+    if (
+      typeof this.deps.inputs["previouse_vm_id"] === "string" ||
+      typeof this.deps.inputs["previouse_vm_id"] === "number"
+    ) {
+      return this.deps.inputs["previouse_vm_id"];
     }
     return undefined;
   }

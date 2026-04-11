@@ -78,7 +78,6 @@
   "upgrade": {
     "image": [
       "010-host-get-latest-os-template.json",
-      "012-host-docker-pull-in-existing.json",
       "095-host-check-kernel-modules.json",
       "096-host-load-kernel-modules.json"
     ],
