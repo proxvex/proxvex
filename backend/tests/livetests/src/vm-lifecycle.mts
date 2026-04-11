@@ -158,6 +158,12 @@ export function prepareVms(
   for (const p of planned) {
     if (p.skipExecution) continue;
 
+    // Clear stale locks from aborted runs
+    try {
+      nestedSsh(config.pveHost, config.portPveSsh,
+        `pct unlock ${p.vmId} 2>/dev/null; true`, 5000);
+    } catch { /* ignore */ }
+
     let status: string;
     try {
       status = nestedSshStrict(config.pveHost, config.portPveSsh,
@@ -168,7 +174,9 @@ export function prepareVms(
     }
 
     const task = p.scenario.task || "installation";
-    if (p.isDependency && status.includes("running")) {
+    const isRunning = status.includes("running");
+    const isStopped = status.includes("stopped");
+    if (p.isDependency && (isRunning || isStopped)) {
       let isManaged = false;
       let matchesApp = false;
       try {
@@ -187,7 +195,12 @@ export function prepareVms(
         }
       } catch { /* treat as not managed */ }
       if (isManaged && matchesApp) {
-        logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) running — reusing`);
+        if (isStopped) {
+          logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stopped — starting`);
+          nestedSsh(config.pveHost, config.portPveSsh,
+            `pct start ${p.vmId}`, 30000);
+        }
+        logOk(`Dependency VM ${p.vmId} (${p.scenario.id}) ${isRunning ? "running" : "started"} — reusing`);
         p.skipExecution = true;
       } else if (isManaged) {
         logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but wrong app/stack — destroying`);
