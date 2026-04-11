@@ -239,6 +239,35 @@ export class WebAppVeRouteHandlers {
       if (body.stackId && !allStackIds.includes(body.stackId)) {
         allStackIds.unshift(body.stackId);
       }
+
+      // Add addon stacktypes to allStackIds so dependency resolution
+      // can find containers in addon stacks (e.g. addon-oidc → zitadel in oidc_default)
+      const addonStackIds = body.selectedAddons ?? [];
+      if (addonStackIds.length > 0) {
+        try {
+          const addonSvc = this.pm.getAddonService();
+          const storageContext = this.pm
+            .getContextManager();
+          for (const addonId of addonStackIds) {
+            try {
+              const addon = addonSvc.getAddon(addonId);
+              if (addon?.stacktype) {
+                const addonTypes = Array.isArray(addon.stacktype) ? addon.stacktype : [addon.stacktype];
+                for (const st of addonTypes) {
+                  // Find existing stacks of this type and add their IDs
+                  const stacks = storageContext.listStacks(st);
+                  for (const stack of stacks) {
+                    if (!allStackIds.includes(stack.id)) {
+                      allStackIds.push(stack.id);
+                    }
+                  }
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      }
+
       const firstStackId = allStackIds[0];
       if (firstStackId) {
         initialInputs.push({ id: "stack_id", value: firstStackId });
