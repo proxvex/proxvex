@@ -118,9 +118,54 @@ export async function ensureStacks(
   const appStackIdsMap = new Map<string, string[]>();
   const stacksToCreate = new Map<string, { name: string; type: string }>();
 
+  // Fetch addon stacktypes (cached for all scenarios)
+  let addonStacktypeCache: Map<string, string | string[]> | undefined;
+  try {
+    const stResp = await fetch(`${apiUrl}/api/stacktypes`, { signal: AbortSignal.timeout(5000) });
+    if (stResp.ok) {
+      const stData = await stResp.json() as { stacktypes: Array<{ name: string }> };
+      // Build addon → stacktype map from scenario selectedAddons
+      addonStacktypeCache = new Map();
+      for (const p of planned) {
+        if (p.scenario.selectedAddons) {
+          for (const addonId of p.scenario.selectedAddons) {
+            if (!addonStacktypeCache.has(addonId)) {
+              // Addon stacktypes are named after the addon (e.g. addon-acme → cloudflare)
+              // We need to fetch addon info — try from the API
+              try {
+                // Convention: addon config is at json/addons/<addonId>.json
+                // The stacktype is in the addon definition
+                // For now, use a simple mapping based on known addons
+                const knownAddonStacktypes: Record<string, string> = {
+                  "addon-oidc": "oidc",
+                  "addon-acme": "cloudflare",
+                  "addon-ssl": "",
+                  "samba-shares": "",
+                };
+                const st = knownAddonStacktypes[addonId];
+                if (st) addonStacktypeCache.set(addonId, st);
+              } catch { /* ignore */ }
+            }
+          }
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
   for (const p of planned) {
     const rawStacktype = appStacktypes.get(p.scenario.application);
     const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
+
+    // Add addon stacktypes from selectedAddons
+    if (addonStacktypeCache && p.scenario.selectedAddons) {
+      for (const addonId of p.scenario.selectedAddons) {
+        const addonSt = addonStacktypeCache.get(addonId);
+        if (addonSt && !stacktypes.includes(addonSt)) {
+          stacktypes.push(addonSt);
+        }
+      }
+    }
+
     if (stacktypes.length === 0) continue;
 
     const ids: string[] = [];

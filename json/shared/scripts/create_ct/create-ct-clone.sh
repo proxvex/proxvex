@@ -73,15 +73,16 @@ if [ "$TARGET_VMID" = "$SOURCE_VMID" ]; then
   fail "Target VMID ($TARGET_VMID) must differ from source VMID ($SOURCE_VMID)"
 fi
 
-# Detect and temporarily remove bind mounts (pct clone cannot handle them)
-BIND_MOUNTS_FILE=$(mktemp)
+# Detect and temporarily remove ALL mount points (bind mounts AND managed volumes)
+# vzdump cannot handle managed ZFS subvolumes (mount fails with "directory not empty")
+# We restore them on both source and target after the clone.
+MOUNTS_FILE=$(mktemp)
 pct config "$SOURCE_VMID" | while IFS= read -r line; do
-  # Match mpN: lines where the value starts with / (bind mount, not storage:volume)
   case "$line" in
-    mp[0-9]*:\ /*)
-      echo "$line" >> "$BIND_MOUNTS_FILE"
+    mp[0-9]*:*)
+      echo "$line" >> "$MOUNTS_FILE"
       mpkey=$(echo "$line" | cut -d: -f1)
-      log "Temporarily removing bind mount $mpkey for cloning"
+      log "Temporarily removing mount $mpkey for cloning"
       pct set "$SOURCE_VMID" -delete "$mpkey" >&2 || log "Warning: failed to remove $mpkey"
       ;;
   esac
@@ -121,91 +122,25 @@ pct restore "$TARGET_VMID" "$DUMP_FILE" --storage "$ROOTFS_STORAGE" >&2 || clone
 rm -f "$DUMP_FILE"
 log "Dump file removed"
 
-# Restore bind mounts on source (and target if clone succeeded)
-if [ -s "$BIND_MOUNTS_FILE" ]; then
+# Restore mount points on SOURCE only.
+# Target gets its volumes from Template 150/160 in the pre_start flow.
+# Restoring old mounts on target would reference wrong VMIDs.
+if [ -s "$MOUNTS_FILE" ]; then
   while IFS= read -r line; do
     mpkey=$(echo "$line" | cut -d: -f1)
     mpval=$(echo "$line" | sed "s/^${mpkey}: //")
-    log "Restoring bind mount $mpkey on source $SOURCE_VMID"
+    log "Restoring mount $mpkey on source $SOURCE_VMID"
     pct set "$SOURCE_VMID" -"$mpkey" "$mpval" >&2 || log "Warning: failed to restore $mpkey on source"
-    if [ "$clone_ok" = true ]; then
-      log "Restoring bind mount $mpkey on target $TARGET_VMID"
-      pct set "$TARGET_VMID" -"$mpkey" "$mpval" >&2 || log "Warning: failed to restore $mpkey on target"
-    fi
-  done < "$BIND_MOUNTS_FILE"
+  done < "$MOUNTS_FILE"
 fi
-rm -f "$BIND_MOUNTS_FILE"
+rm -f "$MOUNTS_FILE"
 
 if [ "$clone_ok" != true ]; then
   fail "Failed to clone container $SOURCE_VMID to $TARGET_VMID"
 fi
 
-# --- Rename managed volumes to hostname-based names ---
-# pct restore creates volumes with generic names (disk-1, disk-2).
-# We rename them to match the source naming convention (hostname-key)
-# so resolve_host_volume can find them.
-#
-# Source: mp0: local-zfs:subvol-221-postgres-default-data,mp=/var/lib/postgresql/data
-# After restore: mp0: local-zfs:subvol-250-disk-1,mp=/var/lib/postgresql/data
-# After rename:  mp0: local-zfs:subvol-250-postgres-default-data,mp=/var/lib/postgresql/data
-
-# Build mapping: source volume suffix -> target mpkey
-# by comparing source config (original names) with target config (disk-N names)
-SOURCE_MPS=$(pct config "$SOURCE_VMID" 2>/dev/null | grep -aE "^mp[0-9]+:.*${ROOTFS_STORAGE}:" || true)
-TARGET_MPS=$(pct config "$TARGET_VMID" 2>/dev/null | grep -aE "^mp[0-9]+:.*${ROOTFS_STORAGE}:" || true)
-
-if [ -n "$SOURCE_MPS" ] && [ -n "$TARGET_MPS" ]; then
-  # Get ZFS pool name for rename operations
-  _pool=""
-  if [ -r /etc/pve/storage.cfg ]; then
-    _pool=$(awk -v storage="$ROOTFS_STORAGE" '
-      $1 ~ /^zfspool:/ { inblock=0 }
-      $1 == "zfspool:" && $2 == storage { inblock=1 }
-      inblock && $1 == "pool" { print $2; exit }
-    ' /etc/pve/storage.cfg 2>/dev/null || true)
-  fi
-
-  if [ -n "$_pool" ]; then
-    # Match source and target by mount point (mp=)
-    echo "$TARGET_MPS" | while IFS= read -r target_line; do
-      [ -z "$target_line" ] && continue
-      _tgt_mpkey=$(echo "$target_line" | cut -d: -f1)
-      _tgt_mp=$(echo "$target_line" | sed -E 's/.*mp=([^,]+).*/\1/')
-      _tgt_volname=$(echo "$target_line" | sed -E "s/^${_tgt_mpkey}: *${ROOTFS_STORAGE}:([^,]+).*/\1/")
-
-      # Find matching source mp by container mount path
-      _src_volname=""
-      echo "$SOURCE_MPS" | while IFS= read -r src_line; do
-        _src_mp=$(echo "$src_line" | sed -E 's/.*mp=([^,]+).*/\1/')
-        if [ "$_src_mp" = "$_tgt_mp" ]; then
-          _src_mpkey=$(echo "$src_line" | cut -d: -f1)
-          _src_volname=$(echo "$src_line" | sed -E "s/^${_src_mpkey}: *${ROOTFS_STORAGE}:([^,]+).*/\1/")
-          echo "$_src_volname"
-          break
-        fi
-      done | read -r _src_volname || true
-
-      if [ -n "$_src_volname" ] && [ "$_tgt_volname" != "$_src_volname" ]; then
-        # Extract suffix from source: subvol-221-postgres-default-data -> postgres-default-data
-        _suffix=$(echo "$_src_volname" | sed -E "s/^subvol-[0-9]+-//")
-        _new_volname="subvol-${TARGET_VMID}-${_suffix}"
-
-        if [ "$_tgt_volname" != "$_new_volname" ]; then
-          log "Renaming volume: ${_tgt_volname} -> ${_new_volname}"
-          # Get all mount options after the volume name
-          _tgt_opts=$(echo "$target_line" | sed -E "s/^${_tgt_mpkey}: *${ROOTFS_STORAGE}:[^,]+,?//")
-          zfs rename "${_pool}/${_tgt_volname}" "${_pool}/${_new_volname}" 2>&1 >&2 || {
-            log "Warning: zfs rename failed for ${_tgt_volname}"
-            continue
-          }
-          pct set "$TARGET_VMID" -"${_tgt_mpkey}" "${ROOTFS_STORAGE}:${_new_volname},${_tgt_opts}" >&2 || {
-            log "Warning: pct set failed for ${_tgt_mpkey}"
-          }
-        fi
-      fi
-    done
-  fi
-fi
+# Volume mounts are NOT restored on target — Template 150/160 in the
+# pre_start flow creates fresh managed volumes for the new container.
 
 # Source container keeps running — it will be destroyed by post-cleanup-previous-container
 
