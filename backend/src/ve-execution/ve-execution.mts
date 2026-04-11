@@ -272,11 +272,11 @@ export class VeExecution extends EventEmitter {
       throw new Error("lxc_config_parser_lib.py not found");
     }
 
-    // Replace template variable in script
-    const scriptWithAppId = scriptContent.replace(
-      /\{\{\s*application_id\s*\}\}/g,
-      appId,
-    );
+    // Replace template variables in script
+    const stackId = String(this.inputs["stack_id"] ?? this.outputs.get("stack_id") ?? "NOT_DEFINED");
+    const scriptWithAppId = scriptContent
+      .replace(/\{\{\s*application_id\s*\}\}/g, appId)
+      .replace(/\{\{\s*stack_id\s*\}\}/g, stackId);
 
     const cmd: ICommand = {
       name: "Find Containers by App ID",

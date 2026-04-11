@@ -49,9 +49,12 @@ def get_status(vmid: int) -> str | None:
 
 def main() -> None:
     app_id = "{{ application_id }}"
+    stack_id_filter = "{{ stack_id }}"
     if not app_id or app_id == "NOT_DEFINED":
         print(json.dumps([{"id": "error", "value": "application_id parameter is required"}]))
         return
+    if stack_id_filter == "NOT_DEFINED":
+        stack_id_filter = ""
 
     base_dir = Path(os.environ.get("LXC_MANAGER_PVE_LXC_DIR", "/etc/pve/lxc"))
 
@@ -77,6 +80,15 @@ def main() -> None:
             config = parse_lxc_config(conf_text)
 
             if config.application_id == app_id:
+                # If stack_id filter is set, only match containers in the same stack
+                if stack_id_filter:
+                    # Extract base name from stack_id for cross-stacktype matching
+                    # e.g. "postgres_ssl" and "oidc_ssl" share base "ssl"
+                    config_stack = config.stack_name or ""
+                    config_base = config_stack.split("_", 1)[1] if "_" in config_stack else config_stack
+                    filter_base = stack_id_filter.split("_", 1)[1] if "_" in stack_id_filter else stack_id_filter
+                    if config_base != filter_base:
+                        continue
                 matching.append({
                     "vm_id": int(vmid_str),
                     "application_id": config.application_id,

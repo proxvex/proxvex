@@ -288,32 +288,28 @@ export async function executeScenarios(
           }));
         }
 
-        // Partition remaining tests if dependency failed
-        if (allDepIds.has(scenario.id)) {
-          const remaining = planned.slice(i + 1);
-          const allTestsMap = new Map(planned.map((p) => [p.scenario.id, p.scenario]));
-          const { unaffected, blocked } = partitionAfterFailure(scenario.id, remaining, allTestsMap);
+        // Partition remaining tests: skip those that depend on the failed scenario
+        const remaining = planned.slice(i + 1);
+        const allTestsMap = new Map(planned.map((p) => [p.scenario.id, p.scenario]));
+        const { unaffected, blocked } = partitionAfterFailure(scenario.id, remaining, allTestsMap);
 
-          if (unaffected.length > 0) {
-            logInfo(`Dependency ${scenario.id} failed — running ${unaffected.length} unaffected test(s) first`);
-            for (let u = 0; u < unaffected.length; u++) {
-              planned[i + 1 + u] = unaffected[u]!;
-            }
+        if (unaffected.length > 0 && blocked.length > 0) {
+          logInfo(`${scenario.id} failed — running ${unaffected.length} unaffected test(s), skipping ${blocked.length} blocked`);
+          for (let u = 0; u < unaffected.length; u++) {
+            planned[i + 1 + u] = unaffected[u]!;
           }
-
-          for (const b of blocked) {
-            logWarn(`Skipping ${b.scenario.id} (blocked by failed dependency ${scenario.id})`);
-            b.skipExecution = true;
-            result.errors.push(`Skipped: ${b.scenario.id} (dependency ${scenario.id} failed)`);
-          }
-
           for (let b = 0; b < blocked.length; b++) {
             planned[i + 1 + unaffected.length + b] = blocked[b]!;
           }
-          continue;
         }
 
-        break;
+        for (const b of blocked) {
+          logWarn(`Skipping ${b.scenario.id} (blocked by failed dependency ${scenario.id})`);
+          b.skipExecution = true;
+          result.errors.push(`Skipped: ${b.scenario.id} (dependency ${scenario.id} failed)`);
+        }
+
+        continue;
       }
 
       // For replace_ct: discover new VM ID
