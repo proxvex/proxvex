@@ -65,6 +65,10 @@
       "value": "gitea/gitea:latest"
     },
     {
+      "id": "wait_for_network",
+      "value": "true"
+    },
+    {
       "id": "uid",
       "value": "1000"
     },

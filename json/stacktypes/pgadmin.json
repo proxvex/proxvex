@@ -1,0 +1,10 @@
+{
+  "name": "pgAdmin",
+  "description": "Admin credentials for pgAdmin web interface",
+  "variables": [
+    { "name": "PGADMIN_DEFAULT_PASSWORD" }
+  ],
+  "provides": [
+    { "name": "PGADMIN_DEFAULT_EMAIL", "description": "Admin email for pgAdmin login (default: admin@localhost)" }
+  ]
+}

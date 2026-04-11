@@ -4,6 +4,10 @@
   "extends": "oci-image",
   "icon": "icon.svg",
   "tags": ["database"],
+  "stacktype": "pgadmin",
+  "properties": [
+    { "id": "envs", "default": "PGADMIN_DEFAULT_EMAIL=admin@localhost\nPGADMIN_DEFAULT_PASSWORD={{ PGADMIN_DEFAULT_PASSWORD }}" }
+  ],
   "installation": {
     "image": [
       {

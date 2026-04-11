@@ -3,6 +3,7 @@
   "name": "Map Serial Device",
   "description": "Map serial device to VM",
   "implements": "serial_tty",
+  "skip_if_all_missing": ["host_device_path"],
   "parameters": [
     {
       "id": "host_device_path",
