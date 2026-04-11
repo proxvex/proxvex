@@ -499,9 +499,8 @@ while IFS= read -r line <&3; do
 done 3< "$TMPFILE"
 rm -f "$TMPFILE"
 
-# Restart container if it was running before
-if [ "$WAS_RUNNING" -eq 1 ]; then
-  # Container was running and we may have stopped it, restart it
+# Restart container only if we stopped it
+if [ "$NEEDS_STOP" -eq 1 ]; then
   if ! pct start "$VMID" >&2; then
     echo "Error: Failed to restart container $VMID" >&2
     exit 1
