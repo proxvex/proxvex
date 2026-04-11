@@ -111,8 +111,24 @@ export function selectScenarios(
   testArg: string,
   all: Map<string, ResolvedScenario>,
 ): string[] {
+  // --all: select all scenarios
   if (testArg === "--all") {
     return [...all.keys()];
+  }
+
+  // Regex filter: /pattern/ (include) or !/pattern/ (exclude from all)
+  // Examples: /postgres/, /^nginx/, /ssl$/, !/production/
+  const isNegated = testArg.startsWith("!");
+  const regexArg = isNegated ? testArg.slice(1) : testArg;
+  if (regexArg.startsWith("/") && regexArg.endsWith("/")) {
+    const regex = new RegExp(regexArg.slice(1, -1));
+    const matches = [...all.keys()].filter((id) =>
+      isNegated ? !regex.test(id) : regex.test(id),
+    );
+    if (matches.length === 0) {
+      throw new Error(`No test scenarios match regex: ${testArg}`);
+    }
+    return matches;
   }
 
   // Exact match: "app/scenario"
