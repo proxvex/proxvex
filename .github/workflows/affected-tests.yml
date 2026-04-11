@@ -1,0 +1,73 @@
+name: Affected Tests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  affected-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed
+        run: |
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed.txt
+          echo "Changed files:"
+          cat /tmp/changed.txt
+
+      - name: Determine affected tests
+        id: affected
+        run: |
+          apps=""
+          run_all=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              json/applications/oci-image/*|json/applications/docker-compose/*|json/applications/npm-nodejs/*)
+                run_all=true ;;
+              json/applications/*/tests/*|json/applications/*/templates/*|json/applications/*/scripts/*|json/applications/*/application.json)
+                app=$(echo "$file" | cut -d/ -f3)
+                apps="$apps $app" ;;
+              json/shared/*|json/addons/*|schemas/*)
+                run_all=true ;;
+              backend/src/*|backend/tests/livetests/*)
+                run_all=true ;;
+              e2e/*|livetest-local/*)
+                run_all=true ;;
+              install-oci-lxc-deployer.sh)
+                apps="$apps oci-lxc-deployer" ;;
+            esac
+          done < /tmp/changed.txt
+
+          if [ "$run_all" = "true" ]; then
+            test_filter='!/production/'
+          else
+            # Deduplicate and format as regex
+            unique=$(echo "$apps" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' '|')
+            unique="${unique%|}"
+            if [ -z "$unique" ]; then
+              echo "No test-relevant files changed"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            test_filter="/^(${unique})\//"
+          fi
+
+          echo "test_filter=$test_filter" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Print livetest command
+        if: steps.affected.outputs.skip != 'true'
+        run: |
+          echo "::notice::Affected test filter: ${{ steps.affected.outputs.test_filter }}"
+          echo ""
+          echo "To run locally:"
+          echo "  DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev '${{ steps.affected.outputs.test_filter }}'"
+
+      - name: No tests needed
+        if: steps.affected.outputs.skip == 'true'
+        run: echo "::notice::No test-relevant files changed — no livetests needed"
