@@ -1,0 +1,5 @@
+{
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" }
+  ]
+}

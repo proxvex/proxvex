@@ -1,0 +1,7 @@
+{
+  "task": "upgrade",
+  "depends_on": ["zitadel/default"],
+  "cli_timeout": 360,
+  "wait_seconds": 90,
+  "params": []
+}

@@ -94,9 +94,22 @@ pct config "$SOURCE_VMID" | while IFS= read -r line; do
 done
 
 # Clone via pct clone --full
+# Full clone of a running container requires a snapshot first
+CLONE_SNAP=""
+if pct status "$SOURCE_VMID" 2>/dev/null | grep -q "running"; then
+  CLONE_SNAP="clone-tmp"
+  log "Container is running — creating temporary snapshot for clone"
+  pct snapshot "$SOURCE_VMID" "$CLONE_SNAP" >&2 || true
+fi
+
 log "Cloning container $SOURCE_VMID to $TARGET_VMID (storage: $ROOTFS_STORAGE)..."
 clone_ok=true
-pct clone "$SOURCE_VMID" "$TARGET_VMID" --full --storage "$ROOTFS_STORAGE" >&2 || clone_ok=false
+if [ -n "$CLONE_SNAP" ]; then
+  pct clone "$SOURCE_VMID" "$TARGET_VMID" --full --storage "$ROOTFS_STORAGE" --snapname "$CLONE_SNAP" >&2 || clone_ok=false
+  pct delsnapshot "$SOURCE_VMID" "$CLONE_SNAP" >&2 || true
+else
+  pct clone "$SOURCE_VMID" "$TARGET_VMID" --full --storage "$ROOTFS_STORAGE" >&2 || clone_ok=false
+fi
 
 # Restore bind mounts on source
 if [ -s "$BIND_MOUNTS_FILE" ]; then
