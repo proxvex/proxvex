@@ -158,6 +158,39 @@ def main() -> None:
             if found.keys() >= needed:
                 break
 
+    # Phase 1b: Retry without stack filter for missing dependencies.
+    # Handles cases where a dependency runs in a different stack
+    # (e.g. gptwol/reconf-oidc needs zitadel from stack "default").
+    missing = needed - found.keys()
+    if missing and base_dir.is_dir():
+        for conf_path in sorted(base_dir.glob("*.conf"), key=lambda p: p.name):
+            vmid_str = conf_path.stem
+            if not vmid_str.isdigit():
+                continue
+            try:
+                conf_text = conf_path.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            if not is_managed_container(conf_text):
+                continue
+            config = parse_lxc_config(conf_text)
+            if config.application_id not in missing:
+                continue
+            if not config.hostname:
+                continue
+            print(
+                "WARNING: Dependency %s found in different stack (%s), using anyway"
+                % (config.application_id, config.stack_name or "unknown"),
+                file=sys.stderr,
+            )
+            found[config.application_id] = {
+                "vm_id": int(vmid_str),
+                "hostname": config.hostname,
+                "version": config.version or "",
+            }
+            if found.keys() >= needed:
+                break
+
     # Phase 2: Check for missing dependencies
     missing = needed - found.keys()
     if missing:
