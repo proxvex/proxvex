@@ -23,21 +23,36 @@ const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
 
 /** Find an existing managed container by application_id via the installations API */
 async function findExistingVm(
-  apiUrl: string,
-  veHost: string,
+  _apiUrl: string,
+  _veHost: string,
   applicationId: string,
-  hostname?: string,
+  pveHost: string,
+  sshPort: number,
 ): Promise<{ vm_id: number; addons?: string[] } | null> {
-  const veContextKey = `ve_${veHost}`;
-  const containers = await apiFetch<Array<{ vm_id: number; application_id?: string; hostname?: string; addons?: string[] }>>(
-    apiUrl,
-    `/api/${veContextKey}/installations`,
-  );
-  if (!containers) return null;
-  return containers.find((c) => c.application_id === applicationId)
-    ?? (hostname ? containers.find((c) => c.hostname === hostname) : null)
-    ?? containers.find((c) => c.hostname?.startsWith(`${applicationId}-`))
-    ?? null;
+  // Scan PVE host directly for running managed containers.
+  // More reliable than deployer context which may be stale after rollbacks.
+  try {
+    // List all running containers, then check each for the application_id
+    const pctList = nestedSsh(pveHost, sshPort,
+      `pct list 2>/dev/null | tail -n +2 | awk '{print $1}'`, 10000);
+    for (const line of pctList.split("\n")) {
+      const vmId = parseInt(line.trim(), 10);
+      if (isNaN(vmId)) continue;
+      try {
+        const conf = nestedSsh(pveHost, sshPort,
+          `pct config ${vmId} 2>/dev/null | head -40`, 5000);
+        if (!conf.includes("oci-lxc-deployer") || !conf.includes("managed")) continue;
+        const appMatch = conf.match(/application-id\s+(\S+)/);
+        const appId = appMatch?.[1]?.replace(/%20/g, " ");
+        if (appId !== applicationId) continue;
+        // Extract addons
+        const addonMatches = conf.matchAll(/addon\s+(\S+)/g);
+        const addons = [...addonMatches].map(m => m[1]!).filter(Boolean);
+        return { vm_id: vmId, addons: addons.length > 0 ? addons : undefined };
+      } catch { continue; }
+    }
+  } catch { /* ignore */ }
+  return null;
 }
 
 export async function executeScenarios(
@@ -168,7 +183,7 @@ export async function executeScenarios(
       // For upgrade/reconfigure: find existing VM
       let existingVm: { vm_id: number; addons?: string[] } | null = null;
       if (isReplaceCt) {
-        existingVm = await findExistingVm(apiUrl, veHost, scenario.application);
+        existingVm = await findExistingVm(apiUrl, veHost, scenario.application, config.pveHost, config.portPveSsh);
         if (!existingVm) {
           const errMsg = `No existing VM found for ${scenario.application} — cannot ${task}`;
           logFail(errMsg);
@@ -314,7 +329,7 @@ export async function executeScenarios(
 
       // For replace_ct: discover new VM ID
       if (isReplaceCt) {
-        const newVm = await findExistingVm(apiUrl, veHost, scenario.application);
+        const newVm = await findExistingVm(apiUrl, veHost, scenario.application, config.pveHost, config.portPveSsh);
         if (newVm) {
           logOk(`replace_ct: new VM_ID=${newVm.vm_id} (was ${step.vmId})`);
           step.vmId = newVm.vm_id;
