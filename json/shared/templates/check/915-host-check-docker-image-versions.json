@@ -1,0 +1,29 @@
+{
+  "name": "Check Docker Image Versions",
+  "description": "Verifies that Docker containers are running expected image versions. Uses docker inspect to read the actual image tag of each running container.",
+  "execute_on": "ve",
+  "skip_if_all_missing": ["expected_versions"],
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "number",
+      "required": true,
+      "description": "Container VMID"
+    },
+    {
+      "id": "expected_versions",
+      "name": "Expected Versions",
+      "type": "string",
+      "required": false,
+      "description": "Comma-separated service=version pairs (e.g. zitadel=v4.13.1,traefik=v3.6.13)"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Check Docker Image Versions",
+      "script": "host-check-docker-image-versions.sh",
+      "description": "Verify running container image tags match expected versions"
+    }
+  ]
+}

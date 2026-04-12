@@ -1,0 +1,12 @@
+{
+  "name": "Upgrade System Packages",
+  "description": "Updates and upgrades all system packages inside the container. Supports Alpine (apk) and Debian/Ubuntu (apt).",
+  "execute_on": "lxc",
+  "commands": [
+    {
+      "name": "Upgrade System Packages",
+      "script": "post-upgrade-system-packages.sh",
+      "description": "Run package manager update and upgrade"
+    }
+  ]
+}

@@ -1,4 +1,8 @@
 {
+  "task": "upgrade",
+  "depends_on": ["oci-lxc-deployer/default"],
+  "wait_seconds": 30,
+  "cli_timeout": 360,
   "params": [
     { "name": "oci_image_tag", "value": "latest" }
   ]

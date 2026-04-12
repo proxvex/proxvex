@@ -375,6 +375,7 @@ export interface ITestScenarioResponse {
   params?: { name: string; value?: string; append?: string }[];
   selectedAddons?: string[];
   stackId?: string;
+  stackIds?: string[];
   uploads?: { name: string; content: string }[];
   cleanup?: Record<string, string>;
 }

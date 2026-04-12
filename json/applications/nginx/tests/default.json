@@ -3,5 +3,6 @@
   "task": "installation",
   "selectedAddons": [
     "addon-ssl"
-  ]
+  ],
+  "wait_seconds": 30
 }

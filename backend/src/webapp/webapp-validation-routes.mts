@@ -113,8 +113,21 @@ export function registerValidationRoutes(app: Application): void {
         for (const p of appObj.parameters ?? []) applicationParamIds.add(p.id);
         for (const p of appObj.properties ?? []) applicationParamIds.add(p.id);
 
+        // Inject backend-provided parameters that are always available at runtime
+        // but never sent by CLI/frontend (they are set internally by the backend)
+        const params = [...body.params];
+        const injectIfMissing = (name: string, fallback: string) => {
+          if (!params.some(p => p.name === name)) {
+            params.push({ name, value: fallback });
+          }
+        };
+        injectIfMissing("application_id", application);
+        // For in-place upgrade/reconfigure: vm_id = previouse_vm_id
+        const prevVm = params.find(p => p.name === "previouse_vm_id");
+        if (prevVm) injectIfMissing("vm_id", prevVm.value);
+
         const result = validator.validate({
-          params: body.params,
+          params,
           parameterDefs,
           ...(body.selectedAddons ? { selectedAddons: body.selectedAddons } : {}),
           availableAddons,

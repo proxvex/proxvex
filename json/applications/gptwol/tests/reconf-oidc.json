@@ -1,4 +1,6 @@
 {
-  "params": [],
-  "selectedAddons": ["addon-oidc"]
+  "selectedAddons": ["addon-oidc"],
+  "task": "reconfigure",
+  "depends_on": ["gptwol/default", "zitadel/default"],
+  "description": "Reconfigure: enable OIDC addon on existing container"
 }

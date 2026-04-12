@@ -1,0 +1,30 @@
+{
+  "name": "Upgrade Docker Compose",
+  "description": "Stops running Docker Compose services, pulls updated images, and restarts. Used during in-place upgrades (no clone/replace needed).",
+  "execute_on": "lxc",
+  "parameters": [
+    {
+      "id": "compose_project",
+      "name": "Compose Project Name",
+      "type": "string",
+      "required": false,
+      "description": "Project name for Docker Compose (directory name). Defaults to container hostname."
+    },
+    {
+      "id": "startup_timeout",
+      "name": "Startup Timeout",
+      "type": "number",
+      "required": false,
+      "internal": true,
+      "default": 120,
+      "description": "Seconds to wait for Docker services to become healthy."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Upgrade Docker Compose",
+      "script": "svc-upgrade-docker-compose.sh",
+      "description": "Stop, pull, and restart Docker Compose services"
+    }
+  ]
+}

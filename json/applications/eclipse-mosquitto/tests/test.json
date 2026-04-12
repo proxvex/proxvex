@@ -1,7 +1,0 @@
-{
-  "default": {
-  },
-  "ssl": {
-    "wait_seconds": 30
-  }
-}

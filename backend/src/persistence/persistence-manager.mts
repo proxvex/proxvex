@@ -408,52 +408,13 @@ export class PersistenceManager {
       } catch { /* ignore */ }
       if (fs.existsSync(ownTestDir)) testDirs.push(ownTestDir);
 
-      // Merge test.json from all test directories (base first, local overrides)
-      type TestDef = {
-        task?: string;
-        wait_seconds?: number;
-        cli_timeout?: number;
-        verify?: Record<string, boolean | number | string>;
-        cleanup?: Record<string, string>;
-        depends_on?: string[];
-        addons?: string[];
-      };
-      const mergedDefs: Record<string, TestDef> = {};
-      const testDirForScenario = new Map<string, string>(); // scenario name → test dir with params/uploads
-      for (const td of testDirs) {
-        const tf = path.join(td, "test.json");
-        if (fs.existsSync(tf)) {
-          try {
-            const defs: Record<string, TestDef> = JSON.parse(fs.readFileSync(tf, "utf-8"));
-            for (const [name, def] of Object.entries(defs)) {
-              mergedDefs[name] = { ...mergedDefs[name], ...def };
-              testDirForScenario.set(name, td);
-            }
-          } catch { /* ignore parse errors */ }
-        }
-      }
-
-      // Also check for params files in base dirs (for scenarios not overridden locally)
-      for (const td of testDirs) {
-        for (const name of Object.keys(mergedDefs)) {
-          const paramsFile = path.join(td, `${name}.json`);
-          if (fs.existsSync(paramsFile) && !testDirForScenario.has(name)) {
-            testDirForScenario.set(name, td);
-          }
-        }
-      }
-
-      const testDir = testDirs[testDirs.length - 1] ?? ownTestDir; // primary test dir
-
       // Get application stacktype for dependency derivation
-      // Check own application.json first, then walk extends chain
       let appStacktypes: string[] = [];
       try {
         const appJsonPath = path.join(appDir, "application.json");
         if (fs.existsSync(appJsonPath)) {
           const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
           let st = appJson.stacktype;
-          // If no stacktype locally, check base apps in extends chain
           if (!st) {
             let ext = appJson.extends as string | undefined;
             while (ext && !st) {
@@ -473,104 +434,81 @@ export class PersistenceManager {
         }
       } catch { /* ignore */ }
 
-      if (Object.keys(mergedDefs).length > 0) {
-        for (const [name, def] of Object.entries(mergedDefs)) {
-          const scenario: ITestScenarioResponse = {
-            id: `${appId}/${name}`,
-            application: appId,
-            description: "", // generated below
-            ...def,
-          };
+      // Auto-discover scenarios from *.json files in test directories.
+      // Each JSON file defines one scenario (filename without .json = variant name).
+      // All fields (params, selectedAddons, task, depends_on, cleanup, etc.) live
+      // in the variant file. Base dirs are read first, local dirs override.
+      const scenarioData = new Map<string, Record<string, unknown>>();
+      for (const td of testDirs) {
+        if (!fs.existsSync(td)) continue;
+        for (const f of fs.readdirSync(td)) {
+          if (!f.endsWith(".json")) continue;
+          const fullPath = path.join(td, f);
+          if (!fs.statSync(fullPath).isFile()) continue;
+          const name = f.replace(/\.json$/, "");
+          try {
+            const content = JSON.parse(fs.readFileSync(fullPath, "utf-8")) as Record<string, unknown>;
+            // Later dirs (local) override earlier dirs (base)
+            scenarioData.set(name, { ...(scenarioData.get(name) ?? {}), ...content });
+          } catch { /* ignore parse errors */ }
+        }
+      }
 
-          // Map addons → selectedAddons (test.json uses "addons" as shorthand)
-          if (def.addons && !scenario.selectedAddons) {
-            scenario.selectedAddons = def.addons;
-          }
+      for (const [name, data] of scenarioData) {
+        const scenario: ITestScenarioResponse = {
+          id: `${appId}/${name}`,
+          application: appId,
+          description: "",
+        };
 
-          // Read scenario params file — check all test dirs (local overrides base)
-          for (const td of testDirs) {
-            const paramsFile = path.join(td, `${name}.json`);
-            if (fs.existsSync(paramsFile)) {
-              const paramsContent = JSON.parse(fs.readFileSync(paramsFile, "utf-8"));
-              if (paramsContent.params) scenario.params = paramsContent.params;
-              if (paramsContent.selectedAddons) scenario.selectedAddons = paramsContent.selectedAddons;
-              if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
-            }
-          }
+        // Apply all known fields
+        if (data.params) scenario.params = data.params as NonNullable<ITestScenarioResponse["params"]>;
+        if (data.selectedAddons) scenario.selectedAddons = data.selectedAddons as string[];
+        if (data.addons && !scenario.selectedAddons) scenario.selectedAddons = data.addons as string[];
+        if (data.stackId) scenario.stackId = data.stackId as string;
+        if (data.stackIds) scenario.stackIds = data.stackIds as string[];
+        if (data.task) scenario.task = data.task as string;
+        if (data.depends_on) scenario.depends_on = data.depends_on as string[];
+        if (data.cleanup) scenario.cleanup = data.cleanup as Record<string, string>;
+        if (data.wait_seconds !== undefined) scenario.wait_seconds = data.wait_seconds as number;
+        if (data.cli_timeout !== undefined) scenario.cli_timeout = data.cli_timeout as number;
+        if (data.verify) scenario.verify = data.verify as Record<string, boolean | number | string>;
+        if (data.description) scenario.description = data.description as string;
 
-          // Auto-generate description from app name, variant, and addons
+        // Auto-generate description if not explicitly set
+        if (!scenario.description) {
           scenario.description = buildScenarioDescription(appId, name, scenario.selectedAddons);
+        }
 
-          // Read upload files — merge from all test dirs (local overrides base by filename)
-          const uploadMap = new Map<string, { dir: string; file: string }>();
-          for (const td of testDirs) {
-            const uploadsDir = path.join(td, "uploads");
-            if (fs.existsSync(uploadsDir)) {
-              for (const f of fs.readdirSync(uploadsDir)) {
-                if (fs.statSync(path.join(uploadsDir, f)).isFile()) {
-                  uploadMap.set(f, { dir: uploadsDir, file: f });
-                }
+        // Read upload files — merge from all test dirs (local overrides base by filename)
+        const uploadMap = new Map<string, { dir: string; file: string }>();
+        for (const td of testDirs) {
+          const uploadsDir = path.join(td, "uploads");
+          if (fs.existsSync(uploadsDir)) {
+            for (const f of fs.readdirSync(uploadsDir)) {
+              if (fs.statSync(path.join(uploadsDir, f)).isFile()) {
+                uploadMap.set(f, { dir: uploadsDir, file: f });
               }
             }
           }
-          if (uploadMap.size > 0) {
-            scenario.uploads = [...uploadMap.values()].map(({ dir, file }) => ({
-              name: file,
-              content: fs.readFileSync(path.join(dir, file)).toString("base64"),
-            }));
-          }
-
-          // Auto-derive depends_on from stacktype + addon dependencies
-          // Only if test.json doesn't already specify explicit depends_on
-          if (!def.depends_on) {
-            const allAddons = [...new Set(scenario.selectedAddons ?? [])];
-            const derived = deriveTestDependencies(appId, name, appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
-            if (derived.length > 0) {
-              scenario.depends_on = derived;
-            }
-          }
-
-          scenarios.push(scenario);
         }
-      } else {
-        // Implicit default scenario from default.json (e.g. saved from frontend)
-        const defaultFile = path.join(testDir, "default.json");
-        if (fs.existsSync(defaultFile)) {
-          const paramsContent = JSON.parse(fs.readFileSync(defaultFile, "utf-8"));
-          const scenario: ITestScenarioResponse = {
-            id: `${appId}/default`,
-            application: appId,
-            description: "", // generated below
-          };
-          if (paramsContent.params) scenario.params = paramsContent.params;
-          if (paramsContent.selectedAddons) {
-            scenario.selectedAddons = paramsContent.selectedAddons;
-          }
-          if (paramsContent.stackId) scenario.stackId = paramsContent.stackId;
-          scenario.description = buildScenarioDescription(appId, "default", scenario.selectedAddons);
+        if (uploadMap.size > 0) {
+          scenario.uploads = [...uploadMap.values()].map(({ dir, file }) => ({
+            name: file,
+            content: fs.readFileSync(path.join(dir, file)).toString("base64"),
+          }));
+        }
 
-          const uploadsDir = path.join(testDir, "uploads");
-          if (fs.existsSync(uploadsDir)) {
-            const files = fs.readdirSync(uploadsDir).filter(
-              f => fs.statSync(path.join(uploadsDir, f)).isFile(),
-            );
-            if (files.length > 0) {
-              scenario.uploads = files.map(f => ({
-                name: f,
-                content: fs.readFileSync(path.join(uploadsDir, f)).toString("base64"),
-              }));
-            }
-          }
-
-          // Auto-derive depends_on from stacktype + addon dependencies
+        // Auto-derive depends_on from stacktype + addon dependencies
+        if (!scenario.depends_on) {
           const allAddons = [...new Set(scenario.selectedAddons ?? [])];
-          const derived = deriveTestDependencies(appId, "default", appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
+          const derived = deriveTestDependencies(appId, name, appStacktypes, allAddons, getStacktypeDeps, getAddonDeps);
           if (derived.length > 0) {
             scenario.depends_on = derived;
           }
-
-          scenarios.push(scenario);
         }
+
+        scenarios.push(scenario);
       }
     }
 

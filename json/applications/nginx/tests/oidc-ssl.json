@@ -1,4 +1,5 @@
 {
-  "params": [],
-  "selectedAddons": ["addon-oidc", "addon-ssl"]
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "depends_on": ["zitadel/default"],
+  "description": "Dual addon: SSL + OIDC authentication via Zitadel"
 }

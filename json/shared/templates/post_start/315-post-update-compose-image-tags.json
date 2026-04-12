@@ -15,14 +15,14 @@
       "id": "compose_project",
       "name": "Compose Project",
       "type": "string",
-      "required": true,
-      "description": "Docker Compose project name (directory under /opt/docker-compose/)"
+      "required": false,
+      "description": "Docker Compose project name (directory under /opt/docker-compose/). Defaults to container hostname."
     }
   ],
   "commands": [
     {
       "name": "Update Compose Image Tags",
-      "script": "post-update-compose-image-tags.py",
+      "script": "post-update-compose-image-tags.sh",
       "description": "Update image tags in persistent compose file"
     }
   ]

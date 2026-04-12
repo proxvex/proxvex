@@ -337,6 +337,14 @@ export class WebAppVeRouteHandlers {
         }
       }
 
+      // For in-place upgrade/reconfigure without create_ct: vm_id = previouse_vm_id
+      if (!initialInputs.some(p => p.id === "vm_id") && initialInputs.some(p => p.id === "previouse_vm_id")) {
+        const prev = initialInputs.find(p => p.id === "previouse_vm_id");
+        if (prev) {
+          initialInputs.push({ id: "vm_id", value: prev.value });
+        }
+      }
+
       const loaded = await templateProcessor.loadApplication(
         application,
         task as TaskType,
@@ -489,6 +497,14 @@ export class WebAppVeRouteHandlers {
       );
       defaults.set("task", task);
       defaults.set("task_type", task);
+
+      // For in-place upgrade/reconfigure: vm_id = previouse_vm_id if not explicitly set
+      if (!defaults.has("vm_id")) {
+        const prevParam = paramsToUse.find(p => p.name === "previouse_vm_id");
+        if (prevParam && prevParam.value !== undefined && prevParam.value !== "") {
+          defaults.set("vm_id", String(prevParam.value));
+        }
+      }
 
       // Log viewer URL parameters for Notes links
       // Priority: OCI_LXC_DEPLOYER_URL env var > auto-generated from hostname + port

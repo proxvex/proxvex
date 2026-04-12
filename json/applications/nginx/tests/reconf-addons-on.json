@@ -1,4 +1,6 @@
 {
-  "params": [],
-  "selectedAddons": ["addon-oidc", "addon-ssl"]
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "task": "reconfigure",
+  "depends_on": ["nginx/default", "zitadel/default"],
+  "description": "Reconfigure: enable SSL + OIDC addons on existing container"
 }
