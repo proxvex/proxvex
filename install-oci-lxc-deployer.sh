@@ -1,8 +1,13 @@
 #!/bin/sh
-set -eu
-
 # install-oci-lxc-deployer.sh
 # Minimal installation script for oci-lxc-deployer as an LXC container on Proxmox
+# Downloads OCI image, creates container, mounts volumes, and writes storagecontext.json
+#
+# The main() function + "main "$@"" at the end ensures sh fully parses the entire
+# script before executing, which is required for "curl | sh" / "cat | sh" usage.
+
+main() {
+set -eu
 # Downloads OCI image, creates container, mounts volumes, and writes storagecontext.json
 
 # --- Quiet output: show step names only, dump full log on error ---
@@ -350,10 +355,12 @@ resolve_shared_volume_path() {
 # Set default volume paths if not provided
 volume_base=$(detect_volume_base_path)
 if [ -z "$config_volume_path" ]; then
-  config_volume_path=$(resolve_host_volume "$hostname" "config")
+  config_volume_path=$(resolve_host_volume "$hostname" "config" 2>/dev/null) || \
+    config_volume_path="${volume_base}/${hostname}/config"
 fi
 if [ -z "$secure_volume_path" ]; then
-  secure_volume_path=$(resolve_host_volume "$hostname" "secure")
+  secure_volume_path=$(resolve_host_volume "$hostname" "secure" 2>/dev/null) || \
+    secure_volume_path="${volume_base}/${hostname}/secure"
 fi
 
 # Get Proxmox hostname for VE context (use FQDN)
@@ -558,6 +565,7 @@ secure=/secure,0700"
 export VOLUME_STORAGE="${rootfs_storage}"
 
 # Execute storage volumes script — creates per-container managed volumes
+echo "DEBUG: vm_id=${vm_id} hostname=${hostname} VOLUMES=${VOLUMES} rootfs_storage=${rootfs_storage}" >&2
 execute_script_from_github \
   "json/shared/scripts/pre_start/conf-create-storage-volumes-for-lxc.sh" \
   "-" \
@@ -571,10 +579,15 @@ execute_script_from_github \
   "gid=${LXC_GID}" \
   "mapped_uid=${mapped_uid}" \
   "mapped_gid=${mapped_gid}" \
-  "addon_volumes=" || {
+  "addon_volumes="
+_vol_rc=$?
+echo "DEBUG: volume script exit code=${_vol_rc}" >&2
+echo "DEBUG: pvesm list ${rootfs_storage}:" >&2
+pvesm list "${rootfs_storage}" --content rootdir 2>&1 | head -5 >&2
+if [ "$_vol_rc" -ne 0 ]; then
   log "Error: Failed to create/attach storage volumes"
   exit 1
-}
+fi
 
 # Resolve volume paths via managed volume lookup (sanitize hostname to match volume names)
 _safe_host=$(echo "$hostname" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
@@ -910,4 +923,6 @@ else
   echo "  Access the web interface at http://${hostname}:3080" >&2
 fi
 
-exit 0
+} # end main()
+
+main "$@"
