@@ -21,7 +21,12 @@
       "Bash(ls json/applications/oci-lxc-deployer/tests/*.json)",
       "Bash(python3 -c \"import json,sys; d=json.loads\\(sys.stdin.readline\\(\\)\\); print\\(d.get\\('stderr',''\\)[:500]\\)\")",
       "Bash(DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev '/^\\(oci-lxc-deployer\\\\/\\(upgrade|reconf-oidc\\)|zitadel\\\\/upgrade\\)/')",
-      "Bash(DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev 'zitadel/upgrade')"
+      "Bash(DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev 'zitadel/upgrade')",
+      "Bash(ls -la /Users/volkmar/oci-lxc-deployer-green/*.md)",
+      "Bash(ssh -o StrictHostKeyChecking=no root@pve1.cluster \"pct help reboot 2>&1 | head -3; echo '---'; pct help shutdown 2>&1 | head -3\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@pve1.cluster \"head -14 production/project-v1.sh\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@pve1.cluster \"rm -rf production && mkdir production\")",
+      "Bash(scp -o StrictHostKeyChecking=no /Users/volkmar/oci-lxc-deployer-green/production/*.sh /Users/volkmar/oci-lxc-deployer-green/production/*.json /Users/volkmar/oci-lxc-deployer-green/production/*.html root@pve1.cluster:production/)"
     ]
   },
   "hooks": {

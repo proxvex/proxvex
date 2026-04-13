@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # --- Configuration ---
 PVE_HOST="pve1.cluster"
-DEPLOYER_HOST="oci-lxc-deployer"
+DEPLOYER_HOST="${DEPLOYER_HOST:-oci-lxc-deployer}"
 DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-.ohnewarum.de}"
 DEPLOYER_API="https://${DEPLOYER_HOST}:3443"
 

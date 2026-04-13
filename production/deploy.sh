@@ -3,7 +3,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 PVE_HOST="pve1.cluster"
-DEPLOYER_HOST="oci-lxc-deployer"
+DEPLOYER_HOST="${DEPLOYER_HOST:-oci-lxc-deployer}"
 
 # Auto-detect: HTTPS (port 3443) or HTTP (port 3080)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then
@@ -16,7 +16,7 @@ echo "Using deployer at ${SERVER}"
 # Detect execution mode: PVE host (use pct exec) or dev machine (use npx tsx)
 DEPLOYER_VMID=""
 if command -v pct >/dev/null 2>&1; then
-  DEPLOYER_VMID=$(pct list 2>/dev/null | awk '/oci-lxc-deployer/{print $1}')
+  DEPLOYER_VMID=$(pct list 2>/dev/null | awk -v h="$DEPLOYER_HOST" '$3 == h {print $1}')
 fi
 
 if [ -n "$DEPLOYER_VMID" ]; then
@@ -90,15 +90,19 @@ ensure_stack
 
 # Dependency order: postgres → nginx → zitadel → gitea
 case "${1:-all}" in
+  docker-registry-mirror) deploy_app docker-registry-mirror ;;
   postgres) deploy_app postgres ;;
   nginx)    deploy_app nginx ;;
   zitadel)  deploy_app postgres; deploy_app zitadel 900 ;;
   gitea)    deploy_app postgres; deploy_app zitadel 900; deploy_app gitea ;;
+  eclipse-mosquitto) deploy_app eclipse-mosquitto ;;
   all)
+    deploy_app docker-registry-mirror
     deploy_app postgres
     deploy_app nginx
     deploy_app zitadel 900
     deploy_app gitea
+    deploy_app eclipse-mosquitto
     ;;
   *.json)
     if [ ! -f "$1" ]; then
@@ -114,5 +118,5 @@ case "${1:-all}" in
       run_cli "$1" --timeout 600
     fi
     ;;
-  *) echo "Usage: $0 [postgres|nginx|zitadel|gitea|all|<file.json>]"; exit 1 ;;
+  *) echo "Usage: $0 [docker-registry-mirror|postgres|nginx|zitadel|gitea|eclipse-mosquitto|all|<file.json>]"; exit 1 ;;
 esac

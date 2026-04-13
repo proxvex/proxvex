@@ -7,7 +7,19 @@
 
 set -e
 
-CONFIG_VOL="/rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config"
+DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-oci-lxc-deployer}"
+
+# Auto-detect config volume path on PVE host
+_safe_host=$(echo "$DEPLOYER_HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+CONFIG_VOL=$(find /rpool/data/ -maxdepth 1 -name "*-${_safe_host}-config" -type d 2>/dev/null | head -1)
+
+if [ -z "$CONFIG_VOL" ] || [ ! -d "$CONFIG_VOL" ]; then
+  echo "ERROR: Cannot find config volume for hostname '$DEPLOYER_HOSTNAME'"
+  echo "  Expected pattern: /rpool/data/*-${_safe_host}-config"
+  echo "  Set DEPLOYER_HOSTNAME to match the deployer container hostname."
+  exit 1
+fi
+
 SHARED_VOL="${CONFIG_VOL}/shared/templates"
 
 echo "=== Setting project defaults (v1) ==="
