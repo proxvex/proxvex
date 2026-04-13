@@ -55,7 +55,6 @@
       "value": "root"
     },
     { "id": "http_port", "value": "8080" },
-    { "id": "entrypoint_override", "value": "/docker-entrypoint.sh nginx -g 'daemon off;'" },
     { "id": "oidc_callback_path", "value": "/oauth2/callback" },
     { "id": "oidc_required_role", "value": "" }
   ],
