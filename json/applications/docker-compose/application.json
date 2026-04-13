@@ -76,11 +76,35 @@
     ]
   },
   "upgrade": {
+    "image": [
+      "010-host-get-latest-os-template.json",
+      "095-host-check-kernel-modules.json",
+      "096-host-load-kernel-modules.json"
+    ],
+    "create_ct": [
+      { "name": "050-set-project-parameters.json", "category": "create_ct" },
+      { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
+    ],
+    "pre_start": [
+      "101-conf-configure-lxc-for-docker.json",
+      { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
+      "121-conf-mount-zfs-pool-on-host.json",
+      "160-conf-bind-multiple-volumes-to-lxc.json"
+    ],
+    "start": [
+      "200-start-lxc.json"
+    ],
     "post_start": [
+      "305-post-set-pkg-mirror.json",
+      "307-post-install-docker-rootless.json",
+      "309-post-trust-registry-ca-in-docker.json",
       "315-post-update-compose-image-tags.json",
-      "316-post-upgrade-system-packages.json",
-      "317-svc-upgrade-docker-compose.json",
-      "335-post-update-version-from-docker.json"
+      "330-svc-start-docker-compose.json",
+      "335-post-update-version-from-docker.json",
+      "350-host-check-hook-log.json"
+    ],
+    "replace_ct": [
+      "900-replace-ct.json"
     ]
   },
   "reconfigure": {
@@ -115,7 +139,6 @@
     "check": [
       "900-host-check-container.json",
       "910-host-check-docker-services.json",
-      "915-host-check-docker-image-versions.json",
       "920-host-check-lxc-log.json",
       "930-host-check-docker-logs.json",
       "940-host-check-file-exists.json",
