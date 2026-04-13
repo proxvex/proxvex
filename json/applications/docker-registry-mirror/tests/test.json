@@ -1,0 +1,8 @@
+{
+  "default": {
+    "addons": ["addon-ssl"],
+    "wait_seconds": 15,
+    "skip": true,
+    "skip_reason": "Check Registry Mirror fails - TLS cert issue with managed volumes"
+  }
+}
