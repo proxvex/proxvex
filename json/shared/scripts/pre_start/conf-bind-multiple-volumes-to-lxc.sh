@@ -233,23 +233,9 @@ fi
 _vol_type=$(pvesm status -storage "$VOLUME_STORAGE" 2>/dev/null | awk 'NR==2 {print $2}' || true)
 HOST_PATH=""
 
-# Check if managed volume already exists (current hostname or previous container)
-PREV_VMID="{{ previouse_vm_id }}"
+# Check if managed volume already exists
 _existing_volid=$(pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
   | awk -v pat="${SAFE_HOST}-app\$" '$1 ~ pat {print $1; exit}' || true)
-
-# For upgrade/reconfigure: try to find the old container's app volume
-if [ -z "$_existing_volid" ] && [ -n "$PREV_VMID" ] && [ "$PREV_VMID" != "NOT_DEFINED" ]; then
-  _prev_hostname=$(pct config "$PREV_VMID" 2>/dev/null | grep "^hostname:" | awk '{print $2}' || true)
-  if [ -n "$_prev_hostname" ]; then
-    _prev_safe=$(echo "$_prev_hostname" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-    _existing_volid=$(pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
-      | awk -v pat="${_prev_safe}-app\$" '$1 ~ pat {print $1; exit}' || true)
-    if [ -n "$_existing_volid" ]; then
-      echo "Reusing app volume from previous container $PREV_VMID ($_prev_hostname)" >&2
-    fi
-  fi
-fi
 
 if [ -n "$_existing_volid" ]; then
   HOST_PATH=$(pvesm path "$_existing_volid" 2>/dev/null || true)
@@ -513,8 +499,9 @@ while IFS= read -r line <&3; do
 done 3< "$TMPFILE"
 rm -f "$TMPFILE"
 
-# Restart container only if we stopped it
-if [ "$NEEDS_STOP" -eq 1 ]; then
+# Restart container if it was running before
+if [ "$WAS_RUNNING" -eq 1 ]; then
+  # Container was running and we may have stopped it, restart it
   if ! pct start "$VMID" >&2; then
     echo "Error: Failed to restart container $VMID" >&2
     exit 1
