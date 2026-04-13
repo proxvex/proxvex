@@ -26,7 +26,9 @@
       "Bash(ssh -o StrictHostKeyChecking=no root@pve1.cluster \"pct help reboot 2>&1 | head -3; echo '---'; pct help shutdown 2>&1 | head -3\")",
       "Bash(ssh -o StrictHostKeyChecking=no root@pve1.cluster \"head -14 production/project-v1.sh\")",
       "Bash(ssh -o StrictHostKeyChecking=no root@pve1.cluster \"rm -rf production && mkdir production\")",
-      "Bash(scp -o StrictHostKeyChecking=no /Users/volkmar/oci-lxc-deployer-green/production/*.sh /Users/volkmar/oci-lxc-deployer-green/production/*.json /Users/volkmar/oci-lxc-deployer-green/production/*.html root@pve1.cluster:production/)"
+      "Bash(scp -o StrictHostKeyChecking=no /Users/volkmar/oci-lxc-deployer-green/production/*.sh /Users/volkmar/oci-lxc-deployer-green/production/*.json /Users/volkmar/oci-lxc-deployer-green/production/*.html root@pve1.cluster:production/)",
+      "Bash(find /Users/volkmar/oci-lxc-deployer-green/json/applications -name \"*.json\" -exec grep -l \"\\\\\"execute_on\\\\\".*\\\\\"ve\\\\\"\" {} \\\\;)",
+      "Bash(find /Users/volkmar/oci-lxc-deployer-green/json/applications -name \"application.json\" -exec grep -A 20 \"\\\\\"upgrade\\\\\"\" {} \\\\;)"
     ]
   },
   "hooks": {

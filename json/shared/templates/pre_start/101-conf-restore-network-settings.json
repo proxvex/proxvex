@@ -1,0 +1,27 @@
+{
+  "execute_on": "ve",
+  "name": "Restore Network Settings",
+  "description": "Restores static IP, hostname, and nameserver from the previous container during upgrade. Reads the old container's LXC config and applies preserved network settings to the new container.",
+  "parameters": [
+    {
+      "id": "previouse_vm_id",
+      "name": "Previous VM ID",
+      "type": "number",
+      "required": true,
+      "description": "Old container ID to read network settings from."
+    },
+    {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "number",
+      "required": true,
+      "description": "New container ID to apply network settings to."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Restore Network Settings",
+      "script": "conf-restore-network-settings.sh"
+    }
+  ]
+}

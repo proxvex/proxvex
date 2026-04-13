@@ -35,6 +35,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
+      "101-conf-restore-network-settings.json",
       "107-conf-oci-lxc-configuration.json",
       "160-conf-bind-multiple-volumes-to-lxc.json"
     ],
