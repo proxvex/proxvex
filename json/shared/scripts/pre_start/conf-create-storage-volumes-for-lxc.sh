@@ -17,6 +17,7 @@ set -eu
 
 VMID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
+PREV_VMID="{{ previouse_vm_id }}"
 VOLUMES="{{ volumes }}"
 ADDON_VOLUMES="{{ addon_volumes }}"
 VOLUME_STORAGE="{{ volume_storage }}"
@@ -179,13 +180,21 @@ sanitize_name() {
 }
 
 get_existing_volid() {
+  # Args: $1 = name suffix (without "subvol-<vmid>-"), $2 = storage type
+  # Preference order: previouse_vm_id's volume → any existing volume with the suffix.
   name="$1"
   storage_type="$2"
   if [ "$storage_type" = "zfspool" ]; then
-    _volid=$(pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
+    _all=$(pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
       | awk '{print $1}' \
-      | grep -Ei -- "subvol-[0-9]+-${name}$" \
-      | head -n1 || true)
+      | grep -Ei -- "subvol-[0-9]+-${name}$" || true)
+    _volid=""
+    if [ -n "$PREV_VMID" ] && [ "$PREV_VMID" != "NOT_DEFINED" ]; then
+      _volid=$(printf '%s\n' "$_all" | grep -E -- "subvol-${PREV_VMID}-${name}$" | head -n1 || true)
+    fi
+    if [ -z "$_volid" ]; then
+      _volid=$(printf '%s\n' "$_all" | head -n1 || true)
+    fi
     if [ -n "$_volid" ]; then
       echo "$_volid"
       return 0
@@ -196,11 +205,14 @@ get_existing_volid() {
       return 0
     fi
   elif [ "$storage_type" = "lvmthin" ] || [ "$storage_type" = "lvm" ]; then
-    # LVM/lvmthin uses vm-<vmid>-* naming pattern
-    pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
+    _all=$(pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
       | awk '{print $1}' \
-      | grep -Ei -- "vm-[0-9]+-${name}$" \
-      | head -n1 || true
+      | grep -Ei -- "vm-[0-9]+-${name}$" || true)
+    if [ -n "$PREV_VMID" ] && [ "$PREV_VMID" != "NOT_DEFINED" ]; then
+      _pref=$(printf '%s\n' "$_all" | grep -E -- "vm-${PREV_VMID}-${name}$" | head -n1 || true)
+      [ -n "$_pref" ] && { echo "$_pref"; return 0; }
+    fi
+    printf '%s\n' "$_all" | head -n1 || true
   else
     pvesm list "$VOLUME_STORAGE" --content rootdir 2>/dev/null \
       | awk '{print $1}' \
@@ -452,7 +464,11 @@ while IFS= read -r line <&3; do
   # Allocate a Proxmox-managed subvolume for this volume
   # pvesm requires name format: subvol-<VMID>-<suffix>
   VOL_NAME="subvol-${VMID}-${SAFE_HOST}-${SAFE_KEY}"
-  VOLID=$(get_existing_volid "$VOL_NAME" "$STORAGE_TYPE")
+  # Reuse lookup uses only the suffix (without "subvol-<VMID>-") so volumes
+  # from a previous VMID — created for the same app/key — are found across
+  # upgrades/reconfigures.
+  VOL_SUFFIX="${SAFE_HOST}-${SAFE_KEY}"
+  VOLID=$(get_existing_volid "$VOL_SUFFIX" "$STORAGE_TYPE")
   if [ -z "$VOLID" ]; then
     log "Creating managed volume $VOL_NAME for $VOLUME_KEY (size $VOLUME_SIZE)"
     VOLID=$(alloc_volume "$VOL_NAME" "$VOLUME_SIZE" "$VMID" || true)
@@ -460,7 +476,28 @@ while IFS= read -r line <&3; do
       fail "Failed to allocate volume $VOL_NAME"
     fi
   else
-    log "Reusing existing volume $VOL_NAME"
+    log "Reusing existing volume $VOLID (suffix $VOL_SUFFIX)"
+    # If the reused volume carries an old VMID in its name, rename the ZFS
+    # dataset to match the current VMID. Keeps zfs list / pvesm list
+    # consistent with pct config and avoids historical-VMID clutter.
+    if [ "$STORAGE_TYPE" = "zfspool" ]; then
+      _cur_volname="${VOLID#*:}"
+      if [ "$_cur_volname" != "$VOL_NAME" ]; then
+        _pool=$(get_zfs_pool)
+        if [ -n "$_pool" ]; then
+          _old_dataset="${_pool}/${_cur_volname}"
+          _new_dataset="${_pool}/${VOL_NAME}"
+          if zfs list -H -o name "$_old_dataset" >/dev/null 2>&1; then
+            log "Renaming ZFS dataset $_old_dataset -> $_new_dataset"
+            if zfs rename "$_old_dataset" "$_new_dataset" 2>/dev/null; then
+              VOLID="${VOLUME_STORAGE}:${VOL_NAME}"
+            else
+              log "Warning: zfs rename failed, keeping old volid $VOLID"
+            fi
+          fi
+        fi
+      fi
+    fi
   fi
 
   # Resolve host-side path for permissions
