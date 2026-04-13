@@ -158,7 +158,8 @@ export async function executeScenarios(
       const baseParams = [
         { name: "hostname", value: step.hostname },
         { name: "bridge", value: config.bridge },
-        { name: "vm_id", value: String(step.vmId) },
+        ...(!isReplaceCt ? [{ name: "vm_id", value: String(step.vmId) }] : []),
+        ...(isReplaceCt ? [{ name: "vm_id_start", value: String(step.vmId) }] : []),
       ];
 
       const templateVars: Record<string, string> = {
