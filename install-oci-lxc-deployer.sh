@@ -347,8 +347,14 @@ resolve_shared_volume_path() {
   return 1
 }
 
-# Detect volume base path (volumes are resolved after creation)
+# Set default volume paths if not provided
 volume_base=$(detect_volume_base_path)
+if [ -z "$config_volume_path" ]; then
+  config_volume_path=$(resolve_host_volume "$hostname" "config")
+fi
+if [ -z "$secure_volume_path" ]; then
+  secure_volume_path=$(resolve_host_volume "$hostname" "secure")
+fi
 
 # Get Proxmox hostname for VE context (use FQDN)
 proxmox_hostname=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "localhost")
@@ -358,6 +364,8 @@ log "OCI Image: ${OCI_IMAGE}"
 log "Hostname: ${hostname}"
 log "Proxmox Host: ${proxmox_hostname}"
 log "Volume base: ${volume_base}"
+log "Config volume: ${config_volume_path}"
+log "Secure volume: ${secure_volume_path}"
 log "OWNER=${OWNER}, REPO=${REPO}, BRANCH=${BRANCH}"
 
 # Check and install SSH server if needed (on Proxmox VE host)

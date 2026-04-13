@@ -4,7 +4,6 @@
 # Also fix permissions so nginx (uid 101) can read all config files.
 set -eu
 
-SHARED_VOLPATH="{{ shared_volpath }}"
 HOSTNAME="{{ hostname }}"
 UID_VALUE="{{ uid }}"
 GID_VALUE="{{ gid }}"
@@ -12,7 +11,7 @@ MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
 
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-CONF_DIR=$(resolve_host_volume "$SHARED_VOLPATH" "$SAFE_HOST" "conf")
+CONF_DIR=$(resolve_host_volume "$SAFE_HOST" "conf")
 
 if [ ! -d "$CONF_DIR" ]; then
   echo "Volume directory not found: $CONF_DIR" >&2
