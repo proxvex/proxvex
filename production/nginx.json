@@ -12,5 +12,5 @@
     { "name": "ssl.needs_ca_cert", "value": true }
   ],
   "selectedAddons": ["addon-acme", "addon-ssl"],
-  "stackId": "postgres_production"
+  "stackId": "cloudflare_production"
 }
