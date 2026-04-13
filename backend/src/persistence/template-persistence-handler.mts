@@ -29,45 +29,15 @@ export class TemplatePersistenceHandler {
         ? templateName
         : `${templateName}.json`;
 
+      // Search order: local → hub → json
+      const bases = [this.pathes.localPath, this.pathes.hubPath, this.pathes.jsonPath].filter(Boolean) as string[];
       const searchPaths: string[] = [];
 
-      if (category === "root") {
-        // Root-level shared templates — no subdirectory
+      for (const base of bases) {
         searchPaths.push(
-          path.join(
-            this.pathes.localPath,
-            "shared",
-            "templates",
-            templateFileName,
-          ),
-        );
-        searchPaths.push(
-          path.join(
-            this.pathes.jsonPath,
-            "shared",
-            "templates",
-            templateFileName,
-          ),
-        );
-      } else {
-        // Category subdirectory — no root fallback
-        searchPaths.push(
-          path.join(
-            this.pathes.localPath,
-            "shared",
-            "templates",
-            category,
-            templateFileName,
-          ),
-        );
-        searchPaths.push(
-          path.join(
-            this.pathes.jsonPath,
-            "shared",
-            "templates",
-            category,
-            templateFileName,
-          ),
+          category === "root"
+            ? path.join(base, "shared", "templates", templateFileName)
+            : path.join(base, "shared", "templates", category, templateFileName),
         );
       }
 

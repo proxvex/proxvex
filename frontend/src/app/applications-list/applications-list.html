@@ -25,8 +25,8 @@
           <p class="app-description">{{ app.description }}</p>
         }
       </div>
-      <span class="source-badge" [class.source-local]="app.source === 'local'" [attr.data-tooltip]="app.source === 'local' ? 'Local' : 'Repository'">
-        {{ app.source === 'local' ? '📁' : '📦' }}
+      <span class="source-badge" [class.source-local]="app.source === 'local'" [class.source-hub]="app.source === 'hub'" [attr.data-tooltip]="app.source === 'local' ? 'Local' : app.source === 'hub' ? 'Hub' : 'Repository'">
+        {{ app.source === 'local' ? '📁' : app.source === 'hub' ? '🔗' : '📦' }}
       </span>
     </div>
 

@@ -69,12 +69,51 @@ function parseArgs(): WebAppArgs {
   return args;
 }
 
+async function fetchHubProject(hubUrl: string): Promise<string> {
+  const { mkdtempSync } = await import("node:fs");
+  const { execSync } = await import("node:child_process");
+  const { tmpdir } = await import("node:os");
+
+  const hostname = new URL(hubUrl).hostname;
+  const hubDir = path.join(tmpdir(), `oci-lxc-deployer-${hostname}`);
+
+  // Clean and recreate
+  execSync(`rm -rf "${hubDir}" && mkdir -p "${hubDir}"`);
+
+  // Fetch project tar.gz from Hub and extract
+  const projectUrl = `${hubUrl.replace(/\/$/, "")}/api/hub/project`;
+  logger.info("Fetching project settings from Hub", { url: projectUrl });
+
+  try {
+    execSync(
+      `curl -sf --max-time 30 "${projectUrl}" | tar -xzf - -C "${hubDir}"`,
+      { stdio: "pipe" },
+    );
+    logger.info("Hub project settings loaded", { hubDir });
+    return hubDir;
+  } catch (err: any) {
+    throw new Error(`Failed to fetch project from Hub at ${projectUrl}: ${err.message}`);
+  }
+}
+
 async function startWebApp(
   localPath: string,
   storageContextPath: string,
   secretFilePath: string,
 ) {
-  PersistenceManager.initialize(localPath, storageContextPath, secretFilePath);
+  // Fetch project settings from Hub if HUB_URL is set
+  let hubPath: string | undefined;
+  const hubUrl = process.env.HUB_URL;
+  if (hubUrl) {
+    try {
+      hubPath = await fetchHubProject(hubUrl);
+    } catch (err: any) {
+      logger.error("Hub project fetch failed — cannot start as Spoke", { error: err.message });
+      process.exit(1);
+    }
+  }
+
+  PersistenceManager.initialize(localPath, storageContextPath, secretFilePath, true, undefined, undefined, undefined, hubPath);
   const pm = PersistenceManager.getInstance();
 
   // Check for duplicate templates/scripts across categories

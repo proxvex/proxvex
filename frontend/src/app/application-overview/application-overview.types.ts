@@ -33,7 +33,7 @@ export interface IApplicationOverviewParameter {
   description?: string;
   /** Where the default/value originates from: application.json or a template name */
   defaultSource?: string;
-  origin: 'application-local' | 'application-json' | 'shared-local' | 'shared-json';
+  origin: 'application-local' | 'application-hub' | 'application-json' | 'shared-local' | 'shared-hub' | 'shared-json';
   sourceType: 'value' | 'default' | 'parameter';
   installedValue?: string | number | boolean;
 }
@@ -42,7 +42,7 @@ export interface IApplicationOverviewTemplate {
   seq: number;
   name: string;
   path: string;
-  origin: 'application-local' | 'application-json' | 'shared-local' | 'shared-json' | 'unknown';
+  origin: 'application-local' | 'application-hub' | 'application-json' | 'shared-local' | 'shared-hub' | 'shared-json' | 'unknown';
   isShared: boolean;
   category?: string;
   executeOn?: string;

@@ -21,7 +21,7 @@ export interface TemplateRef {
   name: string;
   scope: TemplateScope;
   applicationId?: string;
-  origin?: "local" | "json";
+  origin?: "local" | "hub" | "json";
   /** Explicit category. "root" = shared root dir; "" = application-scoped (no category). */
   category: string;
 }
@@ -87,7 +87,7 @@ export interface InMemoryRepositoriesOptions {
   markdown?: Map<string, string>; // application markdown keyed by `${appId}:${templateName}`
   sharedMarkdown?: Map<string, string>; // keyed by templateName
   localResources?: Map<string, Buffer>; // keyed by resource path
-  origin?: "local" | "json";
+  origin?: "local" | "hub" | "json";
 }
 
 export class InMemoryRepositories
@@ -101,7 +101,7 @@ export class InMemoryRepositories
   private markdown: Map<string, string>;
   private sharedMarkdown: Map<string, string>;
   private localResources: Map<string, Buffer>;
-  private origin: "local" | "json";
+  private origin: "local" | "hub" | "json";
 
   constructor(options: InMemoryRepositoriesOptions = {}) {
     this.applications = options.applications ?? new Map();
@@ -365,14 +365,7 @@ export class FileSystemRepositories
       const templatePath = path.join(appPath, "templates", templateNameWithExt);
 
       if (fs.existsSync(templatePath)) {
-        const fullPath = this.normalizePath(templatePath);
-        const localBase = this.normalizePath(this.pathes.localPath) + path.sep;
-        const jsonBase = this.normalizePath(this.pathes.jsonPath) + path.sep;
-        const origin = fullPath.startsWith(localBase)
-          ? "local"
-          : fullPath.startsWith(jsonBase)
-            ? "json"
-            : undefined;
+        const origin = this.detectOrigin(templatePath);
         if (!origin) continue;
         const name = TemplatePathResolver.normalizeTemplateName(templateName);
         return {
@@ -396,14 +389,7 @@ export class FileSystemRepositories
     );
     if (!resolved || !resolved.isShared) return null;
 
-    const fullPath = this.normalizePath(resolved.fullPath);
-    const localBase = this.normalizePath(this.pathes.localPath) + path.sep;
-    const jsonBase = this.normalizePath(this.pathes.jsonPath) + path.sep;
-    const origin = fullPath.startsWith(localBase)
-      ? "local"
-      : fullPath.startsWith(jsonBase)
-        ? "json"
-        : undefined;
+    const origin = this.detectOrigin(resolved.fullPath);
     if (!origin) return null;
     const name = TemplatePathResolver.normalizeTemplateName(templateName);
     return {
@@ -511,36 +497,16 @@ export class FileSystemRepositories
   resolveScriptPath(ref: ScriptRef): string | null {
     let scriptPath: string | null = null;
     if (ref.scope === "shared") {
+      // Search order: local → hub → json
+      const bases = [this.pathes.localPath, this.pathes.hubPath, this.pathes.jsonPath].filter(Boolean) as string[];
       const searchPaths: string[] = [];
 
-      if (ref.category === "root") {
-        // Root-level shared scripts — no subdirectory
-        searchPaths.push(
-          path.join(this.pathes.localPath, "shared", "scripts", ref.name),
-        );
-        searchPaths.push(
-          path.join(this.pathes.jsonPath, "shared", "scripts", ref.name),
-        );
-      } else if (ref.category) {
-        // Category subdirectory — no root fallback
-        searchPaths.push(
-          path.join(
-            this.pathes.localPath,
-            "shared",
-            "scripts",
-            ref.category,
-            ref.name,
-          ),
-        );
-        searchPaths.push(
-          path.join(
-            this.pathes.jsonPath,
-            "shared",
-            "scripts",
-            ref.category,
-            ref.name,
-          ),
-        );
+      for (const base of bases) {
+        if (ref.category === "root") {
+          searchPaths.push(path.join(base, "shared", "scripts", ref.name));
+        } else if (ref.category) {
+          searchPaths.push(path.join(base, "shared", "scripts", ref.category, ref.name));
+        }
       }
 
       for (const p of searchPaths) {
@@ -674,6 +640,20 @@ export class FileSystemRepositories
     } catch {
       return path.resolve(targetPath);
     }
+  }
+
+  /** Detect origin of a resolved path: local → hub → json */
+  private detectOrigin(fullPath: string): "local" | "hub" | "json" | undefined {
+    const normalized = this.normalizePath(fullPath);
+    const localBase = this.normalizePath(this.pathes.localPath) + path.sep;
+    if (normalized.startsWith(localBase)) return "local";
+    if (this.pathes.hubPath) {
+      const hubBase = this.normalizePath(this.pathes.hubPath) + path.sep;
+      if (normalized.startsWith(hubBase)) return "hub";
+    }
+    const jsonBase = this.normalizePath(this.pathes.jsonPath) + path.sep;
+    if (normalized.startsWith(jsonBase)) return "json";
+    return undefined;
   }
 
   private preloadTemplatesFromDir(

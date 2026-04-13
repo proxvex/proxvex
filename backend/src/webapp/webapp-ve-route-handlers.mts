@@ -574,7 +574,8 @@ export class WebAppVeRouteHandlers {
       }
 
       // Auto-generate certificate parameters for certtype params without user upload
-      this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, contextManager, veContextKey);
+      const caProvider = new CertificateAuthorityService(contextManager);
+      this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, caProvider, veContextKey);
 
       // Start ProxmoxExecution
       const inputs = processedParams.map((p) => ({

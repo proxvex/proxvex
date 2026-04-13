@@ -1,6 +1,5 @@
 import { IParameter } from "@src/types.mjs";
-import { CertificateAuthorityService } from "@src/services/certificate-authority-service.mjs";
-import type { ContextManager } from "@src/context-manager.mjs";
+import { ICaProvider } from "@src/services/ca-provider.mjs";
 
 /**
  * Injects CA key+cert into processed parameters when the SSL addon is active.
@@ -14,7 +13,7 @@ export class WebAppVeCertificateInjector {
   injectCertificateRequests(
     processedParams: Array<{ id: string; value: string | number | boolean }>,
     loadedParameters: IParameter[],
-    contextManager: ContextManager,
+    caProvider: ICaProvider,
     veContextKey: string,
   ): void {
     // Detect SSL addon via certtype marker on ssl.mode parameter
@@ -26,11 +25,10 @@ export class WebAppVeCertificateInjector {
       ?? sslParam.default;
     if (!sslMode || sslMode === "" || String(sslMode) === "NOT_DEFINED") return;
 
-    const caService = new CertificateAuthorityService(contextManager);
-    const ca = caService.ensureCA(veContextKey);
+    const ca = caProvider.ensureCA(veContextKey);
 
     processedParams.push({ id: "ca_key_b64", value: ca.key });
     processedParams.push({ id: "ca_cert_b64", value: ca.cert });
-    processedParams.push({ id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) });
+    processedParams.push({ id: "domain_suffix", value: caProvider.getDomainSuffix(veContextKey) });
   }
 }

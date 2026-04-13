@@ -17,6 +17,8 @@ import { FrameworkService } from "../services/framework-service.mjs";
 import { AddonService } from "../services/addon-service.mjs";
 import { ContextManager } from "../context-manager.mjs";
 import { FileSystemRepositories, type IRepositories } from "./repositories.mjs";
+import type { ICaProvider } from "../services/ca-provider.mjs";
+import type { IStackProvider } from "../services/stack-provider.mjs";
 
 const baseSchemas: string[] = [
   "templatelist.schema.json",
@@ -106,6 +108,7 @@ export class PersistenceManager {
     jsonPath?: string,
     schemaPath?: string,
     repositories?: IRepositories,
+    hubPath?: string,
   ) {
     this.initArgs = { localPath, storageContextFilePath, secretFilePath, enableCache, jsonPath, schemaPath };
     // Create paths (same logic as StorageContext)
@@ -117,6 +120,7 @@ export class PersistenceManager {
       localPath: localPath,
       jsonPath: jsonPath || path.join(projectRoot, "json"),
       schemaPath: schemaPath || path.join(projectRoot, "schemas"),
+      ...(hubPath ? { hubPath } : {}),
     };
 
     this.assertBasePathsExist(this.pathes);
@@ -185,6 +189,7 @@ export class PersistenceManager {
     jsonPath?: string,
     schemaPath?: string,
     repositories?: IRepositories,
+    hubPath?: string,
   ): PersistenceManager {
     if (PersistenceManager.instance) {
       // Close existing instance (useful for tests)
@@ -198,6 +203,7 @@ export class PersistenceManager {
       jsonPath,
       schemaPath,
       repositories,
+      hubPath,
     );
     return PersistenceManager.instance;
   }
@@ -247,6 +253,82 @@ export class PersistenceManager {
 
   getRepositories(): IRepositories {
     return this.repositories;
+  }
+
+  private _caProvider: ICaProvider | null = null;
+  private _stackProvider: IStackProvider | null = null;
+
+  /**
+   * Returns the CA provider.
+   * Hub mode (default): local CertificateAuthorityService.
+   * Spoke mode (HUB_URL set + server certs exist): RemoteCaProvider.
+   */
+  getCaProvider(): ICaProvider {
+    if (this._caProvider) return this._caProvider;
+    const spoke = this.detectSpokeConfig();
+    if (spoke) {
+      const { RemoteCaProvider } = require("../services/remote-ca-provider.mjs");
+      this._caProvider = new RemoteCaProvider(spoke.hubUrl, spoke.certPath, spoke.keyPath, spoke.caPath);
+    } else {
+      const { CertificateAuthorityService } = require("../services/certificate-authority-service.mjs");
+      this._caProvider = new CertificateAuthorityService(this.contextManager);
+    }
+    return this._caProvider!;
+  }
+
+  /**
+   * Returns the Stack provider.
+   * Hub mode (default): local via ContextManager.
+   * Spoke mode (HUB_URL set + server certs exist): RemoteStackProvider.
+   */
+  getStackProvider(): IStackProvider {
+    if (this._stackProvider) return this._stackProvider;
+    const spoke = this.detectSpokeConfig();
+    if (spoke) {
+      const { RemoteStackProvider } = require("../services/remote-stack-provider.mjs");
+      this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, spoke.certPath, spoke.keyPath, spoke.caPath);
+    } else {
+      const { LocalStackProvider } = require("../services/local-stack-provider.mjs");
+      this._stackProvider = new LocalStackProvider(this.contextManager);
+    }
+    return this._stackProvider!;
+  }
+
+  /**
+   * Detect Spoke configuration from environment and filesystem.
+   * Spoke mode requires BOTH:
+   * 1. HUB_URL environment variable set
+   * 2. Server certificate files present in /secure/
+   *
+   * Returns null for Hub mode, config object for Spoke mode.
+   */
+  private detectSpokeConfig(): { hubUrl: string; certPath: string; keyPath: string; caPath: string } | null {
+    const hubUrl = process.env.HUB_URL;
+    if (!hubUrl) return null;
+
+    // Check for server certs that double as mTLS client certs
+    const certPath = process.env.SPOKE_CERT_PATH || "/secure/server.crt";
+    const keyPath = process.env.SPOKE_KEY_PATH || "/secure/server.key";
+    const caPath = process.env.SPOKE_CA_PATH || "/secure/ca.crt";
+
+    if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
+      const { createLogger } = require("../logger/index.mjs");
+      const logger = createLogger("persistence-manager");
+      logger.warn(`HUB_URL set but server certificate not found at ${certPath}. Running as Hub.`);
+      return null;
+    }
+
+    if (!fs.existsSync(caPath)) {
+      const { createLogger } = require("../logger/index.mjs");
+      const logger = createLogger("persistence-manager");
+      logger.warn(`HUB_URL set but CA certificate not found at ${caPath}. Running as Hub.`);
+      return null;
+    }
+
+    const { createLogger } = require("../logger/index.mjs");
+    const logger = createLogger("persistence-manager");
+    logger.info(`Spoke mode: connecting to Hub at ${hubUrl}`);
+    return { hubUrl, certPath, keyPath, caPath };
   }
 
   /**

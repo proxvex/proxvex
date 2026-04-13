@@ -1,6 +1,6 @@
 import express from "express";
 import { ApiUri, IStack } from "../types.mjs";
-import { ContextManager } from "../context-manager.mjs";
+import { IStackProvider } from "../services/stack-provider.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { generateSecret } from "../services/secrets-generator.service.mjs";
 
@@ -9,7 +9,7 @@ export class WebAppStack {
 
   constructor(
     private app: express.Application,
-    private contextManager: ContextManager,
+    private stackProvider: IStackProvider,
   ) {
     this.pm = PersistenceManager.getInstance();
   }
@@ -24,13 +24,13 @@ export class WebAppStack {
     // GET /api/stacks?stacktype=xxx - List all stacks (optionally filtered by stacktype)
     this.app.get(ApiUri.Stacks, (req, res) => {
       const stacktype = req.query.stacktype as string | undefined;
-      const stacks = this.contextManager.listStacks(stacktype);
+      const stacks = this.stackProvider.listStacks(stacktype);
       res.json({ stacks });
     });
 
     // GET /api/stack/:id - Get single stack
     this.app.get(ApiUri.Stack, (req, res) => {
-      const stack = this.contextManager.getStack(req.params.id);
+      const stack = this.stackProvider.getStack(req.params.id);
       if (!stack) {
         res.status(404).json({ error: "Stack not found" });
         return;
@@ -76,13 +76,13 @@ export class WebAppStack {
         }
       }
 
-      const key = this.contextManager.addStack(body);
+      const key = this.stackProvider.addStack(body);
       res.json({ success: true, key });
     });
 
     // DELETE /api/stack/:id - Delete stack
     this.app.delete(ApiUri.Stack, (req, res) => {
-      const deleted = this.contextManager.deleteStack(req.params.id);
+      const deleted = this.stackProvider.deleteStack(req.params.id);
       res.json({ success: deleted, deleted });
     });
   }

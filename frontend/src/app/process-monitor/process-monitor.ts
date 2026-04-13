@@ -77,6 +77,9 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     if (step?.isLocal) {
       badges.push({ label: 'local', cls: 'badge-local' });
     }
+    if ((step as any)?.isHub) {
+      badges.push({ label: 'hub', cls: 'badge-hub' });
+    }
     return badges;
   }
 

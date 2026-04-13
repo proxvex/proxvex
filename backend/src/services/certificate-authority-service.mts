@@ -4,6 +4,7 @@ import { tmpdir, hostname } from "node:os";
 import path from "node:path";
 import { ContextManager } from "../context-manager.mjs";
 import { ICaInfoResponse } from "../types.mjs";
+import { ICaProvider } from "./ca-provider.mjs";
 import { createLogger } from "../logger/index.mjs";
 
 const logger = createLogger("certificate-authority");
@@ -22,11 +23,13 @@ interface StoredServerCert {
 }
 
 /**
- * Manages Certificate Authority lifecycle in encrypted storagecontext.
+ * Local CA provider: manages Certificate Authority lifecycle in encrypted storagecontext.
  * CA private key is never stored unencrypted on disk.
  * Uses openssl via child_process for certificate operations.
+ *
+ * Implements ICaProvider — used as the Hub/Standalone CA provider.
  */
-export class CertificateAuthorityService {
+export class CertificateAuthorityService implements ICaProvider {
   constructor(private contextManager: ContextManager) {}
 
   private contextKey(_veContextKey: string): string {

@@ -155,11 +155,19 @@ export class ApplicationOverview implements OnInit {
   originLabel(origin: string): string {
     switch (origin) {
       case 'application-local': return 'App (local)';
+      case 'application-hub': return 'App (hub)';
       case 'application-json': return 'App (public)';
       case 'shared-local': return 'Shared (local)';
+      case 'shared-hub': return 'Shared (hub)';
       case 'shared-json': return 'Shared (public)';
       default: return origin;
     }
+  }
+
+  originBadgeCls(origin: string): string {
+    if (origin.includes('local')) return 'badge-origin-local';
+    if (origin.includes('hub')) return 'badge-origin-hub';
+    return 'badge-origin-json';
   }
 
   paramBadges(p: IApplicationOverviewParameter): { label: string; cls: string }[] {
@@ -193,6 +201,7 @@ export class ApplicationOverview implements OnInit {
       ? { label: 'shared', cls: 'badge-shared' }
       : { label: 'app', cls: 'badge-app' });
     if (t.origin.includes('local')) badges.push({ label: 'local', cls: 'badge-local' });
+    if (t.origin.includes('hub')) badges.push({ label: 'hub', cls: 'badge-hub' });
     if (t.skipped) badges.push({ label: 'skipped', cls: 'badge-skipped' });
     if (t.addedByAddon) badges.push({ label: t.addedByAddon, cls: 'badge-addon' });
     if (t.executeOn) badges.push({ label: t.executeOn, cls: 'badge-exec' });
@@ -203,11 +212,11 @@ export class ApplicationOverview implements OnInit {
     const d: ICommandDetail[] = [];
     if (t.category) d.push({ label: 'Category', value: t.category });
     const fileName = t.path.split('/').pop() ?? t.path;
-    d.push({ label: 'Template', value: fileName, tooltip: t.path, type: 'badge', badgeCls: t.origin.includes('local') ? 'badge-origin-local' : 'badge-origin-json', badgeLabel: this.originLabel(t.origin) });
+    d.push({ label: 'Template', value: fileName, tooltip: t.path, type: 'badge', badgeCls: this.originBadgeCls(t.origin), badgeLabel: this.originLabel(t.origin) });
     if (t.executeOn) d.push({ label: 'Execute on', value: t.executeOn });
     if (t.scriptName) {
       if (t.scriptOrigin) {
-        d.push({ label: 'Script', value: t.scriptName, tooltip: t.scriptPath, type: 'badge', badgeCls: t.scriptOrigin.includes('local') ? 'badge-origin-local' : 'badge-origin-json', badgeLabel: this.originLabel(t.scriptOrigin) });
+        d.push({ label: 'Script', value: t.scriptName, tooltip: t.scriptPath, type: 'badge', badgeCls: this.originBadgeCls(t.scriptOrigin), badgeLabel: this.originLabel(t.scriptOrigin) });
       } else {
         d.push({ label: 'Script', value: t.scriptName, tooltip: t.scriptPath });
       }

@@ -23,6 +23,7 @@ export interface IConfiguredPathes {
   schemaPath: string;
   jsonPath: string;
   localPath: string;
+  hubPath?: string;  // Optional: project settings from Hub (Spoke mode)
 }
 export const storageKey = "global_storage_context";
 export interface IContext {

@@ -349,11 +349,19 @@ export class ApplicationOverviewBuilder {
     const pt = processedTemplates.find((t) => t.name === templateName);
     if (!pt) return "application-json";
 
-    const isLocal = pt.path.startsWith("local/");
+    const source = this.detectPathSource(pt.path);
     if (pt.isShared) {
-      return isLocal ? "shared-local" : "shared-json";
+      return `shared-${source}` as IApplicationOverviewParameter["origin"];
     }
-    return isLocal ? "application-local" : "application-json";
+    return `application-${source}` as IApplicationOverviewParameter["origin"];
+  }
+
+  /** Detect source tag from a template trace path like "local/...", "hub/...", "json/..." */
+  private detectPathSource(tracePath: string): "local" | "hub" | "json" | "unknown" {
+    if (tracePath.startsWith("local/")) return "local";
+    if (tracePath.startsWith("hub/")) return "hub";
+    if (tracePath.startsWith("json/")) return "json";
+    return "unknown";
   }
 
   private buildTemplates(
@@ -361,19 +369,10 @@ export class ApplicationOverviewBuilder {
     appPath: string,
   ): IApplicationOverviewTemplate[] {
     return processedTemplates.map((pt, index) => {
-      const isLocal = pt.path.startsWith("local/");
-      const isJson = pt.path.startsWith("json/");
-      const origin: IApplicationOverviewTemplate["origin"] = pt.isShared
-        ? isLocal
-          ? "shared-local"
-          : isJson
-            ? "shared-json"
-            : "unknown"
-        : isLocal
-          ? "application-local"
-          : isJson
-            ? "application-json"
-            : "unknown";
+      const source = this.detectPathSource(pt.path);
+      const origin: IApplicationOverviewTemplate["origin"] = source !== "unknown"
+        ? (`${pt.isShared ? "shared" : "application"}-${source}` as IApplicationOverviewTemplate["origin"])
+        : "unknown";
 
       const tmplData = pt.templateData;
       const rawExecuteOn = tmplData?.execute_on;
@@ -409,17 +408,13 @@ export class ApplicationOverviewBuilder {
               ) ?? undefined;
             }
             if (scriptPath) {
-              const isScriptLocal = scriptPath.startsWith("local/");
+              const scriptSource = this.detectPathSource(scriptPath);
               const isScriptShared =
                 scriptPath.includes("/shared/") ||
                 scriptPath.includes("/shared\\");
-              scriptOrigin = isScriptShared
-                ? isScriptLocal
-                  ? "shared-local"
-                  : "shared-json"
-                : isScriptLocal
-                  ? "application-local"
-                  : "application-json";
+              scriptOrigin = scriptSource !== "unknown"
+                ? (`${isScriptShared ? "shared" : "application"}-${scriptSource}` as typeof scriptOrigin)
+                : "application-json";
             }
             break;
           }

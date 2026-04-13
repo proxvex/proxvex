@@ -20,6 +20,7 @@ import { registerMaintenanceRoutes, getLogRotationService } from "./webapp-maint
 import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
 import { registerDependencyCheckRoutes } from "./webapp-dependency-check-routes.mjs";
 import { registerTestQueueRoutes } from "./webapp-test-queue-routes.mjs";
+import { registerHubRoutes } from "./webapp-hub-routes.mjs";
 import { createAuthMiddleware } from "./webapp-auth-middleware.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { createLogger } from "../logger/index.mjs";
@@ -155,8 +156,12 @@ export class VEWebApp {
     const webAppVE = new WebAppVE(this.app);
     webAppVE.init();
 
-    const webAppStack = new WebAppStack(this.app, this.storageContext);
+    const { LocalStackProvider } = await import("../services/local-stack-provider.mjs");
+    const webAppStack = new WebAppStack(this.app, new LocalStackProvider(this.storageContext));
     webAppStack.init();
+
+    // Hub endpoints (always active — CA signing + stack API for spokes)
+    registerHubRoutes(this.app);
 
     // Start periodic timers if enabled
     this.startAutoRenewalIfEnabled();

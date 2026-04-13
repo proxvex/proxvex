@@ -111,6 +111,10 @@ export class ContextManager extends Context implements IContext {
   jsonValidator: JsonValidator;
   private persistence: IApplicationPersistence & ITemplatePersistence;
 
+  // In-memory only maps for vm_* and vminstall_* (not persisted to storagecontext.json)
+  private vmContexts = new Map<string, VMContext>();
+  private vmInstallContexts = new Map<string, VMInstallContext>();
+
   constructor(
     localPath: string,
     storageContextFilePath: string,
@@ -123,7 +127,9 @@ export class ContextManager extends Context implements IContext {
     this.pathes = pathes;
     this.jsonValidator = jsonValidator;
     this.persistence = persistence;
-    this.loadContexts("vm", VMContext);
+    // vm_* and vminstall_* are no longer loaded from disk — they are in-memory only.
+    // Remove any stale vm_*/vminstall_* entries that may still exist in the persisted file.
+    this.purgeStaleEntries();
     // VEContext needs ContextManager reference
     // We need to manually load VE contexts since loadContexts doesn't support factory functions
     // Access protected context via keys() and get() methods
@@ -136,8 +142,21 @@ export class ContextManager extends Context implements IContext {
         this.set(key, instance);
       }
     }
-    this.loadContexts("vminstall", VMInstallContext);
     this.loadContexts("stack", StackContext);
+  }
+
+  /**
+   * Remove stale vm_* and vminstall_* entries from persisted storage.
+   * These are now in-memory only and should not be written to disk.
+   */
+  private purgeStaleEntries(): void {
+    let dirty = false;
+    for (const key of this.keys()) {
+      if (key.startsWith("vm_") || key.startsWith("vminstall_")) {
+        this.remove(key);
+        dirty = true;
+      }
+    }
   }
   getLocalPath(): string {
     return this.pathes.localPath;
@@ -173,16 +192,9 @@ export class ContextManager extends Context implements IContext {
     return null;
   }
   setVMContext(vmContext: IVMContext): string {
-    // Verify that the VE context referenced by vekey exists
-    const veContext = this.getVEContextByKey(vmContext.vekey);
-    if (!veContext) {
-      throw new Error(
-        `VE context not found for key: ${vmContext.vekey}. Please set the VE context using setVEContext() before setting the VM context.`,
-      );
-    }
-
     const key = `vm_${vmContext.vmid}`;
-    this.set(key, new VMContext(vmContext));
+    const ctx = new VMContext(vmContext);
+    this.vmContexts.set(key, ctx);
     return key;
   }
   setVEContext(veContext: ISsh): string {
@@ -193,7 +205,7 @@ export class ContextManager extends Context implements IContext {
   setVMInstallContext(vmInstallContext: IVMInstallContext): string {
     const vmInstall = new VMInstallContext(vmInstallContext);
     const key = vmInstall.getKey();
-    this.set(key, vmInstall);
+    this.vmInstallContexts.set(key, vmInstall);
     return key;
   }
 
@@ -203,43 +215,31 @@ export class ContextManager extends Context implements IContext {
     return null;
   }
 
-  /** Find a VMContext by hostname stored inside its data */
+  /** Find a VMContext by hostname stored inside its data (in-memory only) */
   getVMContextByHostname(hostname: string): IVMContext | null {
-    for (const key of this.keys().filter((k) => k.startsWith("vm_"))) {
-      const value = this.get(key);
-      if (value instanceof VMContext) {
-        const vm = value as VMContext;
-        const h = vm.outputs.hostname;
-        if (typeof h === "string" && h === hostname) {
-          return vm as IVMContext;
-        }
+    for (const vm of this.vmContexts.values()) {
+      const h = vm.outputs.hostname;
+      if (typeof h === "string" && h === hostname) {
+        return vm;
       }
     }
     return null;
   }
 
-  /** Find a VMInstallContext by hostname and application */
+  /** Find a VMInstallContext by hostname and application (in-memory only) */
   getVMInstallContextByHostnameAndApplication(
     hostname: string,
     application: string,
   ): IVMInstallContext | null {
     const key = `vminstall_${hostname}_${application}`;
-    const value = this.get(key);
-    if (value instanceof VMInstallContext) {
-      return value as IVMInstallContext;
-    }
-    return null;
+    return this.vmInstallContexts.get(key) ?? null;
   }
 
-  /** Find a VMInstallContext by vmInstallKey (format: vminstall_${hostname}_${application}) */
+  /** Find a VMInstallContext by vmInstallKey (in-memory only) */
   getVMInstallContextByVmInstallKey(
     vmInstallKey: string,
   ): IVMInstallContext | null {
-    const value = this.get(vmInstallKey);
-    if (value instanceof VMInstallContext) {
-      return value as IVMInstallContext;
-    }
-    return null;
+    return this.vmInstallContexts.get(vmInstallKey) ?? null;
   }
 
   // Stack methods

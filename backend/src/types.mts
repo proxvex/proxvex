@@ -68,7 +68,7 @@ export interface IApplicationWeb {
   iconType?: string | undefined;
   id: string;
   tags?: string[] | undefined;
-  source: "local" | "json";
+  source: "local" | "hub" | "json";
   framework?: string | undefined;
   extends?: string | undefined;
   stacktype?: string | string[] | undefined;
@@ -272,6 +272,15 @@ export enum ApiUri {
   LoggerConfig = "/api/logger/config",
   LoggerLevel = "/api/logger/level/:level",
   LoggerDebugComponents = "/api/logger/debug-components",
+
+  // Hub endpoints (always active, mTLS-protected for spoke access)
+  HubCaSign = "/api/hub/ca/sign",
+  HubCaCert = "/api/hub/ca/cert",
+  HubStacks = "/api/hub/stacks",
+  HubStack = "/api/hub/stack/:id",
+  HubProject = "/api/hub/project",
+  HubSpokes = "/api/hub/spokes",
+  HubSpoke = "/api/hub/spoke/:id",
 }
 
 // Tags definition interfaces
@@ -401,6 +410,7 @@ export interface IPlannedStep {
   description?: string;
   isShared?: boolean;
   isLocal?: boolean;
+  isHub?: boolean;
 }
 
 export interface ISingleExecuteMessagesResponse {
@@ -748,8 +758,10 @@ export interface ITemplateTraceEntry {
   path: string;
   origin:
     | "application-local"
+    | "application-hub"
     | "application-json"
     | "shared-local"
+    | "shared-hub"
     | "shared-json"
     | "unknown";
   isShared: boolean;
@@ -827,8 +839,10 @@ export interface IApplicationOverviewParameter {
   defaultSource?: string | undefined;
   origin:
     | "application-local"
+    | "application-hub"
     | "application-json"
     | "shared-local"
+    | "shared-hub"
     | "shared-json";
   sourceType: "value" | "default" | "parameter";
   installedValue?: string | number | boolean | undefined;
@@ -840,8 +854,10 @@ export interface IApplicationOverviewTemplate {
   path: string;
   origin:
     | "application-local"
+    | "application-hub"
     | "application-json"
     | "shared-local"
+    | "shared-hub"
     | "shared-json"
     | "unknown";
   isShared: boolean;

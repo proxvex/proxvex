@@ -46,18 +46,12 @@ export class TemplateTraceBuilder {
   ): ITemplateTraceEntry[] {
     return processedTemplatesArray.map((templateInfo) => {
       const isLocal = templateInfo.path.startsWith("local/");
+      const isHub = templateInfo.path.startsWith("hub/");
       const isJson = templateInfo.path.startsWith("json/");
-      const origin: ITemplateTraceEntry["origin"] = templateInfo.isShared
-        ? isLocal
-          ? "shared-local"
-          : isJson
-            ? "shared-json"
-            : "unknown"
-        : isLocal
-          ? "application-local"
-          : isJson
-            ? "application-json"
-            : "unknown";
+      const sourceTag = isLocal ? "local" : isHub ? "hub" : isJson ? "json" : null;
+      const origin: ITemplateTraceEntry["origin"] = sourceTag
+        ? (`${templateInfo.isShared ? "shared" : "application"}-${sourceTag}` as ITemplateTraceEntry["origin"])
+        : "unknown";
 
       const displayPath = templateInfo.path;
 

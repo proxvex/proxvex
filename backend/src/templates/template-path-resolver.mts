@@ -34,47 +34,22 @@ export class TemplatePathResolver {
       return { fullPath: templatePath, isShared: false, category };
     }
 
+    // Search order: local → hub → json
+    const sharedBases = [pathes.localPath, pathes.hubPath, pathes.jsonPath].filter(Boolean) as string[];
+
     if (category === "root") {
-      // Root-level shared templates (no subdirectory)
-      const localSharedPath = path.join(
-        pathes.localPath,
-        "shared",
-        "templates",
-        templateNameWithExt,
-      );
-      if (fs.existsSync(localSharedPath)) {
-        return { fullPath: localSharedPath, isShared: true, category: "root" };
-      }
-      const jsonSharedPath = path.join(
-        pathes.jsonPath,
-        "shared",
-        "templates",
-        templateNameWithExt,
-      );
-      if (fs.existsSync(jsonSharedPath)) {
-        return { fullPath: jsonSharedPath, isShared: true, category: "root" };
+      for (const base of sharedBases) {
+        const p = path.join(base, "shared", "templates", templateNameWithExt);
+        if (fs.existsSync(p)) {
+          return { fullPath: p, isShared: true, category: "root" };
+        }
       }
     } else {
-      // Category subdirectory — no root fallback
-      const categoryLocalPath = path.join(
-        pathes.localPath,
-        "shared",
-        "templates",
-        category,
-        templateNameWithExt,
-      );
-      if (fs.existsSync(categoryLocalPath)) {
-        return { fullPath: categoryLocalPath, isShared: true, category };
-      }
-      const categoryJsonPath = path.join(
-        pathes.jsonPath,
-        "shared",
-        "templates",
-        category,
-        templateNameWithExt,
-      );
-      if (fs.existsSync(categoryJsonPath)) {
-        return { fullPath: categoryJsonPath, isShared: true, category };
+      for (const base of sharedBases) {
+        const p = path.join(base, "shared", "templates", category, templateNameWithExt);
+        if (fs.existsSync(p)) {
+          return { fullPath: p, isShared: true, category };
+        }
       }
     }
 
@@ -107,47 +82,18 @@ export class TemplatePathResolver {
       return appScriptPath;
     }
 
+    // Search order: local → hub → json
+    const sharedBases = [pathes.localPath, pathes.hubPath, pathes.jsonPath].filter(Boolean) as string[];
+
     if (category === "root") {
-      // Root-level shared scripts (no subdirectory)
-      const localSharedPath = path.join(
-        pathes.localPath,
-        "shared",
-        "scripts",
-        scriptName,
-      );
-      if (fs.existsSync(localSharedPath)) {
-        return localSharedPath;
-      }
-      const jsonSharedPath = path.join(
-        pathes.jsonPath,
-        "shared",
-        "scripts",
-        scriptName,
-      );
-      if (fs.existsSync(jsonSharedPath)) {
-        return jsonSharedPath;
+      for (const base of sharedBases) {
+        const p = path.join(base, "shared", "scripts", scriptName);
+        if (fs.existsSync(p)) return p;
       }
     } else {
-      // Category subdirectory — no root fallback
-      const categoryLocalPath = path.join(
-        pathes.localPath,
-        "shared",
-        "scripts",
-        category,
-        scriptName,
-      );
-      if (fs.existsSync(categoryLocalPath)) {
-        return categoryLocalPath;
-      }
-      const categoryJsonPath = path.join(
-        pathes.jsonPath,
-        "shared",
-        "scripts",
-        category,
-        scriptName,
-      );
-      if (fs.existsSync(categoryJsonPath)) {
-        return categoryJsonPath;
+      for (const base of sharedBases) {
+        const p = path.join(base, "shared", "scripts", category, scriptName);
+        if (fs.existsSync(p)) return p;
       }
     }
 
@@ -252,15 +198,13 @@ export class TemplatePathResolver {
       path.join(appDir, "templates"),
     );
 
-    if (category === "root") {
-      templatePathes.push(path.join(pathes.localPath, "shared", "templates"));
-      templatePathes.push(path.join(pathes.jsonPath, "shared", "templates"));
-    } else {
+    // Search order: local → hub → json
+    const sharedBases = [pathes.localPath, pathes.hubPath, pathes.jsonPath].filter(Boolean) as string[];
+    for (const base of sharedBases) {
       templatePathes.push(
-        path.join(pathes.localPath, "shared", "templates", category),
-      );
-      templatePathes.push(
-        path.join(pathes.jsonPath, "shared", "templates", category),
+        category === "root"
+          ? path.join(base, "shared", "templates")
+          : path.join(base, "shared", "templates", category),
       );
     }
 
@@ -283,15 +227,13 @@ export class TemplatePathResolver {
       path.join(appDir, "scripts"),
     );
 
-    if (category === "root") {
-      scriptPathes.push(path.join(pathes.localPath, "shared", "scripts"));
-      scriptPathes.push(path.join(pathes.jsonPath, "shared", "scripts"));
-    } else {
+    // Search order: local → hub → json
+    const sharedScriptBases = [pathes.localPath, pathes.hubPath, pathes.jsonPath].filter(Boolean) as string[];
+    for (const base of sharedScriptBases) {
       scriptPathes.push(
-        path.join(pathes.localPath, "shared", "scripts", category),
-      );
-      scriptPathes.push(
-        path.join(pathes.jsonPath, "shared", "scripts", category),
+        category === "root"
+          ? path.join(base, "shared", "scripts")
+          : path.join(base, "shared", "scripts", category),
       );
     }
 

@@ -92,14 +92,15 @@ export class WebAppVeExecutionSetup {
    */
   private buildPlannedSteps(commands: ICommand[], processedTemplates?: IProcessedTemplate[]): IPlannedStep[] {
     // Build a lookup from template name to shared/local info
-    const templateInfo = new Map<string, { isShared: boolean; isLocal: boolean }>();
+    const templateInfo = new Map<string, { isShared: boolean; isLocal: boolean; isHub: boolean }>();
     if (processedTemplates) {
       for (const pt of processedTemplates) {
         const isLocal = pt.path.startsWith("local/");
-        templateInfo.set(pt.name, { isShared: pt.isShared, isLocal });
+        const isHub = pt.path.startsWith("hub/");
+        templateInfo.set(pt.name, { isShared: pt.isShared, isLocal, isHub });
         // Also map by template display name for matching against command names
         if (pt.templateData?.name) {
-          templateInfo.set(pt.templateData.name, { isShared: pt.isShared, isLocal });
+          templateInfo.set(pt.templateData.name, { isShared: pt.isShared, isLocal, isHub });
         }
       }
     }
@@ -115,6 +116,7 @@ export class WebAppVeExecutionSetup {
       if (info) {
         step.isShared = info.isShared;
         step.isLocal = info.isLocal;
+        step.isHub = info.isHub;
       }
       return step;
     });

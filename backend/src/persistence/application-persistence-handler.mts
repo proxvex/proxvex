@@ -42,11 +42,14 @@ export class ApplicationPersistenceHandler {
     if (!this.enableCache) {
       // Cache disabled: always scan fresh
       const jsonApps = this.scanApplicationsDir(this.pathes.jsonPath);
+      const hubApps = this.pathes.hubPath
+        ? this.scanApplicationsDir(this.pathes.hubPath)
+        : new Map<string, string>();
       const localApps = this.scanApplicationsDir(this.pathes.localPath);
+      // Merge: json → hub → local (local highest priority)
       const result = new Map(jsonApps);
-      for (const [name, appPath] of localApps) {
-        result.set(name, appPath);
-      }
+      for (const [name, appPath] of hubApps) result.set(name, appPath);
+      for (const [name, appPath] of localApps) result.set(name, appPath);
       return result;
     }
 
@@ -62,8 +65,12 @@ export class ApplicationPersistenceHandler {
       );
     }
 
-    // Merge: Local hat Priorität
+    // Merge: json → hub → local (local highest priority)
     const result = new Map(this.appNamesCache.json);
+    if (this.pathes.hubPath) {
+      const hubApps = this.scanApplicationsDir(this.pathes.hubPath);
+      for (const [name, appPath] of hubApps) result.set(name, appPath);
+    }
     for (const [name, appPath] of this.appNamesCache.local) {
       result.set(name, appPath);
     }
@@ -117,7 +124,7 @@ export class ApplicationPersistenceHandler {
     for (const [applicationName] of allApps) {
       const readOpts: IReadApplicationOptions & {
         extendsChain?: string[];
-        appSource?: "local" | "json";
+        appSource?: "local" | "hub" | "json";
       } = {
         applicationHierarchy: [],
         error: new VEConfigurationError("", applicationName),
@@ -125,10 +132,15 @@ export class ApplicationPersistenceHandler {
         extendsChain: [],
       };
 
-      // Determine source: local or json
-      const source: "local" | "json" = localApps.has(applicationName)
+      // Determine source: local → hub → json
+      const hubApps = this.pathes.hubPath
+        ? this.scanApplicationsDir(this.pathes.hubPath)
+        : new Map<string, string>();
+      const source: "local" | "hub" | "json" = localApps.has(applicationName)
         ? "local"
-        : "json";
+        : hubApps.has(applicationName)
+          ? "hub"
+          : "json";
       readOpts.appSource = source;
 
       let appWeb: IApplicationWeb;
@@ -241,24 +253,18 @@ export class ApplicationPersistenceHandler {
         throw new Error(`application.json not found for ${applicationName}`);
       }
     } else {
-      const localPath = path.join(
-        this.pathes.localPath,
-        "applications",
-        applicationName,
-        "application.json",
-      );
-      const jsonPath = path.join(
-        this.pathes.jsonPath,
-        "applications",
-        applicationName,
-        "application.json",
-      );
-      if (fs.existsSync(localPath)) {
-        appFile = localPath;
-        appPath = path.dirname(localPath);
-      } else if (fs.existsSync(this.pathes.jsonPath)) {
-        appFile = jsonPath;
-        appPath = path.dirname(jsonPath);
+      // Search order: local → hub → json
+      const candidates = [
+        path.join(this.pathes.localPath, "applications", applicationName, "application.json"),
+        ...(this.pathes.hubPath
+          ? [path.join(this.pathes.hubPath, "applications", applicationName, "application.json")]
+          : []),
+        path.join(this.pathes.jsonPath, "applications", applicationName, "application.json"),
+      ];
+      const found = candidates.find((p) => fs.existsSync(p));
+      if (found) {
+        appFile = found;
+        appPath = path.dirname(found);
       } else {
         throw new Error(`application.json not found for ${applicationName}`);
       }
