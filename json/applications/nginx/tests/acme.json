@@ -4,7 +4,5 @@
     { "name": "acme_staging", "value": "true" }
   ],
   "selectedAddons": ["addon-acme"],
-  "stackId": "acme",
-  "wait_seconds": 120,
-  "description": "ACME addon without CF credentials - verifies hookscript and dispatcher setup"
+  "stackId": "acme"
 }
