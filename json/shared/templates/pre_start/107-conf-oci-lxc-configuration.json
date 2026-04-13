@@ -34,12 +34,12 @@
       "description": "Environment variables to substitute in initial_command."
     },
     {
-      "id": "wait_for_network",
-      "name": "Wait for Network",
-      "type": "boolean",
+      "id": "entrypoint_override",
+      "name": "Entrypoint Override",
+      "type": "string",
       "advanced": true,
-      "default": false,
-      "description": "Wrap entrypoint to wait for network before starting. Only needed for apps that connect to external services at startup."
+      "default": "",
+      "description": "Override the PVE-generated entrypoint. Fixes OCI images where PVE strips quotes from CMD arguments."
     }
   ],
   "commands": [
