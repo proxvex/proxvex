@@ -45,17 +45,34 @@ if [ -n "$MIRROR_IP" ] && ! grep -q "$MARKER" /etc/hosts 2>/dev/null; then
   echo "Added /etc/hosts: ${MIRROR_IP} -> registry-1.docker.io, index.docker.io" >&2
 fi
 
-# 3. Ensure CA certificate is trusted
+# 3. Ensure CA certificate is trusted (always refresh — CA may have been regenerated)
 CA_CERT="/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
-if [ ! -f "$CA_CERT" ] && [ -n "$DEPLOYER_URL" ] && [ -n "$VE_CONTEXT" ]; then
+CA_CERT_SYSTEM="/usr/share/ca-certificates/oci-lxc-deployer-ca.crt"
+if [ -n "$DEPLOYER_URL" ] && [ -n "$VE_CONTEXT" ]; then
   CA_URL="${DEPLOYER_URL}/api/${VE_CONTEXT}/ve/certificates/ca/download"
-  echo "Installing CA certificate from ${CA_URL}..." >&2
-  if curl -fsSL -k -o "$CA_CERT" "$CA_URL" 2>/dev/null; then
-    update-ca-certificates >/dev/null 2>&1
-    echo "CA certificate installed" >&2
+  CA_TMP=$(mktemp)
+  if curl -fsSL -k -o "$CA_TMP" "$CA_URL" 2>/dev/null && [ -s "$CA_TMP" ]; then
+    # Only update if CA changed (or doesn't exist yet)
+    if [ ! -f "$CA_CERT" ] || ! cmp -s "$CA_TMP" "$CA_CERT"; then
+      cp "$CA_TMP" "$CA_CERT"
+      cp "$CA_TMP" "$CA_CERT_SYSTEM"
+      # Ensure entry in ca-certificates.conf for system trust store
+      if ! grep -q "oci-lxc-deployer-ca.crt" /etc/ca-certificates.conf 2>/dev/null; then
+        echo "oci-lxc-deployer-ca.crt" >> /etc/ca-certificates.conf
+      fi
+      update-ca-certificates >/dev/null 2>&1
+      echo "CA certificate updated from deployer" >&2
+    else
+      echo "CA certificate unchanged" >&2
+    fi
   else
-    add_error "CA: Could not download from ${CA_URL}"
+    if [ ! -f "$CA_CERT" ]; then
+      add_error "CA: Could not download from ${CA_URL}"
+    else
+      echo "CA download failed, using existing CA certificate" >&2
+    fi
   fi
+  rm -f "$CA_TMP"
 fi
 
 if [ ! -f "$CA_CERT" ]; then
