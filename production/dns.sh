@@ -16,7 +16,9 @@ set -e
 
 # --- Configuration ---
 NGINX_IP="192.168.4.41"
+REGISTRY_MIRROR_IP="192.168.4.45"
 MOSQUITTO_IP="192.168.4.44"
+OLD_PROD_HUB_IP="192.168.4.51"
 ROUTER_ALT_IP="192.168.1.1"
 
 add_dns() {
@@ -69,9 +71,10 @@ add_redirect() {
 echo "=== Configuring DNS entries ==="
 
 # External apps with static IPs (no DHCP → need manual DNS)
-add_dns nginx              "$NGINX_IP"
-add_dns eclipse-mosquitto  "$MOSQUITTO_IP"
-
+add_dns nginx                  "$NGINX_IP"
+add_dns docker-registry-mirror "$REGISTRY_MIRROR_IP"
+add_dns eclipse-mosquitto      "$MOSQUITTO_IP"
+add_dns old-prod-hub           "$OLD_PROD_HUB_IP"
 # Internal apps use DHCP — dnsmasq resolves hostnames automatically:
 #   oci-lxc-deployer, postgres, zitadel, gitea
 

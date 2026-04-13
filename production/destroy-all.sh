@@ -69,22 +69,30 @@ case "${1:-all}" in
   nginx)
     destroy_container nginx
     ;;
+  eclipse-mosquitto)
+    destroy_container eclipse-mosquitto
+    ;;
+  docker-registry-mirror)
+    destroy_container docker-registry-mirror
+    ;;
   postgres)
     destroy_container postgres
     ;;
   deployer)
-    destroy_container oci-lxc-deployer
+    destroy_container "${DEPLOYER_HOST:-oci-lxc-deployer}"
     ;;
   all)
+    destroy_container eclipse-mosquitto
     cleanup_postgres_db gitea
     destroy_container gitea
     cleanup_postgres_db zitadel
     destroy_container zitadel
     destroy_container nginx
     destroy_container postgres
-    destroy_container oci-lxc-deployer
+    destroy_container docker-registry-mirror
+    destroy_container "${DEPLOYER_HOST:-oci-lxc-deployer}"
     ;;
-  *) echo "Usage: $0 [deployer|postgres|nginx|zitadel|gitea|all]"; exit 1 ;;
+  *) echo "Usage: $0 [deployer|postgres|nginx|zitadel|gitea|docker-registry-mirror|eclipse-mosquitto|all]"; exit 1 ;;
 esac
 
 echo ""
