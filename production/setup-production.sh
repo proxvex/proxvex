@@ -32,11 +32,14 @@ CF_TOKEN="${CF_TOKEN:-}"
 
 # --- Parse arguments ---
 START_STEP=1
+END_STEP=99
 while [ $# -gt 0 ]; do
   case "$1" in
     --from-step) START_STEP="$2"; shift 2 ;;
     --from-step=*) START_STEP="${1#*=}"; shift ;;
-    *) echo "Usage: $0 [--from-step N]"; exit 1 ;;
+    --to-step)   END_STEP="$2";   shift 2 ;;
+    --to-step=*) END_STEP="${1#*=}"; shift ;;
+    *) echo "Usage: $0 [--from-step N] [--to-step M]"; exit 1 ;;
   esac
 done
 
@@ -51,7 +54,7 @@ banner() {
 }
 
 should_run() {
-  [ "$1" -ge "$START_STEP" ]
+  [ "$1" -ge "$START_STEP" ] && [ "$1" -le "$END_STEP" ]
 }
 
 pve_ssh() {
