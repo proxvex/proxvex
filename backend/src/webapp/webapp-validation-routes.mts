@@ -107,6 +107,15 @@ export function registerValidationRoutes(app: Application): void {
         const availableStacks = stacktypes.length > 0
           ? stacktypes.flatMap((st) => contextManager.listStacks(st))
           : [];
+        console.log("[validate-parameters DEBUG]", {
+          application,
+          appObjStacktype: (appObj as any).stacktype,
+          stacktypes,
+          availableStacksCount: availableStacks.length,
+          availableStackIds: availableStacks.map(s => s.id),
+          bodyStackId: body.stackId,
+          allStacksUnfiltered: contextManager.listStacks().map(s => ({id: s.id, stacktype: s.stacktype})),
+        });
 
         // Build application parameter/property ID set for addon requirements check
         const applicationParamIds = new Set<string>();
