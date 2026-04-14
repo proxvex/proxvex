@@ -113,6 +113,21 @@ export function registerValidationRoutes(app: Application): void {
         for (const p of appObj.parameters ?? []) applicationParamIds.add(p.id);
         for (const p of appObj.properties ?? []) applicationParamIds.add(p.id);
 
+        // Build known property IDs to suppress "Unknown parameter" warnings.
+        // These are internally resolved values (properties, addon properties,
+        // backend-injected params) that are valid but not in parameterDefs.
+        const knownPropertyIds = new Set<string>();
+        for (const p of appObj.properties ?? []) knownPropertyIds.add(p.id);
+        if (body.selectedAddons && availableAddons) {
+          for (const addonId of body.selectedAddons) {
+            const addon = availableAddons.find(a => a.id === addonId);
+            for (const p of addon?.properties ?? []) knownPropertyIds.add(p.id);
+          }
+        }
+        for (const id of ["application_id", "vm_id", "previouse_vm_id", "ve_context_key", "deployer_base_url"]) {
+          knownPropertyIds.add(id);
+        }
+
         // Inject backend-provided parameters that are always available at runtime
         // but never sent by CLI/frontend (they are set internally by the backend)
         const params = [...body.params];
@@ -132,6 +147,7 @@ export function registerValidationRoutes(app: Application): void {
           ...(body.selectedAddons ? { selectedAddons: body.selectedAddons } : {}),
           availableAddons,
           applicationParamIds,
+          knownPropertyIds,
           ...(body.stackId ? { stackId: body.stackId } : {}),
           availableStacks,
         });

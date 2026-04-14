@@ -43,13 +43,13 @@ if [ -z "$VE_KEY" ]; then
   exit 1
 fi
 
-DEPLOYER_VMID=$(curl -sk "${SERVER}/api/${VE_KEY}/ve/containers" 2>/dev/null | \
+DEPLOYER_VMID=$(curl -sk "${SERVER}/api/${VE_KEY}/installations" 2>/dev/null | \
   python3 -c "
 import sys, json
 data = json.load(sys.stdin)
-for ct in data.get('containers', []):
+for ct in (data if isinstance(data, list) else data.get('installations', [])):
     if ct.get('application_id') == 'oci-lxc-deployer':
-        print(ct.get('vmid', ''))
+        print(ct.get('vm_id', ''))
         break
 " 2>/dev/null || echo "")
 
@@ -71,8 +71,8 @@ cat > "$PARAMS_FILE" <<EOF
   "params": [
     { "name": "previouse_vm_id", "value": ${DEPLOYER_VMID} }
   ],
-  "selectedAddons": ["addon-oidc"],
-  "stackId": "production"
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "stackId": "oidc_production"
 }
 EOF
 

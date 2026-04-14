@@ -59,18 +59,21 @@ else
 fi
 
 ensure_stack() {
-  echo "=== Ensuring stack 'production' exists ==="
-  # Check if stack already exists (avoid overwriting cloudflare entries)
-  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "$SERVER/api/stack/production" 2>/dev/null || echo "000")
-  if [ "$STATUS" = "200" ]; then
-    echo "  Stack 'production' already exists (skipping creation to preserve entries)."
-  else
-    echo "  Creating stack 'production'..."
-    curl -sk -X POST "$SERVER/api/stacks" \
-      -H "Content-Type: application/json" \
-      -d '{"name":"production","stacktype":["postgres","oidc","cloudflare"],"entries":[]}' \
-      -o /dev/null -w "HTTP %{http_code}\n" || true
-  fi
+  echo "=== Ensuring production stacks exist ==="
+  # Each stacktype has its own stack with ID: {type}_production
+  for TYPE in postgres oidc cloudflare; do
+    STACK_ID="${TYPE}_production"
+    STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "$SERVER/api/stack/${STACK_ID}" 2>/dev/null || echo "000")
+    if [ "$STATUS" = "200" ]; then
+      echo "  Stack '${STACK_ID}' exists."
+    else
+      echo "  Creating stack '${STACK_ID}'..."
+      curl -sk -X POST "$SERVER/api/stacks" \
+        -H "Content-Type: application/json" \
+        -d "{\"name\":\"production\",\"stacktype\":\"${TYPE}\",\"entries\":[]}" \
+        -o /dev/null -w "HTTP %{http_code}\n" || true
+    fi
+  done
 }
 
 deploy_app() {

@@ -28,6 +28,7 @@ export class ParameterValidator {
     selectedAddons?: string[];
     availableAddons?: IAddonWithParameters[];
     applicationParamIds?: Set<string>;
+    knownPropertyIds?: Set<string>;
     stackId?: string;
     availableStacks?: IStack[];
   }): ValidationResult {
@@ -72,10 +73,12 @@ export class ParameterValidator {
     for (const p of params) {
       const def = parameterDefs.find((d) => d.id === p.name);
       if (!def) {
-        warnings.push({
-          field: p.name,
-          message: `Unknown parameter '${p.name}'`,
-        });
+        if (!input.knownPropertyIds?.has(p.name)) {
+          warnings.push({
+            field: p.name,
+            message: `Unknown parameter '${p.name}'`,
+          });
+        }
         continue;
       }
 

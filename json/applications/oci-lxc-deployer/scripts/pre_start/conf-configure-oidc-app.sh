@@ -32,6 +32,17 @@ if [ ! -f "$CONF_FILE" ]; then
   exit 1
 fi
 
+# Resolve NOT_DEFINED values
+[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=""
+[ "$HTTP_PORT" = "NOT_DEFINED" ] && HTTP_PORT="3080"
+[ "$OIDC_CALLBACK_PATH" = "NOT_DEFINED" ] && OIDC_CALLBACK_PATH="/api/auth/callback"
+
+# Use hostname from existing container config if available (reconfigure preserves it)
+CONF_HOSTNAME=$(awk -F': ' '/^hostname:/ { print $2; exit }' "$CONF_FILE")
+if [ -n "$CONF_HOSTNAME" ]; then
+  HOSTNAME="$CONF_HOSTNAME"
+fi
+
 CALLBACK_URL="http://${HOSTNAME}${DOMAIN_SUFFIX}:${HTTP_PORT}${OIDC_CALLBACK_PATH}"
 
 echo "Configuring OIDC for oci-lxc-deployer (VM $VM_ID, pre-start)" >&2
