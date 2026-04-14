@@ -79,38 +79,86 @@ if [ -z "$ROOTFS_STORAGE" ]; then
   ROOTFS_STORAGE="local-zfs"
 fi
 
-# Temporarily remove bind mounts (pct clone cannot handle them).
-# Managed volumes (storage:subvol-...) are fine — pct clone handles them.
+# Temporarily remove bind mounts (pct snapshot/clone refuse if any mp*
+# points to a host path — bind mounts have no storage backend).
+# Managed volumes (storage:subvol-...) are fine.
+# We strip them from the config for snapshot/clone, then restore them on
+# source (and copy them to target) afterwards. The running source container
+# keeps its kernel mounts active until it is next stopped, so no data is lost.
 BIND_MOUNTS_FILE=$(mktemp)
 pct config "$SOURCE_VMID" | while IFS= read -r line; do
   case "$line" in
     mp[0-9]*:\ /*)
       echo "$line" >> "$BIND_MOUNTS_FILE"
-      mpkey=$(echo "$line" | cut -d: -f1)
-      log "Temporarily removing bind mount $mpkey for cloning"
-      pct set "$SOURCE_VMID" -delete "$mpkey" >&2 || true
       ;;
   esac
 done
 
-# Clone via pct clone --full
-log "Cloning container $SOURCE_VMID to $TARGET_VMID (storage: $ROOTFS_STORAGE)..."
-clone_ok=true
-pct clone "$SOURCE_VMID" "$TARGET_VMID" --full --storage "$ROOTFS_STORAGE" >&2 || clone_ok=false
-
-# Restore bind mounts on source
+BIND_KEYS=""
 if [ -s "$BIND_MOUNTS_FILE" ]; then
+  BIND_KEYS=$(awk -F: '{print $1}' "$BIND_MOUNTS_FILE" | paste -sd, -)
+  log "Temporarily removing bind mounts ($BIND_KEYS) from $SOURCE_VMID for snapshot/clone"
+  pct set "$SOURCE_VMID" --delete "$BIND_KEYS" >&2 \
+    || fail "Failed to delete bind mounts $BIND_KEYS from $SOURCE_VMID"
+fi
+
+restore_source_binds() {
+  [ -s "$BIND_MOUNTS_FILE" ] || return 0
   while IFS= read -r line; do
     mpkey=$(echo "$line" | cut -d: -f1)
     mpval=$(echo "$line" | sed "s/^${mpkey}: //")
     log "Restoring bind mount $mpkey on source $SOURCE_VMID"
     pct set "$SOURCE_VMID" -"$mpkey" "$mpval" >&2 || true
   done < "$BIND_MOUNTS_FILE"
+}
+
+# Snapshot + clone so the source container (potentially the deployer itself)
+# can keep running throughout. pct clone from a snapshot works on a running
+# source on snapshot-capable storage (ZFS, LVM-thin, etc.). --full copies via
+# zfs send|recv and produces a target that is independent of the snapshot.
+SNAPNAME="oci-clone-$(date +%s)"
+log "Creating snapshot $SNAPNAME on $SOURCE_VMID..."
+if ! pct snapshot "$SOURCE_VMID" "$SNAPNAME" >&2; then
+  restore_source_binds
+  rm -f "$BIND_MOUNTS_FILE"
+  fail "pct snapshot failed — source $SOURCE_VMID may have unsupported volumes"
 fi
+
+log "Cloning $SOURCE_VMID → $TARGET_VMID (snapshot $SNAPNAME, storage $ROOTFS_STORAGE, full)..."
+clone_ok=true
+pct clone "$SOURCE_VMID" "$TARGET_VMID" \
+  --snapname "$SNAPNAME" \
+  --full \
+  --storage "$ROOTFS_STORAGE" >&2 \
+  || clone_ok=false
+
+# With --full the target is independent of the snapshot, so we can drop it.
+pct delsnapshot "$SOURCE_VMID" "$SNAPNAME" >&2 \
+  || log "Warning: could not delete snapshot $SNAPNAME on $SOURCE_VMID"
+
+# Restore bind mounts on source — done whether clone succeeded or not.
+restore_source_binds
 rm -f "$BIND_MOUNTS_FILE"
 
 if [ "$clone_ok" != true ]; then
   fail "Failed to clone container $SOURCE_VMID to $TARGET_VMID"
+fi
+
+# Copy bind mounts to target as well: the cloned config inherited none
+# (we deleted them from source before snapshot). The new container needs the
+# same host-path mounts to function.
+TARGET_CONF="${CONFIG_DIR}/${TARGET_VMID}.conf"
+if [ -f "$TARGET_CONF" ]; then
+  pct config "$SOURCE_VMID" | while IFS= read -r line; do
+    case "$line" in
+      mp[0-9]*:\ /*)
+        mpkey=$(echo "$line" | cut -d: -f1)
+        mpval=$(echo "$line" | sed "s/^${mpkey}: //")
+        log "Adding bind mount $mpkey to target $TARGET_VMID"
+        pct set "$TARGET_VMID" -"$mpkey" "$mpval" >&2 || true
+        ;;
+    esac
+  done
 fi
 
 # Keep cloned volume mounts on target.
@@ -122,6 +170,13 @@ fi
 # pre_start flow creates fresh managed volumes for the new container.
 
 # Source container keeps running — it will be destroyed by post-cleanup-previous-container
+
+# Update lxc.console.logfile VMID in cloned config
+TARGET_CONF="${CONFIG_DIR}/${TARGET_VMID}.conf"
+if [ -f "$TARGET_CONF" ] && grep -q "lxc.console.logfile:" "$TARGET_CONF"; then
+  sed -i "s/-${SOURCE_VMID}\.log/-${TARGET_VMID}.log/" "$TARGET_CONF"
+  log "Updated lxc.console.logfile VMID: $SOURCE_VMID -> $TARGET_VMID"
+fi
 
 # Determine volume_storage from rootfs storage
 VOLUME_STORAGE="$ROOTFS_STORAGE"
