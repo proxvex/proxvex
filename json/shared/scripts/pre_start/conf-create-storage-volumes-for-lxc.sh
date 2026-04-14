@@ -478,7 +478,7 @@ while IFS= read -r line <&3; do
   else
     log "Reusing existing volume $VOLID (suffix $VOL_SUFFIX)"
     # If the reused volume carries an old VMID in its name, rename the ZFS
-    # dataset to match the current VMID. Keeps zfs list / pvesm list
+    # dataset to match the current VMID. Keeps `zfs list` / `pvesm list`
     # consistent with pct config and avoids historical-VMID clutter.
     if [ "$STORAGE_TYPE" = "zfspool" ]; then
       _cur_volname="${VOLID#*:}"
