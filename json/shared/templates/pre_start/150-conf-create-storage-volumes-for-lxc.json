@@ -84,6 +84,14 @@
       "default": "",
       "advanced": true,
       "description": "GID mapping on the host for unprivileged containers"
+    },
+    {
+      "id": "previouse_vm_id",
+      "name": "Previous VM ID",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Previous container VMID (upgrade/reconfigure). Used to prefer reusing that CT's existing volumes over any other historical match."
     }
   ],
   "commands": [
