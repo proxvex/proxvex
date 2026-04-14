@@ -8,11 +8,14 @@
 #       --static-ip 192.168.4.51/24 --nameserver 192.168.4.1 --gateway 192.168.4.1 \
 #       --deployer-url https://old-prod-hub
 #   - SSH access to router (root@router-kg) and PVE host (root@pve1.cluster)
-#   - CF_TOKEN environment variable set (Cloudflare API token)
 #
 # Usage:
-#   CF_TOKEN=xxx ./production/setup-production.sh              # full setup
-#   CF_TOKEN=xxx ./production/setup-production.sh --from-step 5  # resume from step 5
+#   ./production/setup-production.sh              # full setup (prompts for CF_TOKEN when step 6 runs)
+#   ./production/setup-production.sh --from-step 5
+#
+# CF_TOKEN (Cloudflare API token) is only needed by step 6 (ACME + Cloudflare).
+# If unset and step 6 is about to run, the script prompts interactively.
+# You can still pass it via env var if you prefer: CF_TOKEN=xxx $0
 
 set -e
 
@@ -61,12 +64,6 @@ router_ssh() {
 
 # --- Pre-flight checks ---
 echo "=== Pre-flight checks ==="
-
-if [ -z "$CF_TOKEN" ] && should_run 6; then
-  echo "WARNING: CF_TOKEN not set. Step 6 (ACME + Cloudflare) will fail."
-  echo "  Set it with: CF_TOKEN=xxx $0 $*"
-  echo ""
-fi
 
 echo "  Checking SSH to PVE host (${PVE_HOST})..."
 if ! pve_ssh true 2>/dev/null; then
@@ -143,12 +140,40 @@ fi
 # ================================================================
 if should_run 6; then
   banner 6 "ACME + Production stack (Cloudflare)"
+
+  # Skip prompt if the cloudflare_production stack already exists in the
+  # deployer — setup-acme.sh only creates it with CF_TOKEN, so its presence
+  # means the token is already stored securely in the backend.
   if [ -z "$CF_TOKEN" ]; then
-    echo "ERROR: CF_TOKEN not set."
-    echo "  Usage: CF_TOKEN=xxx $0 --from-step 6"
-    exit 1
+    if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/stacks?stacktype=cloudflare" 2>/dev/null \
+         | grep -q 'cloudflare_production' \
+       || curl -sf --connect-timeout 3 "http://${DEPLOYER_HOST}:3080/api/stacks?stacktype=cloudflare" 2>/dev/null \
+         | grep -q 'cloudflare_production'; then
+      echo "  cloudflare_production stack already exists in deployer — reusing stored secret."
+      CF_TOKEN="__already_stored__"
+    fi
   fi
-  CF_TOKEN="$CF_TOKEN" "$SCRIPT_DIR/setup-acme.sh"
+
+  if [ -z "$CF_TOKEN" ]; then
+    echo "  CF_TOKEN not set — prompting now (input hidden)."
+    echo "  Create at https://dash.cloudflare.com/profile/api-tokens"
+    printf "  CF_TOKEN: "
+    stty -echo
+    read -r CF_TOKEN
+    stty echo
+    echo ""
+    if [ -z "$CF_TOKEN" ]; then
+      echo "ERROR: empty CF_TOKEN — aborting."
+      exit 1
+    fi
+  fi
+
+  if [ "$CF_TOKEN" = "__already_stored__" ]; then
+    echo "  Skipping setup-acme.sh (stack already configured)."
+  else
+    CF_TOKEN="$CF_TOKEN" "$SCRIPT_DIR/setup-acme.sh"
+  fi
+  unset CF_TOKEN
 fi
 
 # ================================================================

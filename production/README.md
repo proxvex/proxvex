@@ -87,11 +87,11 @@ Das Install-Script wird **mit `--https`** ausgeführt. Self-signed Zertifikate w
 ```bash
 # Auf pve1.cluster:
 curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | sh -s -- \
+  --hostname old-prod-hub \
   --vm-id-start 500 \
-  --static-ip 192.168.4.39/24 \
+  --static-ip 192.168.4.51/24 \
   --gateway 192.168.4.1 \
-  --nameserver 192.168.4.1 \
-  --https
+  --nameserver 192.168.4.1 
 ```
 
 Ab sofort läuft der Deployer auf HTTPS (Port 3443). `deploy.sh` erkennt das automatisch.

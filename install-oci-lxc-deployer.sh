@@ -667,6 +667,7 @@ execute_script_from_github \
   "username=lxc" \
   "uid=${LXC_UID}" \
   "gid=${LXC_GID}" \
+  "stack_id=" \
   "is_deployer=true" || {
   log "Error: Failed to write LXC notes"
   exit 1

@@ -28,11 +28,15 @@ mkdir -p "${SHARED_VOL}/create_ct"
 cat > "${SHARED_VOL}/create_ct/050-set-project-parameters.json" << 'EOF'
 {
   "name": "Set Project Parameters",
-  "description": "Project-specific defaults for ohnewarum.de",
+  "description": "Project-specific defaults for ohnewarum.de (v1, no OIDC issuer)",
   "commands": [
-    { "properties": { "id": "vm_id_start", "default": "500" } },
-    { "properties": { "id": "alpine_mirror", "default": "https://mirror1.hs-esslingen.de/Mirrors/alpine/" } },
-    { "properties": { "id": "debian_mirror", "default": "http://mirror.23m.com/debian/" } }
+    {
+      "properties": [
+        { "id": "vm_id_start", "default": "500" },
+        { "id": "alpine_mirror", "default": "https://mirror1.hs-esslingen.de/Mirrors/alpine/" },
+        { "id": "debian_mirror", "default": "http://mirror.23m.com/debian/" }
+      ]
+    }
   ]
 }
 EOF

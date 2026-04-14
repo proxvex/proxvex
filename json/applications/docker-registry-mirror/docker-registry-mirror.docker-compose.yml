@@ -1,6 +1,6 @@
 services:
   registry:
-    image: registry:2
+    image: distribution/distribution:3.0.0
     restart: unless-stopped
     environment:
       REGISTRY_HTTP_ADDR: "0.0.0.0:443"

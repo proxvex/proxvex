@@ -29,11 +29,15 @@ cat > "${SHARED_VOL}/create_ct/050-set-project-parameters.json" << 'EOF'
 {
   "name": "Set Project Parameters",
   "description": "Project-specific defaults for ohnewarum.de",
-  "properties": [
-    { "id": "vm_id_start", "default": "500" },
-    { "id": "oidc_issuer_url", "default": "https://auth.ohnewarum.de" },
-    { "id": "alpine_mirror", "default": "https://mirror1.hs-esslingen.de/Mirrors/alpine/" },
-    { "id": "debian_mirror", "default": "http://mirror.23m.com/debian/" }
+  "commands": [
+    {
+      "properties": [
+        { "id": "vm_id_start", "default": "500" },
+        { "id": "oidc_issuer_url", "default": "https://auth.ohnewarum.de" },
+        { "id": "alpine_mirror", "default": "https://mirror1.hs-esslingen.de/Mirrors/alpine/" },
+        { "id": "debian_mirror", "default": "http://mirror.23m.com/debian/" }
+      ]
+    }
   ]
 }
 EOF

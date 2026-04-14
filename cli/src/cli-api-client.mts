@@ -27,6 +27,54 @@ export interface OidcCredentials {
   clientSecret: string;
 }
 
+/**
+ * Format a structured backend error body (see webapp-error-utils.serializeError)
+ * into a human-readable multi-line string. Falls back to the top-level `error`
+ * field or a JSON dump if the shape is unknown.
+ */
+function formatErrorDetail(errBody: unknown): string {
+  if (!errBody || typeof errBody !== "object") {
+    return String(errBody ?? "");
+  }
+  const body = errBody as {
+    error?: string;
+    serializedError?: {
+      name?: string;
+      message?: string;
+      filename?: string;
+      line?: number;
+      details?: Array<{ message?: string; line?: number; filename?: string; details?: unknown[] }>;
+    };
+  };
+  const top = body.error ?? "";
+  const se = body.serializedError;
+  if (!se) {
+    return top || JSON.stringify(errBody);
+  }
+
+  const lines: string[] = [];
+  if (top) lines.push(top);
+  if (se.filename) lines.push(`  file: ${se.filename}${se.line ? `:${se.line}` : ""}`);
+  if (se.message && se.message !== top) lines.push(`  message: ${se.message}`);
+
+  const flattenDetails = (
+    details: Array<{ message?: string; line?: number; filename?: string; details?: unknown[] }> | undefined,
+    indent: string,
+  ): void => {
+    if (!details || details.length === 0) return;
+    for (const d of details) {
+      const loc = d.filename ? ` [${d.filename}${d.line ? `:${d.line}` : ""}]` : "";
+      lines.push(`${indent}- ${d.message ?? "(no message)"}${loc}`);
+      if (Array.isArray(d.details) && d.details.length > 0) {
+        flattenDetails(d.details as any, indent + "  ");
+      }
+    }
+  };
+  flattenDetails(se.details, "  ");
+
+  return lines.join("\n");
+}
+
 export class CliApiClient {
   private baseUrl: string;
   private token?: string;
@@ -127,7 +175,7 @@ export class CliApiClient {
       let detail = "";
       try {
         const errBody = await response.json();
-        detail = (errBody as any)?.error || JSON.stringify(errBody);
+        detail = formatErrorDetail(errBody);
       } catch {
         detail = await response.text();
       }

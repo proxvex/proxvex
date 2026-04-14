@@ -1,0 +1,28 @@
+{
+  "execute_on": "lxc",
+  "name": "Trust OCI Deployer CA",
+  "description": "Downloads the deployer-managed CA certificate and installs it into the container's system trust store so apps (e.g. Gitea, which verifies the Zitadel discovery URL) trust internal HTTPS services signed by it. Runs as root before any OIDC configuration step that needs to reach the issuer over HTTPS.",
+  "parameters": [
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer URL",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: deployer base URL for CA download"
+    },
+    {
+      "id": "ve_context_key",
+      "name": "VE Context",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: VE context key for CA download"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Trust OCI Deployer CA",
+      "script": "post-trust-oci-ca-in-system.sh",
+      "library": "pkg-common.sh"
+    }
+  ]
+}
