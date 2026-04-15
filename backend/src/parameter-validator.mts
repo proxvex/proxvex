@@ -156,6 +156,29 @@ export class ParameterValidator {
             }
           }
         }
+
+        // Check the addon's own required:true parameters have a value.
+        // Mirrors the application-level required check (lines 52-70) so addons
+        // with required inputs (e.g. addon-acme's acme_san) fail deploy-time
+        // validation instead of silently skipping at pre_start time.
+        const addon = availableAddons.find((a) => a.id === addonId);
+        if (addon?.parameters?.length) {
+          for (const def of addon.parameters) {
+            if (!def.required) continue;
+            if (def.if) {
+              const condValue = paramMap.get(def.if);
+              if (!condValue || condValue === "false" || condValue === "0")
+                continue;
+            }
+            const value = paramMap.get(def.id);
+            if (value === undefined || value === "" || value === null) {
+              errors.push({
+                field: def.id,
+                message: `Addon '${addon.name}' requires parameter '${def.name || def.id}' to be set`,
+              });
+            }
+          }
+        }
       }
     }
 

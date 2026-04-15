@@ -9,9 +9,7 @@
 #       --deployer-url https://old-prod-hub
 #   - SSH access to router (root@router-kg) and PVE host (root@pve1.cluster)
 #
-# Usage:
-#   ./production/setup-production.sh              # full setup (prompts for CF_TOKEN when step 6 runs)
-#   ./production/setup-production.sh --from-step 5
+# Usage: ./production/setup-production.sh --help
 #
 # CF_TOKEN (Cloudflare API token) is only needed by step 6 (ACME + Cloudflare).
 # If unset and step 6 is about to run, the script prompts interactively.
@@ -30,18 +28,106 @@ ROUTER_HOST="${ROUTER_HOST:-router-kg}"
 # Secrets
 CF_TOKEN="${CF_TOKEN:-}"
 
+# --- Step catalog (keep in sync with banner calls below) ---
+print_steps() {
+  cat <<'STEPS'
+  Steps:
+    1   DNS + NAT on router
+    2   Verify deployer is reachable
+    3   Copy production files to PVE host
+    4   Set project defaults (v1)
+    5   Deploy docker-registry-mirror
+    6   ACME + Production stack (Cloudflare)   [needs CF_TOKEN]
+    7   Deploy postgres
+    8   Deploy nginx + configure vhosts
+    9   Update project defaults (v2 — with OIDC issuer)
+    10  Deploy zitadel
+    11  Reconfigure deployer with OIDC
+    12  Deploy gitea
+    13  Deploy eclipse-mosquitto
+STEPS
+}
+
+usage() {
+  cat <<EOF
+Usage: $0 [options]
+
+Orchestrates the full production environment setup.
+
+Options:
+  --all                 Run all steps (1..99)
+  --from-step N         Start at step N (default: 1)
+  --to-step M           Stop after step M (default: 99)
+  --step N              Run only step N (shorthand for --from-step N --to-step N)
+  --retry N             Destroy step N's container (pct stop + pct destroy
+                        --purge --force) and then re-run step N. Only allowed
+                        for stateless, dependency-free steps:
+                          5  docker-registry-mirror
+                          8  nginx
+                          13 eclipse-mosquitto
+  -h, --help            Show this help and exit
+
+Without arguments, this help is shown and nothing is executed.
+
+EOF
+  print_steps
+  cat <<EOF
+
+Environment:
+  DEPLOYER_HOST   default: old-prod-hub
+  PVE_HOST        default: pve1.cluster
+  ROUTER_HOST     default: router-kg
+  CF_TOKEN        Cloudflare API token (prompted in step 6 if unset)
+EOF
+}
+
 # --- Parse arguments ---
+if [ $# -eq 0 ]; then
+  usage
+  exit 0
+fi
+
 START_STEP=1
 END_STEP=99
+RUN=0
+RETRY=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --from-step) START_STEP="$2"; shift 2 ;;
-    --from-step=*) START_STEP="${1#*=}"; shift ;;
-    --to-step)   END_STEP="$2";   shift 2 ;;
-    --to-step=*) END_STEP="${1#*=}"; shift ;;
-    *) echo "Usage: $0 [--from-step N] [--to-step M]"; exit 1 ;;
+    -h|--help) usage; exit 0 ;;
+    --all) RUN=1; shift ;;
+    --from-step) START_STEP="$2"; RUN=1; shift 2 ;;
+    --from-step=*) START_STEP="${1#*=}"; RUN=1; shift ;;
+    --to-step)   END_STEP="$2";   RUN=1; shift 2 ;;
+    --to-step=*) END_STEP="${1#*=}"; RUN=1; shift ;;
+    --step) START_STEP="$2"; END_STEP="$2"; RUN=1; shift 2 ;;
+    --step=*) START_STEP="${1#*=}"; END_STEP="${1#*=}"; RUN=1; shift ;;
+    --retry)   RETRY=1; START_STEP="$2"; END_STEP="$2"; RUN=1; shift 2 ;;
+    --retry=*) RETRY=1; START_STEP="${1#*=}"; END_STEP="${1#*=}"; RUN=1; shift ;;
+    *) echo "Unknown argument: $1" >&2; echo "" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+if [ "$RUN" -ne 1 ]; then
+  usage
+  exit 0
+fi
+
+# Map step → container hostname (only stateless, dependency-free steps)
+retry_hostname_for_step() {
+  case "$1" in
+    5)  echo "docker-registry-mirror" ;;
+    8)  echo "nginx" ;;
+    13) echo "eclipse-mosquitto" ;;
+    *)  echo "" ;;
+  esac
+}
+
+# Early validation of --retry step (full destroy runs after pve_ssh is defined)
+if [ "$RETRY" -eq 1 ] && [ -z "$(retry_hostname_for_step "$START_STEP")" ]; then
+  echo "ERROR: --retry not allowed for step ${START_STEP}: not retry-safe (state or dependencies)." >&2
+  echo "       Retry-safe steps: 5 (docker-registry-mirror), 8 (nginx), 13 (eclipse-mosquitto)." >&2
+  exit 1
+fi
 
 # --- Helper functions ---
 banner() {
@@ -64,6 +150,25 @@ pve_ssh() {
 router_ssh() {
   ssh -o StrictHostKeyChecking=no "root@${ROUTER_HOST}" "$@"
 }
+
+# --- Handle --retry N: destroy step N's container, then fall through to run step N ---
+if [ "$RETRY" -eq 1 ]; then
+  retry_host=$(retry_hostname_for_step "$START_STEP")
+  echo ""
+  echo "================================================================"
+  echo "  --retry: destroying step ${START_STEP} container (${retry_host})"
+  echo "================================================================"
+  retry_vmid=$(pve_ssh "pct list | awk -v h='$retry_host' '\$NF==h{print \$1}'" 2>/dev/null || true)
+  if [ -z "$retry_vmid" ]; then
+    echo "  no container named '${retry_host}' — nothing to destroy"
+  else
+    echo "  destroying VM ${retry_vmid} (${retry_host})"
+    pve_ssh "pct stop $retry_vmid 2>/dev/null; pct destroy $retry_vmid --purge --force" || {
+      echo "ERROR: failed to destroy VM $retry_vmid ($retry_host)" >&2
+      exit 1
+    }
+  fi
+fi
 
 # --- Pre-flight checks ---
 echo "=== Pre-flight checks ==="

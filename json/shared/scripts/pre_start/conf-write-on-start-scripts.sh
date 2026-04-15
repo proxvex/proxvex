@@ -120,8 +120,21 @@ chown "$VOL_OWNER" "${VOLUME_DIR}/on_start_container" 2>/dev/null || true
 log "Wrote dispatcher: ${VOLUME_DIR}/on_start_container"
 SCRIPTS_WRITTEN=$((SCRIPTS_WRITTEN + 1))
 
-# --- 2. Write acme-renew.sh (if ACME configured) ---
-if is_set "$CF_API_TOKEN" && is_set "$ACME_SAN"; then
+# --- 2. Write acme-renew.sh (if addon-acme is enabled) ---
+# CERT_DIR is set only by addon-acme (property acme.cert_dir), so its presence
+# signals that addon-acme is active. If active, acme_san and CF_API_TOKEN are
+# required — abort loudly instead of silently skipping.
+if is_set "$CERT_DIR"; then
+  if ! is_set "$ACME_SAN"; then
+    log "ERROR: addon-acme is enabled (acme.cert_dir='$CERT_DIR') but 'acme_san' is not set."
+    log "       Add an 'acme_san' parameter (e.g. '*.example.com,example.com') to the application."
+    exit 1
+  fi
+  if ! is_set "$CF_API_TOKEN"; then
+    log "ERROR: addon-acme is enabled but CF_API_TOKEN is not available."
+    log "       Ensure a 'cloudflare' stack with CF_TOKEN is linked to the application."
+    exit 1
+  fi
   ACME_SCRIPT="${VOLUME_DIR}/on_start.d/acme-renew.sh"
 
   # Part 1: Header with baked-in values
