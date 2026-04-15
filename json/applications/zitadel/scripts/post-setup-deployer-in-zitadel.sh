@@ -27,10 +27,12 @@ HOSTNAME="{{ hostname }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 COMPOSE_PROJECT="{{ compose_project }}"
 SSL_MODE="{{ ssl_mode }}"
+ZITADEL_EXTERNALDOMAIN="{{ ZITADEL_EXTERNALDOMAIN }}"
 
 [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=""
 [ "$COMPOSE_PROJECT" = "NOT_DEFINED" ] && COMPOSE_PROJECT=""
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
+[ "$ZITADEL_EXTERNALDOMAIN" = "NOT_DEFINED" ] && ZITADEL_EXTERNALDOMAIN=""
 
 PROJECT_NAME="oci-lxc-deployer"
 OIDC_APP_NAME="oci-lxc-deployer"
@@ -103,14 +105,22 @@ else
   ZITADEL_URL="http://localhost:8080"
 fi
 
-# Build Host header: must match ZITADEL_EXTERNALDOMAIN (= hostname, without domain_suffix).
-# Zitadel registers the instance under EXTERNALDOMAIN only, not hostname+suffix.
+# Build Host header and issuer URL. Zitadel registers the instance under its
+# configured ExternalDomain — API calls must send that as Host or Zitadel
+# returns "Instanz nicht gefunden". If ZITADEL_EXTERNALDOMAIN is set (public
+# FQDN like auth.example.com), prefer it; otherwise fall back to the container
+# hostname (+ domain_suffix), which matches the bare-LXC use case.
 PROTOCOL="http"
-ZITADEL_HOST="${HOSTNAME}"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
 fi
-ISSUER_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
+if [ -n "$ZITADEL_EXTERNALDOMAIN" ]; then
+  ZITADEL_HOST="$ZITADEL_EXTERNALDOMAIN"
+  ISSUER_URL="${PROTOCOL}://${ZITADEL_EXTERNALDOMAIN}"
+else
+  ZITADEL_HOST="${HOSTNAME}"
+  ISSUER_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
+fi
 
 echo "Zitadel API URL: ${ZITADEL_URL} (Host: ${ZITADEL_HOST})" >&2
 

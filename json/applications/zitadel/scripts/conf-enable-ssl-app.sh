@@ -51,10 +51,13 @@ sed -i '/^    configs:$/i\
 sed -i 's/--tlsMode disabled/--tlsMode external/' "$TMPFILE"
 
 # 6. Update env values for HTTPS
-sed -i 's/ZITADEL_EXTERNALSECURE: "false"/ZITADEL_EXTERNALSECURE: "true"/' "$TMPFILE"
-sed -i "s/ZITADEL_EXTERNALPORT: 8080/ZITADEL_EXTERNALPORT: ${HTTPS_PORT}/" "$TMPFILE"
-sed -i "s|http://\([^:]*\):8080/ui/v2/login|https://\1:${HTTPS_PORT}/ui/v2/login|g" "$TMPFILE"
-sed -i 's/X-Forwarded-Proto:http/X-Forwarded-Proto:https/' "$TMPFILE"
+# EXTERNALSECURE / EXTERNALPORT / X-Forwarded-Proto / login URLs are now
+# driven by template variables (ZITADEL_EXTERNALSECURE, ZITADEL_EXTERNALPORT,
+# ZITADEL_FORWARDED_PROTO, ZITADEL_PUBLIC_BASE_URL) — set them in the app
+# parameters (production/zitadel.json) instead of patching the compose here.
+# The sed lines that did this in earlier versions are removed because they
+# (a) silently no-op'd against template-var compose lines and (b) corrupted
+# `https` into `httpss` by matching `http` as a substring.
 sed -i 's/SSL_MODE: disable/SSL_MODE: require/g' "$TMPFILE"
 
 # Re-encode

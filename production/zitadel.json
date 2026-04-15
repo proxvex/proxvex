@@ -5,7 +5,12 @@
     { "name": "vm_id_start", "value": 502 },
     { "name": "static_ip", "value": "192.168.4.42/24" },
     { "name": "static_gw", "value": "192.168.4.1" },
-    { "name": "nameserver4", "value": "192.168.4.1" }
+    { "name": "nameserver4", "value": "192.168.4.1" },
+    { "name": "ZITADEL_EXTERNALDOMAIN", "value": "auth.ohnewarum.de" },
+    { "name": "ZITADEL_EXTERNALSECURE", "value": "true" },
+    { "name": "ZITADEL_EXTERNALPORT", "value": "443" },
+    { "name": "ZITADEL_FORWARDED_PROTO", "value": "https" },
+    { "name": "ZITADEL_PUBLIC_BASE_URL", "value": "https://auth.ohnewarum.de" }
   ],
   "selectedAddons": ["addon-ssl"],
   "stackIds": ["postgres_production", "oidc_production"]

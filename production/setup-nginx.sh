@@ -13,10 +13,15 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# --- Find nginx container ---
-NGINX_VMID=$(pct list | awk '/nginx/{print $1}')
+# --- Find nginx container (match hostname column exactly, not anywhere) ---
+NGINX_VMID=$(pct list | awk '$NF == "nginx" {print $1}')
 if [ -z "$NGINX_VMID" ]; then
   echo "ERROR: nginx container not found"
+  exit 1
+fi
+if [ "$(echo "$NGINX_VMID" | wc -l)" -gt 1 ]; then
+  echo "ERROR: multiple nginx containers found: $(echo $NGINX_VMID | tr '\n' ' ')"
+  echo "       Clean up the unwanted ones before running this script."
   exit 1
 fi
 echo "Nginx VMID: $NGINX_VMID"
@@ -83,12 +88,17 @@ server {
 ${SSL_DIRECTIVES}
     location / {
         proxy_pass https://zitadel:1443;
+        proxy_http_version 1.1;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate ${CERT_DIR}/chain.pem;
+        proxy_ssl_server_name on;
+        proxy_ssl_name zitadel;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port 443;
     }
 }
 EOF
@@ -101,12 +111,17 @@ ${SSL_DIRECTIVES}
     client_max_body_size 512m;
     location / {
         proxy_pass https://gitea:443;
+        proxy_http_version 1.1;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate ${CERT_DIR}/chain.pem;
+        proxy_ssl_server_name on;
+        proxy_ssl_name gitea;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port 443;
     }
 }
 EOF

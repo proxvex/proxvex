@@ -34,6 +34,15 @@
       "required": false,
       "advanced": true,
       "description": "SSL mode for protocol detection (native, none)"
+    },
+    {
+      "id": "ZITADEL_EXTERNALDOMAIN",
+      "name": "Zitadel External Domain",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "advanced": true,
+      "description": "Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+domain_suffix."
     }
   ],
   "commands": [

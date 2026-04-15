@@ -40,6 +40,29 @@ add_dns() {
   echo "Added DNS: $name → $ip"
 }
 
+add_forward() {
+  local name="$1"
+  local src="$2"
+  local dest="$3"
+  local dest_ip="$4"
+  local dest_port="$5"
+  existing=$(uci show firewall | grep "\.name='$name'" || true)
+  if [ -n "$existing" ]; then
+    echo "Forward rule '$name' already exists, skipping"
+    return
+  fi
+  uci add firewall rule
+  uci set "firewall.@rule[-1].name=$name"
+  uci set "firewall.@rule[-1].src=$src"
+  uci set "firewall.@rule[-1].dest=$dest"
+  uci set "firewall.@rule[-1].dest_ip=$dest_ip"
+  uci set "firewall.@rule[-1].dest_port=$dest_port"
+  uci set "firewall.@rule[-1].proto=tcp"
+  uci set "firewall.@rule[-1].target=ACCEPT"
+  uci set "firewall.@rule[-1].managed=$MANAGED_TAG"
+  echo "Added forward rule ($src→$dest): $dest_ip:$dest_port"
+}
+
 add_redirect() {
   local name="$1"
   local src="$2"
@@ -103,9 +126,14 @@ echo ""
 echo "=== Configuring NAT redirects ==="
 
 # HTTPS: all *.ohnewarum.de → nginx
-# LAN: hairpin NAT via router alt IP
+# LAN (192.168.1.0/24): hairpin NAT via router alt IP
 add_redirect "public-https-to-nginx" \
   lan cluster "$ROUTER_ALT_IP" 443 "$NGINX_IP" 1443
+# CLUSTER (192.168.4.0/24 — PVE hosts, LXC containers) hairpin: allow the
+# forward cluster→lan so packets from 192.168.4.x to 192.168.1.1:443 reach the
+# router's lan interface, where the existing public-https-to-nginx rule DNATs.
+add_forward "cluster-to-lan-https" \
+  cluster lan "$ROUTER_ALT_IP" 443
 # WAN: external access
 add_redirect "wan-https-to-nginx" \
   wan cluster "" 443 "$NGINX_IP" 1443
@@ -113,6 +141,8 @@ add_redirect "wan-https-to-nginx" \
 # MQTTS: mqtt.ohnewarum.de → mosquitto (LAN only, no WAN)
 add_redirect "mqtts-to-mosquitto" \
   lan cluster "$ROUTER_ALT_IP" 8883 "$MOSQUITTO_IP" 8883
+add_forward "cluster-to-lan-mqtts" \
+  cluster lan "$ROUTER_ALT_IP" 8883
 
 uci commit firewall
 /etc/init.d/firewall restart

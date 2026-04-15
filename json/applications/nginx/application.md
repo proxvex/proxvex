@@ -261,6 +261,121 @@ redirect URI. Make sure the zitadel app registration matches.
 
 ---
 
+## Vhost generator (interactive)
+
+Hand-writing reverse-proxy vhosts with all the right headers (`X-Forwarded-*`,
+`Host`, SNI, upstream TLS verify) is repetitive and easy to get wrong. The
+HTML snippet below lets you paste in three values — public domain, upstream
+URL, optional extras — and produces a complete `server { … }` block ready to
+drop into `/etc/nginx/conf.d/`.
+
+Save the snippet as `vhost-generator.html` and open it in any browser. No
+network, no dependencies.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>nginx vhost generator</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 780px; margin: 2rem auto; padding: 0 1rem; }
+  label { display: block; margin-top: 1rem; font-weight: 600; }
+  input, textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 13px; padding: .5rem; border: 1px solid #bbb; border-radius: 4px; }
+  textarea { min-height: 20rem; }
+  small { color: #666; }
+</style>
+</head>
+<body>
+<h1>nginx vhost generator</h1>
+<p><small>For rootless nginx terminating TLS on :1443. Cert files expected in <code>/etc/ssl/addon/</code>.</small></p>
+
+<label>Public domain<br><small>e.g. <code>auth.ohnewarum.de</code></small></label>
+<input id="domain" value="auth.ohnewarum.de">
+
+<label>Upstream URL<br><small>e.g. <code>https://zitadel:1443</code> or <code>http://app:8080</code></small></label>
+<input id="upstream" value="https://zitadel:1443">
+
+<label>Extras (optional, free-form, semicolon-terminated)<br><small>e.g. <code>client_max_body_size 512m;</code></small></label>
+<input id="extras" value="">
+
+<label>Generated vhost</label>
+<textarea id="output" readonly></textarea>
+
+<script>
+function indent(s, n) { const pad = " ".repeat(n); return s.split("\n").map(l => l ? pad + l : l).join("\n"); }
+
+function generate(domain, upstream, extras) {
+  let url;
+  try { url = new URL(upstream); } catch (e) { return "# invalid upstream URL"; }
+  const isHttps = url.protocol === "https:";
+  const upstreamHost = url.hostname;
+
+  const sslLines = [
+    "    ssl_certificate     /etc/ssl/addon/fullchain.pem;",
+    "    ssl_certificate_key /etc/ssl/addon/privkey.pem;",
+    "    ssl_protocols       TLSv1.2 TLSv1.3;",
+    "    ssl_ciphers         HIGH:!aNULL:!MD5;",
+  ].join("\n");
+
+  const proxySsl = isHttps ? [
+    "        proxy_ssl_verify on;",
+    "        proxy_ssl_trusted_certificate /etc/ssl/addon/chain.pem;",
+    "        proxy_ssl_server_name on;",
+    "        proxy_ssl_name " + upstreamHost + ";",
+  ].join("\n") : "";
+
+  const extrasBlock = extras.trim() ? "    " + extras.trim() + "\n" : "";
+
+  return `server {
+    listen 1443 ssl;
+    server_name ${domain};
+
+${sslLines}
+
+${extrasBlock}    location / {
+        proxy_pass ${upstream};
+        proxy_http_version 1.1;
+${proxySsl ? proxySsl + "\n" : ""}        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
+        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host \\$host;
+        proxy_set_header X-Forwarded-Port 443;
+    }
+}
+`;
+}
+
+function update() {
+  const d = document.getElementById("domain").value.trim();
+  const u = document.getElementById("upstream").value.trim();
+  const e = document.getElementById("extras").value;
+  document.getElementById("output").value = generate(d, u, e);
+}
+
+["domain","upstream","extras"].forEach(id =>
+  document.getElementById(id).addEventListener("input", update)
+);
+update();
+</script>
+</body>
+</html>
+```
+
+The generated block already includes the production-grade defaults discussed
+in the SSL section above:
+
+- `listen 1443 ssl` (rootless-compatible)
+- `ssl_certificate` / `ssl_certificate_key` from `/etc/ssl/addon/`
+- For HTTPS upstreams: `proxy_ssl_verify on`, trusted CA chain, SNI
+- All `X-Forwarded-*` headers including `X-Forwarded-Port 443` so apps behind
+  the proxy emit URLs with the correct public port
+
+For multi-domain wildcard SAN setups (the `ohnewarum.de` pattern), repeat the
+generator per public domain and concatenate the outputs into one
+`/etc/nginx/conf.d/*.conf` directory.
+
 ## Troubleshooting
 
 **`/etc/ssl/addon/` contains only `chain.pem`, not server cert files** — acme

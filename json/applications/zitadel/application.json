@@ -20,6 +20,42 @@
       "required": false,
       "description": "Public domain name for Zitadel (used in URLs and OIDC config)",
       "default": "{{ hostname }}"
+    },
+    {
+      "id": "ZITADEL_EXTERNALSECURE",
+      "name": "External Secure",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "default": "false",
+      "description": "Set to 'true' when Zitadel is reached via HTTPS from outside (e.g. behind a TLS reverse proxy)."
+    },
+    {
+      "id": "ZITADEL_EXTERNALPORT",
+      "name": "External Port",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "default": "8080",
+      "description": "Public TCP port Zitadel is reached on (e.g. 443 behind nginx, 8080 for direct exposure)."
+    },
+    {
+      "id": "ZITADEL_FORWARDED_PROTO",
+      "name": "Forwarded Proto",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "default": "http",
+      "description": "X-Forwarded-Proto value the login UI sends to zitadel-api (http or https). Match the public scheme."
+    },
+    {
+      "id": "ZITADEL_PUBLIC_BASE_URL",
+      "name": "Public Base URL",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "default": "http://{{ ZITADEL_EXTERNALDOMAIN }}:8080",
+      "description": "Full public base URL the user types in their browser (no trailing slash). Used in BASEURI/OIDC default URLs. Example: https://auth.example.com (no port for default 443/80)."
     }
   ],
   "properties": [
@@ -79,7 +115,8 @@
   ],
   "installation": {
     "post_start": [
-      "340-post-setup-deployer-in-zitadel.json"
+      "340-post-setup-deployer-in-zitadel.json",
+      "380-post-show-admin-credentials.json"
     ]
   },
   "stacktype": [
