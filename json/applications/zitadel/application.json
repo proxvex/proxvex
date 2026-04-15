@@ -56,6 +56,40 @@
       "advanced": true,
       "default": "http://{{ ZITADEL_EXTERNALDOMAIN }}:8080",
       "description": "Full public base URL the user types in their browser (no trailing slash). Used in BASEURI/OIDC default URLs. Example: https://auth.example.com (no port for default 443/80)."
+    },
+    {
+      "id": "smtp_own_domain",
+      "name": "Own mail domain (configure Cloudflare DNS)",
+      "type": "boolean",
+      "default": false,
+      "description": "When checked, create MX and SPF DNS records in Cloudflare for the mail domain (requires a cloudflare stack with CF_TOKEN). Leave unchecked if using an existing hosted mail setup where DNS already points to the provider."
+    },
+    {
+      "id": "smtp_mail_domain",
+      "name": "Mail domain",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "if": "smtp_own_domain",
+      "description": "Apex domain the mail is sent from (e.g. example.com). Looked up in Cloudflare and used as the zone for MX/SPF records."
+    },
+    {
+      "id": "smtp_mx_target",
+      "name": "MX target",
+      "type": "string",
+      "required": false,
+      "default": "",
+      "if": "smtp_own_domain",
+      "description": "Hostname the MX record points at (e.g. mxext1.mailbox.org). Consult your mail provider's documentation."
+    },
+    {
+      "id": "smtp_spf_value",
+      "name": "SPF TXT value",
+      "type": "string",
+      "required": false,
+      "default": "v=spf1 ~all",
+      "if": "smtp_own_domain",
+      "description": "Full SPF TXT record value, e.g. 'v=spf1 include:mailbox.org ~all'. Consult your mail provider's documentation."
     }
   ],
   "properties": [
@@ -116,11 +150,13 @@
   "installation": {
     "post_start": [
       "340-post-setup-deployer-in-zitadel.json",
+      "385-post-configure-mail-dns.json",
       "380-post-show-admin-credentials.json"
     ]
   },
   "stacktype": [
     "postgres",
-    "oidc"
+    "oidc",
+    "cloudflare"
   ]
 }

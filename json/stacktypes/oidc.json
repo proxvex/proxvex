@@ -1,10 +1,15 @@
 {
   "name": "OIDC (Zitadel)",
-  "description": "Master key, database and admin passwords for Zitadel identity provider",
+  "description": "Master key, database and admin passwords for Zitadel identity provider. Optional SMTP entries configure notification e-mail at FirstInstance init (see json/applications/zitadel/application.md). All SMTP fields are user-provided — leave SMTP_HOST empty to skip e-mail setup.",
   "variables": [
     { "name": "ZITADEL_MASTERKEY", "length": 32 },
     { "name": "ZITADEL_DB_PASSWORD" },
-    { "name": "ZITADEL_ADMIN_PASSWORD" }
+    { "name": "ZITADEL_ADMIN_PASSWORD" },
+    { "name": "SMTP_HOST", "external": true },
+    { "name": "SMTP_PORT", "external": true },
+    { "name": "SMTP_USER", "external": true },
+    { "name": "SMTP_SENDER", "external": true },
+    { "name": "SMTP_PASSWORD", "external": true }
   ],
   "provides": [
     { "name": "ZITADEL_HOST", "description": "Hostname of the Zitadel container" },
