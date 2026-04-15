@@ -3,7 +3,7 @@
   "description": "Unprivileged NGINX Dockerfiles",
   "extends": "oci-image",
   "icon": "nginx.svg",
-  "supported_addons": ["addon-oidc"],
+  "supported_addons": ["addon-oidc", "addon-ssl", "addon-acme"],
   "oidc_roles": [
     { "key": "admin", "display_name": "Administrator" }
   ],
@@ -60,12 +60,14 @@
   ],
   "installation": {
     "pre_start": [
-      "conf-write-default-config.json"
+      "conf-write-default-config.json",
+      "conf-write-reload-hook.json"
     ]
   },
   "reconfigure": {
     "pre_start": [
-      "conf-write-default-config.json"
+      "conf-write-default-config.json",
+      "conf-write-reload-hook.json"
     ]
   },
   "url": "https://github.com/nginx/docker-nginx-unprivileged",

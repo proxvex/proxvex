@@ -1,51 +1,92 @@
 #!/bin/bash
+# Tabula rasa: back up the router, then destroy every LXC on the PVE host and
+# wipe container logs. No hostname filter, no exceptions — every pct container
+# is stopped and purged.
+#
+# Usage: ./production/destroy.sh [--yes]
+#
+# After this, run ./production/setup-production.sh --all to rebuild.
+
 set -e
 
-PVE_HOST="pve1.cluster"
-PORT_PVE_SSH=22
+PVE_HOST="${PVE_HOST:-pve1.cluster}"
+ROUTER_HOST="${ROUTER_HOST:-router-kg}"
+BACKUP_DIR="${BACKUP_DIR:-$HOME/backups}"
+SSH_OPTS="-o StrictHostKeyChecking=no"
+SSH_CMD="ssh $SSH_OPTS root@${PVE_HOST}"
+ROUTER_SSH="ssh $SSH_OPTS root@${ROUTER_HOST}"
 
-SSH_CMD="ssh -o StrictHostKeyChecking=no -p $PORT_PVE_SSH root@$PVE_HOST"
+if [ "${1:-}" != "--yes" ]; then
+  echo "This will destroy EVERY LXC on ${PVE_HOST} and wipe /var/log/lxc."
+  echo "A sysupgrade backup of ${ROUTER_HOST} is taken first."
+  echo "There is no undo."
+  printf "Type 'DESTROY' to continue: "
+  read -r confirm
+  [ "$confirm" = "DESTROY" ] || { echo "Aborted."; exit 1; }
+fi
 
-cleanup_postgres_db() {
-  local db_name="$1"
-  local pg_vmid=500
-  echo "=== Cleaning up postgres database: $db_name ==="
-  $SSH_CMD "pct exec $pg_vmid -- psql -U postgres -c \
-    \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$db_name' AND pid<>pg_backend_pid();\" \
-    -c \"DROP DATABASE IF EXISTS $db_name;\" \
-    -c \"DROP USER IF EXISTS $db_name;\"" || true
+echo "=== Backing up ${ROUTER_HOST} to ${BACKUP_DIR} ==="
+mkdir -p "$BACKUP_DIR"
+TS=$(date +%Y%m%d-%H%M%S)
+REMOTE_BACKUP="/tmp/router-kg-backup-${TS}.tar.gz"
+$ROUTER_SSH "umask 077; sysupgrade -b '$REMOTE_BACKUP'" || {
+  echo "ERROR: router backup failed — aborting destroy." >&2
+  exit 1
+}
+scp $SSH_OPTS "root@${ROUTER_HOST}:${REMOTE_BACKUP}" "$BACKUP_DIR/" || {
+  echo "ERROR: failed to download router backup — aborting destroy." >&2
+  exit 1
+}
+$ROUTER_SSH "uci export uhttpd; echo '---FIREWALL---'; uci export firewall; echo '---DHCP---'; uci export dhcp" \
+  > "$BACKUP_DIR/router-kg-uci-${TS}.txt"
+echo "  Router backup saved: $BACKUP_DIR/router-kg-backup-${TS}.tar.gz"
+echo "  UCI dump saved:      $BACKUP_DIR/router-kg-uci-${TS}.txt"
+
+echo "=== Removing dns.sh entries from ${ROUTER_HOST} (marker: managed='prod-setup') ==="
+$ROUTER_SSH '
+  set -e
+  TAG="prod-setup"
+
+  purge() {
+    cfg="$1"  # dhcp or firewall
+    svc="$2"  # dnsmasq or firewall
+    sections=$(uci show "$cfg" 2>/dev/null | grep "\.managed='"'"'$TAG'"'"'$" | cut -d. -f1-2 | sort -u)
+    if [ -z "$sections" ]; then
+      echo "  $cfg: no tagged entries found."
+      return
+    fi
+    for section in $sections; do
+      uci delete "$section" && echo "  Deleted $section"
+    done
+    uci commit "$cfg"
+    /etc/init.d/"$svc" restart
+  }
+
+  purge dhcp     dnsmasq
+  purge firewall firewall
+' || {
+  echo "ERROR: router cleanup failed — aborting before PVE destruction." >&2
+  exit 1
 }
 
-destroy_vm() {
-  local vmid="$1"
-  local name="$2"
-  echo "=== Destroying $name (VM $vmid) ==="
-  $SSH_CMD "pct stop $vmid 2>/dev/null; pct destroy $vmid --force --purge" || true
-}
+echo "=== Destroying all LXCs on ${PVE_HOST} ==="
+$SSH_CMD '
+  set -e
+  vmids=$(pct list | awk "NR>1{print \$1}")
+  if [ -z "$vmids" ]; then
+    echo "  No containers found."
+  else
+    for vmid in $vmids; do
+      echo "  Destroying VM $vmid"
+      pct stop "$vmid" 2>/dev/null || true
+      pct destroy "$vmid" --purge --force || echo "  WARNING: pct destroy $vmid failed"
+    done
+  fi
 
-# Reverse dependency order: gitea → zitadel → nginx → postgres
-case "${1:-all}" in
-  gitea)
-    cleanup_postgres_db gitea
-    destroy_vm 503 gitea
-    ;;
-  zitadel)
-    cleanup_postgres_db zitadel
-    destroy_vm 502 zitadel
-    ;;
-  nginx)
-    destroy_vm 501 nginx
-    ;;
-  postgres)
-    destroy_vm 500 postgres
-    ;;
-  all)
-    cleanup_postgres_db gitea
-    destroy_vm 503 gitea
-    cleanup_postgres_db zitadel
-    destroy_vm 502 zitadel
-    destroy_vm 501 nginx
-    destroy_vm 500 postgres
-    ;;
-  *) echo "Usage: $0 [postgres|nginx|zitadel|gitea|all]"; exit 1 ;;
-esac
+  echo "=== Wiping /var/log/lxc ==="
+  rm -rf /var/log/lxc/* 2>/dev/null || true
+  ls -la /var/log/lxc 2>/dev/null || true
+'
+
+echo ""
+echo "Done. Next: ./production/setup-production.sh --all"

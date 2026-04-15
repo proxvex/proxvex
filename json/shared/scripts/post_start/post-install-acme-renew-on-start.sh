@@ -12,7 +12,6 @@
 #   - acme_domain: Domain for the certificate
 #   - acme_email: (optional) Email for LE registration
 #   - acme.cert_dir: Certificate directory in container
-#   - acme.needs_server_cert: Whether to issue server cert
 #   - acme.needs_ca_cert: Whether to write CA/intermediate cert
 #   - alpine_mirror: (optional) Alpine mirror URL
 #   - debian_mirror: (optional) Debian mirror URL
@@ -23,7 +22,6 @@ CF_API_TOKEN="{{ CF_TOKEN }}"
 ACME_DOMAIN="{{ acme_domain }}"
 ACME_EMAIL="{{ acme_email }}"
 CERT_DIR="{{ acme.cert_dir }}"
-NEEDS_SERVER_CERT="{{ acme.needs_server_cert }}"
 NEEDS_CA_CERT="{{ acme.needs_ca_cert }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
@@ -42,7 +40,6 @@ CF_API_TOKEN="$CF_API_TOKEN"
 ACME_DOMAIN="$ACME_DOMAIN"
 ACME_EMAIL="$ACME_EMAIL"
 CERT_DIR="$CERT_DIR"
-NEEDS_SERVER_CERT="$NEEDS_SERVER_CERT"
 NEEDS_CA_CERT="$NEEDS_CA_CERT"
 ALPINE_MIRROR="$ALPINE_MIRROR"
 DEBIAN_MIRROR="$DEBIAN_MIRROR"
@@ -134,20 +131,10 @@ acme_issue_or_renew() {
 
   ACME_ARGS="--dns dns_cf -d $ACME_DOMAIN"
 
-  # Build install command args based on needs_server_cert / needs_ca_cert
-  INSTALL_ARGS=""
-  if [ "$NEEDS_SERVER_CERT" = "true" ]; then
-    INSTALL_ARGS="$INSTALL_ARGS --key-file ${CERT_DIR}/privkey.pem"
-    INSTALL_ARGS="$INSTALL_ARGS --cert-file ${CERT_DIR}/cert.pem"
-    INSTALL_ARGS="$INSTALL_ARGS --fullchain-file ${CERT_DIR}/fullchain.pem"
-  fi
+  # Always install server cert (privkey/cert/fullchain). Optionally also the CA chain.
+  INSTALL_ARGS="--key-file ${CERT_DIR}/privkey.pem --cert-file ${CERT_DIR}/cert.pem --fullchain-file ${CERT_DIR}/fullchain.pem"
   if [ "$NEEDS_CA_CERT" = "true" ]; then
     INSTALL_ARGS="$INSTALL_ARGS --ca-file ${CERT_DIR}/chain.pem"
-  fi
-
-  if [ -z "$INSTALL_ARGS" ]; then
-    echo "WARNING: Neither server cert nor CA cert requested, nothing to do" >&2
-    return 0
   fi
 
   # Issue certificate if not yet issued for this domain
@@ -194,19 +181,12 @@ acme_issue_or_renew
       echo "[acme-renew-loop] Checking certificate renewal..." >&2
       "'"$ACME_HOME"'/acme.sh" --renew -d "'"$ACME_DOMAIN"'" >&2 || true
 
-      # Reinstall cert files
-      INSTALL_ARGS=""
-      if [ "'"$NEEDS_SERVER_CERT"'" = "true" ]; then
-        INSTALL_ARGS="$INSTALL_ARGS --key-file '"${CERT_DIR}"'/privkey.pem"
-        INSTALL_ARGS="$INSTALL_ARGS --cert-file '"${CERT_DIR}"'/cert.pem"
-        INSTALL_ARGS="$INSTALL_ARGS --fullchain-file '"${CERT_DIR}"'/fullchain.pem"
-      fi
+      # Reinstall cert files (server cert always; CA chain conditional)
+      INSTALL_ARGS="--key-file '"${CERT_DIR}"'/privkey.pem --cert-file '"${CERT_DIR}"'/cert.pem --fullchain-file '"${CERT_DIR}"'/fullchain.pem"
       if [ "'"$NEEDS_CA_CERT"'" = "true" ]; then
         INSTALL_ARGS="$INSTALL_ARGS --ca-file '"${CERT_DIR}"'/chain.pem"
       fi
-      if [ -n "$INSTALL_ARGS" ]; then
-        "'"$ACME_HOME"'/acme.sh" --install-cert -d "'"$ACME_DOMAIN"'" $INSTALL_ARGS >&2 || true
-      fi
+      "'"$ACME_HOME"'/acme.sh" --install-cert -d "'"$ACME_DOMAIN"'" $INSTALL_ARGS >&2 || true
 
       # Set ownership
       if [ "'"$APP_UID"'" != "0" ] || [ "'"$APP_GID"'" != "0" ]; then

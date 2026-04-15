@@ -21,6 +21,8 @@ MOSQUITTO_IP="192.168.4.44"
 OLD_PROD_HUB_IP="192.168.4.51"
 ROUTER_ALT_IP="192.168.1.1"
 
+MANAGED_TAG="prod-setup"
+
 add_dns() {
   local name="$1"
   local ip="$2"
@@ -34,6 +36,7 @@ add_dns() {
   uci set "dhcp.@domain[-1].name=$name"
   uci set "dhcp.@domain[-1].ip=$ip"
   uci set "dhcp.@domain[-1].dns=1"
+  uci set "dhcp.@domain[-1].managed=$MANAGED_TAG"
   echo "Added DNS: $name → $ip"
 }
 
@@ -59,6 +62,7 @@ add_redirect() {
   uci set "firewall.@redirect[-1].dest_port=$dest_port"
   uci set "firewall.@redirect[-1].proto=tcp"
   uci set "firewall.@redirect[-1].target=DNAT"
+  uci set "firewall.@redirect[-1].managed=$MANAGED_TAG"
   # src_dip only needed for hairpin NAT (LAN), not for WAN
   if [ -n "$src_ip" ]; then
     uci set "firewall.@redirect[-1].src_dip=$src_ip"

@@ -1,0 +1,21 @@
+{
+  "name": "Write nginx reload hook",
+  "description": "Writes /etc/lxc-oci-deployer/reload_certificates so the acme-renew loop can trigger 'nginx -s reload' after installing or renewing a certificate. Skipped when addon-acme is not enabled (no acme_san).",
+  "execute_on": "ve",
+  "skip_if_all_missing": ["acme_san"],
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Write reload_certificates",
+      "script": "conf-write-reload-hook.sh"
+    }
+  ]
+}

@@ -11,6 +11,13 @@
       "description": "Container hostname"
     },
     {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "string",
+      "default": "",
+      "description": "Proxmox VMID (used to derive host-mapped uid/gid for bootstrap placeholder cert)"
+    },
+    {
       "id": "ssl_mode",
       "name": "SSL Mode",
       "type": "string",
@@ -58,13 +65,6 @@
       "type": "string",
       "default": "/etc/ssl/addon",
       "description": "Container path where certificates are stored"
-    },
-    {
-      "id": "acme.needs_server_cert",
-      "name": "Needs Server Cert",
-      "type": "string",
-      "default": "true",
-      "description": "Whether to issue server certificate"
     },
     {
       "id": "acme.needs_ca_cert",

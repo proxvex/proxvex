@@ -142,8 +142,19 @@ export class VEWebApp {
         res.json({ ok: true });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        reloadLogger.error("Reload failed", { error: message });
-        res.status(500).json({ ok: false, error: message });
+        // Rich structured details (filename, line, nested errors) for
+        // JsonError / ValidationError. Falls back to name + stack for other
+        // errors so the client always sees *something* actionable.
+        let details: unknown;
+        if (err && typeof (err as any).toJSON === "function") {
+          details = (err as any).toJSON();
+        } else if (err instanceof Error) {
+          details = { name: err.name, message: err.message, stack: err.stack };
+        } else {
+          details = { value: String(err) };
+        }
+        reloadLogger.error("Reload failed", { error: message, details });
+        res.status(500).json({ ok: false, error: message, details });
       }
     });
 

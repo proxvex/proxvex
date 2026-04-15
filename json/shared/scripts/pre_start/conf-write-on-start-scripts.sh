@@ -13,7 +13,7 @@
 # Optional:
 #   - ssl_mode: proxy/native/certs
 #   - CF_TOKEN (from cloudflare stack), acme_san, acme_email, acme.cert_dir
-#   - acme.needs_server_cert, acme.needs_ca_cert
+#   - acme.needs_ca_cert
 #   - http_port, https_port
 #   - alpine_mirror, debian_mirror
 #   - compose_project
@@ -24,6 +24,7 @@
 set -eu
 
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 SSL_MODE="{{ ssl_mode }}"
 HTTP_PORT="{{ http_port }}"
 HTTPS_PORT="{{ https_port }}"
@@ -31,7 +32,6 @@ CF_API_TOKEN="{{ CF_TOKEN }}"
 ACME_SAN="{{ acme_san }}"
 ACME_EMAIL="{{ acme_email }}"
 CERT_DIR="{{ acme.cert_dir }}"
-NEEDS_SERVER_CERT="{{ acme_needs_server_cert }}"
 NEEDS_CA_CERT="{{ acme_needs_ca_cert }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
@@ -135,6 +135,13 @@ if is_set "$CERT_DIR"; then
     log "       Ensure a 'cloudflare' stack with CF_TOKEN is linked to the application."
     exit 1
   fi
+
+  # Normalize "NOT_DEFINED" template sentinels to empty strings before baking
+  # them into the generated script. Keeps the output file clean and prevents
+  # downstream logic from doing literal-string comparisons.
+  [ "$ACME_EMAIL" = "NOT_DEFINED" ] && ACME_EMAIL=""
+  [ "$ACME_STAGING" = "NOT_DEFINED" ] && ACME_STAGING=""
+
   ACME_SCRIPT="${VOLUME_DIR}/on_start.d/acme-renew.sh"
 
   # Part 1: Header with baked-in values
@@ -149,7 +156,6 @@ ACME_SAN="$ACME_SAN"
 ACME_EMAIL="$ACME_EMAIL"
 ACME_STAGING="$ACME_STAGING"
 CERT_DIR="$CERT_DIR"
-NEEDS_SERVER_CERT="$NEEDS_SERVER_CERT"
 NEEDS_CA_CERT="$NEEDS_CA_CERT"
 ALPINE_MIRROR="$ALPINE_MIRROR"
 DEBIAN_MIRROR="$DEBIAN_MIRROR"
@@ -167,6 +173,10 @@ export HOME="/root"
 ACME_HOME="/root/.acme.sh"
 RELOAD_SCRIPT="/etc/lxc-oci-deployer/reload_certificates"
 
+# Normalize "NOT_DEFINED" sentinels from the template engine to empty strings.
+[ "$ACME_EMAIL" = "NOT_DEFINED" ] && ACME_EMAIL=""
+[ "$ACME_STAGING" = "NOT_DEFINED" ] && ACME_STAGING=""
+
 # --- Check if renewal loop already running ---
 if pgrep -f "acme-renew-loop" >/dev/null 2>&1; then
   echo "ACME renewal loop already running" >&2
@@ -175,7 +185,9 @@ fi
 
 # --- Parse SAN: extract primary domain and build -d flags ---
 PRIMARY_DOMAIN=$(echo "$ACME_SAN" | cut -d',' -f1)
-ACME_ISSUE_ARGS="--dns dns_cf"
+# Force Let's Encrypt — acme.sh defaults to ZeroSSL which requires EAB and
+# fails silently without it. Overridden below if staging is requested.
+ACME_ISSUE_ARGS="--dns dns_cf --server letsencrypt"
 IFS=','
 for d in $ACME_SAN; do
   d=$(echo "$d" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -185,7 +197,8 @@ unset IFS
 
 # --- Use staging server if requested ---
 if [ "$ACME_STAGING" = "true" ]; then
-  ACME_ISSUE_ARGS="$ACME_ISSUE_ARGS --server letsencrypt_test"
+  # Replace --server letsencrypt with --server letsencrypt_test
+  ACME_ISSUE_ARGS=$(echo "$ACME_ISSUE_ARGS" | sed 's/--server letsencrypt/--server letsencrypt_test/')
   echo "Using Let's Encrypt STAGING server (no rate limits)" >&2
 fi
 
@@ -270,20 +283,10 @@ fi
 acme_issue_or_renew() {
   export CF_Token="$CF_API_TOKEN"
 
-  # Build install command args based on needs_server_cert / needs_ca_cert
-  INSTALL_ARGS=""
-  if [ "$NEEDS_SERVER_CERT" = "true" ]; then
-    INSTALL_ARGS="$INSTALL_ARGS --key-file ${CERT_DIR}/privkey.pem"
-    INSTALL_ARGS="$INSTALL_ARGS --cert-file ${CERT_DIR}/cert.pem"
-    INSTALL_ARGS="$INSTALL_ARGS --fullchain-file ${CERT_DIR}/fullchain.pem"
-  fi
+  # Always install server cert (privkey/cert/fullchain). Optionally also the CA chain.
+  INSTALL_ARGS="--key-file ${CERT_DIR}/privkey.pem --cert-file ${CERT_DIR}/cert.pem --fullchain-file ${CERT_DIR}/fullchain.pem"
   if [ "$NEEDS_CA_CERT" = "true" ]; then
     INSTALL_ARGS="$INSTALL_ARGS --ca-file ${CERT_DIR}/chain.pem"
-  fi
-
-  if [ -z "$INSTALL_ARGS" ]; then
-    echo "WARNING: Neither server cert nor CA cert requested, nothing to do" >&2
-    return 0
   fi
 
   # Issue certificate if not yet issued for primary domain
@@ -322,41 +325,41 @@ acme_issue_or_renew() {
 acme_issue_or_renew
 
 # --- Start background renewal loop ---
-(
-  # Tag the process for pgrep detection
-  exec -a acme-renew-loop sh -c '
-    while true; do
-      sleep 86400
-      echo "[acme-renew-loop] Checking certificate renewal..." >&2
-      "'"$ACME_HOME"'/acme.sh" --renew -d "'"$PRIMARY_DOMAIN"'" >&2 || true
-
-      # Reinstall cert files
-      INSTALL_ARGS=""
-      if [ "'"$NEEDS_SERVER_CERT"'" = "true" ]; then
-        INSTALL_ARGS="$INSTALL_ARGS --key-file '"${CERT_DIR}"'/privkey.pem"
-        INSTALL_ARGS="$INSTALL_ARGS --cert-file '"${CERT_DIR}"'/cert.pem"
-        INSTALL_ARGS="$INSTALL_ARGS --fullchain-file '"${CERT_DIR}"'/fullchain.pem"
-      fi
-      if [ "'"$NEEDS_CA_CERT"'" = "true" ]; then
-        INSTALL_ARGS="$INSTALL_ARGS --ca-file '"${CERT_DIR}"'/chain.pem"
-      fi
-      if [ -n "$INSTALL_ARGS" ]; then
-        "'"$ACME_HOME"'/acme.sh" --install-cert -d "'"$PRIMARY_DOMAIN"'" $INSTALL_ARGS >&2 || true
-      fi
-
-      # Set ownership
-      if [ "'"$APP_UID"'" != "0" ] || [ "'"$APP_GID"'" != "0" ]; then
-        chown -R "'"${APP_UID}:${APP_GID}"'" "'"$CERT_DIR"'" 2>/dev/null || true
-      fi
-
-      # Trigger reload hook if present
-      if [ -x "'"$RELOAD_SCRIPT"'" ]; then
-        echo "[acme-renew-loop] Running reload_certificates hook..." >&2
-        "'"$RELOAD_SCRIPT"'" >&2 || true
-      fi
-    done
-  '
-) &
+# Write the loop body to a small script with "acme-renew-loop" in its path so
+# both `ps` and `pgrep -f acme-renew-loop` can identify it. `exec -a NAME` is
+# a bash extension not available in Alpine's `ash`, and a subshell's inner
+# comments are not visible in the process command line — hence this approach.
+RENEW_LOOP_SCRIPT="/tmp/acme-renew-loop.sh"
+cat > "$RENEW_LOOP_SCRIPT" <<RENEW_EOF
+#!/bin/sh
+# acme-renew-loop
+ACME_HOME="$ACME_HOME"
+PRIMARY_DOMAIN="$PRIMARY_DOMAIN"
+CERT_DIR="$CERT_DIR"
+NEEDS_CA_CERT="$NEEDS_CA_CERT"
+APP_UID="$APP_UID"
+APP_GID="$APP_GID"
+RELOAD_SCRIPT="$RELOAD_SCRIPT"
+while true; do
+  sleep 86400
+  echo "[acme-renew-loop] Checking certificate renewal..." >&2
+  "\$ACME_HOME/acme.sh" --renew -d "\$PRIMARY_DOMAIN" >&2 || true
+  INSTALL_ARGS="--key-file \${CERT_DIR}/privkey.pem --cert-file \${CERT_DIR}/cert.pem --fullchain-file \${CERT_DIR}/fullchain.pem"
+  if [ "\$NEEDS_CA_CERT" = "true" ]; then
+    INSTALL_ARGS="\$INSTALL_ARGS --ca-file \${CERT_DIR}/chain.pem"
+  fi
+  "\$ACME_HOME/acme.sh" --install-cert -d "\$PRIMARY_DOMAIN" \$INSTALL_ARGS >&2 || true
+  if [ "\$APP_UID" != "0" ] || [ "\$APP_GID" != "0" ]; then
+    chown -R "\${APP_UID}:\${APP_GID}" "\$CERT_DIR" 2>/dev/null || true
+  fi
+  if [ -x "\$RELOAD_SCRIPT" ]; then
+    echo "[acme-renew-loop] Running reload_certificates hook..." >&2
+    "\$RELOAD_SCRIPT" >&2 || true
+  fi
+done
+RENEW_EOF
+chmod 755 "$RENEW_LOOP_SCRIPT"
+"$RENEW_LOOP_SCRIPT" &
 
 echo "ACME renewal loop started in background (PID: $!)" >&2
 ACMEEOF
@@ -365,6 +368,45 @@ ACMEEOF
   chown "$VOL_OWNER" "$ACME_SCRIPT" 2>/dev/null || true
   log "Wrote ACME renewal script: ${ACME_SCRIPT}"
   SCRIPTS_WRITTEN=$((SCRIPTS_WRITTEN + 1))
+
+  # Bootstrap placeholder certificate. Lets the app (e.g. nginx with
+  # listen ... ssl) start successfully before acme-renew.sh has issued
+  # the real LE cert via the on_start hook. Only written if no cert is
+  # present yet, so genuine certs from previous runs are never overwritten.
+  CERT_DIR_HOST=$(resolve_host_volume "$SAFE_HOST" "certs" 2>/dev/null || echo "")
+  if [ -n "$CERT_DIR_HOST" ] && [ -d "$CERT_DIR_HOST" ] && [ ! -f "$CERT_DIR_HOST/privkey.pem" ]; then
+    log "Writing bootstrap placeholder certificate to $CERT_DIR_HOST"
+    if openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+         -subj "/CN=bootstrap-placeholder" \
+         -keyout "$CERT_DIR_HOST/privkey.pem" \
+         -out    "$CERT_DIR_HOST/cert.pem" 2>/dev/null; then
+      cp "$CERT_DIR_HOST/cert.pem" "$CERT_DIR_HOST/fullchain.pem"
+      # Map ownership to the in-container app user so the rootless app can
+      # read privkey.pem. For unprivileged containers, add the 100000 offset
+      # to lxc.init.uid (host-side kernel mapping).
+      PH_UID=0
+      PH_GID=0
+      if [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
+        PCT_CFG=$(pct config "$VM_ID" 2>/dev/null || true)
+        INIT_UID=$(echo "$PCT_CFG" | awk '/^lxc\.init\.uid:/{print $2}' | head -1)
+        INIT_GID=$(echo "$PCT_CFG" | awk '/^lxc\.init\.gid:/{print $2}' | head -1)
+        if echo "$PCT_CFG" | grep -qE '^unprivileged:[[:space:]]*1'; then
+          [ -n "$INIT_UID" ] && PH_UID=$((100000 + INIT_UID))
+          [ -n "$INIT_GID" ] && PH_GID=$((100000 + INIT_GID))
+        else
+          [ -n "$INIT_UID" ] && PH_UID="$INIT_UID"
+          [ -n "$INIT_GID" ] && PH_GID="$INIT_GID"
+        fi
+      fi
+      chown "${PH_UID}:${PH_GID}" \
+        "$CERT_DIR_HOST/privkey.pem" \
+        "$CERT_DIR_HOST/cert.pem" \
+        "$CERT_DIR_HOST/fullchain.pem" 2>/dev/null || true
+      log "Placeholder cert chowned to ${PH_UID}:${PH_GID}"
+    else
+      log "Warning: openssl failed to generate placeholder certificate"
+    fi
+  fi
 fi
 
 # --- 3. Write ssl-proxy.sh (if proxy mode) ---

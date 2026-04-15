@@ -191,11 +191,10 @@ export class PersistenceManager {
     repositories?: IRepositories,
     hubPath?: string,
   ): PersistenceManager {
-    if (PersistenceManager.instance) {
-      // Close existing instance (useful for tests)
-      PersistenceManager.instance.close();
-    }
-    PersistenceManager.instance = new PersistenceManager(
+    // Build the new instance first. If construction throws (e.g. invalid
+    // JSON picked up by a reload), keep the existing instance alive so the
+    // server stays functional and a subsequent reload can recover.
+    const next = new PersistenceManager(
       localPath,
       storageContextFilePath,
       secretFilePath,
@@ -205,7 +204,12 @@ export class PersistenceManager {
       repositories,
       hubPath,
     );
-    return PersistenceManager.instance;
+    const previous = PersistenceManager.instance;
+    PersistenceManager.instance = next;
+    if (previous) {
+      previous.close();
+    }
+    return next;
   }
 
   /**
@@ -626,6 +630,11 @@ export class PersistenceManager {
     if (this.persistence && "close" in this.persistence) {
       this.persistence.close();
     }
-    PersistenceManager.instance = undefined;
+    // Only clear the singleton slot if it still points to this instance.
+    // During reload() we construct a replacement before closing the old one,
+    // so the slot may already hold the new instance — don't wipe it.
+    if (PersistenceManager.instance === this) {
+      PersistenceManager.instance = undefined;
+    }
   }
 }

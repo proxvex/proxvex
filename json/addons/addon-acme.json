@@ -39,14 +39,6 @@
       "description": "The HTTPS port to listen on."
     },
     {
-      "id": "acme_needs_server_cert",
-      "name": "Server Certificate",
-      "type": "boolean",
-      "default": true,
-      "advanced": true,
-      "description": "Install server certificate files (privkey.pem, cert.pem, fullchain.pem)."
-    },
-    {
       "id": "acme_needs_ca_cert",
       "name": "CA Certificate",
       "type": "boolean",

@@ -62,7 +62,15 @@
       "Bash(bash production/setup-production.sh)",
       "Bash(bash production/setup-production.sh --help)",
       "Bash(bash production/setup-production.sh --bogus)",
-      "Bash(bash production/setup-production.sh --retry 7)"
+      "Bash(bash production/setup-production.sh --retry 7)",
+      "Bash(bash -n production/destroy.sh)",
+      "Bash(bash production/setup-production.sh --bootstrap --step 5)",
+      "Bash(bash -n ../production/setup-nginx.sh)",
+      "Bash(bash -n /Users/volkmar/oci-lxc-deployer-green/production/setup-nginx.sh)",
+      "Bash(sh -n /Users/volkmar/oci-lxc-deployer-green/json/applications/nginx/scripts/pre_start/conf-write-reload-hook.sh)",
+      "Bash(bash -n /Users/volkmar/oci-lxc-deployer-green/production/setup-production.sh)",
+      "Bash(find /Users/volkmar/oci-lxc-deployer-green/json -name '.DS_Store' -delete)",
+      "Bash(find /Users/volkmar/oci-lxc-deployer-green/json -name '._*' -delete)"
     ]
   },
   "hooks": {
