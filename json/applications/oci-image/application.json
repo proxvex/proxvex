@@ -5,6 +5,7 @@
   "supported_addons": ["addon-ssl", "addon-acme", "samba-shares"],
   "installation": {
     "image": [
+      "005-host-trust-deployer-ca.json",
       "011-host-get-oci-image.json"
     ],
     "create_ct": [
@@ -28,6 +29,7 @@
   },
   "upgrade": {
     "image": [
+      "005-host-trust-deployer-ca.json",
       "011-host-get-oci-image.json"
     ],
     "create_ct": [

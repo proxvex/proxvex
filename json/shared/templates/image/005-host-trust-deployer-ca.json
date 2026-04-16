@@ -1,0 +1,28 @@
+{
+  "execute_on": "ve",
+  "name": "Trust Deployer CA",
+  "description": "Installs the deployer's CA certificate in the VE host's system trust store so that skopeo and other TLS clients trust certificates signed by the deployer CA (e.g. registry mirror).",
+  "parameters": [
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer URL",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: deployer base URL for CA certificate download"
+    },
+    {
+      "id": "ve_context_key",
+      "name": "VE Context",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: VE context identifier"
+    }
+  ],
+  "commands": [
+    {
+      "name": "Trust Deployer CA",
+      "script": "host-trust-deployer-ca.sh",
+      "outputs": ["ca_trusted"]
+    }
+  ]
+}

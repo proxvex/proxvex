@@ -83,6 +83,26 @@ $SSH_CMD '
     done
   fi
 
+  echo "=== Destroying ZFS subvolumes in rpool/data ==="
+  for ds in $(zfs list -H -o name -r rpool/data | tail -n +2 | sort -r); do
+    # Skip the pool dataset itself
+    [ "$ds" = "rpool/data" ] && continue
+    echo "  Destroying $ds"
+    zfs destroy -f "$ds" 2>/dev/null || echo "  WARNING: zfs destroy $ds failed"
+  done
+  echo "  Remaining datasets:"
+  zfs list -H -o name -r rpool/data 2>/dev/null || true
+
+  echo "=== Removing deployer CA from system trust store ==="
+  rm -f /usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt 2>/dev/null || true
+  rm -f /usr/share/ca-certificates/oci-lxc-deployer-ca.crt 2>/dev/null || true
+  sed -i "/oci-lxc-deployer-ca.crt/d" /etc/ca-certificates.conf 2>/dev/null || true
+  update-ca-certificates >/dev/null 2>&1 || true
+  echo "  CA certificate removed from trust store"
+
+  echo "=== Removing registry mirror /etc/hosts entries ==="
+  sed -i "/oci-lxc-deployer: registry mirror/d" /etc/hosts 2>/dev/null || true
+
   echo "=== Wiping /var/log/lxc ==="
   rm -rf /var/log/lxc/* 2>/dev/null || true
   ls -la /var/log/lxc 2>/dev/null || true
