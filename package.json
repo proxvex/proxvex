@@ -1,6 +1,6 @@
 {
   "name": "oci-lxc-deployer",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Packaged web UI and backend for OCI LXC Deployer",
   "type": "module",
   "draft": true,
