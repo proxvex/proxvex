@@ -370,15 +370,15 @@ chmod -R g+rw /rpool/volumes/<app>/shared-data
 121-conf-mount-zfs-pool-on-host.json
     ├── Determines: host_mountpoint (e.g., /rpool)
     ↓
-160-conf-bind-multiple-volumes-to-lxc.json
-    ├── Creates bind mounts on PVE host
+150-conf-create-storage-volumes-for-lxc.json
+    ├── Creates managed Proxmox subvolumes on PVE host
     ├── Calculates mapped_uid = 100000 + uid
     └── Sets chown $mapped_uid:$mapped_gid
 ```
 
 ### Relevant Files
 
-- `conf-bind-multiple-volumes-to-lxc.sh`: Creates bind mounts with correct ownership
+- `conf-create-storage-volumes-for-lxc.sh`: Creates managed volumes with correct ownership
 - `host-extract-volumes-from-compose.py`: Extracts volumes and UID from docker-compose
 - `post-upload-docker-compose-files.sh`: Uploads compose files, sets LXC-internal permissions
 

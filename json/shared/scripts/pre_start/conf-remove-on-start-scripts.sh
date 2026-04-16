@@ -14,11 +14,7 @@ HOSTNAME="{{ hostname }}"
 
 log() { echo "$@" >&2; }
 
-sanitize_name() {
-  echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
-}
-
-SAFE_HOST=$(sanitize_name "$HOSTNAME")
+SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
 VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "oci-deployer")
 
 if [ ! -d "$VOLUME_DIR" ]; then

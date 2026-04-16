@@ -144,6 +144,32 @@ CLEANUP_SCRIPT="
   pct reboot $NEW_VMID 2>&1 || echo 'Warning: pct reboot $NEW_VMID failed'
   sleep 3
   if [ \"\$(pct status $NEW_VMID 2>/dev/null | awk '{print \$2}')\" = 'running' ]; then
+    # Unlink all managed volumes before destroy and rename to clean names.
+    # This preserves data volumes across container lifecycles.
+    for _mpkey in \$(pct config $PREVIOUS_VMID 2>/dev/null | grep -aE '^mp[0-9]+:' | cut -d: -f1); do
+      _mpsrc=\$(pct config $PREVIOUS_VMID 2>/dev/null | grep \"^\${_mpkey}:\" | sed -E 's/^mp[0-9]+: ([^,]+),.*/\1/')
+      case \"\$_mpsrc\" in /*) continue ;; esac
+      _stor=\"\${_mpsrc%%:*}\"
+      _vname=\"\${_mpsrc#*:}\"
+      pct set $PREVIOUS_VMID -delete \$_mpkey 2>&1 || true
+      echo \"Unlinked volume \$_mpkey (\$_mpsrc) from container $PREVIOUS_VMID\"
+      # Rename to clean name (strip subvol-{VMID}- prefix)
+      _clean=\"\"
+      case \"\$_vname\" in
+        subvol-${PREVIOUS_VMID}-*) _clean=\"\${_vname#subvol-${PREVIOUS_VMID}-}\" ;;
+        vm-${PREVIOUS_VMID}-*)     _clean=\"\${_vname#vm-${PREVIOUS_VMID}-}\" ;;
+      esac
+      if [ -n \"\$_clean\" ]; then
+        _stype=\$(pvesm status -storage \"\$_stor\" 2>/dev/null | awk 'NR==2 {print \$2}')
+        if [ \"\$_stype\" = \"zfspool\" ]; then
+          _pool=\$(awk -v s=\"\$_stor\" '\$1==\"zfspool:\" && \$2==s {b=1} b && \$1==\"pool\" {print \$2;exit}' /etc/pve/storage.cfg 2>/dev/null)
+          [ -n \"\$_pool\" ] && zfs rename \"\${_pool}/\${_vname}\" \"\${_pool}/\${_clean}\" 2>/dev/null && echo \"Renamed volume to clean name: \$_clean\"
+        elif [ \"\$_stype\" = \"lvmthin\" ] || [ \"\$_stype\" = \"lvm\" ]; then
+          _vg=\$(awk -v s=\"\$_stor\" '(\$1==\"lvmthin:\" || \$1==\"lvm:\") && \$2==s {b=1} b && \$1==\"vgname\" {print \$2;exit}' /etc/pve/storage.cfg 2>/dev/null)
+          [ -n \"\$_vg\" ] && lvrename \"\$_vg\" \"\$_vname\" \"\$_clean\" 2>/dev/null && echo \"Renamed volume to clean name: \$_clean\"
+        fi
+      fi
+    done
     pct destroy $PREVIOUS_VMID --purge 2>&1 || echo 'Warning: pct destroy $PREVIOUS_VMID failed'
     echo 'Destroyed previous container $PREVIOUS_VMID'
   else

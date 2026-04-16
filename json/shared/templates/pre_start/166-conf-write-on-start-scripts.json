@@ -119,6 +119,7 @@
   "commands": [
     {
       "script": "conf-write-on-start-scripts.sh",
+      "library": "pve-common.sh",
       "description": "Write dispatcher and on_start.d scripts to host-side volume"
     }
   ]

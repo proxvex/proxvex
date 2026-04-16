@@ -77,7 +77,7 @@ fi
 echo "cert-gen: effective_uid=$EFFECTIVE_UID effective_gid=$EFFECTIVE_GID" >&2
 
 # Sanitize hostname for directory name
-SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
 
 # Cert directory: override or <shared_volpath>/volumes/<hostname>/certs/
 if [ -n "$CERT_DIR_OVERRIDE" ] && [ "$CERT_DIR_OVERRIDE" != "NOT_DEFINED" ]; then

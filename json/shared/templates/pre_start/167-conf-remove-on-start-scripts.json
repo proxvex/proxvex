@@ -14,6 +14,7 @@
   "commands": [
     {
       "script": "conf-remove-on-start-scripts.sh",
+      "library": "pve-common.sh",
       "description": "Remove ssl-proxy.sh, acme-renew.sh, and compose overlay from on_start.d"
     }
   ]

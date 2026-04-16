@@ -341,7 +341,7 @@ export class WebAppVeAddonCommandBuilder {
     if (preStartCommands.length > 0) {
       // Addon property commands (e.g. addon_volumes from SSL addon) must be
       // injected at the beginning of the pipeline so their values are available
-      // to application templates like 160-conf-bind-multiple-volumes-to-lxc.
+      // to application templates like 150-conf-create-storage-volumes-for-lxc.
       // Script commands are inserted at the normal pre_start position (before Start LXC).
       const propertyCommands = preStartCommands.filter(
         (cmd) => cmd.properties && !cmd.script && !cmd.scriptContent,

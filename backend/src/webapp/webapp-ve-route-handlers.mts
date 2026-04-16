@@ -518,6 +518,10 @@ export class WebAppVeRouteHandlers {
       // Extract OCI image tag from application properties (e.g., "postgres:16-alpine" → "16-alpine")
       // During fresh install, this is overwritten by the image download script output.
       // During reconfigure, image scripts don't run, so this default is used for notes.
+      // Docker-compose apps have no single oci_image property — leave empty so
+      // the notes writer doesn't fall back to the deployer version. The post-
+      // start script `post-update-version-from-docker.py` fills in the real
+      // multi-service version after docker pull.
       const ociImageProp = loaded.application?.properties?.find(
         (p: { id: string }) => p.id === "oci_image",
       );
@@ -525,7 +529,7 @@ export class WebAppVeRouteHandlers {
       const ociImageTag = ociImageValue.includes(":")
         ? ociImageValue.split(":").pop() ?? ""
         : ociImageValue;
-      defaults.set("oci_image_tag", ociImageTag || buildInfo.version);
+      defaults.set("oci_image_tag", ociImageTag);
 
       // Icon data for embedding in notes (Data URL avoids mixed content issues)
       // Always use readApplicationIcon() which normalizes SVG size for notes display

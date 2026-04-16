@@ -114,8 +114,51 @@ def format_version_string(service_versions: list[tuple[str, str]]) -> str:
     return ", ".join(f"{svc}:{ver}" for svc, ver in service_versions)
 
 
+def apply_version_to_conf_text(
+    conf_text: str,
+    old_version: str,
+    new_version: str,
+    app_name: str,
+) -> tuple[str, bool]:
+    """Pure function: apply a version update to a /etc/pve/lxc/<id>.conf text.
+
+    Returns (new_text, changed). Does no I/O so it is trivially unit-testable.
+    - Updates the hidden `<!-- oci-lxc-deployer:version ... -->` marker (URL-encoded).
+    - Updates the visible Markdown header `# AppName (version)` (plain text).
+
+    PVE stores description lines with only SOME characters URL-encoded
+    (notably ':', ',', whitespace inside quoted values). '#', '(', ')' and
+    plain words stay literal — the header regex therefore works in plain text,
+    not in %23/%28/%29 form.
+    """
+    changed = False
+    original = conf_text
+
+    encoded_old = "oci-lxc-deployer%%3Aversion %s" % quote(old_version or "", safe="")
+    encoded_new = "oci-lxc-deployer%%3Aversion %s" % quote(new_version, safe="")
+
+    if encoded_old in conf_text:
+        conf_text = conf_text.replace(encoded_old, encoded_new)
+    elif "oci-lxc-deployer%3Aversion" in conf_text:
+        conf_text = re.sub(
+            r"oci-lxc-deployer%3Aversion\s+[^\s<]+",
+            "oci-lxc-deployer%%3Aversion %s" % quote(new_version, safe=""),
+            conf_text,
+        )
+
+    if app_name:
+        header_pattern = (
+            r"^#\s*#\s+" + re.escape(app_name) + r"(?:\s*\([^)\n]*\))?\s*$"
+        )
+        header_new = "## %s (%s)" % (app_name, new_version)
+        conf_text = re.sub(header_pattern, header_new, conf_text, flags=re.MULTILINE)
+
+    changed = conf_text != original
+    return conf_text, changed
+
+
 def update_notes_version(vmid: str, version: str) -> None:
-    """Update the version marker in LXC notes."""
+    """I/O wrapper: read /etc/pve/lxc/<vmid>.conf, update it, write back."""
     conf_path = Path(f"/etc/pve/lxc/{vmid}.conf")
     if not conf_path.exists():
         return
@@ -127,32 +170,16 @@ def update_notes_version(vmid: str, version: str) -> None:
         print(f"Version already up to date: {version}", file=sys.stderr)
         return
 
-    # Replace version in the URL-encoded description
-    encoded_old = "oci-lxc-deployer%%3Aversion %s" % quote(config.version or "", safe="")
-    encoded_new = "oci-lxc-deployer%%3Aversion %s" % quote(version, safe="")
-
-    if encoded_old in conf_text:
-        conf_text = conf_text.replace(encoded_old, encoded_new)
-    elif "oci-lxc-deployer%3Aversion" in conf_text:
-        # Fallback: regex replace
-        conf_text = re.sub(
-            r"oci-lxc-deployer%3Aversion\s+[^\s<]+",
-            "oci-lxc-deployer%%3Aversion %s" % quote(version, safe=""),
-            conf_text,
-        )
-
-    # Also update the visible header: "# AppName (version)" or "# AppName"
-    # In PVE config, description is URL-encoded: %23=#, %28=(, %29=)
     app_name = config.application_name or config.application_id or ""
-    if app_name:
-        encoded_version = quote(version, safe="")
-        encoded_name = quote(app_name, safe="")
-        # Match: %23 AppName (%28old_version%29) — with optional version part
-        header_pattern = r"%23\s+" + re.escape(encoded_name) + r"(?:\s+%28[^%]*(?:%[0-9A-Fa-f]{2}[^%]*)*%29)?"
-        header_new = "%%23 %s %%28%s%%29" % (encoded_name, encoded_version)
-        conf_text = re.sub(header_pattern, header_new, conf_text)
+    new_text, changed = apply_version_to_conf_text(
+        conf_text, config.version or "", version, app_name
+    )
 
-    conf_path.write_text(conf_text, encoding="utf-8")
+    if not changed:
+        print(f"Version marker not found in notes for {vmid}", file=sys.stderr)
+        return
+
+    conf_path.write_text(new_text, encoding="utf-8")
     print(f"Updated version in LXC notes: {version}", file=sys.stderr)
 
 

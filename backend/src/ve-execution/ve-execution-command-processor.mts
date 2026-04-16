@@ -6,6 +6,14 @@ import { VeExecutionMessageEmitter } from "./ve-execution-message-emitter.mjs";
 export interface CommandProcessorDependencies {
   outputs: Map<string, string | number | boolean>;
   inputs: Record<string, string | number | boolean>;
+  /**
+   * Defaults map — auto-injected values like deployer_base_url,
+   * application_id, ve_context_key. Exposed on deps so the debug-dump hook
+   * can show exactly what the variable resolver sees. Optional to keep
+   * existing tests/instantiations working; debug dump falls back to an empty
+   * map when not provided.
+   */
+  defaults?: Map<string, string | number | boolean>;
   variableResolver: VariableResolver;
   messageEmitter: VeExecutionMessageEmitter;
   runOnLxc: (
@@ -44,6 +52,65 @@ export interface CommandProcessorDependencies {
  */
 export class VeExecutionCommandProcessor {
   constructor(private deps: CommandProcessorDependencies) {}
+
+  /**
+   * Debug-dump the command's inputs/defaults (before) or outputs (after) if
+   * the user enabled it via the `ve_debug_commands` parameter. Matching is
+   * case-insensitive substring against `cmd.name`; the entry `*` matches
+   * everything. Leave the parameter empty to disable.
+   *
+   * Configured via an advanced input field (declared in
+   * 100-conf-create-configure-lxc.json), so it can be flipped on per-deploy
+   * from the UI/CLI/params file without code changes. Kept deliberately
+   * lenient — never throws, swallows any error.
+   *
+   * Examples:
+   *   "ve_debug_commands": "Write Docker Compose Notes"
+   *   "ve_debug_commands": "notes,acme"
+   *   "ve_debug_commands": "*"
+   */
+  private debugDumpContext(
+    cmd: ICommand,
+    phase: "before" | "after",
+  ): void {
+    const defaults = this.deps.defaults ?? new Map();
+    const raw =
+      (this.deps.inputs["ve_debug_commands"] as string | undefined) ??
+      (defaults.get("ve_debug_commands") as string | undefined) ??
+      "";
+    if (!raw || typeof raw !== "string") return;
+
+    const filters = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (filters.length === 0) return;
+
+    const cmdName = (cmd.name ?? "").toLowerCase();
+    const match =
+      filters.includes("*") ||
+      filters.some((f) => cmdName.includes(f.toLowerCase()));
+    if (!match) return;
+
+    try {
+      const payload: Record<string, unknown> = {
+        command: cmd.name ?? "",
+        phase,
+      };
+      if (phase === "before") {
+        payload.inputs = { ...this.deps.inputs };
+        payload.defaults = Object.fromEntries(defaults);
+      } else {
+        payload.outputs = Object.fromEntries(this.deps.outputs);
+      }
+      const serialized = JSON.stringify(payload, null, 2);
+      process.stderr.write(
+        `[VE_DEBUG ${phase}] ${cmd.name ?? ""}\n${serialized}\n`,
+      );
+    } catch {
+      /* debug-only; never break execution */
+    }
+  }
 
   /**
    * Handles a skipped command by emitting a message.
@@ -331,6 +398,9 @@ export class VeExecutionCommandProcessor {
       throw new Error(cmd.name + " is missing the execute_on property");
     }
 
+    // Debug-dump inputs + defaults before execution (gated by ve_debug_commands).
+    this.debugDumpContext(cmd, "before");
+
     // Normalize execute_on: extract target string and optional uid/gid flags
     let target: string;
     let useUid = false;
@@ -357,43 +427,49 @@ export class VeExecutionCommandProcessor {
       }
     }
 
-    switch (target) {
-      case "lxc": {
-        const execStrLxc = this.deps.variableResolver.replaceVars(rawStr);
-        const vm_id = this.getVmId();
-        if (!vm_id) {
-          const msg =
-            "vm_id is required for LXC execution but was not found in inputs or outputs.";
-          this.deps.messageEmitter.emitStandardMessage(cmd, msg, null, -1, -1);
-          throw new Error(msg);
-        }
-        await this.deps.runOnLxc(vm_id, execStrLxc, cmd, execUid, execGid);
-        return undefined;
-      }
-      case "ve": {
-        const execStrVe = this.deps.variableResolver.replaceVars(rawStr);
-        return await this.deps.runOnVeHost(execStrVe, cmd);
-      }
-      default: {
-        if (/^host:.*/.test(target)) {
-          const hostname = target.split(":")[1] ?? "";
-          await this.deps.executeOnHost(hostname, rawStr, cmd);
-          return undefined;
-        } else if (/^application:.*/.test(target)) {
-          const appId = target.slice("application:".length).trim();
-          if (!this.deps.resolveApplicationToVmId) {
-            throw new Error("resolveApplicationToVmId is not configured");
+    try {
+      switch (target) {
+        case "lxc": {
+          const execStrLxc = this.deps.variableResolver.replaceVars(rawStr);
+          const vm_id = this.getVmId();
+          if (!vm_id) {
+            const msg =
+              "vm_id is required for LXC execution but was not found in inputs or outputs.";
+            this.deps.messageEmitter.emitStandardMessage(cmd, msg, null, -1, -1);
+            throw new Error(msg);
           }
-          const vm_id = await this.deps.resolveApplicationToVmId(appId);
-          const execStr = this.deps.variableResolver.replaceVars(rawStr);
-          await this.deps.runOnLxc(vm_id, execStr, cmd, execUid, execGid);
+          await this.deps.runOnLxc(vm_id, execStrLxc, cmd, execUid, execGid);
           return undefined;
-        } else {
-          throw new Error(
-            cmd.name + " has invalid execute_on: " + target,
-          );
+        }
+        case "ve": {
+          const execStrVe = this.deps.variableResolver.replaceVars(rawStr);
+          return await this.deps.runOnVeHost(execStrVe, cmd);
+        }
+        default: {
+          if (/^host:.*/.test(target)) {
+            const hostname = target.split(":")[1] ?? "";
+            await this.deps.executeOnHost(hostname, rawStr, cmd);
+            return undefined;
+          } else if (/^application:.*/.test(target)) {
+            const appId = target.slice("application:".length).trim();
+            if (!this.deps.resolveApplicationToVmId) {
+              throw new Error("resolveApplicationToVmId is not configured");
+            }
+            const vm_id = await this.deps.resolveApplicationToVmId(appId);
+            const execStr = this.deps.variableResolver.replaceVars(rawStr);
+            await this.deps.runOnLxc(vm_id, execStr, cmd, execUid, execGid);
+            return undefined;
+          } else {
+            throw new Error(
+              cmd.name + " has invalid execute_on: " + target,
+            );
+          }
         }
       }
+    } finally {
+      // Debug-dump outputs after execution (gated by ve_debug_commands).
+      // Runs even on error so we see the state at failure point.
+      this.debugDumpContext(cmd, "after");
     }
   }
 

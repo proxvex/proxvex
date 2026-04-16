@@ -36,9 +36,10 @@
       "id": "volume_storage",
       "name": "Volume Storage",
       "type": "enum",
-      "required": true,
+      "required": false,
+      "default": "",
       "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage ID for data volumes"
+      "description": "Proxmox storage ID for data volumes. Auto-detected from rootfs if not set."
     },
     {
       "id": "volume_size",
@@ -98,6 +99,7 @@
     {
       "name": "Create Storage Volumes",
       "script": "conf-create-storage-volumes-for-lxc.sh",
+      "library": ["pve-common.sh", "vol-common.sh"],
       "outputs": [
         "volumes_attached",
         "cert_dir_override"

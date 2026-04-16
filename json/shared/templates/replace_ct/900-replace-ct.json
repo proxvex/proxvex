@@ -53,6 +53,7 @@
     {
       "name": "Replace Container",
       "script": "replace-ct.sh",
+      "library": ["pve-common.sh", "vol-common.sh"],
       "outputs": ["redirect_url"]
     }
   ]

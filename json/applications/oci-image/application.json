@@ -15,7 +15,7 @@
     ],
     "pre_start": [
       "107-conf-oci-lxc-configuration.json",
-      "160-conf-bind-multiple-volumes-to-lxc.json"
+      "150-conf-create-storage-volumes-for-lxc.json"
     ],
     "start": [
       "200-start-lxc.json",
@@ -37,7 +37,7 @@
     "pre_start": [
       "101-conf-restore-network-settings.json",
       "107-conf-oci-lxc-configuration.json",
-      "160-conf-bind-multiple-volumes-to-lxc.json"
+      "150-conf-create-storage-volumes-for-lxc.json"
     ],
     "start": [
       "200-start-lxc.json",
@@ -57,7 +57,7 @@
     ],
     "pre_start": [
       "set-reconfigure-defaults.json",
-      "160-conf-bind-multiple-volumes-to-lxc.json",
+      "150-conf-create-storage-volumes-for-lxc.json",
       "185-host-resolve-dependency-hosts.json",
       "190-host-write-lxc-notes.json"
     ],

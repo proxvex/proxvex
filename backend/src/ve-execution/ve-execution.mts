@@ -216,6 +216,7 @@ export class VeExecution extends EventEmitter {
     this.commandProcessor = new VeExecutionCommandProcessor({
       outputs: this.outputs,
       inputs: this.inputs,
+      defaults: this.defaults,
       variableResolver: this.variableResolver,
       messageEmitter: this.messageEmitter,
       runOnLxc: (vm_id, cmd, tmplCmd, timeoutMs?) =>

@@ -20,7 +20,7 @@
 
 VMID="{{ vm_id }}"
 HOOK_PATH="/var/lib/vz/snippets/lxc-oci-deployer-hook.sh"
-NEW_VERSION=18
+NEW_VERSION=19
 
 # The hookscript body (everything below the header)
 HOOK_BODY='
@@ -39,6 +39,21 @@ case $phase in
     systemctl reset-failed "lxc-hook-${vmid}" 2>/dev/null || true
     # Run on_start scripts in background via systemd-run (survives hookscript exit)
     systemd-run --no-block --unit="lxc-hook-${vmid}" sh -c "pct exec ${vmid} -- /etc/lxc-oci-deployer/on_start_container ${APP_UID:-0} ${APP_GID:-0} >>${LOG_FILE:-/dev/null} 2>&1"
+    ;;
+  pre-stop)
+    # Warn about persistent volumes with non-conventional names.
+    # These survive pct destroy only if unlinked first (via oci-lxc-deployer).
+    CONF_FILE="/etc/pve/lxc/${vmid}.conf"
+    HAS_PERSISTENT=0
+    for mpsrc in $(grep -aE "^mp[0-9]+:" "$CONF_FILE" 2>/dev/null | sed -E "s/^mp[0-9]+: ([^,]+),.*/\1/"); do
+      case "$mpsrc" in
+        *subvol-${vmid}-*|*vm-${vmid}-*|/*) ;; # conventional or bind mount
+        *) HAS_PERSISTENT=1 ;;
+      esac
+    done
+    if [ "$HAS_PERSISTENT" -eq 1 ]; then
+      logger -t oci-lxc-deployer "WARNING: Container $vmid has persistent volumes. Use oci-lxc-deployer to destroy."
+    fi
     ;;
 esac
 

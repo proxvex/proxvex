@@ -121,6 +121,14 @@
       "description": "Auto-injected by backend: VE context identifier for API calls."
     },
     {
+      "id": "ve_debug_commands",
+      "name": "VE Debug Commands",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "Comma-separated list of command name substrings to debug-dump during execution. For each matching command the backend emits the current inputs+defaults (before) and outputs (after) to stderr of the deploy log. Use '*' to dump every command. Leave empty to disable. Example: 'Write Docker Compose Notes,acme-renew'"
+    },
+    {
       "id": "arch",
       "name": "Architecture",
       "type": "string",

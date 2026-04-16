@@ -91,6 +91,10 @@ if [ "$source_status" = "running" ]; then
   pct stop "$SOURCE_VMID" >&2 || log "Warning: failed to stop old container $SOURCE_VMID"
 fi
 
+# Unlink all managed volumes and rename to clean names before destroy.
+# This preserves data volumes across container lifecycles.
+vol_unlink_persistent "$SOURCE_VMID"
+
 log "Destroying old container $SOURCE_VMID..."
 pct destroy "$SOURCE_VMID" --force --purge >&2 || log "Warning: failed to destroy old container $SOURCE_VMID"
 

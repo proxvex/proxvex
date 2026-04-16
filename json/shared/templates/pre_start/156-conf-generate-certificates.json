@@ -100,7 +100,7 @@
     {
       "name": "Generate Certificates",
       "script": "conf-generate-certificates.sh",
-      "library": "cert-common.sh",
+      "library": ["pve-common.sh", "cert-common.sh"],
       "outputs": [
         "certs_generated"
       ]
