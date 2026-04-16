@@ -165,9 +165,34 @@ while IFS= read -r line <&3; do
     fi
   else
     log "Reusing existing volume $VOLID (suffix $VOL_SUFFIX)"
-    # If the reused volume has a different VMID or is a clean name,
-    # rename it to match the current VMID (Proxmox requires this format).
     _cur_volname="${VOLID#*:}"
+
+    # Check if the volume is still mounted in another container.
+    # Extract the VMID from the volume name (subvol-{VMID}-... or vm-{VMID}-...).
+    _owner_vmid=""
+    case "$_cur_volname" in
+      subvol-[0-9]*-*) _owner_vmid=$(echo "$_cur_volname" | sed -E 's/^subvol-([0-9]+)-.*/\1/') ;;
+      vm-[0-9]*-*)     _owner_vmid=$(echo "$_cur_volname" | sed -E 's/^vm-([0-9]+)-.*/\1/') ;;
+    esac
+    if [ -n "$_owner_vmid" ] && [ "$_owner_vmid" != "$VMID" ]; then
+      _owner_status=$(pct status "$_owner_vmid" 2>/dev/null | awk '{print $2}' || true)
+      if [ "$_owner_status" = "running" ] || [ "$_owner_status" = "stopped" ]; then
+        log "Volume $VOLID belongs to existing container $_owner_vmid ($_owner_status)"
+        log "Unlinking volume from container $_owner_vmid before reuse..."
+        # Find which mp slot references this volume in the old container
+        _old_mp=$(pct config "$_owner_vmid" 2>/dev/null | grep -aE "^mp[0-9]+: ${VOLID}" | cut -d: -f1 || true)
+        if [ -n "$_old_mp" ]; then
+          if [ "$_owner_status" = "running" ]; then
+            pct stop "$_owner_vmid" >&2 || true
+            log "Stopped container $_owner_vmid"
+          fi
+          pct set "$_owner_vmid" -delete "$_old_mp" >&2 2>/dev/null || true
+          log "Unlinked $_old_mp from container $_owner_vmid"
+        fi
+      fi
+    fi
+
+    # Rename to match current VMID (Proxmox requires subvol-{VMID}-* format).
     if [ "$_cur_volname" != "$VOL_NAME" ]; then
       NEW_VOLID=$(vol_rename "$VOLUME_STORAGE" "$VOLID" "$VOL_NAME" "$STORAGE_TYPE" || true)
       if [ -n "$NEW_VOLID" ]; then
