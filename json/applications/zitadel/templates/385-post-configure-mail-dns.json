@@ -72,7 +72,6 @@
       "name": "Cloudflare API Token",
       "type": "string",
       "required": false,
-      "default": "",
       "description": "Cloudflare API token with Zone:DNS:Edit permission on the mail domain zone. Provided via the cloudflare stack. Required when smtp_own_domain is true."
     }
   ],

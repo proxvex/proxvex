@@ -42,7 +42,6 @@
       "id": "CF_TOKEN",
       "name": "Cloudflare API Token",
       "type": "string",
-      "default": "",
       "description": "Cloudflare API token from stack"
     },
     {

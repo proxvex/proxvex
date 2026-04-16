@@ -15,8 +15,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
-      "107-conf-oci-lxc-configuration.json",
-      "150-conf-create-storage-volumes-for-lxc.json"
+      "107-conf-oci-lxc-configuration.json"
     ],
     "start": [
       "200-start-lxc.json",
@@ -38,8 +37,7 @@
     ],
     "pre_start": [
       "101-conf-restore-network-settings.json",
-      "107-conf-oci-lxc-configuration.json",
-      "150-conf-create-storage-volumes-for-lxc.json"
+      "107-conf-oci-lxc-configuration.json"
     ],
     "start": [
       "200-start-lxc.json",

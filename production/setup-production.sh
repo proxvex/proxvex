@@ -12,8 +12,9 @@
 # Usage: ./production/setup-production.sh --help
 #
 # CF_TOKEN (Cloudflare API token) is only needed by step 6 (ACME + Cloudflare).
+# SMTP_PASSWORD (mail provider password) is only needed by step 6 (OIDC stack).
 # If unset and step 6 is about to run, the script prompts interactively.
-# You can still pass it via env var if you prefer: CF_TOKEN=xxx $0
+# You can still pass them via env var if you prefer: CF_TOKEN=xxx SMTP_PASSWORD=yyy $0
 
 set -e
 
@@ -34,6 +35,7 @@ INSTALLER_URL="${INSTALLER_URL:-https://raw.githubusercontent.com/modbus2mqtt/oc
 
 # Secrets
 CF_TOKEN="${CF_TOKEN:-}"
+SMTP_PASSWORD="${SMTP_PASSWORD:-}"
 
 # --- Step catalog (keep in sync with banner calls below) ---
 print_steps() {
@@ -438,12 +440,37 @@ if should_run 6; then
     fi
   fi
 
-  if [ "$CF_TOKEN" = "__already_stored__" ]; then
-    echo "  Skipping setup-acme.sh (stack already configured)."
-  else
-    CF_TOKEN="$CF_TOKEN" "$SCRIPT_DIR/setup-acme.sh"
+  # SMTP_PASSWORD for the OIDC stack (Zitadel mail notifications)
+  if [ -z "$SMTP_PASSWORD" ]; then
+    if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/stacks?stacktype=oidc" 2>/dev/null \
+         | grep -q 'oidc_production' \
+       || curl -sf --connect-timeout 3 "http://${DEPLOYER_HOST}:3080/api/stacks?stacktype=oidc" 2>/dev/null \
+         | grep -q 'oidc_production'; then
+      echo "  oidc_production stack already exists in deployer — reusing stored secret."
+      SMTP_PASSWORD="__already_stored__"
+    fi
   fi
-  unset CF_TOKEN
+
+  if [ -z "$SMTP_PASSWORD" ]; then
+    echo "  SMTP_PASSWORD not set — prompting now (input hidden)."
+    echo "  Password for the SMTP account (e.g. mailbox.org app password)"
+    printf "  SMTP_PASSWORD: "
+    stty -echo
+    read -r SMTP_PASSWORD
+    stty echo
+    echo ""
+    if [ -z "$SMTP_PASSWORD" ]; then
+      echo "ERROR: empty SMTP_PASSWORD — aborting."
+      exit 1
+    fi
+  fi
+
+  if [ "$CF_TOKEN" = "__already_stored__" ] && [ "$SMTP_PASSWORD" = "__already_stored__" ]; then
+    echo "  Skipping setup-acme.sh (stacks already configured)."
+  else
+    CF_TOKEN="$CF_TOKEN" SMTP_PASSWORD="$SMTP_PASSWORD" "$SCRIPT_DIR/setup-acme.sh"
+  fi
+  unset CF_TOKEN SMTP_PASSWORD
 fi
 
 # ================================================================

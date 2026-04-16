@@ -38,8 +38,11 @@ if [ "$SMTP_OWN_DOMAIN" != "true" ]; then
 fi
 
 if [ -z "$MAIL_DOMAIN" ] || [ -z "$MX_TARGET" ] || [ -z "$CF_TOKEN" ]; then
-  log "ERROR: smtp_own_domain is true but mail_domain, mx_target or CF_TOKEN is empty."
-  log "       Set all three in the app parameters / cloudflare stack."
+  log "ERROR: smtp_own_domain is true but required parameters are empty:"
+  log "  smtp_mail_domain = '${MAIL_DOMAIN}'"
+  log "  smtp_mx_target   = '${MX_TARGET}'"
+  log "  smtp_spf_value   = '${SPF_VALUE}'"
+  log "  CF_TOKEN          = '$([ -n "$CF_TOKEN" ] && echo "set (${#CF_TOKEN} chars)" || echo "empty")'"
   exit 1
 fi
 

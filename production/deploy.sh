@@ -63,8 +63,8 @@ ensure_stack() {
   # Each stacktype has its own stack with ID: {type}_production
   for TYPE in postgres oidc cloudflare; do
     STACK_ID="${TYPE}_production"
-    STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "$SERVER/api/stack/${STACK_ID}" 2>/dev/null || echo "000")
-    if [ "$STATUS" = "200" ]; then
+    # Check if stack exists by listing stacks of this type and grepping for the ID
+    if curl -sk "$SERVER/api/stacks?stacktype=${TYPE}" 2>/dev/null | grep -q "\"${STACK_ID}\""; then
       echo "  Stack '${STACK_ID}' exists."
     else
       echo "  Creating stack '${STACK_ID}'..."

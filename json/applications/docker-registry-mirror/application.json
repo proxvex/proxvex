@@ -56,7 +56,11 @@
       "value": "10"
     }
   ],
-  "installation": {},
+  "installation": {
+    "image": [
+      "005-host-trust-deployer-ca.json"
+    ]
+  },
   "check": {
     "check": [
       "check-registry-mirror.json"

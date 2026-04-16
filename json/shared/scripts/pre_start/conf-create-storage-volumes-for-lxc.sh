@@ -58,7 +58,7 @@ fi
 
 # Auto-detect volume_storage from rootfs if not set
 if [ -z "$VOLUME_STORAGE" ] || [ "$VOLUME_STORAGE" = "NOT_DEFINED" ]; then
-  VOLUME_STORAGE=$(pct config "$VMID" 2>/dev/null | grep "^rootfs:" | sed 's/^rootfs: *//; s/:.*//')
+  VOLUME_STORAGE=$(pct config "$VMID" 2>/dev/null | grep -a "^rootfs:" | sed 's/^rootfs: *//; s/:.*//')
   if [ -z "$VOLUME_STORAGE" ]; then
     fail "volume_storage is required and could not be auto-detected"
   fi
