@@ -148,90 +148,93 @@ export class WebAppVeAddonCommandBuilder {
         const templateName =
           typeof templateRef === "string" ? templateRef : templateRef.name;
 
-        try {
-          // For upgrade templates, try the phase category first, then fallback
-          // to the other category (upgrade templates may be in pre_start or post_start)
-          let template = repositories.getTemplate({
+        // For upgrade templates, try the phase category first, then fallback
+        // to the other category (upgrade templates may be in pre_start or post_start)
+        let template = repositories.getTemplate({
+          name: templateName,
+          scope: "shared",
+          category,
+        }) as ITemplate | null;
+
+        if (!template && addonKey === "upgrade") {
+          const fallbackCategory = category === "post_start" ? "pre_start" : "post_start";
+          template = repositories.getTemplate({
             name: templateName,
             scope: "shared",
-            category,
+            category: fallbackCategory,
           }) as ITemplate | null;
+        }
 
-          if (!template && addonKey === "upgrade") {
-            const fallbackCategory = category === "post_start" ? "pre_start" : "post_start";
-            template = repositories.getTemplate({
-              name: templateName,
-              scope: "shared",
-              category: fallbackCategory,
-            }) as ITemplate | null;
-          }
+        if (template && template.commands) {
+          // Determine the actual category where the template was found
+          // (may differ from phase for upgrade templates with fallback)
+          const resolvedCategory = repositories.getTemplate({
+            name: templateName, scope: "shared", category,
+          }) ? category : (category === "post_start" ? "pre_start" : "post_start");
 
-          if (template && template.commands) {
-            // Determine the actual category where the template was found
-            // (may differ from phase for upgrade templates with fallback)
-            const resolvedCategory = repositories.getTemplate({
-              name: templateName, scope: "shared", category,
-            }) ? category : (category === "post_start" ? "pre_start" : "post_start");
+          for (const cmd of template.commands) {
+            const command: ICommand = { ...cmd };
 
-            for (const cmd of template.commands) {
-              const command: ICommand = { ...cmd };
+            // Set command name from template name if missing (same logic as TemplateProcessor)
+            if (!command.name || command.name.trim() === "") {
+              command.name = template.name || templateName;
+            }
 
-              // Set command name from template name if missing (same logic as TemplateProcessor)
-              if (!command.name || command.name.trim() === "") {
-                command.name = template.name || templateName;
-              }
+            // Set execute_on from template if not on command
+            if (!command.execute_on && template.execute_on) {
+              command.execute_on = template.execute_on;
+            }
 
-              // Set execute_on from template if not on command
-              if (!command.execute_on && template.execute_on) {
-                command.execute_on = template.execute_on;
-              }
-
-              // Resolve script content with application-scope fallback
-              // (allows applications to override shared addon scripts)
-              if (cmd.script && !cmd.scriptContent) {
-                const appId = application?.id ?? "";
-                if (appId) {
-                  const resolved = resolver.resolveScriptContent(appId, cmd.script, resolvedCategory);
-                  if (resolved.content) {
-                    command.scriptContent = resolved.content;
-                  }
-                } else {
-                  const scriptContent = repositories.getScript({
-                    name: cmd.script,
-                    scope: "shared",
-                    category: resolvedCategory,
-                  });
-                  if (scriptContent) {
-                    command.scriptContent = scriptContent;
-                  }
+            // Resolve script content with application-scope fallback
+            // (allows applications to override shared addon scripts)
+            if (cmd.script && !cmd.scriptContent) {
+              const appId = application?.id ?? "";
+              if (appId) {
+                const resolved = resolver.resolveScriptContent(appId, cmd.script, resolvedCategory);
+                if (resolved.content) {
+                  command.scriptContent = resolved.content;
+                }
+              } else {
+                const scriptContent = repositories.getScript({
+                  name: cmd.script,
+                  scope: "shared",
+                  category: resolvedCategory,
+                });
+                if (scriptContent) {
+                  command.scriptContent = scriptContent;
                 }
               }
+            }
 
-              // Resolve library content with application-scope fallback
-              if (cmd.library && !cmd.libraryContent) {
-                const appId = application?.id ?? "";
+            // Resolve library content with application-scope fallback
+            if (cmd.library && !cmd.libraryContent) {
+              const libraries = Array.isArray(cmd.library) ? cmd.library : [cmd.library];
+              const allContents: string[] = [];
+              const appId = application?.id ?? "";
+              for (const lib of libraries) {
                 if (appId) {
-                  const resolved = resolver.resolveLibraryContent(appId, cmd.library);
+                  const resolved = resolver.resolveLibraryContent(appId, lib);
                   if (resolved.content) {
-                    command.libraryContent = resolved.content;
+                    allContents.push(resolved.content);
                   }
                 } else {
                   const libraryContent = repositories.getScript({
-                    name: cmd.library,
+                    name: lib,
                     scope: "shared",
                     category: "library",
                   });
                   if (libraryContent) {
-                    command.libraryContent = libraryContent;
+                    allContents.push(libraryContent);
                   }
                 }
               }
-
-              commands.push(command);
+              if (allContents.length > 0) {
+                command.libraryContent = allContents.join("\n\n");
+              }
             }
+
+            commands.push(command);
           }
-        } catch (e) {
-          console.error(`Failed to load addon template ${templateName}:`, e);
         }
       }
     }
@@ -417,65 +420,68 @@ export class WebAppVeAddonCommandBuilder {
         const templateName =
           typeof templateRef === "string" ? templateRef : templateRef.name;
 
-        try {
-          const template = repositories.getTemplate({
-            name: templateName,
-            scope: "shared",
-            category: phase,
-          }) as ITemplate | null;
+        const template = repositories.getTemplate({
+          name: templateName,
+          scope: "shared",
+          category: phase,
+        }) as ITemplate | null;
 
-          if (template && template.commands) {
-            for (const cmd of template.commands) {
-              const command: ICommand = { ...cmd };
+        if (template && template.commands) {
+          for (const cmd of template.commands) {
+            const command: ICommand = { ...cmd };
 
-              if (!command.name || command.name.trim() === "") {
-                command.name = template.name || templateName;
-              }
-              if (!command.execute_on && template.execute_on) {
-                command.execute_on = template.execute_on;
-              }
-              if (cmd.script && !cmd.scriptContent) {
-                const appId = application?.id ?? "";
-                if (appId) {
-                  const resolved = resolver.resolveScriptContent(appId, cmd.script, phase);
-                  if (resolved.content) {
-                    command.scriptContent = resolved.content;
-                  }
-                } else {
-                  const scriptContent = repositories.getScript({
-                    name: cmd.script,
-                    scope: "shared",
-                    category: phase,
-                  });
-                  if (scriptContent) {
-                    command.scriptContent = scriptContent;
-                  }
+            if (!command.name || command.name.trim() === "") {
+              command.name = template.name || templateName;
+            }
+            if (!command.execute_on && template.execute_on) {
+              command.execute_on = template.execute_on;
+            }
+            if (cmd.script && !cmd.scriptContent) {
+              const appId = application?.id ?? "";
+              if (appId) {
+                const resolved = resolver.resolveScriptContent(appId, cmd.script, phase);
+                if (resolved.content) {
+                  command.scriptContent = resolved.content;
+                }
+              } else {
+                const scriptContent = repositories.getScript({
+                  name: cmd.script,
+                  scope: "shared",
+                  category: phase,
+                });
+                if (scriptContent) {
+                  command.scriptContent = scriptContent;
                 }
               }
-              if (cmd.library && !cmd.libraryContent) {
-                const appId = application?.id ?? "";
+            }
+            if (cmd.library && !cmd.libraryContent) {
+              const libraries = Array.isArray(cmd.library) ? cmd.library : [cmd.library];
+              const allContents: string[] = [];
+              const appId = application?.id ?? "";
+              for (const lib of libraries) {
                 if (appId) {
-                  const resolved = resolver.resolveLibraryContent(appId, cmd.library);
+                  const resolved = resolver.resolveLibraryContent(appId, lib);
                   if (resolved.content) {
-                    command.libraryContent = resolved.content;
+                    allContents.push(resolved.content);
                   }
                 } else {
                   const libraryContent = repositories.getScript({
-                    name: cmd.library,
+                    name: lib,
                     scope: "shared",
                     category: "library",
                   });
                   if (libraryContent) {
-                    command.libraryContent = libraryContent;
+                    allContents.push(libraryContent);
                   }
                 }
               }
-
-              commands.push(command);
+              if (allContents.length > 0) {
+                command.libraryContent = allContents.join("\n\n");
+              }
             }
+
+            commands.push(command);
           }
-        } catch (e) {
-          console.error(`Failed to load addon disable template ${templateName}:`, e);
         }
       }
     }

@@ -5,31 +5,67 @@
   "skip_if_all_missing": ["smtp_own_domain"],
   "parameters": [
     {
+      "id": "SMTP_HOST",
+      "name": "SMTP Host",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "SMTP server hostname (e.g. smtp.mailbox.org). Leave empty to skip SMTP setup."
+    },
+    {
+      "id": "SMTP_PORT",
+      "name": "SMTP Port",
+      "type": "string",
+      "default": "587",
+      "advanced": true,
+      "description": "SMTP server port (587 for STARTTLS, 465 for implicit TLS)."
+    },
+    {
+      "id": "SMTP_USER",
+      "name": "SMTP User",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "SMTP authentication username (e.g. yourname@mailbox.org)."
+    },
+    {
+      "id": "SMTP_SENDER",
+      "name": "SMTP Sender",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "From address on outgoing mail (e.g. admin@example.com). Must be authorized at the provider."
+    },
+    {
       "id": "smtp_own_domain",
       "name": "Own mail domain",
       "type": "boolean",
-      "required": true
+      "required": true,
+      "description": "When true, create MX and SPF DNS records in Cloudflare for the mail domain"
     },
     {
       "id": "smtp_mail_domain",
       "name": "Mail domain",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "description": "Apex domain for mail (e.g. example.com), looked up in Cloudflare"
     },
     {
       "id": "smtp_mx_target",
       "name": "MX target",
       "type": "string",
       "required": false,
-      "default": ""
+      "default": "",
+      "description": "Hostname the MX record points at (e.g. mxext1.mailbox.org)"
     },
     {
       "id": "smtp_spf_value",
       "name": "SPF value",
       "type": "string",
       "required": false,
-      "default": "v=spf1 ~all"
+      "default": "v=spf1 ~all",
+      "description": "Full SPF TXT record value (e.g. v=spf1 include:mailbox.org ~all)"
     },
     {
       "id": "CF_TOKEN",

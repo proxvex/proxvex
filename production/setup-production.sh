@@ -201,7 +201,7 @@ if [ "$JSON_DEV_SYNC" -eq 1 ]; then
   find "$JSON_SRC" -name '.DS_Store' -delete 2>/dev/null || true
   find "$JSON_SRC" -name '._*' -delete 2>/dev/null || true
 
-  deployer_vmid=$(pve_ssh "pct list | awk -v h='$DEPLOYER_HOST' '\$NF==h{print \$1}'" 2>/dev/null || true)
+  deployer_vmid=$(pve_ssh "pct list | awk -v h='$DEPLOYER_HOST' '\$2==\"running\" && \$NF==h{print \$1}'" 2>/dev/null || true)
   if [ -z "$deployer_vmid" ]; then
     echo "ERROR: deployer container '$DEPLOYER_HOST' not found on $PVE_HOST" >&2
     exit 1

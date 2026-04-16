@@ -25,21 +25,24 @@
       "id": "vm_id",
       "name": "ID of the VM",
       "type": "string",
-      "required": true
+      "required": true,
+      "description": "LXC container ID"
     },
     {
       "id": "uid",
       "name": "UID",
       "type": "string",
       "default": "0",
-      "advanced": true
+      "advanced": true,
+      "description": "Container UID for device ownership"
     },
     {
       "id": "gid",
       "name": "GID",
       "type": "string",
       "default": "20",
-      "advanced": true
+      "advanced": true,
+      "description": "Container GID for device ownership"
     },
     {
       "id": "mapped_uid",

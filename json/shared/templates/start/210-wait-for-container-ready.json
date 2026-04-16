@@ -3,7 +3,7 @@
   "name": "Wait for LXC Container Ready",
   "description": "Wait until LXC container is ready (network + apk available)",
   "parameters": [
-    { "id": "vm_id", "name": "VM ID", "type": "string", "required": true }
+    { "id": "vm_id", "name": "VM ID", "type": "string", "required": true, "description": "LXC container ID" }
   ],
   "commands": [
     {

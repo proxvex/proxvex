@@ -5,10 +5,6 @@
     { "name": "ZITADEL_MASTERKEY", "length": 32 },
     { "name": "ZITADEL_DB_PASSWORD" },
     { "name": "ZITADEL_ADMIN_PASSWORD" },
-    { "name": "SMTP_HOST", "external": true },
-    { "name": "SMTP_PORT", "external": true },
-    { "name": "SMTP_USER", "external": true },
-    { "name": "SMTP_SENDER", "external": true },
     { "name": "SMTP_PASSWORD", "external": true }
   ],
   "provides": [

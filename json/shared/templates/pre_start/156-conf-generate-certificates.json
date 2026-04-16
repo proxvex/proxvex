@@ -8,26 +8,30 @@
     {
       "id": "vm_id",
       "name": "VM ID",
-      "type": "string"
+      "type": "string",
+      "description": "LXC container ID"
     },
     {
       "id": "ca_key_b64",
       "name": "CA Key",
       "type": "string",
       "internal": true,
-      "secure": true
+      "secure": true,
+      "description": "Base64-encoded CA private key PEM"
     },
     {
       "id": "ca_cert_b64",
       "name": "CA Cert",
       "type": "string",
-      "internal": true
+      "internal": true,
+      "description": "Base64-encoded CA certificate PEM"
     },
     {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",
-      "required": true
+      "required": true,
+      "description": "Container hostname for certificate FQDN"
     },
     {
       "id": "domain_suffix",
@@ -58,14 +62,16 @@
       "name": "UID",
       "type": "string",
       "default": "0",
-      "advanced": true
+      "advanced": true,
+      "description": "Container UID for certificate file ownership"
     },
     {
       "id": "gid",
       "name": "GID",
       "type": "string",
       "default": "0",
-      "advanced": true
+      "advanced": true,
+      "description": "Container GID for certificate file ownership"
     },
     {
       "id": "mapped_uid",

@@ -29,12 +29,31 @@ export class WebAppStack {
     });
 
     // GET /api/stack/:id - Get single stack
+    // Merges the stack's entries with the stacktype definition so external
+    // (user-provided) variables always appear — even for stacks created
+    // before those variables were added to the stacktype.
     this.app.get(ApiUri.Stack, (req, res) => {
       const stack = this.stackProvider.getStack(req.params.id);
       if (!stack) {
         res.status(404).json({ error: "Stack not found" });
         return;
       }
+
+      // Ensure all stacktype-defined variables are present in entries
+      const allStacktypes = this.pm.getStacktypes();
+      const stackTypes = Array.isArray(stack.stacktype)
+        ? stack.stacktype
+        : [stack.stacktype];
+      for (const typeName of stackTypes) {
+        const def = allStacktypes.find((st) => st.name === typeName);
+        if (!def) continue;
+        for (const variable of def.entries) {
+          if (!stack.entries.find((e) => e.name === variable.name)) {
+            stack.entries.push({ name: variable.name, value: "" });
+          }
+        }
+      }
+
       res.json({ stack });
     });
 
@@ -62,8 +81,18 @@ export class WebAppStack {
         if (!stacktypeDef) continue;
 
         for (const variable of stacktypeDef.entries) {
-          if (!variable.external) {
-            const existing = body.entries.find((e) => e.name === variable.name);
+          const existing = body.entries.find((e) => e.name === variable.name);
+          if (variable.external) {
+            // External (user-provided) variables must be provided by the
+            // caller. Reject the request if any are missing or empty.
+            if (!existing || existing.value === undefined || existing.value === "") {
+              res.status(400).json({
+                error: `Missing required external entry '${variable.name}' for stacktype '${typeName}'. External variables must be provided when creating a stack.`,
+              });
+              return;
+            }
+          } else {
+            // Auto-generated variables: generate a secret if not already set.
             if (!existing || !existing.value) {
               const generated = generateSecret(variable.length ?? 32);
               if (existing) {

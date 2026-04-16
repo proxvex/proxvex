@@ -10,8 +10,16 @@
     { "name": "ZITADEL_EXTERNALSECURE", "value": "true" },
     { "name": "ZITADEL_EXTERNALPORT", "value": "443" },
     { "name": "ZITADEL_FORWARDED_PROTO", "value": "https" },
-    { "name": "ZITADEL_PUBLIC_BASE_URL", "value": "https://auth.ohnewarum.de" }
+    { "name": "ZITADEL_PUBLIC_BASE_URL", "value": "https://auth.ohnewarum.de" },
+    { "name": "SMTP_HOST", "value": "smtp.mailbox.org" },
+    { "name": "SMTP_PORT", "value": "587" },
+    { "name": "SMTP_USER", "value": "volkmar.nissen@mailbox.org" },
+    { "name": "SMTP_SENDER", "value": "auth@ohnewarum.de" },
+    { "name": "smtp_own_domain", "value": true },
+    { "name": "smtp_mail_domain", "value": "ohnewarum.de" },
+    { "name": "smtp_mx_target", "value": "mxext1.mailbox.org" },
+    { "name": "smtp_spf_value", "value": "v=spf1 include:mailbox.org ~all" }
   ],
   "selectedAddons": ["addon-ssl"],
-  "stackIds": ["postgres_production", "oidc_production"]
+  "stackIds": ["postgres_production", "oidc_production", "cloudflare_production"]
 }

@@ -70,7 +70,15 @@
       "Bash(sh -n /Users/volkmar/oci-lxc-deployer-green/json/applications/nginx/scripts/pre_start/conf-write-reload-hook.sh)",
       "Bash(bash -n /Users/volkmar/oci-lxc-deployer-green/production/setup-production.sh)",
       "Bash(find /Users/volkmar/oci-lxc-deployer-green/json -name '.DS_Store' -delete)",
-      "Bash(find /Users/volkmar/oci-lxc-deployer-green/json -name '._*' -delete)"
+      "Bash(find /Users/volkmar/oci-lxc-deployer-green/json -name '._*' -delete)",
+      "Bash(ssh -p 1022 root@ubuntupve 'pct set --help 2>&1 | grep -A2 -i keep')",
+      "WebFetch(domain:pve.proxmox.com)",
+      "Bash(ssh root@ubuntupve 'grep -r \"keep\" /usr/share/perl5/PVE/LXC/Config.pm 2>/dev/null | head -10')",
+      "Bash(ssh root@ubuntupve 'grep -rn \"keep\" /usr/share/perl5/PVE/QemuServer/Drive.pm 2>/dev/null | head -10; echo \"---\"; grep -rn \"keep\" /usr/share/perl5/PVE/Storage.pm 2>/dev/null | head -10')",
+      "Bash(ssh root@ubuntupve 'perl -e \"use PVE::LXC::Config; use Data::Dumper; my \\\\$schema = PVE::LXC::Config->__parse_ct_mountpoint_full\\(\\\\\"test:vol,mp=/data\\\\\"\\); print Dumper\\(\\\\$schema\\);\" 2>&1 | head -20; echo \"---\"; ssh root@ubuntupve \"grep -A30 mp.*desc.*Mount /usr/share/perl5/PVE/LXC/Config.pm 2>/dev/null | head -40\"')",
+      "Bash(ssh root@ubuntupve 'grep -B2 -A5 \"pve-lxc-mp-string\" /usr/share/perl5/PVE/LXC/Config.pm 2>/dev/null | head -30')",
+      "Bash(ssh root@ubuntupve 'grep -E \"^\\\\s+\\(backup|replicate|quota|acl|ro|shared|mount|size|mp|volume\\)\" /usr/share/perl5/PVE/LXC/Config.pm 2>/dev/null | grep -v \"^--\" | sort -u')",
+      "Bash(ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $\\(qm listsnapshot 9000 | grep dep- | awk \"{print \\\\$1}\"\\); do qm delsnapshot 9000 $snap; done')"
     ]
   },
   "hooks": {

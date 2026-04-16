@@ -61,14 +61,16 @@
       "name": "UID",
       "type": "string",
       "default": "0",
-      "advanced": true
+      "advanced": true,
+      "description": "Container UID for volume ownership"
     },
     {
       "id": "gid",
       "name": "GID",
       "type": "string",
       "default": "0",
-      "advanced": true
+      "advanced": true,
+      "description": "Container GID for volume ownership"
     },
     {
       "id": "mapped_uid",
