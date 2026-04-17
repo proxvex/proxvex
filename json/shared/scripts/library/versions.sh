@@ -26,4 +26,4 @@ OCI_postgres_TAG="${OCI_postgres_TAG:-16-alpine}"             # postgres
 OCI_pgadmin_TAG="${OCI_pgadmin_TAG:-9.14}"                    # dpage/pgadmin4
 OCI_nginx_TAG="${OCI_nginx_TAG:-1-alpine}"                    # nginxinc/nginx-unprivileged
 OCI_mariadb_TAG="${OCI_mariadb_TAG:-11}"                      # mariadb
-OCI_phpmyadmin_TAG="${OCI_phpmyadmin_TAG:-5.2.3.1}"           # phpmyadmin
+OCI_phpmyadmin_TAG="${OCI_phpmyadmin_TAG:-5.2.3}"             # phpmyadmin

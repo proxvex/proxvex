@@ -1,11 +1,11 @@
 #!/bin/bash
 # step2-install-deployer.sh - Installs oci-lxc-deployer for E2E testing
 #
-# This script (3-phase install):
-# Phase 1: Install oci-lxc-deployer at TEMP_VMID (DEPLOYER_VMID-1) without HTTPS
-# Phase 2: Deploy local package to TEMP_VMID (provides oci-lxc-cli + latest code)
-# Phase 3: HTTPS reconfigure via oci-lxc-cli → creates final container at DEPLOYER_VMID
-#          Then deploys local package to final container
+# This script:
+# 1. Rolls back to step1 baseline snapshot (clean state)
+# 2. Installs oci-lxc-deployer at DEPLOYER_VMID (HTTP only, no HTTPS)
+# 3. Deploys local package build to the container
+# 4. Sets up registry mirrors for image caching
 #
 # Usage:
 #   ./step2-install-deployer.sh [instance]                        # Full install
@@ -191,13 +191,31 @@ echo "Deployer VMID: $DEPLOYER_VMID"
 echo "Deployer URL: $DEPLOYER_URL"
 echo ""
 
-# Temp VMID for 3-phase install: install at TEMP_VMID, HTTPS reconfigure to DEPLOYER_VMID
-TEMP_VMID=$((DEPLOYER_VMID - 1))
+# HTTPS is not used for livetests, so install directly at DEPLOYER_VMID (no temp container needed)
 
-# Step 1: Wait for SSH connection (VM might still be booting after snapshot restore)
+# Step 1: Rollback to baseline snapshot for full installs (clean state)
+if [ "$UPDATE_ONLY" != "true" ]; then
+    info "Rolling back to baseline snapshot for clean install..."
+    if pve_ssh "qm listsnapshot $TEST_VMID" 2>/dev/null | grep -q "baseline"; then
+        pve_ssh "qm shutdown $TEST_VMID --timeout 30" 2>/dev/null || true
+        for i in $(seq 1 30); do
+            pve_ssh "qm status $TEST_VMID 2>/dev/null" | grep -q stopped && break
+            sleep 1
+        done
+        # Delete deployer-installed snapshot if it exists (rollback requires most recent)
+        pve_ssh "qm delsnapshot $TEST_VMID deployer-installed 2>/dev/null || true"
+        pve_ssh "qm rollback $TEST_VMID baseline"
+        pve_ssh "qm start $TEST_VMID"
+        success "Rolled back to baseline snapshot"
+    else
+        info "No baseline snapshot found — continuing without rollback"
+    fi
+fi
+
+# Step 2: Wait for SSH connection (VM might still be booting after snapshot restore)
 info "Waiting for SSH connection to nested VM..."
 SSH_READY=false
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
     if nested_ssh "echo 'SSH OK'" &>/dev/null; then
         SSH_READY=true
         break
@@ -208,11 +226,11 @@ done
 echo ""
 
 if [ "$SSH_READY" != "true" ]; then
-    error "Cannot connect to $NESTED_IP via SSH after 30s. Is the nested VM running?"
+    error "Cannot connect to $NESTED_IP via SSH after 60s. Is the nested VM running?"
 fi
 success "SSH connection verified"
 
-# Step 2: Check if deployer already exists
+# Step 3: Check if deployer already exists
 if nested_ssh "pct status $DEPLOYER_VMID" &>/dev/null; then
     info "Deployer container $DEPLOYER_VMID already exists"
     DEPLOYER_STATUS=$(nested_ssh "pct status $DEPLOYER_VMID" | awk '/status:/ {print $2}')
@@ -251,14 +269,7 @@ fi
 if [ "$UPDATE_ONLY" != "true" ]; then
     header "Installing oci-lxc-deployer"
 
-    # Clean up existing containers at both VMIDs (target and temp)
-    for cleanup_vmid in $DEPLOYER_VMID $TEMP_VMID; do
-        if nested_ssh "pct status $cleanup_vmid" &>/dev/null; then
-            info "Removing existing container $cleanup_vmid (force)..."
-            nested_ssh "pct stop $cleanup_vmid --skiplock 2>/dev/null || true; sleep 1; pct unlock $cleanup_vmid 2>/dev/null || true; pct destroy $cleanup_vmid --force --purge 2>/dev/null || true"
-            success "Container $cleanup_vmid removed"
-        fi
-    done
+    # No cleanup needed — baseline snapshot rollback provides clean state
 
 # Local script path on nested VM
 LOCAL_SCRIPT_PATH="/tmp/oci-lxc-deployer-scripts"
@@ -285,12 +296,12 @@ if [ -f "$LOCAL_INSTALL_SCRIPT" ] && [ -d "$LOCAL_SHARED_SCRIPTS" ]; then
     info "Running installation script with OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH..."
     # Run local script with custom parameters and local scripts path
     nested_ssh "chmod +x /tmp/install-oci-lxc-deployer.sh && \
-        OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH /tmp/install-oci-lxc-deployer.sh --vm-id $TEMP_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script failed"
+        OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH /tmp/install-oci-lxc-deployer.sh --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script failed"
 else
     info "Running installation script from GitHub with OWNER=$OWNER OCI_OWNER=$OCI_OWNER..."
     # Fallback: Download and run from GitHub
     nested_ssh "curl -sSL https://raw.githubusercontent.com/$OWNER/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | \
-        OWNER=$OWNER OCI_OWNER=$OCI_OWNER bash -s -- --vm-id $TEMP_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script from GitHub failed"
+        OWNER=$OWNER OCI_OWNER=$OCI_OWNER bash -s -- --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script from GitHub failed"
 fi
 
 success "Installation script completed"
@@ -373,24 +384,9 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
     success "Package copied to nested VM"
 
     if [ "$UPDATE_ONLY" != "true" ]; then
-        # ─── Phase 2: Deploy local package to temp container ───
-        # This gives us oci-lxc-cli and the latest deployer code for the HTTPS reconfigure
-        header "Phase 2: Deploy Local Package to Temp Container ($TEMP_VMID)"
-        deploy_to_container "$TEMP_VMID"
-
-        # ─── Phase 3: HTTPS Reconfigure (skipped) ───
-        # HTTPS is not needed for livetests — deployer runs on HTTP:3080.
-        # The SSL reconfigure replaces the container, which is fragile and slow.
-        # Keep the temp container as the final deployer.
-        info "Skipping HTTPS reconfigure (not needed for livetests)"
-
-        # Rename temp container to final VMID if different
-        if [ "$TEMP_VMID" != "$DEPLOYER_VMID" ]; then
-            # Just use the temp container as-is — DEPLOYER_VMID is the target
-            # The temp container already has the correct static IP and code
-            info "Using container $TEMP_VMID as deployer (VMID $DEPLOYER_VMID not needed)"
-            DEPLOYER_VMID="$TEMP_VMID"
-        fi
+        # Deploy local package to the deployer container
+        header "Deploy Local Package to Container ($DEPLOYER_VMID)"
+        deploy_to_container "$DEPLOYER_VMID"
 
         # Wait for deployer API
         DEPLOYER_API="http://${DEPLOYER_IP}:3080"
@@ -407,7 +403,7 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
             error "Deployer API not ready after 60s"
         fi
 
-        # Clone already contains the local package from Phase 2 — no second deploy needed
+        # Full install already deployed the package above
     else
         # --update-only: Deploy directly to DEPLOYER_VMID
         header "Deploying Local Package"
@@ -431,11 +427,7 @@ if [ "$UPDATE_ONLY" != "true" ]; then
     }"
     success "Docker available on nested VM"
 
-    # Remove stale /etc/hosts redirects (from previous runs) so we can pull
-    # the mirror image directly from Docker Hub before the mirrors are up
-    nested_ssh "sed -i '/dockerhub mirror/d; /ghcr mirror/d; /registry mirror/d' /etc/hosts 2>/dev/null || true"
-
-    # Pre-pull the mirror image directly (before any redirects are in place)
+    # Pre-pull the mirror image directly (hosts redirects already cleaned above)
     nested_ssh "docker image inspect distribution/distribution:3.0.0 >/dev/null 2>&1 || \
         docker pull distribution/distribution:3.0.0 >&2"
     success "Mirror image available"
@@ -443,44 +435,59 @@ if [ "$UPDATE_ONLY" != "true" ]; then
     # Add secondary IP for ghcr.io mirror (Docker Hub uses 10.0.0.1)
     nested_ssh "ip addr show vmbr1 | grep -q '10.0.0.2/' || ip addr add 10.0.0.2/24 dev vmbr1"
 
-    # Start Docker Hub mirror (bound to 10.0.0.1:443)
-    nested_ssh "docker ps -q -f name=dockerhub-mirror | grep -q . || \
+    # Start Docker Hub mirror (bound to 10.0.0.1 on ports 80+443)
+    # Port 443: skopeo and Docker HTTPS attempts hit here
+    # Port 80: Docker HTTP fallback (insecure-registries) hits here
+    nested_ssh "docker ps -q -f name='^dockerhub-mirror$' | grep -q . || {
+        docker rm -f dockerhub-mirror 2>/dev/null || true
         docker run -d --name dockerhub-mirror --restart unless-stopped \
+            --dns 8.8.8.8 --dns 8.8.4.4 \
             -p 10.0.0.1:443:5000 \
+            -p 10.0.0.1:80:5000 \
             -v dockerhub-mirror-data:/var/lib/registry \
             -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
-            distribution/distribution:3.0.0 >&2"
-    success "Docker Hub mirror running on 10.0.0.1:443"
+            distribution/distribution:3.0.0 >&2
+    }"
+    success "Docker Hub mirror running on 10.0.0.1:80+443"
 
-    # Start ghcr.io mirror (bound to 10.0.0.2:443)
-    nested_ssh "docker ps -q -f name=ghcr-mirror | grep -q . || \
+    # Start ghcr.io mirror (bound to 10.0.0.2 on ports 80+443)
+    nested_ssh "docker ps -q -f name='^ghcr-mirror$' | grep -q . || {
+        docker rm -f ghcr-mirror 2>/dev/null || true
         docker run -d --name ghcr-mirror --restart unless-stopped \
+            --dns 8.8.8.8 --dns 8.8.4.4 \
             -p 10.0.0.2:443:5000 \
+            -p 10.0.0.2:80:5000 \
             -v ghcr-mirror-data:/var/lib/registry \
             -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
-            distribution/distribution:3.0.0 >&2"
-    success "ghcr.io mirror running on 10.0.0.2:443"
+            distribution/distribution:3.0.0 >&2
+    }"
+    success "ghcr.io mirror running on 10.0.0.2:80+443"
 
-    # Now set up /etc/hosts redirects + insecure-registries for pre-pull
-    nested_ssh "echo '10.0.0.1 registry-1.docker.io index.docker.io  # oci-lxc-deployer: dockerhub mirror' >> /etc/hosts"
-    nested_ssh "echo '10.0.0.2 ghcr.io  # oci-lxc-deployer: ghcr mirror' >> /etc/hosts"
-
-    # Configure Docker daemon on nested VM for insecure mirrors
+    # Configure Docker daemon: use mirror for Docker Hub pulls (registry-mirrors).
+    # Insecure-registries for direct mirror access by IP.
+    # NOTE: dnsmasq address= records are added AFTER pre-pull to avoid the Docker
+    # daemon resolving registry-1.docker.io to the mirror IP on fallback.
     nested_ssh "cat > /etc/docker/daemon.json <<'DJSON'
-{ \"insecure-registries\": [\"registry-1.docker.io\", \"index.docker.io\", \"ghcr.io\"] }
+{
+  \"registry-mirrors\": [\"http://10.0.0.1:80\"],
+  \"insecure-registries\": [\"10.0.0.1:80\", \"10.0.0.1:443\", \"10.0.0.2:80\", \"10.0.0.2:443\"]
+}
 DJSON
     systemctl restart docker >&2 2>/dev/null || true"
 
-    # Wait for mirrors to be healthy
-    for mirror in "10.0.0.1:443" "10.0.0.2:443"; do
-        for i in $(seq 1 15); do
-            nested_ssh "curl -sk https://$mirror/v2/ >/dev/null 2>&1" && break
+    # Wait for mirrors to be healthy after docker restart
+    info "Waiting for mirrors to be healthy..."
+    for mirror in "10.0.0.1:80" "10.0.0.2:80"; do
+        for i in $(seq 1 30); do
+            nested_ssh "curl -s http://$mirror/v2/ >/dev/null 2>&1" && break
             sleep 1
         done
     done
+    success "Mirrors healthy"
 
-    # Pre-pull all DOCKER_* images (used by docker-compose apps) through the mirrors
-    # Parse versions.sh: extract image URL from comment, tag from variable
+    # Pre-pull images through the mirrors (warms mirror cache).
+    # Docker Hub images use registry-mirrors automatically.
+    # ghcr.io images: pull through mirror directly by IP (no registry-mirrors support).
     info "Pre-pulling images through mirrors (warming cache)..."
     VERSIONS_FILE="$PROJECT_ROOT/json/shared/scripts/library/versions.sh"
     if [ -f "$VERSIONS_FILE" ]; then
@@ -492,12 +499,35 @@ DJSON
             [ -z "$tag" ] && continue
             full="${image}:${tag}"
             info "  Pulling $full ..."
-            nested_ssh "docker pull '$full' >&2 2>/dev/null" || echo "    Warning: $full failed"
+            if echo "$image" | grep -q "ghcr.io"; then
+                # ghcr.io: pull through mirror directly by address
+                mirror_path="${image#ghcr.io/}"
+                nested_ssh "docker pull 10.0.0.2:80/${mirror_path}:${tag}" < /dev/null 2>&1 || echo "    Warning: $full failed"
+            else
+                # Docker Hub: registry-mirrors handles the routing automatically
+                nested_ssh "docker pull '$full'" < /dev/null 2>&1 || echo "    Warning: $full failed"
+            fi
         done
         success "Image pre-pull complete"
     else
         info "versions.sh not found, skipping pre-pull"
     fi
+
+    # NOW add dnsmasq address= records for LXC containers (after pre-pull).
+    # LXC containers resolve registry hostnames via dnsmasq → mirror IPs.
+    # Added after pre-pull so Docker daemon doesn't hit mirror on fallback.
+    nested_ssh "
+        if ! grep -q 'address=/registry-1.docker.io/' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null; then
+            cat >> /etc/dnsmasq.d/e2e-nat.conf <<'DNS'
+# Registry mirror redirects (for LXC containers)
+address=/registry-1.docker.io/10.0.0.1
+address=/index.docker.io/10.0.0.1
+address=/ghcr.io/10.0.0.2
+DNS
+            systemctl restart dnsmasq
+        fi
+    "
+    success "dnsmasq registry redirects configured"
 fi
 
 # Step 7: Create snapshot with deployer installed (VM must be stopped for clean snapshot)
