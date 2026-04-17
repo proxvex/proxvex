@@ -77,6 +77,8 @@ services:
   zitadel-login:
     image: ghcr.io/zitadel/zitadel-login:v4.12.3
     restart: unless-stopped
+    group_add:
+      - "1001"
     environment:
       ZITADEL_API_URL: http://zitadel-api:8080
       ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat

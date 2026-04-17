@@ -95,7 +95,7 @@
   "properties": [
     {
       "id": "volumes",
-      "default": "bootstrap=bootstrap,0770,1000:1001"
+      "default": "bootstrap=bootstrap,0750,1000:1001"
     },
     {
       "id": "compose_file",
