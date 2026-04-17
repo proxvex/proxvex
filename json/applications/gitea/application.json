@@ -62,7 +62,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "gitea/gitea:latest"
+      "value": "gitea/gitea:{{oci_image_tag}}"
     },
     {
       "id": "wait_for_network",

@@ -30,6 +30,7 @@
   "commands": [
     {
       "script": "post-start-docker-compose.sh",
+      "library": ["versions.sh", "versions-local.sh"],
       "description": "Start Docker Compose services with docker-compose up -d"
     }
   ]

@@ -40,7 +40,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "phpmyadmin:latest"
+      "value": "phpmyadmin:{{oci_image_tag}}"
     },
     {
       "id": "uid",

@@ -40,7 +40,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "postgres:16-alpine"
+      "value": "postgres:{{oci_image_tag}}"
     },
     {
       "id": "uid",

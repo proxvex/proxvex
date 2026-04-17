@@ -62,7 +62,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "misterbabou/gptwol:latest"
+      "value": "misterbabou/gptwol:{{oci_image_tag}}"
     },
     {
       "id": "uid",

@@ -13,6 +13,7 @@ import { WebAppVeRestartManager } from "./webapp-ve-restart-manager.mjs";
 import { WebAppVeParameterProcessor } from "./webapp-ve-parameter-processor.mjs";
 import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
 import { WebAppVeAddonCommandBuilder } from "./webapp-ve-addon-command-builder.mjs";
+import { parseVersionsLib, getOciImageTag } from "@src/versions-parser.mjs";
 import { WebAppVeCertificateInjector } from "./webapp-ve-certificate-injector.mjs";
 import {
   IVEContext,
@@ -515,21 +516,27 @@ export class WebAppVeRouteHandlers {
       defaults.set("deployer_base_url", deployerUrl);
       defaults.set("ve_context_key", veContextKey);
 
-      // Extract OCI image tag from application properties (e.g., "postgres:16-alpine" → "16-alpine")
+      // Inject oci_image_tag from versions.sh if available, otherwise extract from oci_image property.
       // During fresh install, this is overwritten by the image download script output.
       // During reconfigure, image scripts don't run, so this default is used for notes.
       // Docker-compose apps have no single oci_image property — leave empty so
       // the notes writer doesn't fall back to the deployer version. The post-
       // start script `post-update-version-from-docker.py` fills in the real
       // multi-service version after docker pull.
-      const ociImageProp = loaded.application?.properties?.find(
-        (p: { id: string }) => p.id === "oci_image",
-      );
-      const ociImageValue = ociImageProp?.value ? String(ociImageProp.value) : "";
-      const ociImageTag = ociImageValue.includes(":")
-        ? ociImageValue.split(":").pop() ?? ""
-        : ociImageValue;
-      defaults.set("oci_image_tag", ociImageTag);
+      const versions = parseVersionsLib(this.pm.getRepositories());
+      const versionFromLib = getOciImageTag(versions, application);
+      if (versionFromLib) {
+        defaults.set("oci_image_tag", versionFromLib);
+      } else {
+        const ociImageProp = loaded.application?.properties?.find(
+          (p: { id: string }) => p.id === "oci_image",
+        );
+        const ociImageValue = ociImageProp?.value ? String(ociImageProp.value) : "";
+        const ociImageTag = ociImageValue.includes(":")
+          ? ociImageValue.split(":").pop() ?? ""
+          : ociImageValue;
+        defaults.set("oci_image_tag", ociImageTag);
+      }
 
       // Icon data for embedding in notes (Data URL avoids mixed content issues)
       // Always use readApplicationIcon() which normalizes SVG size for notes display

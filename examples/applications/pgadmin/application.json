@@ -40,7 +40,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "dpage/pgadmin4:latest"
+      "value": "dpage/pgadmin4:{{oci_image_tag}}"
     },
     {
       "id": "uid",
