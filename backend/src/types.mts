@@ -138,6 +138,13 @@ export interface IVeExecuteMessage {
   partial?: boolean; // If true, this is a partial/streaming output chunk (process still running)
   vmId?: number; // Container VMID (available in final success message)
   redirectUrl?: string; // Redirect URL for deployer self-reconfigure (new instance URL)
+  completionInfo?: ICompletionInfo; // Optional structured completion info from application
+}
+
+export interface ICompletionInfo {
+  header: string;
+  details?: string;
+  url?: string;
 }
 
 export type ParameterType = "string" | "number" | "boolean" | "enum";

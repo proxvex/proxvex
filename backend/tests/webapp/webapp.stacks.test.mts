@@ -356,11 +356,11 @@ describe("Stack API", () => {
         }),
       );
 
-      // Create a stack using this stacktype
+      // Create a stack using this stacktype (MANUAL is external, must be provided)
       const res = await request(app).post(ApiUri.Stacks).send({
         name: "test-stack",
         stacktype: "withsecrets",
-        entries: [],
+        entries: [{ name: "MANUAL", value: "user-provided-value" }],
       });
       expect(res.status).toBe(200);
 

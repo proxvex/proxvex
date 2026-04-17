@@ -1,16 +1,9 @@
 #!/bin/sh
-# Show Zitadel admin credentials prominently for first-time login.
+# Show Zitadel admin credentials via completion info.
 #
-# Background:
-#   The docker-compose template appends the literal suffix '!Aa1' to the
-#   stack-provided ZITADEL_ADMIN_PASSWORD, so the actual password is
-#   "<stack value>!Aa1". Without this template, that suffix is invisible to
-#   the user and the first login fails because the user typed only the
-#   stack value.
-#
-# This template prints the full computed credentials once at the end of the
-# deploy. It's purely informational — output goes to stderr so it shows in
-# the deploy log without polluting the JSON outputs on stdout.
+# Emits completion_header, completion_details, and completion_url outputs
+# so the CLI and frontend display the admin login credentials after a
+# successful deployment.
 set -eu
 
 ZITADEL_EXTERNALDOMAIN="{{ ZITADEL_EXTERNALDOMAIN }}"
@@ -22,23 +15,20 @@ ORG_PRIMARY_DOMAIN="zitadel.${ZITADEL_EXTERNALDOMAIN}"
 LOGIN_NAME="admin@${ORG_PRIMARY_DOMAIN}"
 FULL_PASSWORD="${ZITADEL_ADMIN_PASSWORD}!Aa1"
 
-cat >&2 <<EOF
+DETAILS="Login:    ${LOGIN_NAME}
+Password: ${FULL_PASSWORD}
 
-================================================================
-  Zitadel admin login (first-time setup)
-================================================================
-  URL:      https://${ZITADEL_EXTERNALDOMAIN}/
-  Login:    ${LOGIN_NAME}
-  Password: ${FULL_PASSWORD}
+Note: the password is the oidc-stack value plus '!Aa1'
+(Zitadel password complexity policy). Change it after first login."
 
-  Note: the password is the oidc-stack value plus the literal suffix
-  '!Aa1' (appended by the compose template to satisfy Zitadel's
-  password complexity policy). Save it now and change it after the
-  first login.
-================================================================
-
-EOF
+# Escape newlines for JSON value
+DETAILS_JSON=$(printf '%s' "$DETAILS" | sed ':a;N;$!ba;s/\n/\\n/g')
 
 cat <<EOF
-[{"id":"admin_loginname","value":"${LOGIN_NAME}"}]
+[
+  {"id":"admin_loginname","value":"${LOGIN_NAME}"},
+  {"id":"completion_header","value":"Zitadel installed successfully"},
+  {"id":"completion_details","value":"${DETAILS_JSON}"},
+  {"id":"completion_url","value":"https://${ZITADEL_EXTERNALDOMAIN}/"}
+]
 EOF

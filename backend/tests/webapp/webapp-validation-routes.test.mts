@@ -39,11 +39,11 @@ describe("Validation routes", () => {
     });
 
     it("should accept stackId when addon provides matching stacktype", async () => {
-      // Create a stack with oidc stacktype via API
+      // Create a stack with oidc stacktype via API (SMTP_PASSWORD is external)
       await request(app).post(ApiUri.Stacks).send({
         name: "test-oidc",
         stacktype: ["oidc"],
-        entries: [],
+        entries: [{ name: "SMTP_PASSWORD", value: "test" }],
       });
       // List stacks to see the actual ID
       const listRes = await request(app).get(ApiUri.Stacks);
@@ -66,11 +66,11 @@ describe("Validation routes", () => {
     });
 
     it("should reject stackId when no addon provides matching stacktype", async () => {
-      // Create a stack with oidc stacktype
+      // Create a stack with oidc stacktype (SMTP_PASSWORD is external)
       await request(app).post(ApiUri.Stacks).send({
         name: "test-oidc2",
         stacktype: ["oidc"],
-        entries: [],
+        entries: [{ name: "SMTP_PASSWORD", value: "test" }],
       });
 
       // Install without addon-oidc — app has no stacktype, no addon provides oidc
