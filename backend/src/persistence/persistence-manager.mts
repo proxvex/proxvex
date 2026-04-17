@@ -528,7 +528,7 @@ export class PersistenceManager {
       for (const td of testDirs) {
         if (!fs.existsSync(td)) continue;
         for (const f of fs.readdirSync(td)) {
-          if (!f.endsWith(".json")) continue;
+          if (!f.endsWith(".json") || f.startsWith("production")) continue;
           const fullPath = path.join(td, f);
           if (!fs.statSync(fullPath).isFile()) continue;
           const name = f.replace(/\.json$/, "");

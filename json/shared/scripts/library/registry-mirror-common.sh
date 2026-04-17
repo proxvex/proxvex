@@ -102,7 +102,7 @@ mirror_trust_insecure() {
     echo "Warning: insecure-registries exists but missing mirror entry" >&2
   else
     # Create new entry
-    printf '{\n  "insecure-registries": ["registry-1.docker.io", "index.docker.io"]\n}\n' > "$_daemon_json"
+    printf '{\n  "insecure-registries": ["registry-1.docker.io", "index.docker.io", "ghcr.io"]\n}\n' > "$_daemon_json"
     _needs_restart=true
   fi
 

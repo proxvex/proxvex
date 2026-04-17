@@ -378,25 +378,22 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
         header "Phase 2: Deploy Local Package to Temp Container ($TEMP_VMID)"
         deploy_to_container "$TEMP_VMID"
 
-        # ─── Phase 3: HTTPS Reconfigure via oci-lxc-cli ───
-        # Uses the latest deployer code (from Phase 2) for the reconfigure
-        header "Phase 3: HTTPS Reconfigure via oci-lxc-cli"
+        # ─── Phase 3: HTTPS Reconfigure (skipped) ───
+        # HTTPS is not needed for livetests — deployer runs on HTTP:3080.
+        # The SSL reconfigure replaces the container, which is fragile and slow.
+        # Keep the temp container as the final deployer.
+        info "Skipping HTTPS reconfigure (not needed for livetests)"
 
-        # Use hostname -f to match install script's proxmox_hostname
-        NESTED_HOSTNAME=$(nested_ssh "hostname -f 2>/dev/null || hostname")
-        DEPLOYER_API="http://${DEPLOYER_IP}:3080"
-        DOMAIN_SUFFIX=".e2e.local"
-
-        # Ensure /etc/hosts in container (deployer needs to resolve PVE hostname for SSH)
-        info "Setting up /etc/hosts in container $TEMP_VMID..."
-        HOSTS_ENTRY="$DEPLOYER_GATEWAY $NESTED_HOSTNAME ${NESTED_HOSTNAME}.local"
-        if [ -n "$PVE_HOST" ] && [ "$PVE_HOST" != "$NESTED_HOSTNAME" ] && [ "$PVE_HOST" != "${NESTED_HOSTNAME}.local" ]; then
-            HOSTS_ENTRY="$HOSTS_ENTRY $PVE_HOST"
+        # Rename temp container to final VMID if different
+        if [ "$TEMP_VMID" != "$DEPLOYER_VMID" ]; then
+            # Just use the temp container as-is — DEPLOYER_VMID is the target
+            # The temp container already has the correct static IP and code
+            info "Using container $TEMP_VMID as deployer (VMID $DEPLOYER_VMID not needed)"
+            DEPLOYER_VMID="$TEMP_VMID"
         fi
-        nested_ssh "pct exec $TEMP_VMID -- sh -c 'grep -q \"${NESTED_HOSTNAME}.local\" /etc/hosts || echo \"$HOSTS_ENTRY\" >> /etc/hosts'"
-        success "Hosts entry: $HOSTS_ENTRY"
 
         # Wait for deployer API
+        DEPLOYER_API="http://${DEPLOYER_IP}:3080"
         info "Waiting for deployer API at ${DEPLOYER_API}..."
         for i in $(seq 1 30); do
             if nested_ssh "curl -sf ${DEPLOYER_API}/api/applications" &>/dev/null; then
@@ -404,101 +401,11 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
             fi
             sleep 2
         done
-        if ! nested_ssh "curl -sf ${DEPLOYER_API}/api/applications" &>/dev/null; then
+        if nested_ssh "curl -sf ${DEPLOYER_API}/api/applications" &>/dev/null; then
+            success "Deployer ready (HTTP)"
+        else
             error "Deployer API not ready after 60s"
         fi
-        success "Deployer API ready"
-
-        # Resolve VE context key
-        VE_KEY=$(nested_ssh "curl -sf ${DEPLOYER_API}/api/ssh/config/${NESTED_HOSTNAME}" | python3 -c "import sys,json; print(json.load(sys.stdin)['key'])" 2>/dev/null || echo "")
-        if [ -z "$VE_KEY" ]; then
-            error "Could not resolve VE context for '${NESTED_HOSTNAME}'"
-        fi
-        info "VE context: ${VE_KEY}"
-
-        # Verify SSH connection (deployer needs SSH to PVE host for reconfigure)
-        info "Verifying SSH connection to PVE host..."
-        SSH_OK=""
-        for i in $(seq 1 5); do
-            SSH_CHECK=$(nested_ssh "curl -s --max-time 5 '${DEPLOYER_API}/api/ssh/check?host=${NESTED_HOSTNAME}&port=22'" 2>/dev/null || echo "")
-            if echo "$SSH_CHECK" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('permissionOk') else 1)" 2>/dev/null; then
-                SSH_OK="true"
-                break
-            fi
-            sleep 2
-        done
-        if [ "$SSH_OK" != "true" ]; then
-            error "SSH connection to PVE host not ready"
-        fi
-        success "SSH connection verified"
-
-        # Generate CA certificate (required for SSL addon)
-        info "Generating CA certificate..."
-        CA_RESP=$(nested_ssh "curl -s -X POST ${DEPLOYER_API}/api/${VE_KEY}/ve/certificates/ca/generate" 2>/dev/null || echo "")
-        CA_OK=$(echo "$CA_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
-        if [ "$CA_OK" = "true" ]; then
-            success "CA certificate generated"
-        else
-            info "CA certificate: $(echo "$CA_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','already exists or failed'))" 2>/dev/null || echo "see response")"
-        fi
-
-        # Set domain suffix for SSL certificates
-        info "Setting domain suffix to ${DOMAIN_SUFFIX}..."
-        SUFFIX_RESP=$(nested_ssh "curl -s -X POST -H 'Content-Type: application/json' -d '{\"domain_suffix\":\"${DOMAIN_SUFFIX}\"}' ${DEPLOYER_API}/api/${VE_KEY}/ve/certificates/domain-suffix" 2>/dev/null || echo "")
-        SUFFIX_OK=$(echo "$SUFFIX_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
-        if [ "$SUFFIX_OK" = "true" ]; then
-            success "Domain suffix set to ${DOMAIN_SUFFIX}"
-        else
-            info "Domain suffix: $(echo "$SUFFIX_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")"
-        fi
-
-        # Enable SSL addon on the existing container via reconfigure
-        # Write JSON on nested VM first, then pct push (avoids multi-layer shell escaping)
-        nested_ssh "printf '%s' '{\"application\":\"oci-lxc-deployer\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"previouse_vm_id\",\"value\":${TEMP_VMID}}],\"selectedAddons\":[\"addon-ssl\"]}' > /tmp/ssl-params.json"
-        nested_ssh "pct push ${TEMP_VMID} /tmp/ssl-params.json /tmp/ssl-params.json"
-
-        # Run reinstall via oci-lxc-cli (installed in Phase 2)
-        info "Running reinstall with SSL via oci-lxc-cli..."
-        HTTPS_DONE=""
-        VERBOSE_FLAG=""
-        [ "$VERBOSE" = "true" ] && VERBOSE_FLAG="--verbose"
-        nested_ssh "pct exec ${TEMP_VMID} -- oci-lxc-cli remote \
-            --server http://localhost:3080 \
-            --ve ${NESTED_HOSTNAME} \
-            --insecure \
-            --timeout 600 \
-            $VERBOSE_FLAG \
-            /tmp/ssl-params.json" \
-            && HTTPS_DONE="true" || true
-
-        # Fallback: if CLI exited early (container replaced), check HTTPS
-        if [ "$HTTPS_DONE" != "true" ]; then
-            info "CLI exited, checking HTTPS at ${DEPLOYER_IP}:3443..."
-            for i in $(seq 1 30); do
-                if nested_ssh "curl -sk --connect-timeout 3 https://${DEPLOYER_IP}:3443/" 2>/dev/null | grep -q "doctype"; then
-                    HTTPS_DONE="true"
-                    break
-                fi
-                sleep 2
-            done
-        fi
-
-        if [ "$HTTPS_DONE" = "true" ]; then
-            success "HTTPS enabled on new container"
-        else
-            error "HTTPS did not come up within 60s"
-        fi
-
-        # Wait for cleanup script to finish (destroys old container, reboots new one)
-        info "Waiting for container cleanup and reboot..."
-        sleep 15
-        for i in $(seq 1 30); do
-            if nested_ssh "pct status $DEPLOYER_VMID 2>/dev/null" | grep -q "running"; then
-                break
-            fi
-            sleep 2
-        done
-        success "Container $DEPLOYER_VMID running"
 
         # Clone already contains the local package from Phase 2 — no second deploy needed
     else
@@ -512,7 +419,88 @@ if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "
     nested_ssh "rm -f /tmp/$TARBALL"
 fi
 
-# Step 6: Create snapshot with deployer installed (VM must be stopped for clean snapshot)
+# Step 6: Set up local registry mirrors (Docker Hub + ghcr.io)
+# Two pull-through caches on the nested VM so LXC containers can pull images
+# locally instead of going through double-NAT to the internet.
+if [ "$UPDATE_ONLY" != "true" ]; then
+    header "Setting up registry mirrors"
+
+    # Install Docker on the nested VM (for running the mirror containers)
+    nested_ssh "command -v docker >/dev/null 2>&1 || {
+        apt-get update -qq && apt-get install -y -qq docker.io >&2
+    }"
+    success "Docker available on nested VM"
+
+    # Remove stale /etc/hosts redirects (from previous runs) so we can pull
+    # the mirror image directly from Docker Hub before the mirrors are up
+    nested_ssh "sed -i '/dockerhub mirror/d; /ghcr mirror/d; /registry mirror/d' /etc/hosts 2>/dev/null || true"
+
+    # Pre-pull the mirror image directly (before any redirects are in place)
+    nested_ssh "docker image inspect distribution/distribution:3.0.0 >/dev/null 2>&1 || \
+        docker pull distribution/distribution:3.0.0 >&2"
+    success "Mirror image available"
+
+    # Add secondary IP for ghcr.io mirror (Docker Hub uses 10.0.0.1)
+    nested_ssh "ip addr show vmbr1 | grep -q '10.0.0.2/' || ip addr add 10.0.0.2/24 dev vmbr1"
+
+    # Start Docker Hub mirror (bound to 10.0.0.1:443)
+    nested_ssh "docker ps -q -f name=dockerhub-mirror | grep -q . || \
+        docker run -d --name dockerhub-mirror --restart unless-stopped \
+            -p 10.0.0.1:443:5000 \
+            -v dockerhub-mirror-data:/var/lib/registry \
+            -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+            distribution/distribution:3.0.0 >&2"
+    success "Docker Hub mirror running on 10.0.0.1:443"
+
+    # Start ghcr.io mirror (bound to 10.0.0.2:443)
+    nested_ssh "docker ps -q -f name=ghcr-mirror | grep -q . || \
+        docker run -d --name ghcr-mirror --restart unless-stopped \
+            -p 10.0.0.2:443:5000 \
+            -v ghcr-mirror-data:/var/lib/registry \
+            -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
+            distribution/distribution:3.0.0 >&2"
+    success "ghcr.io mirror running on 10.0.0.2:443"
+
+    # Now set up /etc/hosts redirects + insecure-registries for pre-pull
+    nested_ssh "echo '10.0.0.1 registry-1.docker.io index.docker.io  # oci-lxc-deployer: dockerhub mirror' >> /etc/hosts"
+    nested_ssh "echo '10.0.0.2 ghcr.io  # oci-lxc-deployer: ghcr mirror' >> /etc/hosts"
+
+    # Configure Docker daemon on nested VM for insecure mirrors
+    nested_ssh "cat > /etc/docker/daemon.json <<'DJSON'
+{ \"insecure-registries\": [\"registry-1.docker.io\", \"index.docker.io\", \"ghcr.io\"] }
+DJSON
+    systemctl restart docker >&2 2>/dev/null || true"
+
+    # Wait for mirrors to be healthy
+    for mirror in "10.0.0.1:443" "10.0.0.2:443"; do
+        for i in $(seq 1 15); do
+            nested_ssh "curl -sk https://$mirror/v2/ >/dev/null 2>&1" && break
+            sleep 1
+        done
+    done
+
+    # Pre-pull all DOCKER_* images (used by docker-compose apps) through the mirrors
+    # Parse versions.sh: extract image URL from comment, tag from variable
+    info "Pre-pulling images through mirrors (warming cache)..."
+    VERSIONS_FILE="$PROJECT_ROOT/json/shared/scripts/library/versions.sh"
+    if [ -f "$VERSIONS_FILE" ]; then
+        . "$VERSIONS_FILE"
+        grep '_TAG=.*#' "$VERSIONS_FILE" | while IFS= read -r line; do
+            var=$(echo "$line" | sed 's/=.*//')
+            image=$(echo "$line" | sed 's/.*# *//')
+            tag=$(eval echo "\$$var")
+            [ -z "$tag" ] && continue
+            full="${image}:${tag}"
+            info "  Pulling $full ..."
+            nested_ssh "docker pull '$full' >&2 2>/dev/null" || echo "    Warning: $full failed"
+        done
+        success "Image pre-pull complete"
+    else
+        info "versions.sh not found, skipping pre-pull"
+    fi
+fi
+
+# Step 7: Create snapshot with deployer installed (VM must be stopped for clean snapshot)
 if [ "$UPDATE_ONLY" != "true" ]; then
     header "Creating Snapshot"
     info "Stopping nested VM $TEST_VMID for clean snapshot..."
