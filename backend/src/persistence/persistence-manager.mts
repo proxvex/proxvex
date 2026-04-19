@@ -598,6 +598,19 @@ export class PersistenceManager {
       }
     }
 
+    // Fix derived depends_on: if a derived dependency like "zitadel/oidc" doesn't exist,
+    // fall back to "zitadel/default"
+    const scenarioIds = new Set(scenarios.map(s => s.id));
+    for (const scenario of scenarios) {
+      if (scenario.depends_on) {
+        scenario.depends_on = scenario.depends_on.map(dep => {
+          if (scenarioIds.has(dep)) return dep;
+          const fallback = dep.replace(/\/[^/]+$/, "/default");
+          return scenarioIds.has(fallback) ? fallback : dep;
+        });
+      }
+    }
+
     return scenarios;
   }
 

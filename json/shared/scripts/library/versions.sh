@@ -27,3 +27,8 @@ OCI_pgadmin_TAG="${OCI_pgadmin_TAG:-9.14}"                    # dpage/pgadmin4
 OCI_nginx_TAG="${OCI_nginx_TAG:-1-alpine}"                    # nginxinc/nginx-unprivileged
 OCI_mariadb_TAG="${OCI_mariadb_TAG:-11}"                      # mariadb
 OCI_phpmyadmin_TAG="${OCI_phpmyadmin_TAG:-5.2.3}"             # phpmyadmin
+
+# Export all tags so docker-compose subprocesses can resolve ${DOCKER_*_TAG} references
+export DOCKER_traefik_TAG DOCKER_zitadel_TAG DOCKER_zitadel_login_TAG DOCKER_distribution_TAG DOCKER_postgrest_TAG
+export OCI_oci_lxc_deployer_TAG OCI_gptwol_TAG OCI_node_red_TAG OCI_eclipse_mosquitto_TAG OCI_gitea_TAG
+export OCI_postgres_TAG OCI_pgadmin_TAG OCI_nginx_TAG OCI_mariadb_TAG OCI_phpmyadmin_TAG

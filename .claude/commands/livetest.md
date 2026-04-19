@@ -18,9 +18,9 @@ Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `-
      ```
      rm -rf .livetest-data
      ```
-   - Delete child snapshots then rollback to baseline:
+   - Delete all non-baseline snapshots then rollback to baseline:
      ```
-     ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $(qm listsnapshot 9000 | grep dep- | awk "{print \$2}"); do qm delsnapshot 9000 $snap; done'
+     ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $(qm listsnapshot 9000 | grep -v "baseline\|current" | awk "{print \$2}"); do [ -n "$snap" ] && qm delsnapshot 9000 $snap; done'
      ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm stop 9000 2>/dev/null; true'
      ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm rollback 9000 baseline'
      ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm start 9000'
