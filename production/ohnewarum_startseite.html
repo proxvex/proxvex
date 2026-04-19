@@ -22,7 +22,7 @@
     background: var(--dark);
     color: var(--cream);
     font-family: 'Cormorant Garamond', serif;
-    overflow: hidden;
+    overflow: hidden auto;
   }
 
   body {
@@ -78,6 +78,8 @@
 
   .rose-img {
     width: clamp(220px, 35vw, 380px);
+    max-height: 60vh;
+    object-fit: contain;
     height: auto;
     filter: drop-shadow(0 0 40px rgba(184, 150, 90, 0.25)) drop-shadow(0 20px 60px rgba(0,0,0,0.6));
     mix-blend-mode: normal;
@@ -151,6 +153,42 @@
     margin-top: 1.8rem;
   }
 
+  .nav-bar {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(184, 150, 90, 0.2);
+    display: flex;
+    gap: 1.8rem;
+    flex-wrap: wrap;
+    opacity: 0;
+    animation: fadeIn 1.5s ease 2.2s forwards;
+  }
+
+  .nav-bar a {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(0.6rem, 0.9vw, 0.72rem);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.55;
+    text-decoration: none;
+    transition: opacity 0.3s;
+  }
+
+  .nav-bar a:hover {
+    opacity: 1;
+  }
+
+  .nav-bar .disabled {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(0.6rem, 0.9vw, 0.72rem);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.25;
+    cursor: default;
+  }
+
   /* Thin decorative line under site name */
   .site-name-bar {
     display: block;
@@ -192,6 +230,7 @@
     .text-side { padding-left: 0; }
     .quote-wrapper::before { left: 50%; transform: translateX(-50%); }
     .site-name-bar { margin-left: auto; margin-right: auto; }
+    .nav-bar { justify-content: center; }
   }
 </style>
 </head>
@@ -217,6 +256,13 @@
     </div>
 
     <p class="attribution">Angelus Silesius &middot; 1657</p>
+
+    <div class="nav-bar">
+      <a href="/profil.html">Profil</a>
+      <a href="https://github.com/modbus2mqtt/oci-lxc-deployer">oci-lxc-deployer</a>
+      <a href="https://github.com/modbus2mqtt/server">modbus2mqtt</a>
+      <span class="disabled">Nebenkosten</span>
+    </div>
   </div>
 </div>
 </body>

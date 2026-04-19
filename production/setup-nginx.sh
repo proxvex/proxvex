@@ -149,6 +149,11 @@ pct push "$NGINX_VMID" "$SCRIPT_DIR/ohnewarum_startseite.html" \
   /usr/share/nginx/html/ohnewarum/index.html
 echo "  Pushed ohnewarum_startseite.html → /usr/share/nginx/html/ohnewarum/index.html"
 
+# Copy profile page
+pct push "$NGINX_VMID" "$SCRIPT_DIR/volkmar-nissen-profil.html" \
+  /usr/share/nginx/html/ohnewarum/profil.html
+echo "  Pushed volkmar-nissen-profil.html → /usr/share/nginx/html/ohnewarum/profil.html"
+
 # Placeholder for nebenkosten (will be replaced with actual app later)
 cat > "$TMPDIR/nebenkosten-placeholder.html" <<'EOF'
 <!DOCTYPE html>
