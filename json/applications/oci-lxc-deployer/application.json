@@ -37,9 +37,8 @@
       "id": "oci_image_tag",
       "name": "Version",
       "type": "string",
-      "required": false,
-      "default": "latest",
-      "description": "OCI image tag / version to deploy (e.g. 'latest', 'v1.2.3')"
+      "required": true,
+      "description": "OCI image tag / version to deploy (e.g. 'latest', 'v1.2.3'). Default comes from versions.sh (OCI_oci_lxc_deployer_TAG)."
     }
   ],
   "properties": [

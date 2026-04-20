@@ -23,7 +23,8 @@
     {
       "id": "DOCKERHUB_TOKEN",
       "name": "Docker Hub Token",
-      "type": "password",
+      "type": "string",
+      "secure": true,
       "required": false,
       "description": "Docker Hub Personal Access Token (PAT) for authenticated pulls."
     }
