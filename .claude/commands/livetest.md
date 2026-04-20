@@ -136,8 +136,9 @@ Tests declare dependencies (e.g. `gitea/default` depends on `zitadel/default` wh
 ### When things go wrong
 If a test fails and you want a clean retry:
 - **Just re-run**: The runner auto-detects existing snapshots and restores dependencies from them. Only the failed target VM gets reinstalled.
-- **Fresh start**: Use `--fresh` flag to rollback to baseline and wipe `.livetest-data/`. This reinstalls everything from scratch.
-- **Dependencies are corrupt**: Use `--fresh` to reset to baseline.
+- **Fresh start**: Use `--fresh` flag to rollback to `deployer-installed` and wipe `.livetest-data/`. This reinstalls every app from scratch while keeping the deployer + registry mirrors from step2.
+- **Dependencies are corrupt**: Use `--fresh` to reset to `deployer-installed`.
+- **Deployer itself is corrupt / mirrors missing**: Re-run `./e2e/step1-create-vm.sh` and `./e2e/step2-install-deployer.sh` (without `--update-only`) to rebuild baseline + deployer-installed snapshots from scratch.
 
 ### VM cleanup behavior
 - **Target VMs**: Destroyed after test (unless `KEEP_VM=1`)
