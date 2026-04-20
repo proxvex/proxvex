@@ -1,0 +1,66 @@
+{
+  "$id": "stack-usage",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "array",
+  "description": "Declares which stack variables this application or addon consumes and how they are applied to deployed instances when the stack value changes.",
+  "items": {
+    "type": "object",
+    "properties": {
+      "stacktype": {
+        "type": "string",
+        "description": "Stacktype id (must match a file in json/stacktypes/)."
+      },
+      "vars": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Variable name, must match a stacktype.variables[].name."
+            },
+            "replacement": {
+              "type": "string",
+              "enum": ["compose-env", "lxc-config-env", "on-start-env", "rerun-template", "manual", "no-action"],
+              "default": "manual",
+              "description": "Method applied when this stack property changes. 'manual' = user must act; 'no-action' = nothing to do (declaration is informational only); 'rerun-template' is DEPRECATED."
+            },
+            "compose_key": {
+              "type": "string",
+              "description": "For replacement='compose-env': the env key in docker-compose.yml."
+            },
+            "lxc_var_name": {
+              "type": "string",
+              "description": "For replacement='lxc-config-env': the variable name, written as lxc.environment.<NAME>=<VAL>."
+            },
+            "script": {
+              "type": "string",
+              "description": "For replacement='on-start-env': file name of the on-start script in ${VOLUME_DIR}/on_start.d/ to patch."
+            },
+            "script_var": {
+              "type": "string",
+              "description": "For replacement='on-start-env': the shell variable name inside the script whose value is patched."
+            },
+            "template": {
+              "type": "string",
+              "description": "For replacement='rerun-template' (deprecated): template filename to rerun."
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional human-readable explanation, shown in the UI. Especially helpful for 'no-action' and 'manual' entries."
+            },
+            "check": {
+              "type": "string",
+              "description": "Optional: template path that verifies the stack value matches the target system."
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["stacktype", "vars"],
+    "additionalProperties": false
+  }
+}

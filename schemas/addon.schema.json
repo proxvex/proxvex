@@ -68,6 +68,9 @@
         { "type": "string" },
         { "type": "array", "items": { "type": "string" } }
       ]
+    },
+    "stack_usage": {
+      "$ref": "stack-usage"
     }
   },
   "required": ["notes_key"],

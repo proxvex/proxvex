@@ -68,7 +68,26 @@ export class WebAppStack {
       }
       // Auto-generate id from stacktype + name to ensure uniqueness across types
       const typePrefix = Array.isArray(body.stacktype) ? body.stacktype.sort().join('_') : body.stacktype;
-      body.id = `${typePrefix}_${body.name}`;
+      const newId = `${typePrefix}_${body.name}`;
+      const incomingId = body.id;
+
+      // Snapshot the pre-update entries (if the stack exists) so we can
+      // detect value changes and flip `dirty` accordingly. Must happen BEFORE
+      // the rename/delete below, otherwise we lose the old state.
+      const preUpdate = incomingId
+        ? this.stackProvider.getStack(incomingId)
+        : null;
+
+      // Rename / stacktype change: drop the old entry so we don't leave a
+      // duplicate under the previous id.
+      if (incomingId && incomingId !== newId) {
+        const existing = this.stackProvider.getStack(incomingId);
+        if (existing) {
+          this.stackProvider.deleteStack(incomingId);
+        }
+      }
+
+      body.id = newId;
 
       // Auto-generate secrets for variables without 'external' flag
       // Supports both single stacktype ("postgres") and array (["postgres", "oidc"])
@@ -103,6 +122,22 @@ export class WebAppStack {
             }
           }
         }
+      }
+
+      // Determine dirty flag:
+      //   - New stack (no pre-update state): dirty = false. Nothing is
+      //     deployed against it yet, so there's nothing to propagate.
+      //   - Update with at least one changed entry value: dirty = true.
+      //   - Update without value changes (or only auto-generated new secrets
+      //     on a new stacktype variable): preserve previous dirty state.
+      if (preUpdate) {
+        const valueChanged = body.entries.some((entry) => {
+          const old = preUpdate.entries.find((e) => e.name === entry.name);
+          return !old || String(old.value) !== String(entry.value);
+        });
+        body.dirty = valueChanged ? true : (preUpdate.dirty ?? false);
+      } else {
+        body.dirty = false;
       }
 
       const key = this.stackProvider.addStack(body);

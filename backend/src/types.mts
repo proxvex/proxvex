@@ -54,7 +54,46 @@ export interface IApplicationBase {
   oidc_roles?: { key: string; display_name: string; group?: string }[];
   /** If true, the application is not shown in the applications list but can appear in the installed list. */
   hidden?: boolean;
+  /** Declares which stack variables this application consumes and how they are refreshed. */
+  stack_usage?: IStackUsage[];
 }
+
+/**
+ * Declares how an application or addon consumes stack variables and how they
+ * should be propagated when the stack value changes (refresh-stack task).
+ */
+export interface IStackUsage {
+  stacktype: string;
+  vars: IStackUsageVar[];
+}
+
+export type StackRefreshMethod =
+  | "compose-env"
+  | "lxc-config-env"
+  | "on-start-env"
+  | "rerun-template"
+  | "manual"
+  | "no-action";
+
+export interface IStackUsageVar {
+  name: string;
+  replacement?: StackRefreshMethod;
+  /** For replacement="compose-env": env key inside docker-compose.yml */
+  compose_key?: string;
+  /** For replacement="lxc-config-env": variable name written as lxc.environment.<NAME>=<VAL> */
+  lxc_var_name?: string;
+  /** For replacement="on-start-env": script filename in ${VOLUME_DIR}/on_start.d/ */
+  script?: string;
+  /** For replacement="on-start-env": shell variable name inside the script */
+  script_var?: string;
+  /** For replacement="rerun-template" (deprecated): template filename to rerun */
+  template?: string;
+  /** Human-readable explanation shown in the UI (especially for no-action / manual). */
+  description?: string;
+  /** Optional template that verifies the stack value matches the target system */
+  check?: string;
+}
+
 export interface IApplicationVerification {
   wait_seconds?: number;
   checks?: Record<string, boolean | number | string | { enabled?: boolean; fatal?: boolean }>;
@@ -87,7 +126,8 @@ export type TaskType =
   | "reconfigure"
   | "webui"
   | "addon"
-  | "check";
+  | "check"
+  | "refresh-stack";
 // Generated from template.schema.json
 export interface IOutputObject {
   id: string;
@@ -227,6 +267,8 @@ export enum ApiUri {
   Stacktypes = "/api/stacktypes",
   Stacks = "/api/stacks",
   Stack = "/api/stack/:id",
+  StackRefreshPreview = "/api/stack/:id/refresh-preview",
+  StackRefreshApply = "/api/stack/:id/refresh",
 
   // Auth endpoints
   AuthConfig = "/api/auth/config",
@@ -650,6 +692,8 @@ export interface IAddon {
   parameterOverrides?: IParameterOverride[];
   /** Markdown notice extracted from addon .md file (## Notice section) */
   notice?: string;
+  /** Declares which stack variables this addon consumes and how they are refreshed. */
+  stack_usage?: IStackUsage[];
 }
 
 export interface IActiveAddon {
@@ -737,6 +781,12 @@ export interface IStack {
   stacktype: string | string[];
   entries: IStackEntry[];
   provides?: IStackProvides[] | undefined; // Runtime connection info (URLs, ports, protocols)
+  /**
+   * True when the stack has values that have not yet been propagated to its
+   * consumers. Set on update (POST /api/stacks when any entry value changes),
+   * cleared after a successful refresh-stack run.
+   */
+  dirty?: boolean | undefined;
 }
 
 // API Response types for stacks

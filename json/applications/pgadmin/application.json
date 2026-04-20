@@ -15,5 +15,13 @@
         "position": "start"
       }
     ]
-  }
+  },
+  "stack_usage": [
+    {
+      "stacktype": "pgadmin",
+      "vars": [
+        { "name": "PGADMIN_DEFAULT_PASSWORD", "replacement": "manual" }
+      ]
+    }
+  ]
 }

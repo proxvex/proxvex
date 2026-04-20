@@ -24,6 +24,7 @@ const baseSchemas: string[] = [
   "templatelist.schema.json",
   "categorized-templatelist.schema.json",
   "base-deployable.schema.json",
+  "stack-usage.schema.json",
 ];
 
 /**

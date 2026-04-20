@@ -387,6 +387,87 @@ export async function validateAllJson(localPathArg?: string): Promise<void> {
     }
   }
 
+  // === 5. Validate stack_usage declarations ===
+  // Ensures every (stacktype, varName) in app.stack_usage / addon.stack_usage
+  // refers to an existing stacktype and a defined variable.
+  const stacktypes = pm.getStacktypes();
+  const stacktypeVarNames = new Map<string, Set<string>>();
+  for (const st of stacktypes) {
+    const names = new Set<string>();
+    for (const v of st.entries ?? []) names.add(v.name);
+    stacktypeVarNames.set(st.name, names);
+  }
+
+  const stackUsageErrors: { source: string; message: string }[] = [];
+
+  const checkStackUsage = (
+    ownerId: string,
+    ownerKind: "application" | "addon",
+    stackUsage: unknown,
+  ) => {
+    if (!Array.isArray(stackUsage)) return;
+    for (const u of stackUsage as Array<{
+      stacktype?: string;
+      vars?: Array<{ name?: string; replacement?: string }>;
+    }>) {
+      const stacktype = u?.stacktype;
+      if (!stacktype || !stacktypeVarNames.has(stacktype)) {
+        stackUsageErrors.push({
+          source: `${ownerKind}:${ownerId}`,
+          message: `stack_usage references unknown stacktype '${stacktype}'`,
+        });
+        continue;
+      }
+      const knownVars = stacktypeVarNames.get(stacktype)!;
+      for (const v of u.vars ?? []) {
+        if (!v.name) {
+          stackUsageErrors.push({
+            source: `${ownerKind}:${ownerId}`,
+            message: `stack_usage[stacktype=${stacktype}] entry missing 'name'`,
+          });
+          continue;
+        }
+        if (!knownVars.has(v.name)) {
+          stackUsageErrors.push({
+            source: `${ownerKind}:${ownerId}`,
+            message: `stack_usage variable '${v.name}' not declared in stacktype '${stacktype}'`,
+          });
+        }
+      }
+    }
+  };
+
+  for (const app of apps) {
+    try {
+      const full = repositories.getApplication(app.id);
+      checkStackUsage(app.id, "application", (full as { stack_usage?: unknown }).stack_usage);
+    } catch {
+      /* ignore — app already flagged with schemaErrors above */
+    }
+  }
+
+  const addonService = pm.getAddonService();
+  for (const addonId of addonService.getAddonIds()) {
+    try {
+      const addon = addonService.getAddon(addonId) as unknown as {
+        stack_usage?: unknown;
+      };
+      checkStackUsage(addonId, "addon", addon.stack_usage);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (stackUsageErrors.length > 0) {
+    hasError = true;
+    console.error(`✖ stack_usage (${stackUsageErrors.length} issue(s))`);
+    for (const e of stackUsageErrors) {
+      console.error(`  ✖ ${e.source}: ${e.message}`);
+    }
+  } else {
+    console.log(`✔ stack_usage`);
+  }
+
   // === Summary ===
   console.log("");
   if (hasError) {

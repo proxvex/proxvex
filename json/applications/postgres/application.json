@@ -78,5 +78,16 @@
     ]
   },
   "tags": ["database"],
-  "stacktype": "postgres"
+  "stacktype": "postgres",
+  "stack_usage": [
+    {
+      "stacktype": "postgres",
+      "vars": [
+        { "name": "POSTGRES_PASSWORD", "replacement": "manual" },
+        { "name": "API_LOGIN_PASSWORD", "replacement": "manual" },
+        { "name": "JWT_SECRET", "replacement": "manual" },
+        { "name": "PGADMIN_DEFAULT_PASSWORD", "replacement": "manual" }
+      ]
+    }
+  ]
 }

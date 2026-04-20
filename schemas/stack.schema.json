@@ -17,6 +17,10 @@
         "required": ["name", "value"],
         "additionalProperties": false
       }
+    },
+    "dirty": {
+      "type": "boolean",
+      "description": "True when the stack has values that have not yet been propagated to its consumers. Set on update, cleared after a successful refresh-stack run."
     }
   },
   "required": ["id", "name", "stacktype", "entries"],

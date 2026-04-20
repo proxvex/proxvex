@@ -158,5 +158,44 @@
     "postgres",
     "oidc",
     "cloudflare"
+  ],
+  "stack_usage": [
+    {
+      "stacktype": "cloudflare",
+      "vars": [
+        {
+          "name": "CF_TOKEN",
+          "replacement": "no-action",
+          "description": "DNS records are set at install time via 385-post-configure-mail-dns.json. Rotating CF_TOKEN changes only the API credential, not the DNS content — no per-container action required."
+        }
+      ]
+    },
+    {
+      "stacktype": "postgres",
+      "vars": [
+        {
+          "name": "POSTGRES_PASSWORD",
+          "replacement": "compose-env",
+          "compose_key": "ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD"
+        }
+      ]
+    },
+    {
+      "stacktype": "oidc",
+      "vars": [
+        { "name": "ZITADEL_MASTERKEY", "replacement": "manual" },
+        {
+          "name": "ZITADEL_DB_PASSWORD",
+          "replacement": "compose-env",
+          "compose_key": "ZITADEL_DATABASE_POSTGRES_USER_PASSWORD"
+        },
+        { "name": "ZITADEL_ADMIN_PASSWORD", "replacement": "manual" },
+        {
+          "name": "SMTP_PASSWORD",
+          "replacement": "compose-env",
+          "compose_key": "ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_PASSWORD"
+        }
+      ]
+    }
   ]
 }

@@ -99,5 +99,19 @@
   "oidc_roles": [
     { "key": "admin", "display_name": "Administrator" }
   ],
-  "stacktype": ["postgres", "gitea"]
+  "stacktype": ["postgres", "gitea"],
+  "stack_usage": [
+    {
+      "stacktype": "gitea",
+      "vars": [
+        { "name": "GITEA_ADMIN_PASSWORD", "replacement": "manual" }
+      ]
+    },
+    {
+      "stacktype": "postgres",
+      "vars": [
+        { "name": "POSTGRES_PASSWORD", "replacement": "manual" }
+      ]
+    }
+  ]
 }

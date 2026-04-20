@@ -42,5 +42,13 @@
       "postgrest-parameters.json"
     ]
   },
-  "stacktype": "postgres"
+  "stacktype": "postgres",
+  "stack_usage": [
+    {
+      "stacktype": "postgres",
+      "vars": [
+        { "name": "POSTGRES_PASSWORD", "replacement": "manual" }
+      ]
+    }
+  ]
 }

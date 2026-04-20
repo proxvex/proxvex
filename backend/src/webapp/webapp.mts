@@ -15,6 +15,7 @@ import { registerVersionRoutes } from "./webapp-version-routes.mjs";
 import { setupStaticRoutes } from "./webapp-static.mjs";
 import { WebAppVE } from "./webapp-ve.mjs";
 import { WebAppStack } from "./webapp-stack-routes.mjs";
+import { WebAppStackRefresh } from "./webapp-stack-refresh-routes.mjs";
 import { registerCertificateRoutes, getAutoRenewalService } from "./webapp-certificate-routes.mjs";
 import { registerMaintenanceRoutes, getLogRotationService } from "./webapp-maintenance-routes.mjs";
 import { registerValidationRoutes } from "./webapp-validation-routes.mjs";
@@ -168,8 +169,12 @@ export class VEWebApp {
     webAppVE.init();
 
     const { LocalStackProvider } = await import("../services/local-stack-provider.mjs");
-    const webAppStack = new WebAppStack(this.app, new LocalStackProvider(this.storageContext));
+    const localStackProvider = new LocalStackProvider(this.storageContext);
+    const webAppStack = new WebAppStack(this.app, localStackProvider);
     webAppStack.init();
+
+    const webAppStackRefresh = new WebAppStackRefresh(this.app, localStackProvider);
+    webAppStackRefresh.init();
 
     // Hub endpoints (always active — CA signing + stack API for spokes)
     registerHubRoutes(this.app);
