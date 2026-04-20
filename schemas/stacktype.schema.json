@@ -8,6 +8,7 @@
       "properties": {
         "name": { "type": "string", "description": "Variable name" },
         "external": { "type": "boolean", "description": "true = manual input required, false/missing = auto-generate" },
+        "required": { "type": "boolean", "default": true, "description": "For external variables: whether a non-empty value must be provided. Default true. Set false for optional external values (e.g. SMTP_PASSWORD) — the stack can then be created without the value, and consumers treat it as unset." },
         "length": { "type": "number", "minimum": 16, "default": 32, "description": "Length of generated secret" }
       },
       "required": ["name"],

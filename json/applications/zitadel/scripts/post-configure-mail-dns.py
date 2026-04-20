@@ -25,9 +25,10 @@ MAIL_DOMAIN = "{{ smtp_mail_domain }}"
 MX_TARGET = "{{ smtp_mx_target }}"
 SPF_VALUE = "{{ smtp_spf_value }}"
 CF_TOKEN = "{{ CF_TOKEN }}"
+SMTP_PASSWORD = "{{ SMTP_PASSWORD }}"
 
 # Normalize NOT_DEFINED sentinels
-for name in ("SMTP_OWN_DOMAIN", "MAIL_DOMAIN", "MX_TARGET", "SPF_VALUE", "CF_TOKEN"):
+for name in ("SMTP_OWN_DOMAIN", "MAIL_DOMAIN", "MX_TARGET", "SPF_VALUE", "CF_TOKEN", "SMTP_PASSWORD"):
     if locals()[name] == "NOT_DEFINED":
         locals()[name] = ""
 # Re-bind after locals() mutation
@@ -36,6 +37,7 @@ MAIL_DOMAIN = locals()["MAIL_DOMAIN"]
 MX_TARGET = locals()["MX_TARGET"]
 SPF_VALUE = locals()["SPF_VALUE"]
 CF_TOKEN = locals()["CF_TOKEN"]
+SMTP_PASSWORD = locals()["SMTP_PASSWORD"]
 
 
 def log(msg: str) -> None:
@@ -97,12 +99,24 @@ if SMTP_OWN_DOMAIN != "true":
     print("[]")
     sys.exit(0)
 
-if not MAIL_DOMAIN or not MX_TARGET or not CF_TOKEN:
+# Mail DNS only makes sense when SMTP actually works — i.e. CF_TOKEN must be
+# present (to write DNS) and SMTP_PASSWORD must be present (so Zitadel can
+# authenticate with the mail provider). Either missing → skip the template.
+if not CF_TOKEN:
+    log("CF_TOKEN is empty — skipping mail DNS setup (no Cloudflare credentials).")
+    print("[]")
+    sys.exit(0)
+
+if not SMTP_PASSWORD:
+    log("SMTP_PASSWORD is empty — skipping mail DNS setup (SMTP auth not configured).")
+    print("[]")
+    sys.exit(0)
+
+if not MAIL_DOMAIN or not MX_TARGET:
     log("ERROR: smtp_own_domain is true but required parameters are empty:")
     log(f"  smtp_mail_domain = '{MAIL_DOMAIN}'")
     log(f"  smtp_mx_target   = '{MX_TARGET}'")
     log(f"  smtp_spf_value   = '{SPF_VALUE}'")
-    log(f"  CF_TOKEN          = '{'set (' + str(len(CF_TOKEN)) + ' chars)' if CF_TOKEN else 'empty'}'")
     sys.exit(1)
 
 # --- Resolve zone ---

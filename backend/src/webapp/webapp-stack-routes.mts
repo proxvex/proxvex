@@ -103,12 +103,20 @@ export class WebAppStack {
           const existing = body.entries.find((e) => e.name === variable.name);
           if (variable.external) {
             // External (user-provided) variables must be provided by the
-            // caller. Reject the request if any are missing or empty.
-            if (!existing || existing.value === undefined || existing.value === "") {
+            // caller. Reject the request if a value is missing or empty —
+            // unless the variable is declared optional (required: false),
+            // in which case an empty value means "skip this feature".
+            const isRequired = variable.required !== false;
+            if (isRequired && (!existing || existing.value === undefined || existing.value === "")) {
               res.status(400).json({
                 error: `Missing required external entry '${variable.name}' for stacktype '${typeName}'. External variables must be provided when creating a stack.`,
               });
               return;
+            }
+            // Optional external: ensure an entry exists so consumers get an
+            // empty string instead of an undefined template variable.
+            if (!isRequired && !existing) {
+              body.entries.push({ name: variable.name, value: "" });
             }
           } else {
             // Auto-generated variables: generate a secret if not already set.

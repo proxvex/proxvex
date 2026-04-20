@@ -5,7 +5,7 @@
     { "name": "ZITADEL_MASTERKEY", "length": 32 },
     { "name": "ZITADEL_DB_PASSWORD" },
     { "name": "ZITADEL_ADMIN_PASSWORD" },
-    { "name": "SMTP_PASSWORD", "external": true }
+    { "name": "SMTP_PASSWORD", "external": true, "required": false }
   ],
   "provides": [
     { "name": "ZITADEL_HOST", "description": "Hostname of the Zitadel container" },

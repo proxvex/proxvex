@@ -524,6 +524,7 @@ export function stacktypeMatches(appStacktype: string | string[] | undefined, ta
 export interface IStacktypeVariable {
     name: string;
     external?: boolean;
+    required?: boolean;
     length?: number;
 }
 export interface IStacktypeEntry {
