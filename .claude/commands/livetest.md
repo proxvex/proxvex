@@ -18,17 +18,28 @@ Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `-
      ```
      rm -rf .livetest-data
      ```
-   - Delete all non-baseline snapshots then rollback to baseline:
+   - Delete all test-created snapshots then rollback to `deployer-installed`
+     (this snapshot is created by `step2-install-deployer.sh` and includes the
+     Docker Hub / ghcr.io registry mirrors needed by every test):
      ```
-     ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $(qm listsnapshot 9000 | grep -v "baseline\|current" | awk "{print \$2}"); do [ -n "$snap" ] && qm delsnapshot 9000 $snap; done'
+     ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $(qm listsnapshot 9000 | grep -v "baseline\|deployer-installed\|current" | awk "{print \$2}"); do [ -n "$snap" ] && qm delsnapshot 9000 $snap; done'
      ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm stop 9000 2>/dev/null; true'
-     ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm rollback 9000 baseline'
+     ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm rollback 9000 deployer-installed'
      ssh -o StrictHostKeyChecking=no root@ubuntupve 'qm start 9000'
      ```
    - Wait for the nested VM to be reachable:
      ```
      for i in $(seq 1 30); do ssh -o StrictHostKeyChecking=no -o ConnectTimeout=2 -p 1022 root@ubuntupve 'echo ok' 2>/dev/null && break; sleep 2; done
      ```
+
+   > **Why not `baseline`?** The `baseline` snapshot is the raw Proxmox install
+   > without the deployer and without the registry mirrors. Rolling back to it
+   > means every image pull hits the internet via double-NAT and fails (skopeo
+   > TLS mismatch). The `deployer-installed` snapshot is created at the end of
+   > `step2-install-deployer.sh` after the mirrors are set up, so all tests
+   > start from a known-good state. To recreate `baseline` + `deployer-installed`
+   > from scratch, re-run `./e2e/step1-create-vm.sh` and
+   > `./e2e/step2-install-deployer.sh` (without `--update-only`).
 
 4. **Check if deployer is already running** on port 3201:
    ```
