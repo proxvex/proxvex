@@ -1,0 +1,49 @@
+{
+  "execute_on": "ve",
+  "name": "Patch Compose Env Value",
+  "description": "Patches a single key in the `environment:` block of an already-deployed docker-compose.yml (in the LXC volume directory) and triggers `docker compose up -d`. Used by refresh-stack task. Does not re-render the compose file — only replaces the value of the specified env key.",
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "LXC Container ID",
+      "type": "string",
+      "required": true,
+      "description": "LXC container ID whose compose file is patched."
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname (used to locate volume directory)."
+    },
+    {
+      "id": "compose_project",
+      "name": "Compose Project Name",
+      "type": "string",
+      "required": true,
+      "description": "Docker Compose project directory name."
+    },
+    {
+      "id": "compose_key",
+      "name": "Env Key in docker-compose.yml",
+      "type": "string",
+      "required": true,
+      "description": "The environment key to set (e.g. CF_API_TOKEN)."
+    },
+    {
+      "id": "new_value",
+      "name": "New Value",
+      "type": "string",
+      "required": true,
+      "description": "New value for the env key."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Patch compose env",
+      "script": "refresh-compose-env.sh",
+      "library": "pve-common.sh"
+    }
+  ]
+}

@@ -340,6 +340,67 @@ export class VeConfigurationService {
     return this.http.delete<{ success: boolean; deleted: boolean }>(url);
   }
 
+  /**
+   * Fetch refresh preview for a stack. Deliberately stateless: does NOT use
+   * `veContextKey`. The backend picks the default VE context (current: true)
+   * and returns its host in `veContextHost` so the UI can display it.
+   */
+  getStackRefreshPreview(
+    stackId: string,
+    opts?: { varName?: string; vmId?: number },
+  ): Observable<{ preview: unknown; veContextHost: string }> {
+    const url = ApiUri.StackRefreshPreview.replace(':id', encodeURIComponent(stackId));
+    const body: Record<string, unknown> = {};
+    if (opts?.varName !== undefined) body['varName'] = opts.varName;
+    if (opts?.vmId !== undefined) body['vmId'] = opts.vmId;
+    return this.http.post<{ preview: unknown; veContextHost: string }>(url, body);
+  }
+
+  /**
+   * Dispatch the check-task for a specific container. Fire-and-forget use
+   * case from the refresh-stack flow: after patching + pct restart we want
+   * the app's check templates to run so post-restart health is visible in
+   * the Process Monitor. Uses an explicit veContextKey (stateless) so it
+   * does not clobber the sticky context used elsewhere.
+   */
+  dispatchCheckTask(
+    application: string,
+    veContextKey: string,
+    vmId: number,
+    hostname: string,
+  ): Observable<{ success: boolean; restartKey?: string }> {
+    const url = ApiUri.VeConfiguration
+      .replace(':application', encodeURIComponent(application))
+      .replace(':veContext', veContextKey);
+    const body: IPostVeConfigurationBody = {
+      task: 'check',
+      params: [
+        { name: 'vm_id', value: vmId },
+        { name: 'hostname', value: hostname },
+      ],
+    };
+    return this.http.post<{ success: boolean; restartKey?: string }>(url, body);
+  }
+
+  /**
+   * Apply a stack refresh. Stateless — backend resolves the current VE context.
+   */
+  applyStackRefresh(
+    stackId: string,
+    varName: string,
+    newValue: string,
+    opts?: { oldValue?: string; vmId?: number },
+  ): Observable<{ result: unknown; veContextHost: string }> {
+    const url = ApiUri.StackRefreshApply.replace(':id', encodeURIComponent(stackId));
+    const body: Record<string, unknown> = {
+      varName,
+      newValue,
+      oldValue: opts?.oldValue ?? '',
+    };
+    if (opts?.vmId !== undefined) body['vmId'] = opts.vmId;
+    return this.http.post<{ result: unknown; veContextHost: string }>(url, body);
+  }
+
   // Certificate management methods
   getCertificateStatus(): Observable<ICertificateStatusResponse> {
     return this.get<ICertificateStatusResponse>(ApiUri.CertificateStatus);

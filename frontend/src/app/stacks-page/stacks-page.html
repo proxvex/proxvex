@@ -97,12 +97,15 @@
 
       <mat-accordion>
         @for (stack of stacks(); track stack.id) {
-          <mat-expansion-panel>
+          <mat-expansion-panel (opened)="onStackExpanded(stack)">
             <mat-expansion-panel-header>
               <mat-panel-title>
                 {{ stack.name }}
                 @if (isDefaultStack(stack)) {
                   <span class="default-badge" matTooltip="Keeps original hostname during deployment">default</span>
+                }
+                @if (stack.dirty) {
+                  <span class="dirty-badge" matTooltip="Values changed but not yet propagated to containers">unapplied</span>
                 }
               </mat-panel-title>
               <mat-panel-description>
@@ -128,6 +131,15 @@
                 <mat-icon>edit</mat-icon>
                 Edit
               </button>
+              @if (stack.dirty) {
+                <button mat-button color="primary"
+                  (click)="openRefreshDialog(stack)"
+                  [disabled]="isEditing()"
+                  matTooltip="Propagate current stack values to deployed containers">
+                  <mat-icon>autorenew</mat-icon>
+                  Refresh Containers
+                </button>
+              }
               <button mat-button color="warn" (click)="deleteStack(stack, $event)" [disabled]="isEditing()">
                 <mat-icon>delete</mat-icon>
                 Delete

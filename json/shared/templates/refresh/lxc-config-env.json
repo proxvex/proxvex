@@ -1,0 +1,34 @@
+{
+  "execute_on": "ve",
+  "name": "Patch LXC Config Env",
+  "description": "Sets `lxc.environment.<NAME>=<VAL>` in /etc/pve/lxc/<vmid>.conf on the PVE host. The new value is picked up by the container's PID-1 process on next start. Used by refresh-stack task.",
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "LXC Container ID",
+      "type": "string",
+      "required": true,
+      "description": "LXC container ID whose config is patched."
+    },
+    {
+      "id": "lxc_var_name",
+      "name": "Environment Variable Name",
+      "type": "string",
+      "required": true,
+      "description": "Name of the env variable (e.g. POSTGRES_PASSWORD). Becomes lxc.environment.<NAME>=<VAL>."
+    },
+    {
+      "id": "new_value",
+      "name": "New Value",
+      "type": "string",
+      "required": true,
+      "description": "New value for the env variable."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Patch LXC config env",
+      "script": "refresh-lxc-config-env.sh"
+    }
+  ]
+}

@@ -78,7 +78,14 @@
       "Bash(ssh root@ubuntupve 'perl -e \"use PVE::LXC::Config; use Data::Dumper; my \\\\$schema = PVE::LXC::Config->__parse_ct_mountpoint_full\\(\\\\\"test:vol,mp=/data\\\\\"\\); print Dumper\\(\\\\$schema\\);\" 2>&1 | head -20; echo \"---\"; ssh root@ubuntupve \"grep -A30 mp.*desc.*Mount /usr/share/perl5/PVE/LXC/Config.pm 2>/dev/null | head -40\"')",
       "Bash(ssh root@ubuntupve 'grep -B2 -A5 \"pve-lxc-mp-string\" /usr/share/perl5/PVE/LXC/Config.pm 2>/dev/null | head -30')",
       "Bash(ssh root@ubuntupve 'grep -E \"^\\\\s+\\(backup|replicate|quota|acl|ro|shared|mount|size|mp|volume\\)\" /usr/share/perl5/PVE/LXC/Config.pm 2>/dev/null | grep -v \"^--\" | sort -u')",
-      "Bash(ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $\\(qm listsnapshot 9000 | grep dep- | awk \"{print \\\\$1}\"\\); do qm delsnapshot 9000 $snap; done')"
+      "Bash(ssh -o StrictHostKeyChecking=no root@ubuntupve 'for snap in $\\(qm listsnapshot 9000 | grep dep- | awk \"{print \\\\$1}\"\\); do qm delsnapshot 9000 $snap; done')",
+      "Bash(kill 97224)",
+      "Bash(lsof -ti :3201 -sTCP:LISTEN)",
+      "Bash(DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev zitadel/ssl)",
+      "Bash(CF_TOKEN=dummy SMTP_PASSWORD=dummy DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev zitadel/ssl)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(curl -s \"https://api.github.com/repos/pgadmin-org/pgadmin4/releases?per_page=10\")",
+      "Bash(curl -s \"https://api.github.com/repos/PostgREST/postgrest/releases?per_page=10\")"
     ]
   },
   "hooks": {

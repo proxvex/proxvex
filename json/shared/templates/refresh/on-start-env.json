@@ -1,0 +1,49 @@
+{
+  "execute_on": "ve",
+  "name": "Patch On-Start Script Env",
+  "description": "Patches a single shell variable assignment in an on-start script under ${VOLUME_DIR}/on_start.d/. Used by refresh-stack task for credentials baked into generated scripts (e.g. acme-renew.sh with CF_API_TOKEN).",
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "LXC Container ID",
+      "type": "string",
+      "required": true,
+      "description": "LXC container ID the on-start script belongs to."
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname (used to locate volume directory)."
+    },
+    {
+      "id": "script",
+      "name": "Script File",
+      "type": "string",
+      "required": true,
+      "description": "Filename under ${VOLUME_DIR}/on_start.d/ (e.g. acme-renew.sh)."
+    },
+    {
+      "id": "script_var",
+      "name": "Shell Variable Name",
+      "type": "string",
+      "required": true,
+      "description": "Shell variable whose value is patched (e.g. CF_API_TOKEN)."
+    },
+    {
+      "id": "new_value",
+      "name": "New Value",
+      "type": "string",
+      "required": true,
+      "description": "New value for the shell variable."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Patch on-start script",
+      "script": "refresh-on-start-env.sh",
+      "library": "pve-common.sh"
+    }
+  ]
+}

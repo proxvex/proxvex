@@ -39,7 +39,6 @@
 
   "installation": {
     "pre_start": [
-      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
       { "name": "157-conf-publish-ssl-provides.json", "after": "156-conf-generate-certificates.json" },
       { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
@@ -51,7 +50,6 @@
 
   "reconfigure": {
     "pre_start": [
-      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
       { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
       { "name": "157-conf-publish-ssl-provides.json", "after": "156-conf-generate-certificates.json" },
       { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },

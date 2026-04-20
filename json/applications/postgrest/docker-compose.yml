@@ -1,6 +1,6 @@
 services:
   postgrest:
-    image: postgrest/postgrest:${POSTGREST_VERSION:-latest}
+    image: postgrest/postgrest:${DOCKER_postgrest_TAG}
     restart: unless-stopped
     environment:
       PGRST_DB_URI: "postgres://${POSTGRES_USER:-postgres}:{{ POSTGRES_PASSWORD }}@{{ POSTGRES_HOST }}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-postgres}"

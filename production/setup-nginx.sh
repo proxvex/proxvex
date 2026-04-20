@@ -55,6 +55,7 @@ cat > "$TMPDIR/default.conf" <<EOF
 # Default: reject unknown domains
 server {
     listen ${LISTEN_PORT} ssl default_server;
+    listen [::]:${LISTEN_PORT} ssl default_server;
 ${SSL_DIRECTIVES}
     return 444;
 }
@@ -63,6 +64,7 @@ EOF
 cat > "$TMPDIR/ohnewarum.conf" <<EOF
 server {
     listen ${LISTEN_PORT} ssl;
+    listen [::]:${LISTEN_PORT} ssl;
     server_name ohnewarum.de;
 ${SSL_DIRECTIVES}
     root /usr/share/nginx/html/ohnewarum;
@@ -73,6 +75,7 @@ EOF
 cat > "$TMPDIR/nebenkosten.conf" <<EOF
 server {
     listen ${LISTEN_PORT} ssl;
+    listen [::]:${LISTEN_PORT} ssl;
     server_name nebenkosten.ohnewarum.de;
 ${SSL_DIRECTIVES}
     root /usr/share/nginx/html/nebenkosten;
@@ -84,6 +87,7 @@ EOF
 cat > "$TMPDIR/auth.conf" <<EOF
 server {
     listen ${LISTEN_PORT} ssl;
+    listen [::]:${LISTEN_PORT} ssl;
     server_name auth.ohnewarum.de;
 ${SSL_DIRECTIVES}
     location / {
@@ -106,6 +110,7 @@ EOF
 cat > "$TMPDIR/git.conf" <<EOF
 server {
     listen ${LISTEN_PORT} ssl;
+    listen [::]:${LISTEN_PORT} ssl;
     server_name git.ohnewarum.de;
 ${SSL_DIRECTIVES}
     client_max_body_size 512m;

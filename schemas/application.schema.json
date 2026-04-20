@@ -132,6 +132,9 @@
     "check": {
       "$ref": "categorized-templatelist"
     },
+    "stack_usage": {
+      "$ref": "stack-usage"
+    },
     "hidden": {
       "type": "boolean",
       "default": false,

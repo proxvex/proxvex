@@ -107,6 +107,7 @@ export class JsonValidator {
       "templatelist.schema.json",
       "categorized-templatelist.schema.json",
       "base-deployable.schema.json",
+      "stack-usage.schema.json",
     ],
   ) {
     this.ajv = new Ajv2020({
@@ -131,12 +132,23 @@ export class JsonValidator {
       }
     }
     let errors: IJsonError[] = [];
+    // First pass: register all schemas so `$ref` between them can resolve
+    // regardless of load order.
+    const loadedSchemas: { file: string; schema: Record<string, unknown> }[] = [];
     for (const file of allFiles) {
       try {
         const schemaPath = join(schemasDir, file);
         const schemaContent = fs.readFileSync(schemaPath, "utf-8");
         const schema = JSON.parse(schemaContent);
         this.ajv.addSchema(schema, file);
+        loadedSchemas.push({ file, schema });
+      } catch (err: Error | any) {
+        errors.push(err);
+      }
+    }
+    // Second pass: compile (references now resolve).
+    for (const { schema } of loadedSchemas) {
+      try {
         this.ajv.compile(schema);
       } catch (err: Error | any) {
         errors.push(err);

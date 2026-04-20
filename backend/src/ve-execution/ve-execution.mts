@@ -216,7 +216,6 @@ export class VeExecution extends EventEmitter {
     this.commandProcessor = new VeExecutionCommandProcessor({
       outputs: this.outputs,
       inputs: this.inputs,
-      defaults: this.defaults,
       variableResolver: this.variableResolver,
       messageEmitter: this.messageEmitter,
       runOnLxc: (vm_id, cmd, tmplCmd, timeoutMs?) =>
@@ -770,6 +769,16 @@ export class VeExecution extends EventEmitter {
 
       const redirectUrl = this.outputs.get("redirect_url") as string | undefined;
 
+      // Build optional completion info from reserved output keys
+      const completionHeader = this.outputs.get("completion_header") as string | undefined;
+      const completionInfo = completionHeader
+        ? {
+            header: completionHeader,
+            details: (this.outputs.get("completion_details") as string | undefined) || undefined,
+            url: (this.outputs.get("completion_url") as string | undefined) || undefined,
+          }
+        : undefined;
+
       this.emit("message", {
         command: "Completed",
         execute_on: "ve",
@@ -781,6 +790,7 @@ export class VeExecution extends EventEmitter {
         partial: false,
         vmId: vmId, // Include VMID in message for E2E tests
         redirectUrl: redirectUrl || undefined,
+        completionInfo,
       } as IVeExecuteMessage);
 
       if (restartInfo == undefined) {

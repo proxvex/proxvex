@@ -40,7 +40,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "eclipse-mosquitto:2"
+      "value": "eclipse-mosquitto:{{oci_image_tag}}"
     },
     {
       "id": "uid",

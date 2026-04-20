@@ -84,7 +84,7 @@
         "console": "integratedTerminal",
         "args": [
           "--local",
-          "${workspaceFolder:backend}/examples",
+          "${workspaceFolder:backend}/../livetest-local",
           "--storageContextFilePath",
           "${workspaceFolder:backend}/../storagecontext.json",
           "--secretsFilePath",

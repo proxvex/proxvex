@@ -12,6 +12,20 @@
       "description": "Hostname for the Docker Compose container.",
       "template": "application.json",
       "default": "docker-registry-mirror"
+    },
+    {
+      "id": "DOCKERHUB_USERNAME",
+      "name": "Docker Hub Username",
+      "type": "string",
+      "required": false,
+      "description": "Docker Hub username for authenticated pulls (higher rate limits). Leave empty for anonymous."
+    },
+    {
+      "id": "DOCKERHUB_TOKEN",
+      "name": "Docker Hub Token",
+      "type": "password",
+      "required": false,
+      "description": "Docker Hub Personal Access Token (PAT) for authenticated pulls."
     }
   ],
   "properties": [
@@ -56,7 +70,11 @@
       "value": "10"
     }
   ],
-  "installation": {},
+  "installation": {
+    "image": [
+      "005-host-trust-deployer-ca.json"
+    ]
+  },
   "check": {
     "check": [
       "check-registry-mirror.json"

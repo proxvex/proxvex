@@ -35,9 +35,12 @@ export function rollbackToBaseline(
     config.pveHost, config.vmId, config.portPveSsh,
     (msg) => logInfo(msg), localContextPath,
   );
-  if (snapMgr.exists("baseline")) {
-    logStep("Snapshot", "Rolling back to @baseline for --all run");
-    snapMgr.rollback("baseline");
+  // Prefer deployer-installed snapshot (includes mirrors + Docker setup from step2),
+  // fall back to baseline (clean VM without deployer)
+  const rollbackTarget = snapMgr.exists("deployer-installed") ? "deployer-installed" : "baseline";
+  if (snapMgr.exists(rollbackTarget)) {
+    logStep("Snapshot", `Rolling back to @${rollbackTarget} for --all run`);
+    snapMgr.rollback(rollbackTarget);
     if (localContextPath) {
       for (const f of ["storagecontext.json", "secret.txt"]) {
         const fp = path.join(localContextPath, f);

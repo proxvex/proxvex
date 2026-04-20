@@ -34,6 +34,7 @@ fi
 # Ensure prerequisites: curl for download, openssl for expiry check,
 # ca-certificates for update-ca-certificates. pkg_install is a no-op for
 # already-installed packages on both apk and apt.
+pkg_wait_for_network
 pkg_install ca-certificates openssl curl
 
 CA_URL="${DEPLOYER_URL}/api/${VE_CONTEXT}/ve/certificates/ca/download"

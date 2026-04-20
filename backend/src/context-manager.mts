@@ -55,6 +55,7 @@ export class StackContext implements IStack {
   stacktype: string | string[];
   entries: IStackEntry[];
   provides?: IStackProvides[] | undefined;
+  dirty?: boolean | undefined;
 
   constructor(data: IStack) {
     this.id = data.id;
@@ -62,6 +63,7 @@ export class StackContext implements IStack {
     this.stacktype = data.stacktype;
     this.entries = data.entries || [];
     this.provides = data.provides;
+    if (data.dirty !== undefined) this.dirty = data.dirty;
   }
 
   getKey(): string {

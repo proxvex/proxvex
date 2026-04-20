@@ -24,6 +24,7 @@ const baseSchemas: string[] = [
   "templatelist.schema.json",
   "categorized-templatelist.schema.json",
   "base-deployable.schema.json",
+  "stack-usage.schema.json",
 ];
 
 /**
@@ -528,7 +529,7 @@ export class PersistenceManager {
       for (const td of testDirs) {
         if (!fs.existsSync(td)) continue;
         for (const f of fs.readdirSync(td)) {
-          if (!f.endsWith(".json")) continue;
+          if (!f.endsWith(".json") || f.startsWith("production")) continue;
           const fullPath = path.join(td, f);
           if (!fs.statSync(fullPath).isFile()) continue;
           const name = f.replace(/\.json$/, "");
@@ -595,6 +596,19 @@ export class PersistenceManager {
         }
 
         scenarios.push(scenario);
+      }
+    }
+
+    // Fix derived depends_on: if a derived dependency like "zitadel/oidc" doesn't exist,
+    // fall back to "zitadel/default"
+    const scenarioIds = new Set(scenarios.map(s => s.id));
+    for (const scenario of scenarios) {
+      if (scenario.depends_on) {
+        scenario.depends_on = scenario.depends_on.map(dep => {
+          if (scenarioIds.has(dep)) return dep;
+          const fallback = dep.replace(/\/[^/]+$/, "/default");
+          return scenarioIds.has(fallback) ? fallback : dep;
+        });
       }
     }
 

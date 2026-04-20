@@ -1,12 +1,14 @@
 services:
   registry:
-    image: distribution/distribution:3.0.0
+    image: distribution/distribution:${DOCKER_distribution_TAG}
     restart: unless-stopped
     environment:
       REGISTRY_HTTP_ADDR: "0.0.0.0:443"
       REGISTRY_HTTP_TLS_CERTIFICATE: "/certs/fullchain.pem"
       REGISTRY_HTTP_TLS_KEY: "/certs/privkey.pem"
       REGISTRY_PROXY_REMOTEURL: "https://registry-1.docker.io"
+      REGISTRY_PROXY_USERNAME: "${DOCKERHUB_USERNAME:-}"
+      REGISTRY_PROXY_PASSWORD: "${DOCKERHUB_TOKEN:-}"
     volumes:
       - /data:/var/lib/registry
       - /certs:/certs:ro

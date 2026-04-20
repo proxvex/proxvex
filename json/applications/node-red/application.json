@@ -41,7 +41,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "nodered/node-red:latest"
+      "value": "nodered/node-red:{{oci_image_tag}}"
     },
     {
       "id": "uid",

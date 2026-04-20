@@ -1,0 +1,58 @@
+[
+  {
+    "timestamp": "2026-04-20T05:56:38.010Z",
+    "stackId": "production",
+    "varName": "CF_TOKEN",
+    "oldValueHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "newValueHash": "2b1d02bc5b3dc0dbfee7fae30b9df2e5115bb0e9450e0345531eb0f8b0d3196d",
+    "actions": [
+      {
+        "vmId": 506,
+        "hostname": "nginx",
+        "source": {
+          "kind": "addon",
+          "addonId": "addon-acme"
+        },
+        "replacement": "rerun-template",
+        "status": "ok",
+        "detail": "rerun-template: not yet implemented in v1 executor"
+      }
+    ]
+  },
+  {
+    "timestamp": "2026-04-20T05:56:38.019Z",
+    "stackId": "production",
+    "varName": "CF_ZONE_ID",
+    "oldValueHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "newValueHash": "bd1a5f962b3026b98c4df6d7387c9502e452617bc83f208062caffb6f90dbe5f",
+    "actions": []
+  },
+  {
+    "timestamp": "2026-04-20T07:57:19.652Z",
+    "stackId": "cloudflare_production",
+    "varName": "CF_ZONE_ID",
+    "oldValueHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "newValueHash": "bd1a5f962b3026b98c4df6d7387c9502e452617bc83f208062caffb6f90dbe5f",
+    "actions": []
+  },
+  {
+    "timestamp": "2026-04-20T07:57:19.669Z",
+    "stackId": "cloudflare_production",
+    "varName": "CF_TOKEN",
+    "oldValueHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "newValueHash": "2b1d02bc5b3dc0dbfee7fae30b9df2e5115bb0e9450e0345531eb0f8b0d3196d",
+    "actions": [
+      {
+        "vmId": 506,
+        "hostname": "nginx",
+        "source": {
+          "kind": "addon",
+          "addonId": "addon-acme"
+        },
+        "replacement": "on-start-env",
+        "status": "ok",
+        "detail": "patched acme-renew.sh:CF_API_TOKEN — container restart needed"
+      }
+    ]
+  }
+]

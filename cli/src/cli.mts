@@ -193,9 +193,13 @@ export class RemoteCli {
     let resolvedStackIds: string[] | undefined;
     if (paramsInput.stackIds && paramsInput.stackIds.length > 0) {
       // Multi-stack: resolve each stackId individually
+      // Derive stacktype from stackId (e.g. "cloudflare_production" → "cloudflare")
+      const stacktypes = Array.isArray(appStacktype) ? appStacktype : appStacktype ? [appStacktype] : [];
       resolvedStackIds = [];
       for (const sid of paramsInput.stackIds) {
-        const resolved = await this.resolveStack(sid, appStacktype, stacks);
+        // Match stacktype by prefix: "cloudflare_production" matches stacktype "cloudflare"
+        const matchedType = stacktypes.find(st => sid.startsWith(st + "_")) ?? stacktypes[0];
+        const resolved = await this.resolveStack(sid, matchedType, stacks);
         if (resolved) resolvedStackIds.push(resolved);
       }
     } else {

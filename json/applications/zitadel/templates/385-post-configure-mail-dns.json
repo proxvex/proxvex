@@ -2,7 +2,6 @@
   "execute_on": "ve",
   "name": "Configure Mail DNS",
   "description": "Create MX and SPF TXT records in Cloudflare for the mail domain. Runs only when 'smtp_own_domain' is true. Idempotent — checks existing records before creating. Requires CF_TOKEN from a cloudflare stack.",
-  "skip_if_all_missing": ["smtp_own_domain"],
   "parameters": [
     {
       "id": "SMTP_HOST",
@@ -72,14 +71,13 @@
       "name": "Cloudflare API Token",
       "type": "string",
       "required": false,
-      "default": "",
       "description": "Cloudflare API token with Zone:DNS:Edit permission on the mail domain zone. Provided via the cloudflare stack. Required when smtp_own_domain is true."
     }
   ],
   "commands": [
     {
       "name": "Configure Mail DNS",
-      "script": "post-configure-mail-dns.sh"
+      "script": "post-configure-mail-dns.py"
     }
   ]
 }

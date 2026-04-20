@@ -93,5 +93,20 @@
     "166-conf-write-on-start-scripts.json"
   ],
 
-  "notes_key": "acme"
+  "notes_key": "acme",
+
+  "stack_usage": [
+    {
+      "stacktype": "cloudflare",
+      "vars": [
+        {
+          "name": "CF_TOKEN",
+          "replacement": "on-start-env",
+          "script": "acme-renew.sh",
+          "script_var": "CF_API_TOKEN",
+          "description": "Token is baked into the generated acme-renew.sh during install. On rotation we patch the CF_API_TOKEN line so acme.sh picks up the new token on next container start (or after restarting the renewal loop)."
+        }
+      ]
+    }
+  ]
 }

@@ -148,6 +148,16 @@ def main() -> None:
                 )
                 continue
 
+            # Only consider running containers (skip stopped/old ones)
+            status = get_status(int(vmid_str))
+            if status != "running":
+                print(
+                    "Skipping %s (VMID %s, app=%s): status=%s"
+                    % (config.hostname, vmid_str, config.application_id, status or "unknown"),
+                    file=sys.stderr,
+                )
+                continue
+
             found[config.application_id] = {
                 "vm_id": int(vmid_str),
                 "hostname": config.hostname,
@@ -178,6 +188,9 @@ def main() -> None:
                 continue
             if not config.hostname:
                 continue
+            status = get_status(int(vmid_str))
+            if status != "running":
+                continue
             print(
                 "WARNING: Dependency %s found in different stack (%s), using anyway"
                 % (config.application_id, config.stack_name or "unknown"),
@@ -201,18 +214,7 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # Phase 3: Check that all found containers are running
-    for app_id, info in found.items():
-        status = get_status(info["vm_id"])
-        if status != "running":
-            print(
-                "ERROR: Dependency container %s (VMID %d, app=%s) is not running (status: %s)"
-                % (info["hostname"], info["vm_id"], app_id, status or "unknown"),
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-    # Phase 4: Output resolved hostnames and versions
+    # Phase 3: Output resolved hostnames and versions
     outputs = []
     for app_id, info in found.items():
         prefix = app_id.upper().replace("-", "_")

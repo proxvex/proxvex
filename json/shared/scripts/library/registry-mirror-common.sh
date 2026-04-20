@@ -19,7 +19,13 @@ MIRROR_REGISTRIES="registry-1.docker.io index.docker.io"
 
 # Detect local registry mirror. Sets MIRROR_IP. Returns 1 if not found.
 mirror_detect() {
-  MIRROR_IP=$(nslookup "$MIRROR_HOST" 2>/dev/null | awk '/^Address:/ && !/127\.0\.0\.53/ && !/::1/ {print $2}' | tail -1)
+  # Resolve mirror hostname — try getent (reliable), fall back to nslookup
+  if command -v getent >/dev/null 2>&1; then
+    MIRROR_IP=$(getent hosts "$MIRROR_HOST" 2>/dev/null | awk '{print $1; exit}')
+  else
+    # nslookup output varies (BusyBox vs GNU) — extract last IPv4 address
+    MIRROR_IP=$(nslookup "$MIRROR_HOST" 2>/dev/null | awk '/^Address/ {a=$NF} END {print a}' | sed 's/[:#].*//')
+  fi
   if [ -z "$MIRROR_IP" ]; then
     echo "No registry mirror found (${MIRROR_HOST} not resolvable), skipping" >&2
     return 1
@@ -96,7 +102,7 @@ mirror_trust_insecure() {
     echo "Warning: insecure-registries exists but missing mirror entry" >&2
   else
     # Create new entry
-    printf '{\n  "insecure-registries": ["registry-1.docker.io", "index.docker.io"]\n}\n' > "$_daemon_json"
+    printf '{\n  "insecure-registries": ["registry-1.docker.io", "index.docker.io", "ghcr.io"]\n}\n' > "$_daemon_json"
     _needs_restart=true
   fi
 

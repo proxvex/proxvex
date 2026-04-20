@@ -44,7 +44,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "nginxinc/nginx-unprivileged:1-alpine"
+      "value": "nginxinc/nginx-unprivileged:{{oci_image_tag}}"
     },
     {
       "id": "uid",

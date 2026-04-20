@@ -50,6 +50,17 @@
         @if (getFinishedMessage(group); as finished) {
           <div class="success-actions">
             <span class="success-text">{{ finished.result }}</span>
+            @if (finished.completionInfo; as info) {
+              <div class="completion-info-card">
+                <h3 class="completion-header">{{ info.header }}</h3>
+                @if (info.details) {
+                  <pre class="completion-details">{{ info.details }}</pre>
+                }
+                @if (info.url) {
+                  <a [href]="info.url" target="_blank" rel="noopener" class="completion-url">{{ info.url }}</a>
+                }
+              </div>
+            }
             @if (finished.redirectUrl) {
               <div class="redirect-info">
                 <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>

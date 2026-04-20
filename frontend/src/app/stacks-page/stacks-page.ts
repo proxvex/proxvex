@@ -9,11 +9,13 @@ import { MatCardModule } from '@angular/material/card';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
 import { IStack, IStackEntry, IStacktypeEntry } from '../../shared/types';
 import { KeyValueTableComponent, KeyValuePair } from '../shared/components/key-value-table.component';
+import { RefreshStackDialog } from './refresh-stack-dialog';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 
@@ -41,6 +43,7 @@ import { Subscription } from 'rxjs';
 export class StacksPage implements OnInit, OnDestroy {
   private configService = inject(VeConfigurationService);
   private errorHandler = inject(ErrorHandlerService);
+  private dialog = inject(MatDialog);
   private route = inject(ActivatedRoute);
   private routeSub?: Subscription;
 
@@ -52,6 +55,15 @@ export class StacksPage implements OnInit, OnDestroy {
   // For creating/editing a stack
   editingStack = signal<IStack | null>(null);
   isCreating = signal(false);
+
+  // Pre-loaded refresh previews per stackId. Populated when the user expands
+  // a dirty stack row so that a subsequent save can open the dialog without
+  // a visible round-trip. Not a source of truth — `stack.dirty` decides
+  // whether the button is visible; the cache is purely a latency hack.
+  private previewCache = new Map<string, {
+    preview: { targets: unknown[] } & Record<string, unknown>;
+    veContextHost: string;
+  }>();
 
   // Form for new/edit stack
   stackForm = new FormGroup({
@@ -259,13 +271,30 @@ export class StacksPage implements OnInit, OnDestroy {
     };
 
     this.loading.set(true);
+    const editedStack = this.editingStack();
 
-    if (this.editingStack()) {
-      // Update existing stack
-      this.configService.updateStack({ ...stack, id: this.editingStack()!.id }).subscribe({
+    if (editedStack) {
+      // Update existing stack. Backend sets `dirty=true` iff any entry value
+      // actually changed. After save we reload stacks and — if the updated
+      // stack is now dirty — auto-open the refresh dialog.
+      const updatedId = this.computeStackId(stack.stacktype, stack.name!);
+      this.configService.updateStack({ ...stack, id: editedStack.id }).subscribe({
         next: () => {
           this.cancelEdit();
-          this.loadStacks();
+          this.configService.getStacks(this.selectedStacktype()).subscribe({
+            next: (res) => {
+              this.stacks.set(res.stacks);
+              this.loading.set(false);
+              const updated = res.stacks.find((s) => s.id === updatedId);
+              if (updated?.dirty) {
+                this.openRefreshDialog(updated);
+              }
+            },
+            error: (err) => {
+              this.errorHandler.handleError('Failed to reload stacks', err);
+              this.loading.set(false);
+            },
+          });
         },
         error: (err) => {
           this.errorHandler.handleError('Failed to update stack', err);
@@ -285,6 +314,84 @@ export class StacksPage implements OnInit, OnDestroy {
         }
       });
     }
+  }
+
+  /**
+   * Mirrors the backend id-generation rule so we can locate the (possibly
+   * renamed) stack in the reloaded list after an update.
+   */
+  private computeStackId(stacktype: string | string[], name: string): string {
+    const prefix = Array.isArray(stacktype)
+      ? [...stacktype].sort().join('_')
+      : stacktype;
+    return `${prefix}_${name}`;
+  }
+
+  /**
+   * Called when a stack row is expanded. Pre-fetches the refresh preview in
+   * the background so a subsequent save / button click can open the dialog
+   * without a visible delay.
+   */
+  onStackExpanded(stack: IStack): void {
+    if (this.previewCache.has(stack.id)) return;
+    this.configService.getStackRefreshPreview(stack.id).subscribe({
+      next: (res) => {
+        const preview = res.preview as { targets: unknown[] } & Record<string, unknown>;
+        this.previewCache.set(stack.id, { preview, veContextHost: res.veContextHost });
+      },
+      // Silently ignore — cache just stays empty; the dialog-open path will
+      // fetch on demand and surface any error there.
+      error: () => { /* noop */ },
+    });
+  }
+
+  /**
+   * Opens the refresh dialog for a stack. Uses the cached preview if one was
+   * pre-fetched on expand; otherwise fetches now. Called from the action-row
+   * button (visible only when `stack.dirty`) and automatically after a save
+   * that flipped dirty to true.
+   */
+  openRefreshDialog(stack: IStack): void {
+    const cached = this.previewCache.get(stack.id);
+    if (cached) {
+      this.previewCache.delete(stack.id);
+      this.showRefreshDialog(stack, cached.preview, cached.veContextHost);
+      return;
+    }
+    this.configService.getStackRefreshPreview(stack.id).subscribe({
+      next: (res) => {
+        this.showRefreshDialog(
+          stack,
+          res.preview as { targets: unknown[] } & Record<string, unknown>,
+          res.veContextHost,
+        );
+      },
+      error: (err) => {
+        if (err?.status === 400 && typeof err?.error?.error === 'string' && err.error.error.includes('VE context')) {
+          alert('Bitte wähle zuerst im Header einen PVE-Host aus.');
+          return;
+        }
+        this.errorHandler.handleError('Failed to fetch refresh preview', err);
+      },
+    });
+  }
+
+  private showRefreshDialog(
+    stack: IStack,
+    preview: { targets: unknown[] } & Record<string, unknown>,
+    veContextHost: string,
+  ): void {
+    this.dialog
+      .open(RefreshStackDialog, {
+        data: { stack, preview, veContextHost },
+        width: '960px',
+        maxWidth: '96vw',
+      })
+      .afterClosed()
+      .subscribe(() => {
+        // Refresh may have cleared the backend `dirty` flag — reload to reflect.
+        this.loadStacks();
+      });
   }
 
   deleteStack(stack: IStack, event: Event): void {

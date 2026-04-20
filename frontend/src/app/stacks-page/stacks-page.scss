@@ -187,3 +187,16 @@ mat-expansion-panel {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+.dirty-badge {
+  display: inline-block;
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 0.5rem;
+}

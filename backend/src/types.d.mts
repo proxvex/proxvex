@@ -106,6 +106,12 @@ export interface IVeExecuteMessage {
     partial?: boolean;
     vmId?: number;
     redirectUrl?: string;
+    completionInfo?: ICompletionInfo;
+}
+export interface ICompletionInfo {
+    header: string;
+    details?: string;
+    url?: string;
 }
 export type ParameterType = "string" | "number" | "boolean" | "enum";
 export type IParameterValue = string | number | boolean;

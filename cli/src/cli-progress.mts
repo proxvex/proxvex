@@ -69,6 +69,22 @@ export class CliProgress {
             process.stderr.write(
               `\nCompleted. VMID: ${msg.vmId ?? "N/A"}, Duration: ${elapsed}s\n`,
             );
+            if (msg.completionInfo) {
+              const info = msg.completionInfo;
+              const line = "=".repeat(60);
+              process.stderr.write(`\n${line}\n`);
+              process.stderr.write(`  ${info.header}\n`);
+              process.stderr.write(`${line}\n`);
+              if (info.details) {
+                for (const l of info.details.split("\n")) {
+                  process.stderr.write(`  ${l}\n`);
+                }
+              }
+              if (info.url) {
+                process.stderr.write(`\n  URL: ${info.url}\n`);
+              }
+              process.stderr.write(`${line}\n`);
+            }
           }
           const result: { vmId?: number; success: boolean } = { success: true };
           if (msg.vmId !== undefined) result.vmId = msg.vmId;

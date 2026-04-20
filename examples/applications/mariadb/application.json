@@ -40,7 +40,7 @@
   "properties": [
     {
       "id": "oci_image",
-      "value": "mariadb:11"
+      "value": "mariadb:{{oci_image_tag}}"
     },
     {
       "id": "uid",

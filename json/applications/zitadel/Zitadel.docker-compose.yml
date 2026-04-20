@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: traefik:v3.6
+    image: traefik:${DOCKER_traefik_TAG}
     restart: unless-stopped
     command:
       - "--providers.file.filename=/etc/traefik/dynamic.yml"
@@ -15,7 +15,7 @@ services:
       - zitadel
 
   zitadel-api:
-    image: ghcr.io/zitadel/zitadel:v4.12.3
+    image: ghcr.io/zitadel/zitadel:${DOCKER_zitadel_TAG}
     restart: unless-stopped
     command: 'start-from-init --masterkey "{{ ZITADEL_MASTERKEY }}" --tlsMode disabled'
     environment:
@@ -75,8 +75,10 @@ services:
       - zitadel
 
   zitadel-login:
-    image: ghcr.io/zitadel/zitadel-login:v4.12.3
+    image: ghcr.io/zitadel/zitadel-login:${DOCKER_zitadel_login_TAG}
     restart: unless-stopped
+    group_add:
+      - "1001"
     environment:
       ZITADEL_API_URL: http://zitadel-api:8080
       ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat

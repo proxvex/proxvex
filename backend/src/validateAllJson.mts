@@ -374,6 +374,164 @@ export async function validateAllJson(localPathArg?: string): Promise<void> {
     }
   }
 
+  // === 5. Validate Image Versions (docker-compose + OCI) against versions.sh ===
+  const { parseVersionsLib } = await import("./versions-parser.mjs");
+  const versionsErrors: { source: string; message: string }[] = [];
+  let versionsImageCount = 0;
+  let versionsComposeCount = 0;
+
+  // 5a. Load versions.sh via PersistenceManager (respects --local override)
+  const repos = pm.getRepositories();
+  const versions = parseVersionsLib(repos);
+  const definedVersionVars = new Set(versions.keys());
+
+  // 5b. Validate docker-compose image tags via PersistenceManager
+  const { VEConfigurationError } = await import("./backend-types.mjs");
+  const appService = pm.getApplicationService();
+
+  for (const app of apps) {
+    if (app.errors?.length) continue;
+    const appObj = appService.readApplication(app.id, {
+      applicationHierarchy: [],
+      error: new VEConfigurationError("", app.id),
+      taskTemplates: [],
+    });
+    if (!appObj?.properties) continue;
+
+    const composeProp = appObj.properties.find(
+      (p: { id: string }) => p.id === "compose_file",
+    );
+    if (!composeProp?.value || typeof composeProp.value !== "string") continue;
+
+    // Resolve compose content: file: reference or base64 inline
+    let composeContent: string | null = null;
+    const val = String(composeProp.value);
+    if (val.startsWith("file:")) {
+      const fileName = val.slice(5);
+      composeContent = repos.getScript({
+        name: fileName,
+        scope: "application",
+        applicationId: app.id,
+        category: "root",
+      });
+    } else {
+      try {
+        const decoded = Buffer.from(val, "base64").toString("utf-8");
+        if (decoded.includes("image:") || decoded.includes("services:")) {
+          composeContent = decoded;
+        }
+      } catch {
+        // Not valid base64, skip
+      }
+    }
+    if (!composeContent) continue;
+
+    versionsComposeCount++;
+    const imageLineRegex = /^\s*image:\s*(.+)$/gm;
+    let imgMatch;
+    while ((imgMatch = imageLineRegex.exec(composeContent)) !== null) {
+      versionsImageCount++;
+      const imageRef = imgMatch[1]!.trim().replace(/["']/g, "");
+
+      // Check for ${VAR:-default} inline defaults
+      const inlineDefaultMatch = imageRef.match(/\$\{(\w+):-([^}]+)\}/);
+      if (inlineDefaultMatch) {
+        versionsErrors.push({
+          source: app.id,
+          message: `image '${imageRef}' uses inline default \${${inlineDefaultMatch[1]}:-${inlineDefaultMatch[2]}} — default belongs in versions.sh`,
+        });
+        continue;
+      }
+
+      // Check for ${DOCKER_xxx_TAG} variable reference
+      const varRefMatch = imageRef.match(/\$\{(DOCKER_\w+_TAG)\}/);
+      if (varRefMatch) {
+        if (!definedVersionVars.has(varRefMatch[1]!)) {
+          versionsErrors.push({
+            source: app.id,
+            message: `\${${varRefMatch[1]}} not defined in versions.sh`,
+          });
+        }
+        continue;
+      }
+
+      // No variable reference — check for hardcoded tag
+      const tagMatch = imageRef.match(/:([^${}]+)$/);
+      if (tagMatch) {
+        versionsErrors.push({
+          source: app.id,
+          message: `compose image '${imageRef}' uses hardcoded tag ':${tagMatch[1]}' — use \${DOCKER_<service>_TAG} variable`,
+        });
+      }
+    }
+  }
+
+  // 5c. Validate OCI image apps — every extends:"oci-image" app needs a versions.sh entry
+  for (const app of apps) {
+    if (app.errors?.length) continue;
+    if (app.extends !== "oci-image") continue;
+    // Skip backup/renamed directories (e.g. node-red.bck in examples)
+    if (/\.\w+$/.test(app.id)) continue;
+
+    const expectedVar = `OCI_${app.id.replace(/-/g, "_")}_TAG`;
+    versionsImageCount++;
+
+    if (!definedVersionVars.has(expectedVar)) {
+      versionsErrors.push({
+        source: app.id,
+        message: `OCI image app (extends: oci-image) but ${expectedVar} is not defined in versions.sh`,
+      });
+    }
+
+    // Check oci_image property for hardcoded tags — must use {{oci_image_tag}}
+    const appObj = appService.readApplication(app.id, {
+      applicationHierarchy: [],
+      error: new VEConfigurationError("", app.id),
+      taskTemplates: [],
+    });
+    if (!appObj?.properties) continue;
+    const ociImageProp = appObj.properties.find(
+      (p: { id: string }) => p.id === "oci_image",
+    );
+    if (!ociImageProp?.value) continue;
+    const imageVal = String(ociImageProp.value);
+
+    if (!imageVal.includes("{{oci_image_tag}}")) {
+      const tagMatch = imageVal.match(/:([^/]+)$/);
+      if (tagMatch) {
+        versionsErrors.push({
+          source: app.id,
+          message: `oci_image '${imageVal}' has hardcoded tag ':${tagMatch[1]}' — use {{oci_image_tag}} (injected from versions.sh)`,
+        });
+      }
+    }
+  }
+
+  // Print results
+  if (versionsErrors.length === 0) {
+    if (versionsComposeCount > 0 || definedVersionVars.size > 0) {
+      console.log(
+        `✔ Image Versions (${versionsComposeCount} compose, ${versionsImageCount} images, ${definedVersionVars.size} vars)`,
+      );
+    }
+  } else {
+    hasError = true;
+    console.error(
+      `✖ Image Versions (${versionsComposeCount} compose, ${versionsImageCount} images)`,
+    );
+    const bySource = new Map<string, string[]>();
+    for (const { source, message } of versionsErrors) {
+      if (!bySource.has(source)) bySource.set(source, []);
+      bySource.get(source)!.push(message);
+    }
+    for (const [source, messages] of bySource) {
+      console.error(`  ✖ ${source}`);
+      for (const msg of messages) {
+        console.error(`    - ${msg}`);
+      }
+    }
+  }
+
   // === Check for duplicates across categories ===
   const repositories = pm.getRepositories();
   if (repositories.checkForDuplicates) {
@@ -385,6 +543,87 @@ export async function validateAllJson(localPathArg?: string): Promise<void> {
         console.error(`  ✖ ${warning}`);
       }
     }
+  }
+
+  // === 5. Validate stack_usage declarations ===
+  // Ensures every (stacktype, varName) in app.stack_usage / addon.stack_usage
+  // refers to an existing stacktype and a defined variable.
+  const stacktypes = pm.getStacktypes();
+  const stacktypeVarNames = new Map<string, Set<string>>();
+  for (const st of stacktypes) {
+    const names = new Set<string>();
+    for (const v of st.entries ?? []) names.add(v.name);
+    stacktypeVarNames.set(st.name, names);
+  }
+
+  const stackUsageErrors: { source: string; message: string }[] = [];
+
+  const checkStackUsage = (
+    ownerId: string,
+    ownerKind: "application" | "addon",
+    stackUsage: unknown,
+  ) => {
+    if (!Array.isArray(stackUsage)) return;
+    for (const u of stackUsage as Array<{
+      stacktype?: string;
+      vars?: Array<{ name?: string; replacement?: string }>;
+    }>) {
+      const stacktype = u?.stacktype;
+      if (!stacktype || !stacktypeVarNames.has(stacktype)) {
+        stackUsageErrors.push({
+          source: `${ownerKind}:${ownerId}`,
+          message: `stack_usage references unknown stacktype '${stacktype}'`,
+        });
+        continue;
+      }
+      const knownVars = stacktypeVarNames.get(stacktype)!;
+      for (const v of u.vars ?? []) {
+        if (!v.name) {
+          stackUsageErrors.push({
+            source: `${ownerKind}:${ownerId}`,
+            message: `stack_usage[stacktype=${stacktype}] entry missing 'name'`,
+          });
+          continue;
+        }
+        if (!knownVars.has(v.name)) {
+          stackUsageErrors.push({
+            source: `${ownerKind}:${ownerId}`,
+            message: `stack_usage variable '${v.name}' not declared in stacktype '${stacktype}'`,
+          });
+        }
+      }
+    }
+  };
+
+  for (const app of apps) {
+    try {
+      const full = repositories.getApplication(app.id);
+      checkStackUsage(app.id, "application", (full as { stack_usage?: unknown }).stack_usage);
+    } catch {
+      /* ignore — app already flagged with schemaErrors above */
+    }
+  }
+
+  const addonService = pm.getAddonService();
+  for (const addonId of addonService.getAddonIds()) {
+    try {
+      const addon = addonService.getAddon(addonId) as unknown as {
+        stack_usage?: unknown;
+      };
+      checkStackUsage(addonId, "addon", addon.stack_usage);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (stackUsageErrors.length > 0) {
+    hasError = true;
+    console.error(`✖ stack_usage (${stackUsageErrors.length} issue(s))`);
+    for (const e of stackUsageErrors) {
+      console.error(`  ✖ ${e.source}: ${e.message}`);
+    }
+  } else {
+    console.log(`✔ stack_usage`);
   }
 
   // === Summary ===
