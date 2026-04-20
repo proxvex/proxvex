@@ -1,0 +1,27 @@
+{
+  "name": "Strip Empty SMTP Config",
+  "description": "Zitadel-specific: removes the ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_* block from the compose when SMTP_PASSWORD is empty. Zitadel's FirstInstance migration rejects partial/blank SMTP config, so those env vars must be absent (not just empty) for SMTP setup to be skipped.",
+  "execute_on": "ve",
+  "parameters": [
+    {
+      "id": "SMTP_PASSWORD",
+      "name": "SMTP Password",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "SMTP provider password (from oidc stack). Empty value triggers removal of the SMTP block from the rendered compose."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Strip Empty SMTP Config",
+      "script": "conf-strip-empty-smtp.sh",
+      "outputs": [
+        {
+          "id": "compose_file",
+          "default": true
+        }
+      ]
+    }
+  ]
+}
