@@ -101,6 +101,39 @@
         "skipFiles": ["<node_internals>/**"],
         "type": "node"
       },
+          {
+        "name": "Launch OIDC Backend",
+        "program": "${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
+        "preLaunchTask": "build backend",
+        "request": "launch",
+        "sourceMaps": true,
+        "cwd": "${workspaceFolder:backend}",
+        "console": "integratedTerminal",
+        "args": [
+          "--local",
+          "${workspaceFolder:backend}/../livetest-local",
+          "--storageContextFilePath",
+          "${workspaceFolder:backend}/../storagecontext.json",
+          "--secretsFilePath",
+          "${workspaceFolder:backend}/../secret.txt"
+        ],
+        "env": {
+          "DEPLOYER_PORT": "3201",
+          "OIDC_ENABLED": "true",
+          "OIDC_ISSUER_URL": "https://auth.ohnewarum.de",
+          "OIDC_CLIENT_ID": "369548938576986115",
+          "OIDC_CLIENT_SECRET": "l64POaqfgdpl8Q8cb6bja2DhNvEAtSKxhwonWV8VSbql8vksDtAqFC1e3iQgTVel",
+          "OIDC_CALLBACK_URL": "http://localhost:3201/api/auth/callback",
+          "OIDC_SESSION_SECRET": "a70d851738d983e0d0dfb9847f458ed12bc8c775d87873b0b7ddfcdcf9a38bb0"
+        },
+        "trace": true,
+        "outFiles": [
+          "${workspaceFolder:backend}/dist/**/*.mjs",
+          "${workspaceFolder:backend}/dist/**/*.mjs.map"
+        ],
+        "skipFiles": ["<node_internals>/**"],
+        "type": "node"
+      },
       {
         "name": "ng serve",
         "type": "chrome",
