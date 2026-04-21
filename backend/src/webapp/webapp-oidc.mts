@@ -3,6 +3,8 @@ import session from "express-session";
 import { randomBytes } from "node:crypto";
 import * as client from "openid-client";
 import { createLogger } from "../logger/index.mjs";
+import { setBearerToken } from "../services/bearer-token-store.mjs";
+import { syncFromHub } from "../services/spoke-sync-service.mjs";
 
 const logger = createLogger("oidc");
 
@@ -343,11 +345,34 @@ export function registerOidcRoutes(
         // Store access token for frontend-to-ZITADEL direct API calls
         sess.accessToken = tokenResponse.access_token;
 
+        // Expose the access token to the Spoke-mode remote providers so
+        // they can authenticate against the Hub's OIDC-protected endpoints.
+        setBearerToken(tokenResponse.access_token);
+
         // Clean up OIDC state
         delete sess.oidcState;
         delete sess.oidcNonce;
 
         logger.info(`[oidc] User logged in: ${sess.userName || claims.sub}`);
+
+        // Trigger Spoke-Sync if this deployer is in Spoke mode (HUB_URL set).
+        // Runs asynchronously — user lands on the redirect immediately; the
+        // sync continues in the background and writes into
+        // <local>/.hubs/<hub-id>/. User must restart the deployer with
+        // --local <that-path> to pick up Hub repositories (Phase A).
+        const hubUrl = process.env.HUB_URL;
+        if (hubUrl) {
+          const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
+          syncFromHub(hubUrl, localPath)
+            .then((r) =>
+              logger.info(
+                `[oidc] Spoke-sync done: ${r.workspacePath} (hub=${r.hubUrl})`,
+              ),
+            )
+            .catch((err) =>
+              logger.warn("[oidc] Spoke-sync failed", { error: err.message }),
+            );
+        }
         res.redirect("/");
       } catch (err) {
         logger.error("[oidc] Callback error", { error: err });
@@ -358,6 +383,8 @@ export function registerOidcRoutes(
 
   // POST /api/auth/logout - destroy session
   app.post("/api/auth/logout", (req: Request, res: Response) => {
+    // Clear the Spoke bearer token so no further Hub requests use it.
+    setBearerToken(undefined);
     req.session.destroy((err) => {
       if (err) {
         logger.error("[oidc] Logout error", { error: err });

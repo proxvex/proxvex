@@ -330,6 +330,8 @@ export enum ApiUri {
   HubProject = "/api/hub/project",
   HubSpokes = "/api/hub/spokes",
   HubSpoke = "/api/hub/spoke/:id",
+  HubRepositoriesTarball = "/api/hub/repositories.tar.gz",
+  SpokeSync = "/api/spoke/sync",
 }
 
 // Tags definition interfaces

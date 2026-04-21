@@ -158,6 +158,62 @@ export function registerHubRoutes(app: express.Application): void {
     }
   });
 
+  // --- Full repositories tarball (for Spoke sync) ---
+
+  /**
+   * GET /api/hub/repositories.tar.gz — Download the Hub's repositories as
+   * a gzip-compressed tar archive. Contains both `json/` (canonical templates,
+   * applications, addons, shared scripts, stacktypes, tags) and the local-path
+   * overrides (e.g. `local/shared`, `local/applications`).
+   *
+   * Extracted layout at the Spoke:
+   *   <spoke-workspace>/
+   *     json/...
+   *     local/...
+   *
+   * The Spoke extracts this tarball into a per-Hub workspace directory and
+   * points FileSystemRepositories at that location so the rest of the
+   * deployer works against the Hub's canonical artefacts.
+   */
+  app.get(ApiUri.HubRepositoriesTarball, (_req, res) => {
+    try {
+      const pathes = pm.getPathes();
+      const jsonDir = pathes.jsonPath;
+      const localDir = pathes.localPath;
+      if (!fs.existsSync(jsonDir)) {
+        res.status(404).json({ error: "No json/ directory on this Hub" });
+        return;
+      }
+
+      // Stage a temp directory with the canonical layout (json/ + local/)
+      // so the tarball has predictable top-level names regardless of where
+      // the source paths live on the Hub filesystem.
+      const stageRoot = fs.mkdtempSync(path.join("/tmp", "hub-repo-"));
+      try {
+        const stageJson = path.join(stageRoot, "json");
+        const stageLocal = path.join(stageRoot, "local");
+        // symlinks keep the tar command cheap; tar -h dereferences them
+        fs.symlinkSync(jsonDir, stageJson);
+        if (fs.existsSync(localDir)) {
+          fs.symlinkSync(localDir, stageLocal);
+        }
+
+        res.setHeader("Content-Type", "application/gzip");
+        res.setHeader("Content-Disposition", "attachment; filename=repositories.tar.gz");
+        const tarTargets = fs.existsSync(stageLocal) ? "json local" : "json";
+        const tarData = execSync(
+          `tar -czhf - -C "${stageRoot}" ${tarTargets}`,
+          { maxBuffer: 200 * 1024 * 1024 },
+        );
+        res.send(tarData);
+      } finally {
+        fs.rmSync(stageRoot, { recursive: true, force: true });
+      }
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
   // --- Spoke management ---
 
   /**
