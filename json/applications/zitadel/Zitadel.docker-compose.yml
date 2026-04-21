@@ -54,9 +54,12 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PREFERREDLANGUAGE: en
       # --- Optional: pre-configure SMTP at FirstInstance init ---
-      # These values come from the oidc stack (SMTP_HOST, SMTP_USER, ...).
-      # If the stack leaves them empty, Zitadel treats them as unset and
-      # the admin can configure SMTP later via the UI.
+      # These five SMTP_* ENV vars are referenced here so the deployer's
+      # compose scanner discovers them as template parameters. When
+      # SMTP_PASSWORD is empty the entire SMTP block is stripped from the
+      # rendered compose by conf-strip-empty-smtp.sh (pre-start) — Zitadel's
+      # FirstInstance migration rejects partial/blank SMTP config with
+      # InvalidArgument, so we can't just let them resolve to empty strings.
       ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: "{{ SMTP_HOST }}:{{ SMTP_PORT }}"
       ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_USER: "{{ SMTP_USER }}"
       ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_PASSWORD: "{{ SMTP_PASSWORD }}"

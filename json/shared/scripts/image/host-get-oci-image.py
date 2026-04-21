@@ -369,18 +369,51 @@ def ensure_ca(deployer_url: str, ve_context: str) -> None:
         log(f"Warning: CA certificate installation failed: {e}")
 
 
-def ensure_registry_mirror_hosts() -> bool:
-    """Ensure Docker Hub hostnames resolve to the local registry mirror.
+def _is_private_ip(ip: str) -> bool:
+    """Return True if ip is in RFC1918 / link-local private ranges."""
+    try:
+        parts = [int(p) for p in ip.split(".")]
+        if len(parts) != 4:
+            return False
+        a, b = parts[0], parts[1]
+        if a == 10:
+            return True
+        if a == 172 and 16 <= b <= 31:
+            return True
+        if a == 192 and b == 168:
+            return True
+        return False
+    except (ValueError, IndexError):
+        return False
 
-    If a container named 'docker-registry-mirror' exists on the network,
-    add /etc/hosts entries so registry-1.docker.io and index.docker.io
-    point to its IP. Returns True if a local mirror is active.
+
+def ensure_registry_mirror_hosts() -> bool:
+    """Detect whether a local registry mirror is reachable.
+
+    Two activation paths:
+      1. The registry hostnames (registry-1.docker.io / ghcr.io) already
+         resolve to a private IP — e.g. via dnsmasq redirect or a pre-existing
+         /etc/hosts entry. Nothing to write; just flag the mirror active.
+      2. A `docker-registry-mirror` host resolves on the network. Add
+         /etc/hosts entries so the registry hostnames point at its IP.
+
+    Returns True if a local mirror is considered active.
     """
     import socket
     hosts_path = "/etc/hosts"
     marker = "# oci-lxc-deployer: registry mirror"
     mirror_hosts = ["registry-1.docker.io", "index.docker.io"]
 
+    # Path 1: registry hostnames already point to a private IP (mirror via DNS).
+    try:
+        ip = socket.gethostbyname("registry-1.docker.io")
+        if _is_private_ip(ip):
+            log(f"Registry mirror active via DNS: registry-1.docker.io -> {ip}")
+            return True
+    except socket.gaierror:
+        pass
+
+    # Path 2: explicit `docker-registry-mirror` host — patch /etc/hosts.
     try:
         with open(hosts_path, "r") as f:
             if marker in f.read():

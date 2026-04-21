@@ -37,6 +37,62 @@
       "type": "string",
       "required": false,
       "description": "OIDC client secret (from 150-conf-setup-oidc-client)"
+    },
+    {
+      "id": "oidc_required_role",
+      "name": "OIDC Required Role",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Zitadel project role required for access (from app.properties). If empty, any authenticated user is allowed."
+    },
+    {
+      "id": "oidc_callback_path",
+      "name": "OIDC Callback Path",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Path the OIDC provider redirects to after login (from app.properties)."
+    },
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Container HTTP port — used to build the callback URL."
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Container HTTPS port — used when ssl_mode indicates TLS."
+    },
+    {
+      "id": "ssl_mode",
+      "name": "SSL Mode",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "SSL mode (native/proxy/certs) — selects http vs. https in the callback URL."
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Global DNS domain suffix — provided by 150-conf-setup-oidc-client."
+    },
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Deployer-global shared volume path on the PVE host — used by app scripts that edit files relative to the LXC volume (e.g. Node-RED settings.js)."
     }
   ],
   "commands": [

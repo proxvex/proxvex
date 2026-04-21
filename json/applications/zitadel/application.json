@@ -148,6 +148,9 @@
     }
   ],
   "installation": {
+    "pre_start": [
+      "160-conf-strip-empty-smtp.json"
+    ],
     "post_start": [
       "340-post-setup-deployer-in-zitadel.json",
       "385-post-configure-mail-dns.json",

@@ -72,6 +72,14 @@
       "type": "string",
       "required": false,
       "description": "Cloudflare API token with Zone:DNS:Edit permission on the mail domain zone. Provided via the cloudflare stack. Required when smtp_own_domain is true."
+    },
+    {
+      "id": "SMTP_PASSWORD",
+      "name": "SMTP Password",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "SMTP provider password. Provided via the oidc stack. If empty, mail DNS setup is skipped (no point in writing MX/SPF records when SMTP can't authenticate)."
     }
   ],
   "commands": [

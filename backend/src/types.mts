@@ -743,6 +743,7 @@ export function stacktypeMatches(
 export interface IStacktypeVariable {
   name: string;
   external?: boolean; // true = manual input required, false/undefined = auto-generate
+  required?: boolean; // for external variables: whether a non-empty value must be provided (default: true)
   length?: number; // length of generated secret (default: 32)
 }
 

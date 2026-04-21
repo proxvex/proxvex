@@ -516,6 +516,19 @@ DJSON
     # NOW add dnsmasq address= records for LXC containers (after pre-pull).
     # LXC containers resolve registry hostnames via dnsmasq → mirror IPs.
     # Added after pre-pull so Docker daemon doesn't hit mirror on fallback.
+    #
+    # IMPORTANT: We also block AAAA (IPv6) responses for these hosts. Without
+    # the AAAA-block, `getent hosts` / Go's net-resolver happily returns the
+    # real IPv6 addresses of Docker's / GitHub's CDN (upstream resolves AAAA
+    # against 8.8.8.8). skopeo / Docker then prefer IPv6 and bypass the mirror
+    # entirely, hitting the real registries over HTTPS. The mirror runs plain
+    # HTTP on :443, so the result is the confusing `server gave HTTP response
+    # to HTTPS client` error — when in reality the request never even reached
+    # the mirror.
+    #
+    # dnsmasq syntax: `address=/host/::` returns `::` for AAAA queries,
+    # effectively telling the resolver "no IPv6 available". The IPv4
+    # `address=/host/10.0.0.1` line handles the A query.
     nested_ssh "
         if ! grep -q 'address=/registry-1.docker.io/' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null; then
             cat >> /etc/dnsmasq.d/e2e-nat.conf <<'DNS'
@@ -523,6 +536,10 @@ DJSON
 address=/registry-1.docker.io/10.0.0.1
 address=/index.docker.io/10.0.0.1
 address=/ghcr.io/10.0.0.2
+# Block IPv6 for these hosts so skopeo/Go cannot bypass the mirror over AAAA
+address=/registry-1.docker.io/::
+address=/index.docker.io/::
+address=/ghcr.io/::
 DNS
             systemctl restart dnsmasq
         fi
