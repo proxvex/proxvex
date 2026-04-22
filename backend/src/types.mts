@@ -838,12 +838,20 @@ export interface IStackRestorePreviewConflict {
   values: { value: string; sources: string[] }[];
 }
 
+export interface IStackRestorePreviewDependency {
+  canonical: string;
+  alias: string;
+  source: string;
+  replacement?: string;
+}
+
 export interface IStackRestorePreviewResponse {
   stack_id: string;
   entries: IStackRestorePreviewEntry[];
   conflicts: IStackRestorePreviewConflict[];
   errors: string[];
   sources_scanned: number;
+  dependency_trace: IStackRestorePreviewDependency[];
 }
 
 // Template trace interfaces (used by frontend trace dialog and backend template processor)

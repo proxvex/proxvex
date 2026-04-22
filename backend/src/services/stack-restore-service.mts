@@ -2,7 +2,7 @@ import { ContextManager } from "../context-manager.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { VeExecution } from "../ve-execution/ve-execution.mjs";
 import { determineExecutionMode } from "../ve-execution/ve-execution-constants.mjs";
-import { ICommand, IStacktypeVariable } from "../types.mjs";
+import { ICommand, IStackUsage, IStackUsageVar, IStacktypeVariable } from "../types.mjs";
 import { IVEContext } from "../backend-types.mjs";
 import { createLogger } from "../logger/index.mjs";
 
@@ -25,12 +25,26 @@ export interface IStackRestoreConflict {
   values: { value: string; sources: string[] }[];
 }
 
+export interface IStackRestoreDependency {
+  canonical: string;
+  alias: string;
+  source: string;
+  replacement?: string;
+}
+
 export interface IStackRestoreResponse {
   stack_id: string;
   entries: IStackRestoreEntry[];
   conflicts: IStackRestoreConflict[];
   errors: string[];
   sources_scanned: number;
+  /**
+   * Dependency-analysis trace: for each canonical stack variable, lists
+   * the aliases under which it may appear on the target (from stacktype
+   * itself and from any application/addon `stack_usage` declaration).
+   * Used by the UI and logs to make the alias resolution inspectable.
+   */
+  dependency_trace: IStackRestoreDependency[];
 }
 
 interface ScanResult {
@@ -70,8 +84,28 @@ export class StackRestoreService {
         conflicts: [],
         errors: [`Stacktype '${stacktypeNames.join(",")}' has no variables defined`],
         sources_scanned: 0,
+        dependency_trace: [],
       };
     }
+
+    // Build a mapping from each canonical stack-variable name to all aliases
+    // under which it may actually appear on the target (e.g. CF_TOKEN on the
+    // stack-side maps to CF_API_TOKEN inside acme-renew.sh). The scan needs
+    // to look for every alias; results are translated back to canonical names.
+    const { aliasToCanonical, allSearchNames, dependencyTrace } = buildAliasIndex(
+      pm,
+      stacktypeNames,
+      wantedVars,
+    );
+    logger.info("Stack-restore dependency analysis", {
+      stack_id: stackId,
+      stacktypes: stacktypeNames,
+      canonical_vars: wantedVars.map((v) => v.name),
+      search_names: allSearchNames,
+      aliases: dependencyTrace
+        .filter((d) => d.alias !== d.canonical)
+        .map((d) => `${d.canonical}←${d.alias} (${d.source}${d.replacement ? `, ${d.replacement}` : ""})`),
+    });
 
     const veContextKeys = this.contextManager
       .keys()
@@ -87,7 +121,7 @@ export class StackRestoreService {
 
       let scan: ScanResult;
       try {
-        scan = await this.runScanOnContext(veContext, stackId, wantedVars.map((v) => v.name));
+        scan = await this.runScanOnContext(veContext, stackId, allSearchNames);
       } catch (err: any) {
         logger.warn(`stack-restore scan failed on ${veKey}`, { error: err?.message });
         aggregatedErrors.push(`Scan failed on ${veContext.host}: ${err?.message || String(err)}`);
@@ -99,18 +133,25 @@ export class StackRestoreService {
       for (const container of scan.containers) {
         sourcesScanned += 1;
         const sourceLabel = `vm ${container.vm_id} (${container.hostname}@${veContext.host})`;
-        for (const [varName, entry] of Object.entries(container.values)) {
-          let byValue = perVarValues.get(varName);
+        for (const [foundName, entry] of Object.entries(container.values)) {
+          // Translate alias to canonical: the scan may have found CF_API_TOKEN,
+          // the stack stores it under CF_TOKEN.
+          const canonical = aliasToCanonical.get(foundName) ?? foundName;
+          let byValue = perVarValues.get(canonical);
           if (!byValue) {
             byValue = new Map();
-            perVarValues.set(varName, byValue);
+            perVarValues.set(canonical, byValue);
           }
           let sources = byValue.get(entry.value);
           if (!sources) {
             sources = [];
             byValue.set(entry.value, sources);
           }
-          sources.push(sourceLabel);
+          sources.push(
+            foundName === canonical
+              ? sourceLabel
+              : `${sourceLabel} [as ${foundName}]`,
+          );
         }
       }
     }
@@ -146,6 +187,7 @@ export class StackRestoreService {
       conflicts,
       errors: aggregatedErrors,
       sources_scanned: sourcesScanned,
+      dependency_trace: dependencyTrace,
     };
   }
 
@@ -212,4 +254,116 @@ export class StackRestoreService {
 export function computeStackId(stacktype: string | string[], name: string): string {
   const prefix = Array.isArray(stacktype) ? [...stacktype].sort().join("_") : stacktype;
   return `${prefix}_${name}`;
+}
+
+/**
+ * For each canonical stack-variable, enumerate every alias under which the
+ * value might appear on the target. Example: the `cloudflare` stacktype
+ * defines `CF_TOKEN`, but `addon-acme` writes it as `CF_API_TOKEN` into
+ * `acme-renew.sh`. The scan must look for both names.
+ *
+ * Walks all applications and addons, collects their `stack_usage` decls,
+ * and for any var matching one of the requested stacktypes, records the
+ * on-target variable name (`script_var` / `lxc_var_name` / `compose_key`)
+ * as an alias of the canonical `name`.
+ */
+function buildAliasIndex(
+  pm: PersistenceManager,
+  stacktypeNames: string[],
+  wantedVars: IStacktypeVariable[],
+): {
+  aliasToCanonical: Map<string, string>;
+  allSearchNames: string[];
+  dependencyTrace: IStackRestoreDependency[];
+} {
+  const stacktypeSet = new Set(stacktypeNames);
+  const aliasToCanonical = new Map<string, string>();
+  const searchSet = new Set<string>();
+  const trace: IStackRestoreDependency[] = [];
+  const traceSeen = new Set<string>();
+  const addTrace = (
+    canonical: string,
+    alias: string,
+    source: string,
+    replacement?: string,
+  ) => {
+    const key = `${canonical}|${alias}|${source}`;
+    if (traceSeen.has(key)) return;
+    traceSeen.add(key);
+    const entry: IStackRestoreDependency = { canonical, alias, source };
+    if (replacement) entry.replacement = replacement;
+    trace.push(entry);
+  };
+
+  // Register the canonical names as their own aliases.
+  for (const v of wantedVars) {
+    aliasToCanonical.set(v.name, v.name);
+    searchSet.add(v.name);
+    addTrace(v.name, v.name, `stacktype:${stacktypeNames.join(",")}`);
+  }
+
+  const collect = (sourceLabel: string, usageList: IStackUsage[] | undefined) => {
+    if (!usageList) return;
+    for (const usage of usageList) {
+      if (!stacktypeSet.has(usage.stacktype)) continue;
+      for (const v of usage.vars) {
+        const canonical = v.name;
+        const targetNames = collectTargetNames(v);
+        if (!aliasToCanonical.has(canonical)) {
+          aliasToCanonical.set(canonical, canonical);
+          searchSet.add(canonical);
+        }
+        addTrace(canonical, canonical, sourceLabel, v.replacement);
+        for (const alias of targetNames) {
+          if (!aliasToCanonical.has(alias)) {
+            aliasToCanonical.set(alias, canonical);
+            searchSet.add(alias);
+          }
+          addTrace(canonical, alias, sourceLabel, v.replacement);
+        }
+      }
+    }
+  };
+
+  const repositories = pm.getRepositories();
+  try {
+    for (const entry of repositories.listApplications()) {
+      try {
+        const app = repositories.getApplication(entry.id);
+        collect(`app:${entry.id}`, app.stack_usage);
+      } catch {
+        /* ignore individual application load failures */
+      }
+    }
+  } catch (err: any) {
+    logger.warn("Failed to enumerate applications for alias index", { error: err?.message });
+  }
+
+  try {
+    const addonService = pm.getAddonService();
+    const addons = addonService.getAllAddons?.() ?? [];
+    if (addons.length === 0) {
+      logger.warn("Alias index: getAllAddons() returned 0 addons — alias resolution will miss addon-provided aliases");
+    }
+    for (const addon of addons) {
+      const id = (addon as { id?: string }).id ?? "unknown-addon";
+      collect(`addon:${id}`, (addon as { stack_usage?: IStackUsage[] }).stack_usage);
+    }
+  } catch (err: any) {
+    logger.warn("Failed to enumerate addons for alias index", { error: err?.message });
+  }
+
+  return {
+    aliasToCanonical,
+    allSearchNames: Array.from(searchSet),
+    dependencyTrace: trace,
+  };
+}
+
+function collectTargetNames(v: IStackUsageVar): string[] {
+  const names: string[] = [];
+  if (v.script_var && v.script_var !== v.name) names.push(v.script_var);
+  if (v.lxc_var_name && v.lxc_var_name !== v.name) names.push(v.lxc_var_name);
+  if (v.compose_key && v.compose_key !== v.name) names.push(v.compose_key);
+  return names;
 }

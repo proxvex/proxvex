@@ -230,6 +230,13 @@ export class CreateStackDialog implements OnInit {
     const bits: string[] = [];
     bits.push(`Scanned ${res.sources_scanned} container(s).`);
     bits.push(`${restored.length} restored, ${missing.length} left empty (will be auto-generated on Create for non-external vars).`);
+    const aliasLines = (res.dependency_trace ?? [])
+      .filter(d => d.alias !== d.canonical)
+      .map(d => `  • ${d.canonical} ← ${d.alias} (from ${d.source}${d.replacement ? `, ${d.replacement}` : ''})`);
+    if (aliasLines.length > 0) {
+      bits.push('Resolved aliases:');
+      bits.push(...aliasLines);
+    }
     if (res.errors.length > 0) {
       bits.push('Warnings:');
       for (const e of res.errors) bits.push(`  • ${e}`);
