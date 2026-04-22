@@ -69,12 +69,16 @@ def main() -> None:
             # Full parse
             config = parse_lxc_config(conf_text)
 
-            if not config.oci_image:
+            # Managed containers without an oci_image marker are typically
+            # docker-compose apps (multiple images, no single one to record).
+            # Keep them if they carry an application_id so the UI can still
+            # list them.
+            if not config.oci_image and not config.application_id:
                 continue
 
             item = {
                 "vm_id": int(vmid_str),
-                "oci_image": config.oci_image,
+                "oci_image": config.oci_image or "",
                 "icon": "",
             }
             if config.hostname:
