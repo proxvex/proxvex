@@ -56,6 +56,23 @@
     { "id": "oidc_required_role", "value": "admin" }
   ],
   "installation": {},
+  "upgrade": {
+    "image": [
+      "005-host-trust-deployer-ca.json",
+      "011-host-get-oci-image.json"
+    ],
+    "create_ct": [
+      { "name": "050-set-project-parameters.json", "category": "create_ct" },
+      { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
+    ],
+    "pre_start": [
+      "101-conf-restore-settings.json",
+      "107-conf-oci-lxc-configuration.json"
+    ],
+    "replace_ct": [
+      "900-schedule-deployer-upgrade.json"
+    ]
+  },
   "check": {
     "check": [
       "check-oidc-endpoint.json"

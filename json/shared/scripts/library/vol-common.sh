@@ -290,6 +290,48 @@ vol_rename() {
   esac
 }
 
+# Copy a volume to a new name on the same storage, preserving data.
+# Intended for upgrades where the source container must keep running throughout.
+# Args: $1=storage, $2=src_volid (storage:name), $3=new_name (without storage prefix), $4=storage_type
+# Prints new volid on success, returns non-zero on failure.
+vol_copy() {
+  _vol_stor="$1"; _vol_src_volid="$2"; _vol_new_name="$3"; _vol_type="$4"
+  _vol_src_name="${_vol_src_volid#*:}"
+
+  case "$_vol_type" in
+    zfspool)
+      _vol_pool=$(vol_get_zfs_pool "$_vol_stor")
+      [ -z "$_vol_pool" ] && return 1
+      _vol_src_ds="${_vol_pool}/${_vol_src_name}"
+      _vol_dst_ds="${_vol_pool}/${_vol_new_name}"
+      if zfs list -H -o name "$_vol_dst_ds" >/dev/null 2>&1; then
+        echo "vol_copy: destination $_vol_dst_ds already exists" >&2
+        return 1
+      fi
+      _vol_snap_tag="upgrade-copy-$$"
+      _vol_snap="${_vol_src_ds}@${_vol_snap_tag}"
+      if ! zfs snapshot "$_vol_snap" 2>&2; then
+        echo "vol_copy: snapshot $_vol_snap failed" >&2
+        return 1
+      fi
+      if ! zfs send "$_vol_snap" | zfs recv "$_vol_dst_ds" 2>&2; then
+        zfs destroy "$_vol_snap" 2>/dev/null || true
+        zfs destroy "$_vol_dst_ds" 2>/dev/null || true
+        echo "vol_copy: zfs send|recv failed" >&2
+        return 1
+      fi
+      zfs destroy "$_vol_snap" 2>/dev/null || true
+      zfs destroy "${_vol_dst_ds}@${_vol_snap_tag}" 2>/dev/null || true
+      echo "${_vol_stor}:${_vol_new_name}"
+      return 0
+      ;;
+    *)
+      echo "vol_copy: storage type '$_vol_type' not yet supported (only zfspool)" >&2
+      return 1
+      ;;
+  esac
+}
+
 # Unlink managed volumes from a container's config and rename them to clean names.
 # This preserves volumes during pct destroy by:
 # 1. Removing the mp entry from .conf (so pct destroy won't delete the volume)

@@ -1,0 +1,54 @@
+{
+  "execute_on": "ve",
+  "name": "Schedule Deployer Upgrade Switchover",
+  "description": "Self-upgrade switchover for the oci-lxc-deployer container. Cannot stop+start its own source container directly (would kill this script's SSH session), so it registers a systemd transient unit on the PVE host that performs 'pct stop SOURCE && pct start TARGET' after a short delay. Also writes a marker file into the new container's /config volume so the new deployer can run post-upgrade finalization tasks on first boot.",
+  "parameters": [
+    {
+      "id": "previouse_vm_id",
+      "name": "Previous VM ID",
+      "type": "number",
+      "required": true
+    },
+    {
+      "id": "vm_id",
+      "name": "Target VM ID",
+      "type": "number",
+      "required": true
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true
+    },
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "type": "string",
+      "default": "3080",
+      "required": false
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "type": "string",
+      "default": "3443",
+      "required": false
+    },
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer Base URL",
+      "type": "string",
+      "required": false,
+      "advanced": true
+    }
+  ],
+  "commands": [
+    {
+      "name": "Schedule Deployer Upgrade",
+      "script": "schedule-deployer-upgrade.sh",
+      "library": "ve-global.sh",
+      "outputs": ["redirect_url", "switchover_scheduled"]
+    }
+  ]
+}

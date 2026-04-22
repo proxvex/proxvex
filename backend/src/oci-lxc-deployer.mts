@@ -116,6 +116,20 @@ async function startWebApp(
   PersistenceManager.initialize(localPath, storageContextPath, secretFilePath, true, undefined, undefined, undefined, hubPath);
   const pm = PersistenceManager.getInstance();
 
+  // If this instance was just started as the target of a deployer self-upgrade,
+  // a marker file sits in the /config volume. Process it before we serve any
+  // requests so the log makes the upgrade visible and the marker is cleared.
+  try {
+    const { finalizeUpgradeIfPending } = await import(
+      "./services/upgrade-finalization-service.mjs"
+    );
+    finalizeUpgradeIfPending(localPath);
+  } catch (err: any) {
+    logger.warn("Upgrade finalization check failed (non-fatal)", {
+      error: err?.message,
+    });
+  }
+
   // Check for duplicate templates/scripts across categories
   const repositories = pm.getRepositories();
   if (repositories.checkForDuplicates) {

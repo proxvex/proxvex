@@ -174,25 +174,30 @@ while IFS= read -r line <&3; do
       subvol-[0-9]*-*) _owner_vmid=$(echo "$_cur_volname" | sed -E 's/^subvol-([0-9]+)-.*/\1/') ;;
       vm-[0-9]*-*)     _owner_vmid=$(echo "$_cur_volname" | sed -E 's/^vm-([0-9]+)-.*/\1/') ;;
     esac
+
     if [ -n "$_owner_vmid" ] && [ "$_owner_vmid" != "$VMID" ]; then
       _owner_status=$(pct status "$_owner_vmid" 2>/dev/null | awk '{print $2}' || true)
       if [ "$_owner_status" = "running" ] || [ "$_owner_status" = "stopped" ]; then
-        log "Volume $VOLID belongs to existing container $_owner_vmid ($_owner_status)"
-        log "Unlinking volume from container $_owner_vmid before reuse..."
-        # Find which mp slot references this volume in the old container
-        _old_mp=$(pct config "$_owner_vmid" 2>/dev/null | grep -aE "^mp[0-9]+: ${VOLID}" | cut -d: -f1 || true)
-        if [ -n "$_old_mp" ]; then
-          if [ "$_owner_status" = "running" ]; then
-            pct stop "$_owner_vmid" >&2 || true
-            log "Stopped container $_owner_vmid"
-          fi
-          pct set "$_owner_vmid" -delete "$_old_mp" >&2 2>/dev/null || true
-          log "Unlinked $_old_mp from container $_owner_vmid"
+        # Volume is still owned by a live container (typical upgrade case).
+        # COPY — never steal — so the source container stays untouched and
+        # operational throughout the prep phase. The old container (and its
+        # volumes) is cleaned up later, after the final switchover.
+        log "Volume $VOLID belongs to live container $_owner_vmid ($_owner_status); copying to $VOL_NAME (preserves data)..."
+        COPIED_VOLID=$(vol_copy "$VOLUME_STORAGE" "$VOLID" "$VOL_NAME" "$STORAGE_TYPE" || true)
+        if [ -n "$COPIED_VOLID" ]; then
+          VOLID="$COPIED_VOLID"
+          _cur_volname="$VOL_NAME"
+          log "Copy successful: $VOLID"
+        else
+          fail "Failed to copy volume from live container $_owner_vmid. Storage type=$STORAGE_TYPE. Manual recovery: ensure old container has been destroyed, then retry."
         fi
       fi
+      # If the owner can't be queried (container gone but pvesm still remembers the name),
+      # fall through to the rename block below — that handles orphaned volumes.
     fi
 
     # Rename to match current VMID (Proxmox requires subvol-{VMID}-* format).
+    # This only applies when the volume is already ours (clean name or same VMID).
     if [ "$_cur_volname" != "$VOL_NAME" ]; then
       NEW_VOLID=$(vol_rename "$VOLUME_STORAGE" "$VOLID" "$VOL_NAME" "$STORAGE_TYPE" || true)
       if [ -n "$NEW_VOLID" ]; then
