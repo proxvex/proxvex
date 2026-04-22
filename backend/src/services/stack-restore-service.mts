@@ -224,7 +224,7 @@ export class StackRestoreService {
 
     const substituted = scriptContent
       .replace(/\{\{\s*stack_id\s*\}\}/g, stackId)
-      .replace(/\{\{\s*var_names\s*\}\}/g, varNames.join("\n"))
+      .replace(/\{\{\s*var_names\s*\}\}/g, varNames.join(","))
       .replace(/\{\{\s*consumer_apps\s*\}\}/g, consumerApps.join(","))
       .replace(/\{\{\s*consumer_addons\s*\}\}/g, consumerAddons.join(","));
 
@@ -237,6 +237,18 @@ export class StackRestoreService {
       outputs: ["scan_results"],
     };
 
+    // Capture stderr from emitted messages so we can surface it if the
+    // command fails — VeExecution swallows command failures (catches the
+    // exception in its command loop) and only emits an error message. If
+    // the expected `scan_results` output is missing afterwards, we can't
+    // tell the caller what went wrong without the captured stderr.
+    const capturedStderr: string[] = [];
+    const messageListener = (msg: { stderr?: string; exitCode?: number }) => {
+      if (typeof msg?.stderr === "string" && msg.stderr.length > 0) {
+        capturedStderr.push(msg.stderr);
+      }
+    };
+
     const ve = new VeExecution(
       [cmd],
       [],
@@ -245,11 +257,22 @@ export class StackRestoreService {
       undefined,
       determineExecutionMode(),
     );
-    await ve.run(null);
+    ve.on("message", messageListener);
+    try {
+      await ve.run(null);
+    } finally {
+      ve.off?.("message", messageListener);
+    }
 
     const raw = ve.outputs.get("scan_results");
     if (!raw || typeof raw !== "string" || raw.trim().length === 0) {
-      return { containers: [], errors: [] };
+      // Command either failed (VeExecution swallowed it) or produced no
+      // output — either way this is a hard failure the caller must surface.
+      const stderrTail = capturedStderr.join("\n").split("\n").slice(-15).join("\n").trim();
+      throw new Error(
+        `find-stack-values-on-apps.py produced no output` +
+          (stderrTail ? ` — stderr tail:\n${stderrTail}` : ""),
+      );
     }
     const parsed = JSON.parse(raw);
     return {

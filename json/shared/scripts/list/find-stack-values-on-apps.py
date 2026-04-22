@@ -162,7 +162,11 @@ def main() -> None:
         })}]))
         return
 
-    var_names = [v for v in var_names_raw.splitlines() if v.strip()] if var_names_raw and var_names_raw != "NOT_DEFINED" else []
+    var_names = (
+        [v.strip() for v in var_names_raw.split(",") if v.strip()]
+        if var_names_raw and var_names_raw != "NOT_DEFINED"
+        else []
+    )
 
     # Consumer apps/addons: containers whose application_id ∈ consumer_apps OR
     # whose addons ∩ consumer_addons is non-empty ALSO count as sources for
