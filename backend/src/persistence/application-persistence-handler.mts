@@ -778,6 +778,11 @@ export class ApplicationPersistenceHandler {
         opts.taskTemplates.push(taskEntry);
       }
 
+      // no_extend: child overrides parent's contribution to this task entirely
+      if (installation.no_extend === true) {
+        taskEntry.templates = [];
+      }
+
       for (const category of installationCategories) {
         const list = installation[category];
         if (Array.isArray(list)) {
@@ -801,6 +806,10 @@ export class ApplicationPersistenceHandler {
         // Simple array format (backward compatible) - uses "root" category
         this.processTemplateList(value, taskEntry, key, opts, "root");
       } else if (typeof value === "object") {
+        // no_extend: child overrides parent's contribution to this task entirely
+        if (value.no_extend === true) {
+          taskEntry.templates = [];
+        }
         // Category-based format (like installation)
         for (const category of installationCategories) {
           const list = value[category];
