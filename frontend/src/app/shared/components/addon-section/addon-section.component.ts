@@ -3,12 +3,15 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatRadioModule } from '@angular/material/radio';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { IAddonWithParameters, IParameter, IStack } from '../../../../shared/types';
 import { ParameterGroupComponent } from '../../../ve-configuration-dialog/parameter-group.component';
 import { AddonNoticeDialogComponent } from '../addon-notice-dialog/addon-notice-dialog.component';
 import { AuthService } from '../../../auth/auth.service';
+
+type OidcMode = 'auto' | 'manual';
 
 @Component({
   selector: 'app-addon-section',
@@ -18,6 +21,7 @@ import { AuthService } from '../../../auth/auth.service';
     MatCheckboxModule,
     MatExpansionModule,
     MatProgressSpinnerModule,
+    MatRadioModule,
     MatTooltipModule,
     ParameterGroupComponent
   ],
@@ -57,6 +61,18 @@ import { AuthService } from '../../../auth/auth.service';
               </mat-expansion-panel-header>
               @if (isAddonSelected(addon.id) && hasAddonParameters(addon)) {
                 <div class="addon-parameters">
+                  @if (addon.id === 'addon-oidc' && canAutoProvisionOidc) {
+                    <mat-radio-group class="oidc-mode-toggle"
+                                     [value]="oidcMode()"
+                                     (change)="setOidcMode($event.value)">
+                      <mat-radio-button value="auto" matTooltip="Look up or auto-create the client in Zitadel using your session">
+                        Auto (via Zitadel)
+                      </mat-radio-button>
+                      <mat-radio-button value="manual" matTooltip="Enter an existing Client ID, Secret and Issuer URL">
+                        Manual
+                      </mat-radio-button>
+                    </mat-radio-group>
+                  }
                   <app-parameter-group
                     [groupName]="addon.name"
                     [groupedParameters]="getAddonGroupedParametersAll(addon)"
@@ -92,6 +108,12 @@ import { AuthService } from '../../../auth/auth.service';
 
     .addon-parameters {
       max-width: 60%;
+    }
+
+    .oidc-mode-toggle {
+      display: flex;
+      gap: 1rem;
+      padding: 0.5rem 0 0.75rem;
     }
 
     :host ::ng-deep .addon-panel .mat-expansion-panel-body {
@@ -139,8 +161,37 @@ export class AddonSectionComponent {
 
   loading = signal(false);
 
+  private oidcModeOverride = signal<OidcMode | null>(null);
+
+  private static readonly OIDC_AUTO_PARAM_IDS = ['oidc_app_name', 'oidc_project_name'];
+  private static readonly OIDC_MANUAL_PARAM_IDS = ['oidc_client_id', 'oidc_client_secret', 'oidc_issuer_url'];
+
   @Input() set isLoading(value: boolean) {
     this.loading.set(value);
+  }
+
+  /** True when the current session can talk to the Zitadel Management API. */
+  get canAutoProvisionOidc(): boolean {
+    return this.auth.isOidcEnabled && this.auth.isAuthenticated;
+  }
+
+  /** Effective OIDC credential input mode. Forced to 'manual' when no OIDC session is available. */
+  oidcMode = (): OidcMode => {
+    if (!this.canAutoProvisionOidc) return 'manual';
+    return this.oidcModeOverride() ?? 'auto';
+  };
+
+  setOidcMode(mode: OidcMode): void {
+    this.oidcModeOverride.set(mode);
+    const fg = this.addonFormGroups.get('addon-oidc');
+    if (!fg) return;
+    const fieldsToClear = mode === 'auto'
+      ? AddonSectionComponent.OIDC_MANUAL_PARAM_IDS
+      : AddonSectionComponent.OIDC_AUTO_PARAM_IDS;
+    for (const id of fieldsToClear) {
+      const ctrl = fg.get(id);
+      if (ctrl) ctrl.setValue('');
+    }
   }
 
   @Output() addonToggled = new EventEmitter<{ addonId: string; checked: boolean }>();
@@ -251,9 +302,16 @@ export class AddonSectionComponent {
 
   getAddonGroupedParametersAll(addon: IAddonWithParameters): Record<string, IParameter[]> {
     const appIds = new Set(this.appParameterIds);
-    const params = (addon.parameters ?? []).filter(p =>
+    let params = (addon.parameters ?? []).filter(p =>
       (!p.advanced || this.showAdvanced) && !appIds.has(p.id)
     );
+    if (addon.id === 'addon-oidc') {
+      const hiddenIds = this.oidcMode() === 'auto'
+        ? AddonSectionComponent.OIDC_MANUAL_PARAM_IDS
+        : AddonSectionComponent.OIDC_AUTO_PARAM_IDS;
+      const hidden = new Set(hiddenIds);
+      params = params.filter(p => !hidden.has(p.id));
+    }
     return { [addon.name]: params };
   }
 }
