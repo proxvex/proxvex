@@ -36,6 +36,8 @@ DEFAULT_EXCLUDE_DIRS = {
     "venv",
     ".angular",
     "coverage",
+    # Local Hub/Spoke dev state — not part of the product (analogous to .dev/).
+    ".hubs",
 }
 
 # Files this script must never modify or rename.
@@ -51,10 +53,16 @@ DEFAULT_EXCLUDE_FILES = {
 }
 
 
-# Match any spelling/separator variant of "oci lxc deployer".
-# Word boundaries prevent matching inside longer identifiers.
+# Match any spelling/separator variant of "oci lxc deployer" AND the legacy
+# pre-rename form "lxc manager" that survived in a few doc blocks and SSH
+# control-socket paths. Both alternatives map through the same case-aware
+# replacement_for() below. Word boundaries prevent matching inside longer
+# identifiers.
 PATTERN = re.compile(
-    r"(?<!\w)(oci[\s._\-]?lxc[\s._\-]?deployer)(?!\w)",
+    r"(?<!\w)("
+    r"oci[\s._\-]?lxc[\s._\-]?deployer"
+    r"|lxc[\s._\-]?manager"
+    r")(?!\w)",
     re.IGNORECASE,
 )
 
