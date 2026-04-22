@@ -82,7 +82,74 @@ else
   fi
 fi
 
-# ─── Step 4: Stop and destroy old container ───────────────────────────────────
+# ─── Step 4a: Self-upgrade detection ─────────────────────────────────────────
+# If the SOURCE container is the deployer instance running THIS script (via
+# SSH driven by the deployer itself), we cannot stop it inline — stopping
+# the container kills the SSH session that's executing this script, and the
+# cleanup below never happens. Detect via the deployer-instance marker in
+# the source container's PVE notes, and offload stop/start to a transient
+# systemd unit on the PVE host.
+IS_SELF_UPGRADE=false
+if pct config "$SOURCE_VMID" 2>/dev/null | grep -qa "deployer-instance"; then
+  IS_SELF_UPGRADE=true
+fi
+
+if [ "$IS_SELF_UPGRADE" = "true" ]; then
+  log "Self-upgrade detected (source $SOURCE_VMID is the deployer instance); scheduling switchover via systemd"
+
+  # Write a marker into the NEW container's /config volume so the new
+  # deployer can log the completed upgrade on its first boot.
+  # Resolve the path directly from TARGET_VMID's pct config instead of via
+  # resolve_host_volume — during self-upgrade there are two volumes with the
+  # same hostname suffix (subvol-OLD-<host>-config AND subvol-NEW-<host>-config),
+  # and resolve_host_volume can't distinguish them.
+  NEW_CONFIG_VOLID=$(pct config "$TARGET_VMID" 2>/dev/null \
+    | grep -aE '^mp[0-9]+:.*[ ,]mp=/config([, ]|$)' \
+    | head -1 \
+    | sed -E 's/^mp[0-9]+: ([^,]+),.*/\1/' \
+    || true)
+  CONFIG_PATH=""
+  if [ -n "$NEW_CONFIG_VOLID" ]; then
+    CONFIG_PATH=$(pvesm path "$NEW_CONFIG_VOLID" 2>/dev/null || true)
+  fi
+  if [ -n "$CONFIG_PATH" ] && [ -d "$CONFIG_PATH" ]; then
+    NOW_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    cat > "${CONFIG_PATH}/.pending-post-upgrade.json" <<EOF
+{
+  "previous_vmid": "${SOURCE_VMID}",
+  "new_vmid": "${TARGET_VMID}",
+  "upgraded_at": "${NOW_UTC}"
+}
+EOF
+    chmod 0644 "${CONFIG_PATH}/.pending-post-upgrade.json" 2>/dev/null || true
+    log "Wrote post-upgrade marker: ${CONFIG_PATH}/.pending-post-upgrade.json"
+  else
+    log "Warning: could not resolve /config volume of new container $TARGET_VMID (volid=$NEW_CONFIG_VOLID, path=$CONFIG_PATH) — post-upgrade log marker skipped"
+  fi
+
+  # Disable autostart on the old container (safety net)
+  pct set "$SOURCE_VMID" --onboot 0 >&2 2>/dev/null || true
+
+  # Schedule the switchover. TARGET is already running (start phase started
+  # it), but its network is racing with SOURCE. Stop SOURCE, wait, restart
+  # TARGET so it cleanly takes over the IP.
+  UNIT_NAME="oci-lxc-deployer-upgrade-${SOURCE_VMID}-to-${TARGET_VMID}"
+  DELAY_SECONDS=5
+  log "systemd-run: unit=${UNIT_NAME}, delay=${DELAY_SECONDS}s"
+  if ! systemd-run \
+      --on-active="${DELAY_SECONDS}s" \
+      --unit="${UNIT_NAME}" \
+      --description="oci-lxc-deployer upgrade switchover ${SOURCE_VMID} -> ${TARGET_VMID}" \
+      /bin/sh -c "pct stop ${SOURCE_VMID}; sleep 2; pct restart ${TARGET_VMID}" >&2; then
+    fail "systemd-run failed — cannot schedule self-upgrade switchover"
+  fi
+
+  log "Switchover scheduled. Reconnect to ${REDIRECT_URL} after ~10-20s."
+  printf '[{"id":"redirect_url","value":"%s"},{"id":"switchover_scheduled","value":"true"}]' "$REDIRECT_URL"
+  exit 0
+fi
+
+# ─── Step 4b: Regular stop + destroy (non-self upgrades) ─────────────────────
 source_status=$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
 # Disable autostart first — if destroy fails, the container must not boot on reboot
 pct set "$SOURCE_VMID" --onboot 0 >&2 2>/dev/null || true
