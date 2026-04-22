@@ -16,6 +16,21 @@
         </button>
       </mat-form-field>
     }
+    @if (spokeStatus.active) {
+      <span
+        class="hub-chip"
+        [class.synced]="spokeStatus.synced"
+        [class.pending]="!spokeStatus.synced"
+        [matTooltip]="spokeStatus.synced ? ('Last sync: ' + spokeSyncAge + ' — click to re-sync now') : 'Not synced yet — click to sync'"
+        (click)="resyncHub()"
+        style="cursor: pointer; padding: 4px 10px; border-radius: 16px; display: inline-flex; align-items: center; gap: 6px; margin-right: 8px;"
+        [style.background]="spokeStatus.synced ? '#e8f5e9' : '#fff3e0'"
+        [style.color]="spokeStatus.synced ? '#2e7d32' : '#e65100'"
+      >
+        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">{{ spokeStatus.synced ? 'hub' : 'sync_problem' }}</mat-icon>
+        <span style="font-size: 12px;">Hub · {{ spokeStatus.synced ? spokeSyncAge : 'pending' }}</span>
+      </span>
+    }
     <button class="header-btn" type="button" aria-label="Create Application" routerLink="/create-application" matTooltip="Create Application">
       <mat-icon aria-hidden="true">add_circle</mat-icon>
     </button>

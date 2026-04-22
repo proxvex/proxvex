@@ -75,11 +75,18 @@ class VEContext implements IVEContext {
   host: string;
   port?: number;
   current?: boolean;
+  isHub?: boolean;
+  hubApiUrl?: string;
+  hubCaFingerprint?: string;
   private contextManager: ContextManager;
   constructor(data: ISsh, contextManager: ContextManager) {
     this.host = data.host;
     if (data.port !== undefined) this.port = data.port;
     if (data.current !== undefined) this.current = data.current;
+    if (data.isHub !== undefined) this.isHub = data.isHub;
+    if (data.hubApiUrl !== undefined) this.hubApiUrl = data.hubApiUrl;
+    if (data.hubCaFingerprint !== undefined)
+      this.hubCaFingerprint = data.hubCaFingerprint;
     this.contextManager = contextManager;
   }
   getStorageContext(): ContextManager {
@@ -93,6 +100,9 @@ class VEContext implements IVEContext {
       host: this.host,
       port: this.port,
       current: this.current,
+      isHub: this.isHub,
+      hubApiUrl: this.hubApiUrl,
+      hubCaFingerprint: this.hubCaFingerprint,
     };
   }
 }
@@ -307,6 +317,10 @@ export class ContextManager extends Context implements IContext {
         const item: ISsh = { host: anyCtx.host } as ISsh;
         if (typeof anyCtx.port === "number") item.port = anyCtx.port;
         if (typeof anyCtx.current === "boolean") item.current = anyCtx.current;
+        if (typeof anyCtx.isHub === "boolean") item.isHub = anyCtx.isHub;
+        if (typeof anyCtx.hubApiUrl === "string") item.hubApiUrl = anyCtx.hubApiUrl;
+        if (typeof anyCtx.hubCaFingerprint === "string")
+          item.hubCaFingerprint = anyCtx.hubCaFingerprint;
         if (pubCmd) item.publicKeyCommand = pubCmd;
         // Nur für den aktuellen SSH-Context eine kurze Prüfung
         if (item.current === true) {

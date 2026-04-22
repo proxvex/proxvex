@@ -8,9 +8,24 @@
     "properties": {
       "host": { "type": "string" },
       "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-      "current": { "type": "boolean" }
+      "current": { "type": "boolean" },
+      "isHub": {
+        "type": "boolean",
+        "description": "When true, this host runs an oci-lxc-deployer Hub and this deployer acts as a Spoke against it. Requires hubApiUrl."
+      },
+      "hubApiUrl": {
+        "type": "string",
+        "pattern": "^https?://",
+        "description": "Full URL of the Hub's HTTP(S) API, e.g. https://old-prod-hub:3443 — has no default, the SSH hostname is usually NOT the Hub's API URL."
+      },
+      "hubCaFingerprint": {
+        "type": "string",
+        "description": "SHA-256 fingerprint of the Hub's TLS CA, captured on first trust (TOFU). If absent, the UI prompts for trust on next connect."
+      }
     },
     "required": ["host"],
-    "additionalProperties": false
+    "additionalProperties": false,
+    "if": { "properties": { "isHub": { "const": true } }, "required": ["isHub"] },
+    "then": { "required": ["hubApiUrl"] }
   }
 }

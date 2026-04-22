@@ -193,6 +193,38 @@ export class VeConfigurationService {
     );
   }
 
+  probeHub(hubApiUrl: string): Observable<{ ok: boolean; caFingerprint?: string; error?: string }> {
+    return this.post<{ ok: boolean; caFingerprint?: string; error?: string }, { hubApiUrl: string }>(
+      ApiUri.SpokeProbeHub,
+      { hubApiUrl },
+    ).pipe(catchError((err) => this.handleError(err)));
+  }
+
+  getSpokeSyncStatus(): Observable<{
+    active: boolean;
+    hubUrl?: string;
+    hubId?: string;
+    workspacePath?: string;
+    synced?: boolean;
+    syncedAt?: string;
+  }> {
+    return this.get<{
+      active: boolean;
+      hubUrl?: string;
+      hubId?: string;
+      workspacePath?: string;
+      synced?: boolean;
+      syncedAt?: string;
+    }>(ApiUri.SpokeSync).pipe(catchError((err) => this.handleError(err)));
+  }
+
+  triggerSpokeSync(): Observable<{ ok: boolean; workspacePath?: string; syncedAt?: string; error?: string }> {
+    return this.post<{ ok: boolean; workspacePath?: string; syncedAt?: string; error?: string }, Record<string, never>>(
+      ApiUri.SpokeSync,
+      {} as Record<string, never>,
+    ).pipe(catchError((err) => this.handleError(err)));
+  }
+
   deleteSshConfig(host: string): Observable<IDeleteSshConfigResponse> {
     const params = new URLSearchParams({ host });
     return this.http.delete<IDeleteSshConfigResponse>(`${ApiUri.SshConfig}?${params.toString()}`).pipe(

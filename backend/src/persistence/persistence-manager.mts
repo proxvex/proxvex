@@ -19,6 +19,12 @@ import { ContextManager } from "../context-manager.mjs";
 import { FileSystemRepositories, type IRepositories } from "./repositories.mjs";
 import type { ICaProvider } from "../services/ca-provider.mjs";
 import type { IStackProvider } from "../services/stack-provider.mjs";
+import { CertificateAuthorityService } from "../services/certificate-authority-service.mjs";
+import { LocalStackProvider } from "../services/local-stack-provider.mjs";
+import { RemoteCaProvider } from "../services/remote-ca-provider.mjs";
+import { RemoteStackProvider } from "../services/remote-stack-provider.mjs";
+import { createLogger } from "../logger/index.mjs";
+import { getBearerToken } from "../services/bearer-token-store.mjs";
 
 const baseSchemas: string[] = [
   "templatelist.schema.json",
@@ -264,18 +270,61 @@ export class PersistenceManager {
   private _stackProvider: IStackProvider | null = null;
 
   /**
+   * Drop memoised CA/Stack providers so the next getCaProvider /
+   * getStackProvider call re-evaluates Spoke-vs-Standalone. Called by the
+   * SSH-config route after the current VE entry changes (e.g. user toggles
+   * isHub or swaps the active connection in the UI).
+   */
+  resetProviders(): void {
+    this._caProvider = null;
+    this._stackProvider = null;
+  }
+
+  /**
+   * Replace the active repositories root with a different path pair (used
+   * by the Spoke after a fresh Hub-sync: <spoke-local>/.hubs/<hub-id>/
+   * contains a full repositories tree under json/ + local/). Any cached
+   * templates/scripts are dropped.
+   */
+  rebindRepositoriesRoot(newJsonPath: string, newLocalPath: string): void {
+    const oldPathes = this.pathes;
+    const newPathes: IConfiguredPathes = {
+      ...oldPathes,
+      jsonPath: newJsonPath,
+      localPath: newLocalPath,
+    };
+    this.pathes = newPathes;
+    // JsonValidator + FilesystemPersistence are bound to the old pathes.
+    // For a v1 swap we just rebuild Repositories; the services below still
+    // reference the existing persistence, which keeps reading from the old
+    // paths. That's intentional for now — persistence is the Hub's, the
+    // repositories cache on the Spoke is what actually differs.
+    this.repositories = new FileSystemRepositories(
+      newPathes,
+      this.persistence,
+      true,
+    );
+    const reposWithPreload = this.repositories as IRepositories & {
+      preloadJsonResources?: () => void;
+    };
+    reposWithPreload.preloadJsonResources?.();
+    const logger = createLogger("persistence-manager");
+    logger.info(
+      `Repositories root rebound: jsonPath=${newJsonPath}, localPath=${newLocalPath}`,
+    );
+  }
+
+  /**
    * Returns the CA provider.
    * Hub mode (default): local CertificateAuthorityService.
-   * Spoke mode (HUB_URL set + server certs exist): RemoteCaProvider.
+   * Spoke mode (HUB_URL env set): RemoteCaProvider that proxies to the Hub.
    */
   getCaProvider(): ICaProvider {
     if (this._caProvider) return this._caProvider;
     const spoke = this.detectSpokeConfig();
     if (spoke) {
-      const { RemoteCaProvider } = require("../services/remote-ca-provider.mjs");
-      this._caProvider = new RemoteCaProvider(spoke.hubUrl, spoke.certPath, spoke.keyPath, spoke.caPath);
+this._caProvider = new RemoteCaProvider(spoke.hubUrl, getBearerToken);
     } else {
-      const { CertificateAuthorityService } = require("../services/certificate-authority-service.mjs");
       this._caProvider = new CertificateAuthorityService(this.contextManager);
     }
     return this._caProvider!;
@@ -284,56 +333,95 @@ export class PersistenceManager {
   /**
    * Returns the Stack provider.
    * Hub mode (default): local via ContextManager.
-   * Spoke mode (HUB_URL set + server certs exist): RemoteStackProvider.
+   * Spoke mode (HUB_URL env set): RemoteStackProvider that proxies to the Hub.
    */
   getStackProvider(): IStackProvider {
     if (this._stackProvider) return this._stackProvider;
     const spoke = this.detectSpokeConfig();
     if (spoke) {
-      const { RemoteStackProvider } = require("../services/remote-stack-provider.mjs");
-      this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, spoke.certPath, spoke.keyPath, spoke.caPath);
+this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
     } else {
-      const { LocalStackProvider } = require("../services/local-stack-provider.mjs");
       this._stackProvider = new LocalStackProvider(this.contextManager);
     }
     return this._stackProvider!;
   }
 
   /**
-   * Detect Spoke configuration from environment and filesystem.
-   * Spoke mode requires BOTH:
-   * 1. HUB_URL environment variable set
-   * 2. Server certificate files present in /secure/
+   * Detect Spoke configuration. Spoke mode is activated when the currently
+   * selected SSH entry (stored in storagecontext.json) has `isHub=true` and
+   * a non-empty `hubApiUrl`. The legacy `HUB_URL` environment variable is
+   * still honoured as a fallback, so dev scripts keep working.
+   *
+   * Auth is handled at request time:
+   *   - OIDC mode: bearer token taken from the bearer-token-store (set by
+   *     the OIDC callback handler)
+   *   - Non-OIDC mode: no auth, relying on the Hub's open endpoints.
    *
    * Returns null for Hub mode, config object for Spoke mode.
    */
-  private detectSpokeConfig(): { hubUrl: string; certPath: string; keyPath: string; caPath: string } | null {
-    const hubUrl = process.env.HUB_URL;
-    if (!hubUrl) return null;
+  /**
+   * Returns the URL of the currently active Hub, or undefined if the
+   * deployer is in standalone/Hub mode. Callers use this to decide whether
+   * to trigger Spoke-sync or show Hub-related UI elements.
+   */
+  getActiveHubUrl(): string | undefined {
+    return this.detectSpokeConfig()?.hubUrl;
+  }
 
-    // Check for server certs that double as mTLS client certs
-    const certPath = process.env.SPOKE_CERT_PATH || "/secure/server.crt";
-    const keyPath = process.env.SPOKE_KEY_PATH || "/secure/server.key";
-    const caPath = process.env.SPOKE_CA_PATH || "/secure/ca.crt";
-
-    if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-      const { createLogger } = require("../logger/index.mjs");
-      const logger = createLogger("persistence-manager");
-      logger.warn(`HUB_URL set but server certificate not found at ${certPath}. Running as Hub.`);
-      return null;
-    }
-
-    if (!fs.existsSync(caPath)) {
-      const { createLogger } = require("../logger/index.mjs");
-      const logger = createLogger("persistence-manager");
-      logger.warn(`HUB_URL set but CA certificate not found at ${caPath}. Running as Hub.`);
-      return null;
-    }
-
-    const { createLogger } = require("../logger/index.mjs");
+  private detectSpokeConfig(): { hubUrl: string } | null {
     const logger = createLogger("persistence-manager");
-    logger.info(`Spoke mode: connecting to Hub at ${hubUrl}`);
-    return { hubUrl, certPath, keyPath, caPath };
+
+    // Primary: current SSH entry
+    try {
+      const ctx = this.contextManager.getCurrentVEContext();
+      if (ctx && (ctx as { isHub?: boolean }).isHub) {
+        const url = (ctx as { hubApiUrl?: string }).hubApiUrl;
+        if (url && /^https?:\/\//.test(url)) {
+          if (this.isSelfLoopHubUrl(url)) {
+            logger.warn(
+              `Spoke mode IGNORED: hubApiUrl ${url} points at this deployer itself`,
+            );
+            return null;
+          }
+          logger.info(`Spoke mode: connecting to Hub at ${url} (from SSH config)`);
+          return { hubUrl: url };
+        }
+      }
+    } catch {
+      // storagecontext not ready yet — fall through to ENV fallback
+    }
+
+    // Fallback: HUB_URL env var (dev scripts, legacy)
+    const envUrl = process.env.HUB_URL;
+    if (envUrl) {
+      if (this.isSelfLoopHubUrl(envUrl)) {
+        logger.warn(
+          `Spoke mode IGNORED: HUB_URL ${envUrl} points at this deployer itself`,
+        );
+        return null;
+      }
+      logger.info(`Spoke mode: connecting to Hub at ${envUrl} (from HUB_URL env)`);
+      return { hubUrl: envUrl };
+    }
+
+    return null;
+  }
+
+  /**
+   * Returns true if the given URL points to this deployer instance
+   * (localhost/127.0.0.1/::1/0.0.0.0 + same port). Prevents self-loops when
+   * a user accidentally sets isHub=true on the Hub instance itself.
+   */
+  private isSelfLoopHubUrl(hubUrl: string): boolean {
+    try {
+      const u = new URL(hubUrl);
+      const ownPort = String(process.env.DEPLOYER_PORT || "3000");
+      const loopback = ["localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0"];
+      const inferredOwnPort = u.port || (u.protocol === "https:" ? "443" : "80");
+      return loopback.includes(u.hostname) && inferredOwnPort === ownPort;
+    } catch {
+      return false;
+    }
   }
 
   /**

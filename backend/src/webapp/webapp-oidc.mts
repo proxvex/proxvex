@@ -3,6 +3,8 @@ import session from "express-session";
 import { randomBytes } from "node:crypto";
 import * as client from "openid-client";
 import { createLogger } from "../logger/index.mjs";
+import { setBearerToken } from "../services/bearer-token-store.mjs";
+import { syncFromHub } from "../services/spoke-sync-service.mjs";
 
 const logger = createLogger("oidc");
 
@@ -12,6 +14,42 @@ export interface OidcConfig {
   clientId: string;
   callbackUrl: string;
   requiredRole?: string;
+}
+
+function serializeError(err: unknown): Record<string, unknown> {
+  if (!(err instanceof Error)) return { error: String(err) };
+  const e = err as Error & { code?: string; cause?: unknown };
+  const cause =
+    e.cause instanceof Error
+      ? { message: e.cause.message, code: (e.cause as { code?: string }).code, stack: e.cause.stack }
+      : e.cause;
+  return {
+    name: e.name,
+    message: e.message,
+    code: e.code,
+    cause,
+    stack: e.stack,
+  };
+}
+
+function logOidcFailure(
+  message: string,
+  err: unknown,
+  oidcConfig?: OidcConfig,
+  reqContext?: Record<string, unknown>,
+): void {
+  if (oidcConfig) {
+    logger.info("[oidc] Active config (on failure)", {
+      issuer: oidcConfig.issuerUrl,
+      client_id: oidcConfig.clientId,
+      callback: oidcConfig.callbackUrl,
+      required_role: oidcConfig.requiredRole ?? null,
+    });
+  }
+  if (reqContext) {
+    logger.info("[oidc] Request context (on failure)", reqContext);
+  }
+  logger.error(message, serializeError(err));
 }
 
 /**
@@ -61,7 +99,7 @@ export async function initOidc(): Promise<OidcConfig | null> {
   } catch (err) {
     logger.error(
       `[oidc] OIDC authentication: FAILED — could not reach issuer ${issuerUrl}`,
-      { error: err },
+      serializeError(err),
     );
     return null;
   }
@@ -254,7 +292,7 @@ export function registerOidcRoutes(
             }
           }
         } catch (err) {
-          logger.warn("[oidc] UserInfo fetch error", { error: err });
+          logger.warn("[oidc] UserInfo fetch error", serializeError(err));
         }
 
         // Try name → preferred_username → given+family → email (in that order)
@@ -336,21 +374,52 @@ export function registerOidcRoutes(
             );
           }
         } catch (err) {
-          logger.warn("[oidc] Membership fetch error", { error: err });
+          logger.warn("[oidc] Membership fetch error", serializeError(err));
         }
         sess.roles = roles;
 
         // Store access token for frontend-to-ZITADEL direct API calls
         sess.accessToken = tokenResponse.access_token;
 
+        // Expose the access token to the Spoke-mode remote providers so
+        // they can authenticate against the Hub's OIDC-protected endpoints.
+        setBearerToken(tokenResponse.access_token);
+
         // Clean up OIDC state
         delete sess.oidcState;
         delete sess.oidcNonce;
 
         logger.info(`[oidc] User logged in: ${sess.userName || claims.sub}`);
+
+        // Trigger Spoke-Sync if the current SSH entry points at a Hub
+        // (isHub=true + hubApiUrl set). Runs asynchronously — the user lands
+        // on the redirect immediately; the sync continues in the background
+        // and writes into <local>/.hubs/<hub-id>/.
+        const { PersistenceManager } = await import(
+          "../persistence/persistence-manager.mjs"
+        );
+        const hubUrl = PersistenceManager.getInstance().getActiveHubUrl();
+        if (hubUrl) {
+          const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
+          syncFromHub(hubUrl, localPath)
+            .then((r) =>
+              logger.info(
+                `[oidc] Spoke-sync done: ${r.workspacePath} (hub=${r.hubUrl})`,
+              ),
+            )
+            .catch((err) =>
+              logger.warn("[oidc] Spoke-sync failed", { error: err.message }),
+            );
+        }
         res.redirect("/");
       } catch (err) {
-        logger.error("[oidc] Callback error", { error: err });
+        logOidcFailure("[oidc] Callback error", err, oidcConfig, {
+          protocol: req.protocol,
+          host: req.get("host"),
+          original_url: req.originalUrl,
+          has_state_param: req.query.state != null,
+          has_code_param: req.query.code != null,
+        });
         res.status(500).send("Authentication failed. Please try again.");
       }
     },
@@ -358,9 +427,11 @@ export function registerOidcRoutes(
 
   // POST /api/auth/logout - destroy session
   app.post("/api/auth/logout", (req: Request, res: Response) => {
+    // Clear the Spoke bearer token so no further Hub requests use it.
+    setBearerToken(undefined);
     req.session.destroy((err) => {
       if (err) {
-        logger.error("[oidc] Logout error", { error: err });
+        logger.error("[oidc] Logout error", serializeError(err));
       }
       // Redirect to Zitadel end session if available
       const endSessionEndpoint =

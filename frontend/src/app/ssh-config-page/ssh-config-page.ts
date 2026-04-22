@@ -5,11 +5,16 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatRadioModule } from '@angular/material/radio';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ISsh } from '../../shared/types';
 
 
-type SshWithDiagnostics = ISsh & { stderr?: string };
+type SshWithDiagnostics = ISsh & {
+  stderr?: string;
+  hubProbeStatus?: 'unknown' | 'probing' | 'ok' | 'fail';
+  hubProbeError?: string;
+};
 @Component({
   selector: 'app-ssh-config-page',
   standalone: true,
@@ -19,6 +24,7 @@ type SshWithDiagnostics = ISsh & { stderr?: string };
     MatInputModule,
     MatButtonModule,
     MatRadioModule,
+    MatCheckboxModule,
     MatIconModule,
   ],
   templateUrl: './ssh-config-page.html',
@@ -206,5 +212,77 @@ export class SshConfigPage implements OnInit {
   copy(text: string | undefined) {
     if (!text) return;
     navigator.clipboard.writeText(text).catch(() => { /* ignore clipboard errors */ });
+  }
+
+  /**
+   * Persist any change made to a single SSH entry (used for Hub fields).
+   * Keeps current/host/port as-is so we don't accidentally reassign current.
+   */
+  saveSsh(s: SshWithDiagnostics) {
+    if (!s.host) return;
+    if (s.isHub && !s.hubApiUrl) {
+      this.error = 'Hub mode requires a Hub API URL (e.g. https://old-prod-hub:3443).';
+      return;
+    }
+    if (s.isHub && s.hubApiUrl && !/^https?:\/\//.test(s.hubApiUrl)) {
+      this.error = 'Hub API URL must start with http:// or https://';
+      return;
+    }
+    this.error = '';
+    this.configService.setSshConfig({
+      host: s.host,
+      port: s.port,
+      current: s.current,
+      isHub: s.isHub,
+      hubApiUrl: s.hubApiUrl,
+      hubCaFingerprint: s.hubCaFingerprint,
+    }).subscribe({
+      next: () => { /* saved */ },
+      error: () => { this.error = 'Failed to save SSH config.'; }
+    });
+  }
+
+  onHubToggle(s: SshWithDiagnostics, checked: boolean) {
+    s.isHub = checked;
+    if (!checked) {
+      // Clear the URL when the user turns off Hub mode, otherwise the UI
+      // would still show a stale value after the toggle.
+      s.hubApiUrl = undefined;
+      s.hubCaFingerprint = undefined;
+      s.hubProbeStatus = undefined;
+      s.hubProbeError = undefined;
+    }
+    this.saveSsh(s);
+  }
+
+  /**
+   * Call backend to probe the Hub URL and fingerprint the Hub's CA.
+   * Runs on blur / Enter in the Hub URL field.
+   */
+  probeHub(s: SshWithDiagnostics) {
+    if (!s.hubApiUrl || !/^https?:\/\//.test(s.hubApiUrl)) {
+      s.hubProbeStatus = 'fail';
+      s.hubProbeError = 'URL must start with http:// or https://';
+      return;
+    }
+    s.hubProbeStatus = 'probing';
+    s.hubProbeError = undefined;
+    this.configService.probeHub(s.hubApiUrl).subscribe({
+      next: (r) => {
+        if (r.ok) {
+          s.hubProbeStatus = 'ok';
+          s.hubCaFingerprint = r.caFingerprint;
+          // Persist the fingerprint together with the URL.
+          this.saveSsh(s);
+        } else {
+          s.hubProbeStatus = 'fail';
+          s.hubProbeError = r.error;
+        }
+      },
+      error: () => {
+        s.hubProbeStatus = 'fail';
+        s.hubProbeError = 'Probe request failed';
+      },
+    });
   }
 }

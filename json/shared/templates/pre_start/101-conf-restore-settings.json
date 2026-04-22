@@ -1,0 +1,27 @@
+{
+  "execute_on": "ve",
+  "name": "Restore Container Settings",
+  "description": "Restores static IP, hostname, nameserver and addon-managed lxc.environment entries (OIDC, SSL, ...) from the previous container during upgrade. Reads the old container's LXC config and applies preserved settings to the new container.",
+  "parameters": [
+    {
+      "id": "previouse_vm_id",
+      "name": "Previous VM ID",
+      "type": "number",
+      "required": true,
+      "description": "Old container ID to read settings from."
+    },
+    {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "number",
+      "required": true,
+      "description": "New container ID to apply settings to."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Restore Container Settings",
+      "script": "conf-restore-settings.sh"
+    }
+  ]
+}

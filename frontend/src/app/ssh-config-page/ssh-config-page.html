@@ -22,10 +22,50 @@
                 <input matInput type="number" [(ngModel)]="s.port" [name]="'port' + idx" placeholder="Port" readonly disabled />
               </mat-form-field>
             </div>
+            <div class="col hub">
+              <mat-checkbox
+                [checked]="!!s.isHub"
+                (change)="onHubToggle(s, $event.checked)"
+                aria-label="Acts as Hub"
+              >Hub</mat-checkbox>
+            </div>
             <div class="col actions">
               <button type="button" mat-icon-button color="warn" (click)="removeSsh(idx)" aria-label="Remove">🗑️</button>
             </div>
           </div>
+          @if (s.isHub) {
+            <div class="grid-row hub-url-row">
+              <div class="col radio"></div>
+              <div class="col hub-url" style="flex: 1;">
+                <mat-form-field appearance="fill" class="field full-width">
+                  <mat-label>Hub API URL</mat-label>
+                  <input
+                    matInput
+                    [(ngModel)]="s.hubApiUrl"
+                    [name]="'hubUrl' + idx"
+                    placeholder="https://old-prod-hub:3443"
+                    (blur)="probeHub(s)"
+                    (keyup.enter)="probeHub(s)"
+                  />
+                  @if (s.hubProbeStatus === 'probing') {
+                    <mat-icon matSuffix>hourglass_empty</mat-icon>
+                  } @else if (s.hubProbeStatus === 'ok') {
+                    <mat-icon matSuffix style="color:#2e7d32">verified</mat-icon>
+                  } @else if (s.hubProbeStatus === 'fail') {
+                    <mat-icon matSuffix style="color:#d32f2f">error</mat-icon>
+                  }
+                  @if (s.hubProbeStatus === 'fail' && s.hubProbeError) {
+                    <mat-hint style="color:#d32f2f">{{ s.hubProbeError }}</mat-hint>
+                  } @else if (s.hubProbeStatus === 'ok' && s.hubCaFingerprint) {
+                    <mat-hint style="color:#2e7d32">Hub reachable. CA fingerprint: {{ s.hubCaFingerprint.slice(0, 32) }}…</mat-hint>
+                  } @else {
+                    <mat-hint>Full URL to the Hub's API — SSH hostname is usually different.</mat-hint>
+                  }
+                </mat-form-field>
+              </div>
+              <div class="col actions"></div>
+            </div>
+          }
         }
       }
 

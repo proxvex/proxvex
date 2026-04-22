@@ -1,5 +1,5 @@
 import https from "node:https";
-import fs from "node:fs";
+import http from "node:http";
 import { ICaInfoResponse } from "../types.mjs";
 import { ICaProvider } from "./ca-provider.mjs";
 import { createLogger } from "../logger/index.mjs";
@@ -7,42 +7,66 @@ import { createLogger } from "../logger/index.mjs";
 const logger = createLogger("remote-ca-provider");
 
 /**
- * Remote CA provider: delegates CA operations to the Hub deployer via HTTPS/mTLS.
- * Uses the local server cert as client cert for mTLS authentication.
+ * Remote CA provider: delegates CA operations to the Hub deployer via HTTP(S).
+ *
+ * Auth: If a bearer token getter is provided and returns a token, it's sent
+ * as `Authorization: Bearer <token>`. Otherwise the request goes unauthenticated
+ * (Hub without OIDC accepts this).
+ *
+ * TLS trust: During TOFU (Trust On First Use) the HTTPS agent accepts any
+ * certificate. Once a trusted CA PEM is known, it is pinned via `ca:`. For
+ * plain http:// hub URLs TLS is not used.
  */
 export class RemoteCaProvider implements ICaProvider {
   private hubUrl: string;
-  private agent: https.Agent;
+  private agent: https.Agent | http.Agent;
+  private isHttps: boolean;
 
   constructor(
     hubUrl: string,
-    private certPath: string,
-    private keyPath: string,
-    private caPath: string,
+    private getBearerToken?: () => string | undefined,
+    trustedHubCa?: string,
   ) {
     this.hubUrl = hubUrl.replace(/\/$/, "");
-    this.agent = new https.Agent({
-      cert: fs.readFileSync(certPath),
-      key: fs.readFileSync(keyPath),
-      ca: fs.readFileSync(caPath),
-      rejectUnauthorized: true,
+    this.isHttps = this.hubUrl.startsWith("https://");
+    if (this.isHttps) {
+      this.agent = new https.Agent(
+        trustedHubCa
+          ? { ca: trustedHubCa, rejectUnauthorized: true }
+          : { rejectUnauthorized: false },
+      );
+    } else {
+      this.agent = new http.Agent();
+    }
+    logger.info("Remote CA provider initialized", {
+      hubUrl: this.hubUrl,
+      tls: this.isHttps ? (trustedHubCa ? "pinned-ca" : "TOFU-insecure") : "http",
     });
-    logger.info("Remote CA provider initialized", { hubUrl: this.hubUrl });
   }
 
-  private async fetchJson<T>(path: string, method: string = "GET", body?: any): Promise<T> {
+  private async fetchJson<T>(
+    path: string,
+    method: string = "GET",
+    body?: unknown,
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       const url = new URL(path, this.hubUrl);
+      const headers: Record<string, string> = {};
+      if (body) headers["Content-Type"] = "application/json";
+      const token = this.getBearerToken?.();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const options: https.RequestOptions = {
         method,
         hostname: url.hostname,
         port: url.port,
         path: url.pathname + url.search,
         agent: this.agent,
-        headers: body ? { "Content-Type": "application/json" } : undefined,
+        headers,
       };
 
-      const req = https.request(options, (res) => {
+      const lib = this.isHttps ? https : http;
+      const req = lib.request(options, (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
@@ -58,7 +82,9 @@ export class RemoteCaProvider implements ICaProvider {
         });
       });
 
-      req.on("error", (err) => reject(new Error(`Hub connection failed: ${err.message}`)));
+      req.on("error", (err) =>
+        reject(new Error(`Hub connection failed: ${err.message}`)),
+      );
       if (body) req.write(JSON.stringify(body));
       req.end();
     });
@@ -67,11 +93,8 @@ export class RemoteCaProvider implements ICaProvider {
   // --- CA lifecycle (delegated to Hub) ---
 
   ensureCA(veContextKey: string): { key: string; cert: string } {
-    // In Spoke mode, we don't have the CA private key locally.
-    // Return the cached CA cert (public only) — signing happens on Hub.
     const cert = this.getCACertSync();
     if (!cert) throw new Error("Hub CA not available — is the Hub reachable?");
-    // Return cert without key — Spoke should never have the CA private key
     return { key: "", cert };
   }
 
@@ -94,7 +117,6 @@ export class RemoteCaProvider implements ICaProvider {
   }
 
   getCaInfo(_veContextKey: string): ICaInfoResponse {
-    // Would need async to call Hub — for now return basic info
     return { exists: this.hasCA(_veContextKey) };
   }
 
@@ -128,20 +150,17 @@ export class RemoteCaProvider implements ICaProvider {
 
   // --- Server certificates (signed by Hub) ---
 
-  generateSelfSignedCert(veContextKey: string, hostname?: string): { key: string; cert: string } {
-    // This needs to be synchronous but Hub call is async — use sync HTTP workaround
-    // For now, throw; the async version should be used via the Hub API directly
+  generateSelfSignedCert(_veContextKey: string, _hostname?: string): { key: string; cert: string } {
     throw new Error("Use Hub API POST /api/hub/ca/sign for certificate signing");
   }
 
-  ensureServerCert(veContextKey: string, hostname?: string): { key: string; cert: string } {
+  ensureServerCert(_veContextKey: string, hostname?: string): { key: string; cert: string } {
     const existing = this.getServerCert(hostname || "localhost");
     if (existing) return existing;
     throw new Error("Server cert not found — use Hub API to sign a new one");
   }
 
   getServerCert(_hostname: string): { key: string; cert: string } | null {
-    // Spoke doesn't store server certs in context — they're in the secure volume
     return null;
   }
 
@@ -162,20 +181,22 @@ export class RemoteCaProvider implements ICaProvider {
   private cachedCaCert: string | null = null;
 
   private getCACertSync(): string | null {
-    if (this.cachedCaCert) return this.cachedCaCert;
-    // Read CA cert from the ca file provided at construction
-    try {
-      const pem = fs.readFileSync(this.caPath, "utf-8");
-      this.cachedCaCert = Buffer.from(pem).toString("base64");
-      return this.cachedCaCert;
-    } catch {
-      return null;
-    }
+    // Public CA cert is fetched from the Hub. Because ICaProvider.getCA is sync
+    // but Hub calls are async, we return whatever was fetched previously (via
+    // the async warm-up path triggered during spoke-sync).
+    return this.cachedCaCert;
+  }
+
+  /**
+   * Warm the cached CA cert — called during spoke-sync or on demand.
+   */
+  async warmCaCacheAsync(): Promise<void> {
+    const resp = await this.fetchJson<{ cert: string }>("/api/hub/ca/cert");
+    this.cachedCaCert = resp.cert;
   }
 
   /**
    * Async method to sign a certificate via Hub API.
-   * Called by spoke-aware code paths.
    */
   async signCertificateAsync(hostname: string): Promise<{ key: string; cert: string }> {
     const result = await this.fetchJson<{ cert: string; key: string }>(
