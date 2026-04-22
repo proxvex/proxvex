@@ -10,6 +10,12 @@ export interface ISsh {
   publicKeyCommand?: string;
   installSshServer?: string;
   permissionOk?: boolean;
+  /** When true, this host runs a Hub and the local deployer acts as its Spoke. */
+  isHub?: boolean;
+  /** Full URL of the Hub's HTTP(S) API (e.g. https://old-prod-hub:3443). No default. */
+  hubApiUrl?: string;
+  /** SHA-256 fingerprint of the Hub's TLS CA, captured on first trust (TOFU). */
+  hubCaFingerprint?: string;
 }
 export interface IUploadFile {
   destination: string;          // Required: "volumename:path/to/file" (e.g., "config:mosquitto.conf")
@@ -332,6 +338,7 @@ export enum ApiUri {
   HubSpoke = "/api/hub/spoke/:id",
   HubRepositoriesTarball = "/api/hub/repositories.tar.gz",
   SpokeSync = "/api/spoke/sync",
+  SpokeProbeHub = "/api/spoke/probe-hub",
 }
 
 // Tags definition interfaces

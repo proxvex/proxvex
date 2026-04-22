@@ -35,6 +35,13 @@ export class App implements OnInit, OnDestroy {
   sshConfigs: ISsh[] = [];
   currentHost = '';
 
+  spokeStatus: {
+    active: boolean;
+    hubUrl?: string;
+    synced?: boolean;
+    syncedAt?: string;
+  } = { active: false };
+
   ngOnInit(): void {
     // Preload cache in background for faster UI loading
     this.cacheService.preloadAll();
@@ -97,6 +104,31 @@ export class App implements OnInit, OnDestroy {
     } else {
       this.currentHost = '';
     }
+    this.refreshSpokeStatus();
+  }
+
+  refreshSpokeStatus(): void {
+    this.cfg.getSpokeSyncStatus().subscribe({
+      next: (s) => { this.spokeStatus = s; },
+      error: () => { this.spokeStatus = { active: false }; },
+    });
+  }
+
+  resyncHub(): void {
+    this.cfg.triggerSpokeSync().subscribe({
+      next: () => { this.refreshSpokeStatus(); },
+      error: () => { this.refreshSpokeStatus(); },
+    });
+  }
+
+  /** Human-readable age from syncedAt ISO string. */
+  get spokeSyncAge(): string {
+    if (!this.spokeStatus.syncedAt) return '';
+    const ms = Date.now() - new Date(this.spokeStatus.syncedAt).getTime();
+    if (ms < 60_000) return `${Math.floor(ms / 1000)}s ago`;
+    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+    if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+    return `${Math.floor(ms / 86_400_000)}d ago`;
   }
   
   onHostChange(host: string): void {

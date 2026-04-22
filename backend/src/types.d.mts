@@ -10,6 +10,9 @@ export interface ISsh {
     publicKeyCommand?: string;
     installSshServer?: string;
     permissionOk?: boolean;
+    isHub?: boolean;
+    hubApiUrl?: string;
+    hubCaFingerprint?: string;
 }
 export interface IUploadFile {
     destination: string;

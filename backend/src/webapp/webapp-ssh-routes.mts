@@ -123,12 +123,27 @@ export function registerSshRoutes(
       });
       return;
     }
+    // Optional Hub fields. When isHub is true, hubApiUrl must be a valid URL.
+    const isHub = body?.isHub === true;
+    const hubApiUrl = typeof body?.hubApiUrl === "string" ? body.hubApiUrl.trim() : undefined;
+    const hubCaFingerprint =
+      typeof body?.hubCaFingerprint === "string" ? body.hubCaFingerprint.trim() : undefined;
+    if (isHub && (!hubApiUrl || !/^https?:\/\//.test(hubApiUrl))) {
+      res.status(400).json({
+        error:
+          "isHub=true requires hubApiUrl to be a valid http(s):// URL.",
+      });
+      return;
+    }
     try {
       const prevCurrentKey = storageContext.getCurrentVEContext()?.getKey();
       let currentKey: string | undefined = storageContext.setVEContext({
         host,
         port,
         current,
+        isHub,
+        hubApiUrl: hubApiUrl || undefined,
+        hubCaFingerprint: hubCaFingerprint || undefined,
       } as IVEContext);
       if (current === true) {
         for (const key of storageContext
@@ -142,6 +157,51 @@ export function registerSshRoutes(
       if (currentKey && currentKey !== prevCurrentKey) {
         triggerEnumWarmup(currentKey);
       }
+
+      // Hub/Spoke live switch: if the SSH entry changed its isHub/hubApiUrl
+      // (or the active entry switched to one that IS a Hub), drop the cached
+      // CA/Stack providers so the next request re-evaluates Spoke-vs-Standalone.
+      // Then trigger a background sync so repositories are available after the
+      // swap without requiring a deployer restart.
+      (async () => {
+        try {
+          const { PersistenceManager } = await import(
+            "../persistence/persistence-manager.mjs"
+          );
+          const pm = PersistenceManager.getInstance();
+          pm.resetProviders();
+
+          const hubUrl = pm.getActiveHubUrl();
+          if (!hubUrl) return;
+
+          const { syncFromHub, hubIdFromUrl } = await import(
+            "../services/spoke-sync-service.mjs"
+          );
+          const { createLogger } = await import("../logger/index.mjs");
+          const logger = createLogger("ssh-routes");
+          const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
+          const result = await syncFromHub(hubUrl, localPath);
+          logger.info(
+            `[ssh-routes] Spoke-sync done: ${result.workspacePath} (hub=${result.hubUrl})`,
+          );
+          // Rebind repositories to the freshly synced Hub workspace.
+          const path = await import("node:path");
+          const workspace = path.join(
+            localPath,
+            ".hubs",
+            hubIdFromUrl(hubUrl.replace(/\/$/, "")),
+          );
+          const hubJson = path.join(workspace, "json");
+          const hubLocal = path.join(workspace, "local");
+          pm.rebindRepositoriesRoot(hubJson, hubLocal);
+        } catch (err) {
+          const { createLogger } = await import("../logger/index.mjs");
+          createLogger("ssh-routes").warn(
+            `[ssh-routes] Spoke-sync after SSH change failed: ${(err as Error).message}`,
+          );
+        }
+      })();
+
       returnResponse<ISetSshConfigResponse>(res, {
         success: true,
         key: currentKey,

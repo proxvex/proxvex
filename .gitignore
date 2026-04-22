@@ -57,3 +57,6 @@ livetest-diag-*.tar.gz
 livetest-results-*/
 .livetest-data/
 oci*.tgz
+
+# Local hub/spoke dev instances (scripts/dev-hub-spoke-setup.sh)
+.dev/

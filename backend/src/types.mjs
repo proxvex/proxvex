@@ -43,5 +43,16 @@ export var ApiUri;
     ApiUri["LoggerConfig"] = "/api/logger/config";
     ApiUri["LoggerLevel"] = "/api/logger/level/:level";
     ApiUri["LoggerDebugComponents"] = "/api/logger/debug-components";
+    // Hub endpoints
+    ApiUri["HubCaSign"] = "/api/hub/ca/sign";
+    ApiUri["HubCaCert"] = "/api/hub/ca/cert";
+    ApiUri["HubStacks"] = "/api/hub/stacks";
+    ApiUri["HubStack"] = "/api/hub/stack/:id";
+    ApiUri["HubProject"] = "/api/hub/project";
+    ApiUri["HubSpokes"] = "/api/hub/spokes";
+    ApiUri["HubSpoke"] = "/api/hub/spoke/:id";
+    ApiUri["HubRepositoriesTarball"] = "/api/hub/repositories.tar.gz";
+    ApiUri["SpokeSync"] = "/api/spoke/sync";
+    ApiUri["SpokeProbeHub"] = "/api/spoke/probe-hub";
 })(ApiUri || (ApiUri = {}));
 //# sourceMappingURL=types.mjs.map
