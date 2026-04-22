@@ -31,6 +31,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -78,73 +79,190 @@ def read_on_start_env(hostname: str) -> Dict[str, str]:
     """
     try:
         vol = resolve_host_volume(hostname, "oci-deployer")  # noqa: F821
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(
+            f"[stack-restore-scan] read_on_start_env({hostname}): "
+            f"resolve_host_volume failed: {type(e).__name__}: {e}\n"
+        )
         return {}
 
     root = Path(vol) / "on_start.d"
     if not root.is_dir():
+        sys.stderr.write(
+            f"[stack-restore-scan] read_on_start_env({hostname}): "
+            f"on_start.d dir missing or not a dir at {root}\n"
+        )
         return {}
 
+    sh_files = sorted(root.rglob("*.sh"))
+    sys.stderr.write(
+        f"[stack-restore-scan] read_on_start_env({hostname}): "
+        f"scanning {len(sh_files)} .sh file(s) under {root}: "
+        f"{[f.name for f in sh_files]}\n"
+    )
+
     result: Dict[str, str] = {}
-    for sh in root.rglob("*.sh"):
+    for sh in sh_files:
         try:
             with open(sh, "r", encoding="utf-8", errors="replace") as f:
                 text = f.read()
-        except Exception:
+        except Exception as e:
+            sys.stderr.write(
+                f"[stack-restore-scan] read_on_start_env({hostname}): "
+                f"failed to read {sh}: {e}\n"
+            )
             continue
+        matches_in_file = 0
         for m in SH_VAR_RE.finditer(text):
             key = m.group(1)
             # One of groups 2/3/4 holds the value depending on quoting style.
             value = m.group(2) if m.group(2) is not None else (
                 m.group(3) if m.group(3) is not None else (m.group(4) or "")
             )
+            matches_in_file += 1
             if key not in result:
                 result[key] = value
+        sys.stderr.write(
+            f"[stack-restore-scan] read_on_start_env({hostname}): "
+            f"{sh.name}: {matches_in_file} KEY=VALUE match(es)\n"
+        )
     return result
 
 
-def read_compose_env(hostname: str) -> Dict[str, str]:
-    """Flatten all env vars from all services across all compose files under
-    the host's oci-deployer volume. Silent best-effort."""
+def _get_rootfs_path(vm_id: int) -> str:
+    """Resolve the host-side path to a container's rootfs subvol via pct+pvesm."""
     try:
-        vol = resolve_host_volume(hostname, "oci-deployer")  # noqa: F821
+        r = subprocess.run(
+            ["pct", "config", str(vm_id)],
+            capture_output=True, text=True, timeout=5,
+        )
     except Exception:
-        return {}
+        return ""
+    if r.returncode != 0:
+        return ""
+    rootfs_volid = ""
+    for line in r.stdout.splitlines():
+        if line.startswith("rootfs:"):
+            # rootfs: local-zfs:subvol-510-disk-0,size=4G
+            rootfs_volid = line.split("rootfs:", 1)[1].strip().split(",", 1)[0]
+            break
+    if not rootfs_volid:
+        return ""
+    import shutil
+    pvesm = shutil.which("pvesm") or "/usr/sbin/pvesm"
+    try:
+        r2 = subprocess.run(
+            [pvesm, "path", rootfs_volid],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return ""
+    if r2.returncode != 0:
+        return ""
+    return r2.stdout.strip()
 
-    compose_root = Path(vol) / "docker-compose"
-    if not compose_root.is_dir():
-        return {}
 
+def _scan_compose_dir(compose_root: Path, hostname: str, label: str) -> Dict[str, str]:
+    """Parse all docker-compose*.yml files under compose_root, flatten env vars."""
     try:
         import yaml
     except ImportError:
+        sys.stderr.write(
+            f"[stack-restore-scan] read_compose_env({hostname},{label}): "
+            f"PyYAML not installed — cannot parse compose files\n"
+        )
         return {}
 
     wanted_names = {"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"}
-    result: Dict[str, str] = {}
+    all_yaml = list(compose_root.rglob("*.y*ml"))
+    matching = [cf for cf in all_yaml if cf.name in wanted_names]
+    sys.stderr.write(
+        f"[stack-restore-scan] read_compose_env({hostname},{label}): "
+        f"found {len(matching)} compose file(s) under {compose_root}: "
+        f"{[str(cf.relative_to(compose_root)) for cf in matching]}\n"
+    )
 
-    for cf in compose_root.rglob("*.y*ml"):
-        if cf.name not in wanted_names:
-            continue
+    result: Dict[str, str] = {}
+    for cf in matching:
         try:
             with open(cf, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
-        except Exception:
+        except Exception as e:
+            sys.stderr.write(
+                f"[stack-restore-scan] read_compose_env({hostname},{label}): "
+                f"failed to parse {cf}: {type(e).__name__}: {e}\n"
+            )
             continue
         services = (data or {}).get("services", {}) or {}
+        keys_in_file = set()
         for _svc_name, svc in services.items():
             env = (svc or {}).get("environment")
             if isinstance(env, dict):
                 for k, v in env.items():
+                    keys_in_file.add(k)
                     if k not in result and v is not None:
                         result[k] = str(v)
             elif isinstance(env, list):
                 for item in env:
                     if isinstance(item, str) and "=" in item:
                         k, v = item.split("=", 1)
+                        keys_in_file.add(k)
                         if k not in result:
                             result[k] = v
+        sys.stderr.write(
+            f"[stack-restore-scan] read_compose_env({hostname},{label}): "
+            f"{cf.name}: {len(keys_in_file)} env key(s), services={list(services.keys())}\n"
+        )
     return result
+
+
+def read_compose_env(hostname: str, vm_id: int) -> Dict[str, str]:
+    """Flatten env vars from all docker-compose files the container uses.
+
+    Two sources are tried in order:
+      1. The container's oci-deployer managed volume under ``docker-compose/``
+         (used by simple compose apps that persist the file in a volume).
+      2. The container's rootfs at ``/opt/docker-compose/`` (zitadel, gitea
+         and similar deploy their compose into the rootfs at this path —
+         see json/applications/zitadel/scripts/post-setup-deployer-in-zitadel.sh).
+
+    The first source that yields a non-empty env dict wins.
+    """
+    # Source 1: oci-deployer managed volume
+    try:
+        vol = resolve_host_volume(hostname, "oci-deployer")  # noqa: F821
+        compose_root = Path(vol) / "docker-compose"
+        if compose_root.is_dir():
+            result = _scan_compose_dir(compose_root, hostname, "oci-deployer-vol")
+            if result:
+                return result
+        else:
+            sys.stderr.write(
+                f"[stack-restore-scan] read_compose_env({hostname}): "
+                f"no docker-compose/ dir in oci-deployer volume at {compose_root}\n"
+            )
+    except Exception as e:
+        sys.stderr.write(
+            f"[stack-restore-scan] read_compose_env({hostname}): "
+            f"oci-deployer volume unavailable: {type(e).__name__}: {e}\n"
+        )
+
+    # Source 2: container rootfs /opt/docker-compose/
+    rootfs_path = _get_rootfs_path(vm_id)
+    if not rootfs_path:
+        sys.stderr.write(
+            f"[stack-restore-scan] read_compose_env({hostname},rootfs): "
+            f"could not resolve rootfs path for vm {vm_id}\n"
+        )
+        return {}
+    compose_root = Path(rootfs_path) / "opt" / "docker-compose"
+    if not compose_root.is_dir():
+        sys.stderr.write(
+            f"[stack-restore-scan] read_compose_env({hostname},rootfs): "
+            f"no compose dir at {compose_root}\n"
+        )
+        return {}
+    return _scan_compose_dir(compose_root, hostname, "rootfs")
 
 
 def main() -> None:
@@ -280,7 +398,7 @@ def main() -> None:
                 sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: found '{var}' in on_start.d ({_mask(on_start_env[var])})\n")
                 continue
             if not compose_loaded:
-                compose_env = read_compose_env(hostname)
+                compose_env = read_compose_env(hostname, vm_id)
                 compose_loaded = True
                 sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: compose env keys = {sorted(compose_env.keys())}\n")
             if var in compose_env:

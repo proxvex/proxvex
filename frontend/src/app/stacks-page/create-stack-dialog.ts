@@ -229,7 +229,14 @@ export class CreateStackDialog implements OnInit {
 
     const bits: string[] = [];
     bits.push(`Scanned ${res.sources_scanned} container(s).`);
-    bits.push(`${restored.length} restored, ${missing.length} left empty (will be auto-generated on Create for non-external vars).`);
+    if (missing.length > 0) {
+      bits.push(
+        `${restored.length} restored, ${missing.length} left empty. ` +
+        `Empty fields: auto-generated vars get a fresh value on Create; external vars (e.g. API tokens) must be entered manually.`
+      );
+    } else {
+      bits.push(`${restored.length} restored.`);
+    }
     const aliasLines = (res.dependency_trace ?? [])
       .filter(d => d.alias !== d.canonical)
       .map(d => `  • ${d.canonical} ← ${d.alias} (from ${d.source}${d.replacement ? `, ${d.replacement}` : ''})`);
