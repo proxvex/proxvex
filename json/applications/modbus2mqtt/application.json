@@ -49,14 +49,6 @@
       "description": "HTTPS listening port (only active when addon-ssl is enabled)"
     },
     {
-      "id": "oci_image_tag",
-      "name": "Version",
-      "type": "string",
-      "required": true,
-      "default": "latest",
-      "description": "OCI image tag / version to deploy (e.g. 'latest', 'v0.20.0')."
-    },
-    {
       "id": "rootfs_storage",
       "name": "Rootfs Storage",
       "type": "enum",
