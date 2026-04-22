@@ -305,6 +305,8 @@ export enum ApiUri {
   CertificatesAll = "/api/certificates",
   CertificateAutoRenewal = "/api/certificates/auto-renewal",
   CertificateAutoRenewalCheck = "/api/certificates/auto-renewal/check",
+  CertificateRenewAll = "/api/certificates/renew-all",
+  StackRestorePreview = "/api/stack/restore-preview",
 
   // Maintenance endpoints
   LogRotation = "/api/maintenance/log-rotation",
@@ -817,6 +819,31 @@ export interface IStacksResponse {
 
 export interface IStackResponse {
   stack: IStack;
+}
+
+export interface IStackRestorePreviewRequest {
+  stacktype: string | string[];
+  name: string;
+}
+
+export interface IStackRestorePreviewEntry {
+  name: string;
+  value: string;
+  status: "unique" | "missing";
+  sources: string[];
+}
+
+export interface IStackRestorePreviewConflict {
+  name: string;
+  values: { value: string; sources: string[] }[];
+}
+
+export interface IStackRestorePreviewResponse {
+  stack_id: string;
+  entries: IStackRestorePreviewEntry[];
+  conflicts: IStackRestorePreviewConflict[];
+  errors: string[];
+  sources_scanned: number;
 }
 
 // Template trace interfaces (used by frontend trace dialog and backend template processor)

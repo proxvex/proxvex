@@ -85,9 +85,32 @@
           "--secretsFilePath",
           "${workspaceFolder:backend}/../secret.txt"
         ],
-        "env": {
-          "DEPLOYER_PORT": "3301"
-        },
+        "envFile": "${workspaceFolder:backend}/../.dev/launch-backend.env",
+        "trace": true,
+        "outFiles": [
+          "${workspaceFolder:backend}/dist/**/*.mjs",
+          "${workspaceFolder:backend}/dist/**/*.mjs.map"
+        ],
+        "skipFiles": ["<node_internals>/**"],
+        "type": "node"
+      },
+      {
+        "name": "Launch OIDC Backend",
+        "program": "${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
+        "preLaunchTask": "build backend",
+        "request": "launch",
+        "sourceMaps": true,
+        "cwd": "${workspaceFolder:backend}",
+        "console": "integratedTerminal",
+        "args": [
+          "--local",
+          "${workspaceFolder:backend}/examples",
+          "--storageContextFilePath",
+          "${workspaceFolder:backend}/../storagecontext.json",
+          "--secretsFilePath",
+          "${workspaceFolder:backend}/../secret.txt"
+        ],
+        "envFile": "${workspaceFolder:backend}/../.dev/launch-oidc-backend.env",
         "trace": true,
         "outFiles": [
           "${workspaceFolder:backend}/dist/**/*.mjs",

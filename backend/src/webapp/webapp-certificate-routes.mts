@@ -562,4 +562,14 @@ export function registerCertificateRoutes(
       sendErrorResponse(res, err);
     }
   });
+
+  // POST /api/certificates/renew-all - Force-renew every self-signed leaf certificate
+  app.post(ApiUri.CertificateRenewAll, express.json(), async (_req, res) => {
+    try {
+      const result = await autoRenewalService!.renewAllSelfSigned();
+      res.status(200).json(result);
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
 }

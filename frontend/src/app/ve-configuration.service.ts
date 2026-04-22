@@ -1,6 +1,6 @@
 //
 
-import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IVeExecuteMessage, ISingleExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus, IPostGenerateCertBody, IGenerateCertResponse, IAutoRenewalStatus, ILogRotationStatus, IDependencyCheckResponse, IContainerVersionsResponse, IApplicationOverviewResponse } from '../shared/types';
+import { ApiUri, ISsh, IApplicationsResponse, ISshConfigsResponse, ISshConfigKeyResponse, ISshCheckResponse, IUnresolvedParametersResponse, IDeleteSshConfigResponse, IPostVeConfigurationResponse, IPostVeConfigurationBody, IPostAddonInstallBody, IPostSshConfigResponse, IVeExecuteMessagesResponse, IVeExecuteMessage, ISingleExecuteMessagesResponse, IFrameworkNamesResponse, IFrameworkParametersResponse, IPostFrameworkCreateApplicationBody, IPostFrameworkCreateApplicationResponse, IPostFrameworkFromImageBody, IPostFrameworkFromImageResponse, IApplicationFrameworkDataResponse, IInstallationsResponse, IVeConfigurationResponse, ITemplateProcessorLoadResult, IEnumValuesResponse, IPostEnumValuesBody, ITagsConfigResponse, ICompatibleAddonsResponse, IStacktypesResponse, IStacksResponse, IStackResponse, IStack, IFrameworkApplicationDataBody, ICertificateStatusResponse, IPostCertRenewBody, IPostCertRenewResponse, IPostCaImportBody, ICaInfoResponse, ICertificateStatus, IPostGenerateCertBody, IGenerateCertResponse, IAutoRenewalStatus, ILogRotationStatus, IDependencyCheckResponse, IContainerVersionsResponse, IApplicationOverviewResponse, IStackRestorePreviewRequest, IStackRestorePreviewResponse } from '../shared/types';
 import { ICreateStackResponse } from '../shared/types-frontend';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -372,6 +372,10 @@ export class VeConfigurationService {
     return this.http.delete<{ success: boolean; deleted: boolean }>(url);
   }
 
+  stackRestorePreview(body: IStackRestorePreviewRequest): Observable<IStackRestorePreviewResponse> {
+    return this.http.post<IStackRestorePreviewResponse>(ApiUri.StackRestorePreview, body);
+  }
+
   /**
    * Fetch refresh preview for a stack. Deliberately stateless: does NOT use
    * `veContextKey`. The backend picks the default VE context (current: true)
@@ -491,6 +495,10 @@ export class VeConfigurationService {
 
   triggerAutoRenewalCheck(): Observable<IAutoRenewalStatus> {
     return this.post<IAutoRenewalStatus, object>(ApiUri.CertificateAutoRenewalCheck, {});
+  }
+
+  renewAllCertificates(): Observable<IAutoRenewalStatus> {
+    return this.post<IAutoRenewalStatus, object>(ApiUri.CertificateRenewAll, {});
   }
 
   getLogRotationStatus(): Observable<ILogRotationStatus> {

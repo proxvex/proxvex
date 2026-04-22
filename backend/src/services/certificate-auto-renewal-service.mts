@@ -150,10 +150,23 @@ export class CertificateAutoRenewalService {
   }
 
   /**
+   * Force-renew every self-signed server certificate across all VE contexts,
+   * regardless of remaining validity. Intended for manual use after the root CA
+   * has been rotated, so outstanding leaf certs get re-signed immediately.
+   */
+  async renewAllSelfSigned(): Promise<IAutoRenewalStatus> {
+    return this.runRenewal({ forceAll: true });
+  }
+
+  /**
    * Check all certificates across all VE contexts and renew those that are
    * self-signed and expiring soon.
    */
   async checkAndRenew(): Promise<IAutoRenewalStatus> {
+    return this.runRenewal({ forceAll: false });
+  }
+
+  private async runRenewal({ forceAll }: { forceAll: boolean }): Promise<IAutoRenewalStatus> {
     if (this.running) {
       logger.info("Auto-renewal check already in progress, skipping");
       return this.getStatus();
@@ -188,8 +201,9 @@ export class CertificateAutoRenewalService {
           const { selfSigned: selfSignedCerts, toRenew } = filterRenewableCerts(certificates);
           totalSelfSigned += selfSignedCerts.length;
 
-          if (toRenew.length > 0) {
-            const hostnames = toRenew.map((c) => c.hostname);
+          const targets = forceAll ? selfSignedCerts : toRenew;
+          if (targets.length > 0) {
+            const hostnames = Array.from(new Set(targets.map((c) => c.hostname)));
             await this.renewCertificatesForContext(veKey, caService, hostnames);
             allRenewed.push(...hostnames.map((h) => `${h}@${host}`));
           }

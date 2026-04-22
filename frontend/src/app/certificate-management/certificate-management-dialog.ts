@@ -243,6 +243,17 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                   </table>
                 }
               </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button color="warn" (click)="renewAll()"
+                  [disabled]="renewingAll() || certificates().length === 0"
+                  matTooltip="Force-renew every self-signed server certificate, regardless of remaining validity. Useful after rotating the root CA.">
+                  @if (renewingAll()) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                  } @else {
+                    <ng-container><mat-icon>autorenew</mat-icon> Renew All</ng-container>
+                  }
+                </button>
+              </mat-card-actions>
             </mat-card>
 
           </div>
@@ -425,6 +436,7 @@ export class CertificateManagementDialog implements OnInit {
   loadingCa = signal(false);
   loadingPve = signal(false);
   loadingCerts = signal(false);
+  renewingAll = signal(false);
 
   displayedColumns = ['host', 'subject', 'expiry', 'status'];
 
@@ -659,6 +671,23 @@ export class CertificateManagementDialog implements OnInit {
       error: (err) => {
         this.errorHandler.handleError('Failed to provision PVE certificate', err);
         this.loadingPve.set(false);
+      }
+    });
+  }
+
+  renewAll(): void {
+    if (!confirm('Force-renew every self-signed server certificate. Existing leaf certs will be re-signed with the current CA, regardless of remaining validity. Continue?')) return;
+
+    this.renewingAll.set(true);
+    this.configService.renewAllCertificates().subscribe({
+      next: (status) => {
+        this.renewingAll.set(false);
+        this.autoRenewalStatus.set(status);
+        this.loadCertificates();
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Failed to renew certificates', err);
+        this.renewingAll.set(false);
       }
     });
   }

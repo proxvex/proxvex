@@ -1,8 +1,14 @@
 import express from "express";
-import { ApiUri, IStack } from "../types.mjs";
+import {
+  ApiUri,
+  IStack,
+  IStackRestorePreviewRequest,
+  IStackRestorePreviewResponse,
+} from "../types.mjs";
 import { IStackProvider } from "../services/stack-provider.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { generateSecret } from "../services/secrets-generator.service.mjs";
+import { StackRestoreService } from "../services/stack-restore-service.mjs";
 
 export class WebAppStack {
   private pm: PersistenceManager;
@@ -156,6 +162,23 @@ export class WebAppStack {
     this.app.delete(ApiUri.Stack, (req, res) => {
       const deleted = this.stackProvider.deleteStack(req.params.id);
       res.json({ success: deleted, deleted });
+    });
+
+    // POST /api/stack/restore-preview - Read-only scan of running apps for
+    // a stack's values (used by the "Restore from Applications" DR flow).
+    this.app.post(ApiUri.StackRestorePreview, express.json(), async (req, res) => {
+      const body = req.body as IStackRestorePreviewRequest;
+      if (!body || !body.name || !body.stacktype) {
+        res.status(400).json({ error: "Missing required fields: name, stacktype" });
+        return;
+      }
+      try {
+        const service = new StackRestoreService(this.pm.getContextManager());
+        const result: IStackRestorePreviewResponse = await service.scanForRestore(body);
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: err?.message ?? String(err) });
+      }
     });
   }
 }
