@@ -65,9 +65,23 @@
             (itemsChange)="onEntriesChange($event)"
           />
 
+          @if (restoreNotice()) {
+            <p class="restore-notice">{{ restoreNotice() }}</p>
+          }
           <div class="form-actions">
             <button mat-stroked-button type="button" (click)="cancelEdit()">Cancel</button>
-            <button mat-flat-button color="primary" type="submit" [disabled]="stackForm.invalid || loading()">
+            @if (isCreating()) {
+              <button mat-stroked-button type="button" (click)="restoreFromApplications()"
+                [disabled]="stackForm.invalid || loading() || restoring()"
+                matTooltip="Read secret values from running applications that reference this stack. Disaster recovery only.">
+                @if (restoring()) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                } @else {
+                  Restore from Applications
+                }
+              </button>
+            }
+            <button mat-flat-button color="primary" type="submit" [disabled]="stackForm.invalid || loading() || restoring()">
               @if (loading()) {
                 <mat-spinner diameter="20"></mat-spinner>
               } @else {

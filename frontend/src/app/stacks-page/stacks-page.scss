@@ -75,6 +75,16 @@
     color: #333;
   }
 
+  .restore-notice {
+    background: #fff8e1;
+    border-left: 3px solid #ffb300;
+    padding: 0.5rem 0.75rem;
+    margin: 1rem 0 0 0;
+    font-size: 0.85rem;
+    color: #6a4a00;
+    white-space: pre-line;
+  }
+
   .form-actions {
     display: flex;
     gap: 0.5rem;
