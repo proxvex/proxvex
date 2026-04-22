@@ -1,0 +1,11 @@
+{
+  "selectedAddons": ["addon-oidc"],
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "volume_storage", "value": "local-zfs" }
+  ],
+  "depends_on": ["zitadel/default"],
+  "wait_seconds": 30,
+  "cli_timeout": 360,
+  "description": "Install modbus2mqtt with OIDC addon (no SSL)"
+}

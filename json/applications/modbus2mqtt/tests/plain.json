@@ -1,0 +1,9 @@
+{
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "volume_storage", "value": "local-zfs" }
+  ],
+  "wait_seconds": 30,
+  "cli_timeout": 360,
+  "description": "Install modbus2mqtt without addons (open access, base for reconfigure tests)"
+}

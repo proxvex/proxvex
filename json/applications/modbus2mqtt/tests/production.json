@@ -1,0 +1,13 @@
+{
+  "application": "modbus2mqtt",
+  "task": "installation",
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "volume_storage", "value": "local-zfs" }
+  ],
+  "depends_on": ["zitadel/default"],
+  "wait_seconds": 30,
+  "cli_timeout": 360,
+  "description": "Production-like deploy: native HTTPS + OIDC"
+}
