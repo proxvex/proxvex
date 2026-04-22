@@ -35,6 +35,43 @@ if [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then DOMAIN_SUFFIX=""; fi
 if [ "$OIDC_APP_NAME" = "NOT_DEFINED" ]; then OIDC_APP_NAME=""; fi
 if [ "$OIDC_PROJECT_NAME" = "NOT_DEFINED" ]; then OIDC_PROJECT_NAME=""; fi
 
+# --- Short-circuit: manually provided OIDC credentials ---
+# When the user supplies Client ID + Secret + Issuer URL directly (e.g. the deployer
+# has no OIDC login so the Zitadel Management API is unreachable, or an external
+# Zitadel instance is used), skip all API interaction and forward the values.
+OIDC_CLIENT_ID_INPUT="{{ oidc_client_id }}"
+OIDC_CLIENT_SECRET_INPUT="{{ oidc_client_secret }}"
+
+_manual_id=0
+_manual_secret=0
+_manual_issuer=0
+if [ -n "$OIDC_CLIENT_ID_INPUT" ] && [ "$OIDC_CLIENT_ID_INPUT" != "NOT_DEFINED" ]; then _manual_id=1; fi
+if [ -n "$OIDC_CLIENT_SECRET_INPUT" ] && [ "$OIDC_CLIENT_SECRET_INPUT" != "NOT_DEFINED" ]; then _manual_secret=1; fi
+if [ -n "$OIDC_ISSUER_URL_INPUT" ] && [ "$OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then _manual_issuer=1; fi
+
+if [ $_manual_id -eq 1 ] || [ $_manual_secret -eq 1 ]; then
+  if [ $_manual_id -eq 1 ] && [ $_manual_secret -eq 1 ] && [ $_manual_issuer -eq 1 ]; then
+    echo "Using manually provided OIDC credentials (skipping Zitadel API lookup)" >&2
+    echo "  Issuer URL: ${OIDC_ISSUER_URL_INPUT}" >&2
+    echo "  Client ID:  ${OIDC_CLIENT_ID_INPUT}" >&2
+    cat <<ENDOFOUTPUT
+[
+  {"id": "oidc_issuer_url", "value": "${OIDC_ISSUER_URL_INPUT}"},
+  {"id": "oidc_client_id", "value": "${OIDC_CLIENT_ID_INPUT}"},
+  {"id": "oidc_client_secret", "value": "${OIDC_CLIENT_SECRET_INPUT}"}
+]
+ENDOFOUTPUT
+    exit 0
+  fi
+  echo "ERROR: Incomplete manual OIDC credentials." >&2
+  echo "When using manual mode, all three must be set together: oidc_client_id, oidc_client_secret, oidc_issuer_url." >&2
+  echo "  oidc_client_id:     $([ $_manual_id -eq 1 ] && echo set || echo missing)" >&2
+  echo "  oidc_client_secret: $([ $_manual_secret -eq 1 ] && echo set || echo missing)" >&2
+  echo "  oidc_issuer_url:    $([ $_manual_issuer -eq 1 ] && echo set || echo missing)" >&2
+  echo '[]'
+  exit 1
+fi
+
 # Default project name to hostname if not set
 if [ -z "$OIDC_PROJECT_NAME" ]; then
   OIDC_PROJECT_NAME="$HOSTNAME"

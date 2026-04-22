@@ -10,14 +10,36 @@
       "name": "OIDC Application Name",
       "type": "string",
       "required": false,
-      "description": "Name of the OIDC application in Zitadel (defaults to hostname)"
+      "description": "Name of the OIDC application in Zitadel (defaults to hostname). Used when the deployer can talk to the Zitadel Management API to auto-create or look up the client."
     },
     {
       "id": "oidc_project_name",
       "name": "Zitadel Project Name",
       "type": "string",
       "required": false,
-      "description": "Name of the Zitadel project for this application (defaults to hostname)"
+      "description": "Name of the Zitadel project for this application (defaults to hostname). Used for auto-provisioning via the Zitadel Management API."
+    },
+    {
+      "id": "oidc_client_id",
+      "name": "OIDC Client ID",
+      "type": "string",
+      "required": false,
+      "description": "Existing OIDC client ID from Zitadel. Provide together with Client Secret and Issuer URL when auto-provisioning via the Zitadel Management API is not available (e.g. deployer OIDC login is disabled or pointing at an external Zitadel)."
+    },
+    {
+      "id": "oidc_client_secret",
+      "name": "OIDC Client Secret",
+      "type": "string",
+      "required": false,
+      "secure": true,
+      "description": "OIDC client secret matching the Client ID above."
+    },
+    {
+      "id": "oidc_issuer_url",
+      "name": "OIDC Issuer URL",
+      "type": "string",
+      "required": false,
+      "description": "OIDC issuer URL (e.g. https://zitadel.example.com). Required together with Client ID and Secret for the manual entry mode."
     },
     {
       "id": "oidc_callback_path",
