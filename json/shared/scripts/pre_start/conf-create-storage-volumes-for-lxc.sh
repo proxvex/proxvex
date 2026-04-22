@@ -56,6 +56,20 @@ if [ -n "$VOLUMES" ]; then
   fi
 fi
 
+# Upgrade-safety: if we're upgrading an existing container, volumes must be
+# named after the PREVIOUS container's hostname, not the new container's
+# application-default hostname. Template processing gives us {{ hostname }} =
+# app default (e.g. "oci-lxc-deployer"), but the actual running container was
+# named via user input (e.g. "old-prod-hub"). Upgrade path needs the old name
+# so the existing volumes can be found and copied.
+if [ -n "$PREV_VMID" ] && [ "$PREV_VMID" != "NOT_DEFINED" ]; then
+  PREV_HOSTNAME=$(pct config "$PREV_VMID" 2>/dev/null | awk '/^hostname:/ {print $2; exit}' || true)
+  if [ -n "$PREV_HOSTNAME" ] && [ "$PREV_HOSTNAME" != "$HOSTNAME" ]; then
+    log "Upgrade: using previous container's hostname '$PREV_HOSTNAME' for volume naming (was '$HOSTNAME')"
+    HOSTNAME="$PREV_HOSTNAME"
+  fi
+fi
+
 # Auto-detect volume_storage from rootfs if not set
 if [ -z "$VOLUME_STORAGE" ] || [ "$VOLUME_STORAGE" = "NOT_DEFINED" ]; then
   VOLUME_STORAGE=$(pct config "$VMID" 2>/dev/null | grep -a "^rootfs:" | sed 's/^rootfs: *//; s/:.*//')

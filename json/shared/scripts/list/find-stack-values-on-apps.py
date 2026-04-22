@@ -150,6 +150,8 @@ def read_compose_env(hostname: str) -> Dict[str, str]:
 def main() -> None:
     stack_id = "{{ stack_id }}"
     var_names_raw = "{{ var_names }}"
+    consumer_apps_raw = "{{ consumer_apps }}"
+    consumer_addons_raw = "{{ consumer_addons }}"
 
     errors: List[str] = []
 
@@ -162,9 +164,25 @@ def main() -> None:
 
     var_names = [v for v in var_names_raw.splitlines() if v.strip()] if var_names_raw and var_names_raw != "NOT_DEFINED" else []
 
+    # Consumer apps/addons: containers whose application_id ∈ consumer_apps OR
+    # whose addons ∩ consumer_addons is non-empty ALSO count as sources for
+    # the stack — even if their primary stack-id marker refers to something
+    # else (e.g. nginx uses cloudflare via addon-acme but is bound to
+    # postgres_production as its primary stack).
+    def _split_csv(raw: str) -> List[str]:
+        if not raw or raw == "NOT_DEFINED":
+            return []
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    consumer_apps = set(_split_csv(consumer_apps_raw))
+    consumer_addons = set(_split_csv(consumer_addons_raw))
+
+    sys.stderr.write(f"[stack-restore-scan] stack_id={stack_id} var_names={var_names} consumer_apps={sorted(consumer_apps)} consumer_addons={sorted(consumer_addons)}\n")
+
     base_dir = Path(os.environ.get("LXC_MANAGER_PVE_LXC_DIR", "/etc/pve/lxc"))
 
-    # Phase 1: find all managed containers referencing this stack
+    # Phase 1: find all managed containers that reference this stack — either
+    # directly (stack_id marker) or indirectly (application_id / addon is a
+    # declared consumer of the stacktype).
     matching: List[Tuple[int, str, str]] = []  # (vm_id, hostname, raw_conf_text)
 
     if base_dir.is_dir():
@@ -180,10 +198,24 @@ def main() -> None:
                 continue
             cfg = parse_lxc_config(conf_text)  # noqa: F821
             cfg_stack = cfg.stack_id or cfg.stack_name or ""
-            if cfg_stack != stack_id:
+            cfg_app_id = cfg.application_id or ""
+            cfg_addons = set(cfg.addons or [])
+
+            direct_match = cfg_stack == stack_id
+            app_match = cfg_app_id in consumer_apps
+            addon_match = bool(cfg_addons & consumer_addons)
+
+            if not (direct_match or app_match or addon_match):
+                sys.stderr.write(f"[stack-restore-scan] vm {vmid_str}: skip (stack_id='{cfg_stack}', app_id='{cfg_app_id}', addons={sorted(cfg_addons)})\n")
                 continue
             if not cfg.hostname:
+                sys.stderr.write(f"[stack-restore-scan] vm {vmid_str}: skip (no hostname)\n")
                 continue
+            reason_parts = []
+            if direct_match: reason_parts.append("stack_id")
+            if app_match: reason_parts.append(f"app:{cfg_app_id}")
+            if addon_match: reason_parts.append(f"addon:{','.join(sorted(cfg_addons & consumer_addons))}")
+            sys.stderr.write(f"[stack-restore-scan] vm {vmid_str} ({cfg.hostname}): match via {'+'.join(reason_parts)}\n")
             matching.append((int(vmid_str), cfg.hostname, conf_text))
 
     # Phase 2: group by hostname, pick the running one; multiple running → error
@@ -214,6 +246,13 @@ def main() -> None:
 
     # Phase 3: for each selected container, read variable values.
     # Lookup order per variable: LXC env → on_start.d scripts → docker-compose.
+    def _mask(value: str) -> str:
+        if not value:
+            return "<empty>"
+        if len(value) <= 4:
+            return f"<len={len(value)}>"
+        return f"{value[:4]}…<len={len(value)}>"
+
     results: List[Dict] = []
     for vm_id, hostname, conf_text in selected:
         env = parse_lxc_env(conf_text)
@@ -226,18 +265,25 @@ def main() -> None:
         for var in var_names:
             if var in env:
                 values[var] = {"value": env[var], "source": "lxc"}
+                sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: found '{var}' in lxc.environment ({_mask(env[var])})\n")
                 continue
             if not on_start_loaded:
                 on_start_env = read_on_start_env(hostname)
                 on_start_loaded = True
+                sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: on_start.d keys = {sorted(on_start_env.keys())}\n")
             if var in on_start_env:
                 values[var] = {"value": on_start_env[var], "source": "on-start"}
+                sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: found '{var}' in on_start.d ({_mask(on_start_env[var])})\n")
                 continue
             if not compose_loaded:
                 compose_env = read_compose_env(hostname)
                 compose_loaded = True
+                sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: compose env keys = {sorted(compose_env.keys())}\n")
             if var in compose_env:
                 values[var] = {"value": compose_env[var], "source": "compose"}
+                sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: found '{var}' in compose ({_mask(compose_env[var])})\n")
+                continue
+            sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: '{var}' NOT FOUND (lxc/on-start/compose all checked)\n")
 
         results.append({
             "vm_id": vm_id,

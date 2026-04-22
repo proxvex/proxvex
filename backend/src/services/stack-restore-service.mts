@@ -92,11 +92,13 @@ export class StackRestoreService {
     // under which it may actually appear on the target (e.g. CF_TOKEN on the
     // stack-side maps to CF_API_TOKEN inside acme-renew.sh). The scan needs
     // to look for every alias; results are translated back to canonical names.
-    const { aliasToCanonical, allSearchNames, dependencyTrace } = buildAliasIndex(
-      pm,
-      stacktypeNames,
-      wantedVars,
-    );
+    const {
+      aliasToCanonical,
+      allSearchNames,
+      dependencyTrace,
+      consumerApps,
+      consumerAddons,
+    } = buildAliasIndex(pm, stacktypeNames, wantedVars);
     logger.info("Stack-restore dependency analysis", {
       stack_id: stackId,
       stacktypes: stacktypeNames,
@@ -105,6 +107,8 @@ export class StackRestoreService {
       aliases: dependencyTrace
         .filter((d) => d.alias !== d.canonical)
         .map((d) => `${d.canonical}←${d.alias} (${d.source}${d.replacement ? `, ${d.replacement}` : ""})`),
+      consumer_apps: consumerApps,
+      consumer_addons: consumerAddons,
     });
 
     const veContextKeys = this.contextManager
@@ -121,7 +125,7 @@ export class StackRestoreService {
 
       let scan: ScanResult;
       try {
-        scan = await this.runScanOnContext(veContext, stackId, allSearchNames);
+        scan = await this.runScanOnContext(veContext, stackId, allSearchNames, consumerApps, consumerAddons);
       } catch (err: any) {
         logger.warn(`stack-restore scan failed on ${veKey}`, { error: err?.message });
         aggregatedErrors.push(`Scan failed on ${veContext.host}: ${err?.message || String(err)}`);
@@ -195,6 +199,8 @@ export class StackRestoreService {
     veContext: IVEContext,
     stackId: string,
     varNames: string[],
+    consumerApps: string[],
+    consumerAddons: string[],
   ): Promise<ScanResult> {
     const pm = PersistenceManager.getInstance();
     const repositories = pm.getRepositories();
@@ -218,7 +224,9 @@ export class StackRestoreService {
 
     const substituted = scriptContent
       .replace(/\{\{\s*stack_id\s*\}\}/g, stackId)
-      .replace(/\{\{\s*var_names\s*\}\}/g, varNames.join("\n"));
+      .replace(/\{\{\s*var_names\s*\}\}/g, varNames.join("\n"))
+      .replace(/\{\{\s*consumer_apps\s*\}\}/g, consumerApps.join(","))
+      .replace(/\{\{\s*consumer_addons\s*\}\}/g, consumerAddons.join(","));
 
     const cmd: ICommand = {
       name: "Find Stack Values on Apps",
@@ -275,11 +283,15 @@ function buildAliasIndex(
   aliasToCanonical: Map<string, string>;
   allSearchNames: string[];
   dependencyTrace: IStackRestoreDependency[];
+  consumerApps: string[];
+  consumerAddons: string[];
 } {
   const stacktypeSet = new Set(stacktypeNames);
   const aliasToCanonical = new Map<string, string>();
   const searchSet = new Set<string>();
   const trace: IStackRestoreDependency[] = [];
+  const consumerApps = new Set<string>();
+  const consumerAddons = new Set<string>();
   const traceSeen = new Set<string>();
   const addTrace = (
     canonical: string,
@@ -302,10 +314,17 @@ function buildAliasIndex(
     addTrace(v.name, v.name, `stacktype:${stacktypeNames.join(",")}`);
   }
 
-  const collect = (sourceLabel: string, usageList: IStackUsage[] | undefined) => {
+  const collect = (
+    sourceLabel: string,
+    usageList: IStackUsage[] | undefined,
+    sourceKind: "app" | "addon" | "stacktype",
+    sourceId: string,
+  ) => {
     if (!usageList) return;
     for (const usage of usageList) {
       if (!stacktypeSet.has(usage.stacktype)) continue;
+      if (sourceKind === "app") consumerApps.add(sourceId);
+      if (sourceKind === "addon") consumerAddons.add(sourceId);
       for (const v of usage.vars) {
         const canonical = v.name;
         const targetNames = collectTargetNames(v);
@@ -330,7 +349,7 @@ function buildAliasIndex(
     for (const entry of repositories.listApplications()) {
       try {
         const app = repositories.getApplication(entry.id);
-        collect(`app:${entry.id}`, app.stack_usage);
+        collect(`app:${entry.id}`, app.stack_usage, "app", entry.id);
       } catch {
         /* ignore individual application load failures */
       }
@@ -347,7 +366,7 @@ function buildAliasIndex(
     }
     for (const addon of addons) {
       const id = (addon as { id?: string }).id ?? "unknown-addon";
-      collect(`addon:${id}`, (addon as { stack_usage?: IStackUsage[] }).stack_usage);
+      collect(`addon:${id}`, (addon as { stack_usage?: IStackUsage[] }).stack_usage, "addon", id);
     }
   } catch (err: any) {
     logger.warn("Failed to enumerate addons for alias index", { error: err?.message });
@@ -357,6 +376,8 @@ function buildAliasIndex(
     aliasToCanonical,
     allSearchNames: Array.from(searchSet),
     dependencyTrace: trace,
+    consumerApps: Array.from(consumerApps),
+    consumerAddons: Array.from(consumerAddons),
   };
 }
 
