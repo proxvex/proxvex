@@ -1,6 +1,6 @@
 {
   "execute_on": "ve",
-  "name": "Schedule Deployer Upgrade Switchover",
+  "name": "Schedule Deployer Upgrade",
   "description": "Self-upgrade switchover for the oci-lxc-deployer container. Cannot stop+start its own source container directly (would kill this script's SSH session), so it registers a systemd transient unit on the PVE host that performs 'pct stop SOURCE && pct start TARGET' after a short delay. Also writes a marker file into the new container's /config volume so the new deployer can run post-upgrade finalization tasks on first boot.",
   "parameters": [
     {
