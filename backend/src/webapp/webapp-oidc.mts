@@ -16,6 +16,42 @@ export interface OidcConfig {
   requiredRole?: string;
 }
 
+function serializeError(err: unknown): Record<string, unknown> {
+  if (!(err instanceof Error)) return { error: String(err) };
+  const e = err as Error & { code?: string; cause?: unknown };
+  const cause =
+    e.cause instanceof Error
+      ? { message: e.cause.message, code: (e.cause as { code?: string }).code, stack: e.cause.stack }
+      : e.cause;
+  return {
+    name: e.name,
+    message: e.message,
+    code: e.code,
+    cause,
+    stack: e.stack,
+  };
+}
+
+function logOidcFailure(
+  message: string,
+  err: unknown,
+  oidcConfig?: OidcConfig,
+  reqContext?: Record<string, unknown>,
+): void {
+  if (oidcConfig) {
+    logger.info("[oidc] Active config (on failure)", {
+      issuer: oidcConfig.issuerUrl,
+      client_id: oidcConfig.clientId,
+      callback: oidcConfig.callbackUrl,
+      required_role: oidcConfig.requiredRole ?? null,
+    });
+  }
+  if (reqContext) {
+    logger.info("[oidc] Request context (on failure)", reqContext);
+  }
+  logger.error(message, serializeError(err));
+}
+
 /**
  * Initialize OIDC if environment variables are set.
  * Returns null if OIDC is not enabled.
@@ -63,7 +99,7 @@ export async function initOidc(): Promise<OidcConfig | null> {
   } catch (err) {
     logger.error(
       `[oidc] OIDC authentication: FAILED — could not reach issuer ${issuerUrl}`,
-      { error: err },
+      serializeError(err),
     );
     return null;
   }
@@ -256,7 +292,7 @@ export function registerOidcRoutes(
             }
           }
         } catch (err) {
-          logger.warn("[oidc] UserInfo fetch error", { error: err });
+          logger.warn("[oidc] UserInfo fetch error", serializeError(err));
         }
 
         // Try name → preferred_username → given+family → email (in that order)
@@ -338,7 +374,7 @@ export function registerOidcRoutes(
             );
           }
         } catch (err) {
-          logger.warn("[oidc] Membership fetch error", { error: err });
+          logger.warn("[oidc] Membership fetch error", serializeError(err));
         }
         sess.roles = roles;
 
@@ -355,12 +391,14 @@ export function registerOidcRoutes(
 
         logger.info(`[oidc] User logged in: ${sess.userName || claims.sub}`);
 
-        // Trigger Spoke-Sync if this deployer is in Spoke mode (HUB_URL set).
-        // Runs asynchronously — user lands on the redirect immediately; the
-        // sync continues in the background and writes into
-        // <local>/.hubs/<hub-id>/. User must restart the deployer with
-        // --local <that-path> to pick up Hub repositories (Phase A).
-        const hubUrl = process.env.HUB_URL;
+        // Trigger Spoke-Sync if the current SSH entry points at a Hub
+        // (isHub=true + hubApiUrl set). Runs asynchronously — the user lands
+        // on the redirect immediately; the sync continues in the background
+        // and writes into <local>/.hubs/<hub-id>/.
+        const { PersistenceManager } = await import(
+          "../persistence/persistence-manager.mjs"
+        );
+        const hubUrl = PersistenceManager.getInstance().getActiveHubUrl();
         if (hubUrl) {
           const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
           syncFromHub(hubUrl, localPath)
@@ -375,7 +413,13 @@ export function registerOidcRoutes(
         }
         res.redirect("/");
       } catch (err) {
-        logger.error("[oidc] Callback error", { error: err });
+        logOidcFailure("[oidc] Callback error", err, oidcConfig, {
+          protocol: req.protocol,
+          host: req.get("host"),
+          original_url: req.originalUrl,
+          has_state_param: req.query.state != null,
+          has_code_param: req.query.code != null,
+        });
         res.status(500).send("Authentication failed. Please try again.");
       }
     },
@@ -387,7 +431,7 @@ export function registerOidcRoutes(
     setBearerToken(undefined);
     req.session.destroy((err) => {
       if (err) {
-        logger.error("[oidc] Logout error", { error: err });
+        logger.error("[oidc] Logout error", serializeError(err));
       }
       // Redirect to Zitadel end session if available
       const endSessionEndpoint =
