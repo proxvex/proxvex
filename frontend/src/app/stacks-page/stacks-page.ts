@@ -13,7 +13,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
-import { IStack, IStackEntry, IStacktypeEntry } from '../../shared/types';
+import { IStack, IStackEntry, IStacktypeEntry, IStackRestorePreviewResponse } from '../../shared/types';
 import { KeyValueTableComponent, KeyValuePair } from '../shared/components/key-value-table.component';
 import { RefreshStackDialog } from './refresh-stack-dialog';
 import { ActivatedRoute } from '@angular/router';
@@ -48,6 +48,8 @@ export class StacksPage implements OnInit, OnDestroy {
   private routeSub?: Subscription;
 
   loading = signal(false);
+  restoring = signal(false);
+  restoreNotice = signal<string>('');
   stacktypes = signal<IStacktypeEntry[]>([]);
   stacks = signal<IStack[]>([]);
   selectedStacktype = signal<string>('');
@@ -253,6 +255,74 @@ export class StacksPage implements OnInit, OnDestroy {
     this.editingStack.set(null);
     this.stackForm.reset();
     this.stackEntries.set([]);
+    this.restoreNotice.set('');
+  }
+
+  restoreFromApplications(): void {
+    if (this.stackForm.invalid) return;
+    const name = this.stackForm.value.name!;
+    const stacktype = this.stackForm.value.stacktype!;
+
+    const warning =
+      'Restore from Applications\n\n' +
+      `This reads secret values from managed containers whose PVE notes reference the stack "${stacktype}_${name}", and pre-fills this form with them.\n\n` +
+      'Intended for disaster recovery after the deployer lost its state. The containers must still be running and must already reference this stack-id.\n\n' +
+      'Rules:\n' +
+      '  • Identical values across containers → restored\n' +
+      '  • Different values for the same key → aborted (system drift)\n' +
+      '  • No value found → left empty (auto-generated on Create for non-external vars)\n\n' +
+      'Continue?';
+
+    if (!confirm(warning)) return;
+
+    this.restoring.set(true);
+    this.restoreNotice.set('');
+    this.configService.stackRestorePreview({ stacktype, name }).subscribe({
+      next: (res: IStackRestorePreviewResponse) => {
+        this.restoring.set(false);
+        this.applyRestoreResult(res);
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Failed to scan applications for stack values', err);
+        this.restoring.set(false);
+      }
+    });
+  }
+
+  private applyRestoreResult(res: IStackRestorePreviewResponse): void {
+    if (res.conflicts.length > 0) {
+      const lines = res.conflicts.map(c => {
+        const variants = c.values.map(v =>
+          `    - "${v.value}" (from ${v.sources.join(', ')})`
+        ).join('\n');
+        return `  ${c.name}:\n${variants}`;
+      });
+      alert(
+        'Restore aborted — conflicting values found across containers:\n\n' +
+        lines.join('\n\n') +
+        '\n\nResolve the drift (redeploy the divergent containers against a known-good value) before retrying.'
+      );
+      this.restoreNotice.set('Restore aborted due to value conflicts — see dialog above.');
+      return;
+    }
+
+    const restored = res.entries.filter(e => e.status === 'unique');
+    const missing = res.entries.filter(e => e.status === 'missing');
+
+    const existing = new Map(this.stackEntries().map(kv => [kv.key, kv]));
+    for (const entry of res.entries) {
+      existing.set(entry.name, { key: entry.name, value: entry.value });
+    }
+    this.stackEntries.set(Array.from(existing.values()));
+
+    const bits: string[] = [];
+    bits.push(`Scanned ${res.sources_scanned} container(s).`);
+    bits.push(`${restored.length} restored, ${missing.length} left empty (will be auto-generated on Create for non-external vars).`);
+    if (res.errors.length > 0) {
+      bits.push('Warnings:');
+      for (const e of res.errors) bits.push(`  • ${e}`);
+    }
+    this.restoreNotice.set(bits.join('\n'));
   }
 
   saveStack(): void {
