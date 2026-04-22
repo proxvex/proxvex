@@ -40,6 +40,12 @@ from typing import Dict, List, Tuple
 #   - resolve_host_volume(hostname, volume_key) -> str
 
 LXC_ENV_RE = re.compile(r"^lxc\.environment:\s*([^=\s]+)=(.*)$", re.MULTILINE)
+# Matches shell-style KEY=VALUE or export KEY=VALUE, with optional single/double
+# quotes around the value. Used for on-start-env scripts (on_start.d/*.sh).
+SH_VAR_RE = re.compile(
+    r"""^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|(\S*))\s*$""",
+    re.MULTILINE,
+)
 
 
 def pct_status(vmid: int) -> str:
@@ -61,6 +67,40 @@ def parse_lxc_env(conf_text: str) -> Dict[str, str]:
     for m in LXC_ENV_RE.finditer(conf_text):
         env[m.group(1)] = m.group(2)
     return env
+
+
+def read_on_start_env(hostname: str) -> Dict[str, str]:
+    """Flatten all KEY=VALUE assignments from every shell script under
+    the host's oci-deployer/on_start.d/ directory. Silent best-effort.
+
+    These scripts are written by stack-refresh with replacement method
+    `on-start-env` and contain lines like `CF_API_TOKEN="xxx"`.
+    """
+    try:
+        vol = resolve_host_volume(hostname, "oci-deployer")  # noqa: F821
+    except Exception:
+        return {}
+
+    root = Path(vol) / "on_start.d"
+    if not root.is_dir():
+        return {}
+
+    result: Dict[str, str] = {}
+    for sh in root.rglob("*.sh"):
+        try:
+            with open(sh, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except Exception:
+            continue
+        for m in SH_VAR_RE.finditer(text):
+            key = m.group(1)
+            # One of groups 2/3/4 holds the value depending on quoting style.
+            value = m.group(2) if m.group(2) is not None else (
+                m.group(3) if m.group(3) is not None else (m.group(4) or "")
+            )
+            if key not in result:
+                result[key] = value
+    return result
 
 
 def read_compose_env(hostname: str) -> Dict[str, str]:
@@ -172,10 +212,13 @@ def main() -> None:
             if len(running) == 1:
                 selected.append(running[0])
 
-    # Phase 3: for each selected container, read variable values
+    # Phase 3: for each selected container, read variable values.
+    # Lookup order per variable: LXC env → on_start.d scripts → docker-compose.
     results: List[Dict] = []
     for vm_id, hostname, conf_text in selected:
         env = parse_lxc_env(conf_text)
+        on_start_env: Dict[str, str] = {}
+        on_start_loaded = False
         compose_env: Dict[str, str] = {}
         compose_loaded = False
 
@@ -183,6 +226,12 @@ def main() -> None:
         for var in var_names:
             if var in env:
                 values[var] = {"value": env[var], "source": "lxc"}
+                continue
+            if not on_start_loaded:
+                on_start_env = read_on_start_env(hostname)
+                on_start_loaded = True
+            if var in on_start_env:
+                values[var] = {"value": on_start_env[var], "source": "on-start"}
                 continue
             if not compose_loaded:
                 compose_env = read_compose_env(hostname)
