@@ -4,9 +4,9 @@
 #
 # Prerequisites:
 #   - Deployer installed manually:
-#     ./install-proxvex.sh --vm-id-start 500 --hostname old-prod-hub \
+#     ./install-proxvex.sh --vm-id-start 500 --hostname proxvex \
 #       --static-ip 192.168.4.51/24 --nameserver 192.168.4.1 --gateway 192.168.4.1 \
-#       --deployer-url https://old-prod-hub
+#       --deployer-url https://proxvex
 #   - SSH access to router (root@router-kg) and PVE host (root@pve1.cluster)
 #
 # Usage: ./production/setup-production.sh --help
@@ -93,7 +93,7 @@ EOF
   cat <<EOF
 
 Environment:
-  DEPLOYER_HOST        default: old-prod-hub
+  DEPLOYER_HOST        default: proxvex
   PVE_HOST             default: pve1.cluster
   ROUTER_HOST          default: router-kg
   CF_TOKEN             Cloudflare API token (prompted in step 6 if unset)

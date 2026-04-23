@@ -18,7 +18,7 @@ set -e
 NGINX_IP="192.168.4.41"
 REGISTRY_MIRROR_IP="192.168.4.45"
 MOSQUITTO_IP="192.168.4.44"
-OLD_PROD_HUB_IP="192.168.4.51"
+PROXVEX_IP="192.168.4.51"
 ROUTER_ALT_IP="192.168.1.1"
 
 MANAGED_TAG="prod-setup"
@@ -101,7 +101,7 @@ echo "=== Configuring DNS entries ==="
 add_dns nginx                  "$NGINX_IP"
 add_dns docker-registry-mirror "$REGISTRY_MIRROR_IP"
 add_dns eclipse-mosquitto      "$MOSQUITTO_IP"
-add_dns old-prod-hub           "$OLD_PROD_HUB_IP"
+add_dns proxvex                "$PROXVEX_IP"
 # Internal apps use DHCP — dnsmasq resolves hostnames automatically:
 #   proxvex, postgres, zitadel, gitea
 

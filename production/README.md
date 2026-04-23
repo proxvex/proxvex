@@ -87,7 +87,7 @@ Das Install-Script wird **mit `--https`** ausgeführt. Self-signed Zertifikate w
 ```bash
 # Auf pve1.cluster:
 curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh | sh -s -- \
-  --hostname old-prod-hub \
+  --hostname proxvex \
   --vm-id-start 500 \
   --static-ip 192.168.4.51/24 \
   --gateway 192.168.4.1 \
