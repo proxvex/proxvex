@@ -1,5 +1,5 @@
 #!/bin/sh
-# Register the oci-lxc-deployer hookscript on the Proxmox VE host.
+# Register the proxvex hookscript on the Proxmox VE host.
 #
 # This script:
 # 1. Creates/updates the generic hookscript at /var/lib/vz/snippets/
@@ -42,7 +42,7 @@ case $phase in
     ;;
   pre-stop)
     # Warn about persistent volumes with non-conventional names.
-    # These survive pct destroy only if unlinked first (via oci-lxc-deployer).
+    # These survive pct destroy only if unlinked first (via proxvex).
     CONF_FILE="/etc/pve/lxc/${vmid}.conf"
     HAS_PERSISTENT=0
     for mpsrc in $(grep -aE "^mp[0-9]+:" "$CONF_FILE" 2>/dev/null | sed -E "s/^mp[0-9]+: ([^,]+),.*/\1/"); do
@@ -52,7 +52,7 @@ case $phase in
       esac
     done
     if [ "$HAS_PERSISTENT" -eq 1 ]; then
-      logger -t oci-lxc-deployer "WARNING: Container $vmid has persistent volumes. Use oci-lxc-deployer to destroy."
+      logger -t proxvex "WARNING: Container $vmid has persistent volumes. Use proxvex to destroy."
     fi
     ;;
 esac
@@ -71,7 +71,7 @@ write_hookscript() {
   # Write header with expanded variables, then body via printf to preserve
   # backslash escapes (unquoted heredoc would strip them, breaking the checksum)
   printf '#!/bin/sh\n' > "$HOOK_PATH"
-  printf '# oci-lxc-deployer hookscript\n' >> "$HOOK_PATH"
+  printf '# proxvex hookscript\n' >> "$HOOK_PATH"
   printf '# OCI_LXC_DEPLOYER_HOOK_VERSION=%s\n' "$NEW_VERSION" >> "$HOOK_PATH"
   printf '# OCI_LXC_DEPLOYER_HOOK_CHECKSUM=%s\n' "$NEW_CHECKSUM" >> "$HOOK_PATH"
   printf '# --- DO NOT MODIFY ABOVE THIS LINE ---\n' >> "$HOOK_PATH"

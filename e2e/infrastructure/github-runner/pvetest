@@ -29,13 +29,13 @@
 #   PVETEST_DEPLOYER_BRIDGE    Network bridge (default: vmbr1)
 #   PVETEST_DEPLOYER_STATIC_IP Static IP for deployer (default: 10.0.0.100/24)
 #   PVETEST_DEPLOYER_GATEWAY   Gateway for deployer (default: 10.0.0.1)
-#   PVETEST_OWNER              GitHub owner for install (default: modbus2mqtt)
-#   PVETEST_OCI_OWNER          OCI image owner (default: modbus2mqtt)
+#   PVETEST_OWNER              GitHub owner for install (default: proxvex)
+#   PVETEST_OCI_OWNER          OCI image owner (default: proxvex)
 
 set -euo pipefail
 
-# Source environment file if present (deployed by oci-lxc-deployer)
-ENV_FILE="/etc/oci-lxc-deployer/pvetest.env"
+# Source environment file if present (deployed by proxvex)
+ENV_FILE="/etc/proxvex/pvetest.env"
 if [ -f "$ENV_FILE" ]; then
     set -a
     . "$ENV_FILE"
@@ -270,8 +270,8 @@ cmd_install_test() {
     local deployer_ip="${PVETEST_DEPLOYER_STATIC_IP:-10.0.0.100/24}"
     local deployer_gw="${PVETEST_DEPLOYER_GATEWAY:-10.0.0.1}"
     local deployer_ip_bare="${deployer_ip%/*}"
-    local owner="${PVETEST_OWNER:-modbus2mqtt}"
-    local oci_owner="${PVETEST_OCI_OWNER:-modbus2mqtt}"
+    local owner="${PVETEST_OWNER:-proxvex}"
+    local oci_owner="${PVETEST_OCI_OWNER:-proxvex}"
     local deployer_url_flag=""
     if [ -n "$DEPLOYER_PORT" ]; then
         deployer_url_flag="--deployer-url http://${HOST}:${DEPLOYER_PORT}"
@@ -290,7 +290,7 @@ cmd_install_test() {
 
     # 3. Create install bundle on test-worker and transfer to nested VM
     info "Creating install bundle on test-worker..."
-    cmd_exec "tar -czf /tmp/install-bundle.tar.gz install-oci-lxc-deployer.sh json/shared/scripts"
+    cmd_exec "tar -czf /tmp/install-bundle.tar.gz install-proxvex.sh json/shared/scripts"
 
     info "Transferring install bundle to nested VM..."
     # test-worker -> runner -> nested VM (two hops)
@@ -298,14 +298,14 @@ cmd_install_test() {
     remote_scp "$WORKER_USER@$WORKER_HOST:$WORKSPACE/tmp/install-bundle.tar.gz" /tmp/pvetest/ 2>/dev/null \
         || remote_scp "$WORKER_USER@$WORKER_HOST:/tmp/install-bundle.tar.gz" /tmp/pvetest/
     nested_scp_to /tmp/pvetest/install-bundle.tar.gz /tmp/
-    nested_ssh "mkdir -p /tmp/oci-lxc-deployer && tar -xzf /tmp/install-bundle.tar.gz -C /tmp/oci-lxc-deployer"
+    nested_ssh "mkdir -p /tmp/proxvex && tar -xzf /tmp/install-bundle.tar.gz -C /tmp/proxvex"
     ok "Install bundle transferred to nested VM"
 
     # 4. Run install script on nested VM
     info "Running install script on nested VM..."
-    nested_ssh "chmod +x /tmp/oci-lxc-deployer/install-oci-lxc-deployer.sh && \
-        OWNER=$owner OCI_OWNER=$oci_owner LOCAL_SCRIPT_PATH=/tmp/oci-lxc-deployer \
-        /tmp/oci-lxc-deployer/install-oci-lxc-deployer.sh \
+    nested_ssh "chmod +x /tmp/proxvex/install-proxvex.sh && \
+        OWNER=$owner OCI_OWNER=$oci_owner LOCAL_SCRIPT_PATH=/tmp/proxvex \
+        /tmp/proxvex/install-proxvex.sh \
         --vm-id $deployer_vmid \
         --bridge $deployer_bridge \
         --static-ip $deployer_ip \
@@ -335,7 +335,7 @@ VSCRIPT
     info "Deploying package to deployer container..."
     # Fetch tarball from test-worker
     local tarball_name
-    tarball_name=$(remote_ssh "ls -1 /tmp/oci-lxc-deployer-*.tgz 2>/dev/null | head -1 | xargs basename")
+    tarball_name=$(remote_ssh "ls -1 /tmp/proxvex-*.tgz 2>/dev/null | head -1 | xargs basename")
     [ -z "$tarball_name" ] && fail "No package tarball found on test-worker"
     remote_scp "$WORKER_USER@$WORKER_HOST:/tmp/$tarball_name" /tmp/pvetest/
 
@@ -350,10 +350,10 @@ VSCRIPT
         tar -xzf $tarball_name && \
         cd package && \
         npm install --omit=dev --no-audit --no-fund --ignore-scripts 2>/dev/null && \
-        rm -rf /usr/local/lib/node_modules/oci-lxc-deployer && \
+        rm -rf /usr/local/lib/node_modules/proxvex && \
         mkdir -p /usr/local/lib/node_modules && \
-        mv /tmp/package /usr/local/lib/node_modules/oci-lxc-deployer && \
-        ln -sf /usr/local/lib/node_modules/oci-lxc-deployer/backend/dist/oci-lxc-deployer.mjs /usr/local/bin/oci-lxc-deployer
+        mv /tmp/package /usr/local/lib/node_modules/proxvex && \
+        ln -sf /usr/local/lib/node_modules/proxvex/backend/dist/proxvex.mjs /usr/local/bin/proxvex
     '"
     ok "Package installed in deployer container"
 

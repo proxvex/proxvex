@@ -7,7 +7,7 @@
 
 set -e
 
-DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-oci-lxc-deployer}"
+DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-proxvex}"
 
 # Auto-detect config volume path on PVE host
 _safe_host=$(echo "$DEPLOYER_HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')

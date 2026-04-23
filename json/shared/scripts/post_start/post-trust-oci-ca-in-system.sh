@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install the oci-lxc-deployer CA certificate into the container's system
+# Install the proxvex CA certificate into the container's system
 # trust store. Needed e.g. for Gitea's `auth add-oauth` which validates the
 # Zitadel OIDC discovery URL via the Go system cert pool.
 #
@@ -20,7 +20,7 @@ if [ -z "$DEPLOYER_URL" ] || [ -z "$VE_CONTEXT" ]; then
 fi
 
 CA_DIR="/usr/local/share/ca-certificates"
-CA_FILE="${CA_DIR}/oci-lxc-deployer-ca.crt"
+CA_FILE="${CA_DIR}/proxvex-ca.crt"
 # Renew if the existing cert expires in less than 30 days (2592000 s).
 RENEW_SECONDS=2592000
 

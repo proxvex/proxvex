@@ -8,7 +8,7 @@
       "name": "Source VM ID",
       "type": "number",
       "required": true,
-      "description": "Existing LXC container ID to clone. Must be a container created by oci-lxc-deployer."
+      "description": "Existing LXC container ID to clone. Must be a container created by proxvex."
     },
     {
       "id": "vm_id",

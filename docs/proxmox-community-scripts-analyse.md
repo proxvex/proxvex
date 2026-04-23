@@ -1,8 +1,8 @@
-# Analyse: Proxmox Community Scripts → oci-lxc-deployer Migration
+# Analyse: Proxmox Community Scripts → proxvex Migration
 
 ## Übersicht
 
-Diese Analyse untersucht die Installation-Scripts aus dem [community-scripts/ProxmoxVE Repository](https://github.com/community-scripts/ProxmoxVE/tree/main/install) und identifiziert gemeinsame Muster, die als wiederverwendbare Templates im oci-lxc-deployer implementiert werden können.
+Diese Analyse untersucht die Installation-Scripts aus dem [community-scripts/ProxmoxVE Repository](https://github.com/community-scripts/ProxmoxVE/tree/main/install) und identifiziert gemeinsame Muster, die als wiederverwendbare Templates im proxvex implementiert werden können.
 
 **Gesamtanzahl Scripts:** ~350+ Installation-Scripts
 
@@ -236,7 +236,7 @@ Diese Analyse untersucht die Installation-Scripts aus dem [community-scripts/Pro
   - Parameter: `service_name`, `command`, `command_args`, `command_user`, `dependencies` (Array)
   - Nutzt bestehendes `create-openrc-service.json` Template (erweitern)
 
-**Hinweis:** Das Template `create-openrc-service.json` existiert bereits im oci-lxc-deployer und kann für viele Alpine-Installationen verwendet werden.
+**Hinweis:** Das Template `create-openrc-service.json` existiert bereits im proxvex und kann für viele Alpine-Installationen verwendet werden.
 
 **Migration-Beispiel (Alpine Redis):**
 ```json
@@ -344,7 +344,7 @@ Diese Analyse untersucht die Installation-Scripts aus dem [community-scripts/Pro
 
 **Empfohlene Templates:**
 - **`create-openrc-service.json`**: ✅ **Bereits vorhanden!**
-  - Existiert bereits im oci-lxc-deployer
+  - Existiert bereits im proxvex
   - Kann für viele Alpine-Installationen verwendet werden
 
 ---

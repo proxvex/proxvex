@@ -24,7 +24,7 @@ This template is used by the following applications (usage examples):
 - [alpine-packages](../../../alpine-packages.md)
 - [macbckpsrv](../../../macbckpsrv.md)
 - [mariadb](../../../mariadb.md)
-- [modbus2mqtt](../../../modbus2mqtt.md)
+- [proxvex](../../../proxvex.md)
 - [mosquitto](../../../mosquitto.md)
 - [node-red](../../../node-red.md)
 - [phpmyadmin](../../../phpmyadmin.md)

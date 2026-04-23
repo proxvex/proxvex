@@ -2,7 +2,7 @@
   "execute_on": "ve",
   "name": "Write LXC Notes",
   "skip_if_property_set": "compose_file",
-  "description": "Writes the container notes/description for standard (non-docker-compose) apps.\n\nSkipped for docker-compose apps (compose_file is set) - see 191-host-write-docker-compose-notes.json.\n\nThe notes contain:\n- Hidden markers for machine parsing (oci-lxc-deployer:managed, oci-image, application-id, etc.)\n- Visible Markdown content with application info, version, and links",
+  "description": "Writes the container notes/description for standard (non-docker-compose) apps.\n\nSkipped for docker-compose apps (compose_file is set) - see 191-host-write-docker-compose-notes.json.\n\nThe notes contain:\n- Hidden markers for machine parsing (proxvex:managed, oci-image, application-id, etc.)\n- Visible Markdown content with application info, version, and links",
   "parameters": [
     {
       "id": "vm_id",
@@ -102,7 +102,7 @@
       "name": "Is Deployer",
       "type": "string",
       "advanced": true,
-      "description": "Auto-injected by backend: Set to 'true' when installing oci-lxc-deployer itself"
+      "description": "Auto-injected by backend: Set to 'true' when installing proxvex itself"
     },
     {
       "id": "stack_id",
@@ -110,6 +110,13 @@
       "type": "string",
       "advanced": true,
       "description": "Auto-injected by backend: Stack ID written to container notes"
+    },
+    {
+      "id": "all_stack_ids",
+      "name": "All Stack IDs",
+      "type": "string",
+      "advanced": true,
+      "description": "Auto-injected by backend: JSON array of all selected stack IDs, written as separate :stack-id markers"
     }
   ],
   "commands": [

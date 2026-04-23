@@ -80,8 +80,8 @@ if desc_lines:
 if echo "$CURRENT_DESC" | grep -qi "deployer-instance"; then
   log "deployer-instance marker already present in new container notes"
 else
-  DEPLOYER_MARKER="<!-- oci-lxc-deployer:deployer-instance -->"
-  MANAGED_MARKER="<!-- oci-lxc-deployer:managed -->"
+  DEPLOYER_MARKER="<!-- proxvex:deployer-instance -->"
+  MANAGED_MARKER="<!-- proxvex:managed -->"
 
   if echo "$CURRENT_DESC" | grep -qF "$MANAGED_MARKER"; then
     # Insert deployer-instance marker after managed marker
@@ -185,7 +185,7 @@ fi
 if [ "$IS_DEPLOYER" = "true" ]; then
   # Deployer instance: must use nohup because this script runs inside the container
   # that will be destroyed.
-  CLEANUP_LOG="/var/log/lxc/oci-lxc-deployer-${PREVIOUS_VMID}.log"
+  CLEANUP_LOG="/var/log/lxc/proxvex-${PREVIOUS_VMID}.log"
   log "Deployer instance: scheduling async cleanup of container $PREVIOUS_VMID (log: $CLEANUP_LOG)..."
   nohup sh -c "sleep 5; $CLEANUP_SCRIPT" >> "$CLEANUP_LOG" 2>&1 &
 else

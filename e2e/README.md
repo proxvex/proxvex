@@ -1,4 +1,4 @@
-# E2E Tests for oci-lxc-deployer
+# E2E Tests for proxvex
 
 End-to-end tests using a nested Proxmox VM to test the full deployment workflow.
 
@@ -44,7 +44,7 @@ e2e/
 ├── config.sh                    # Shared config loader for all scripts
 ├── step0-create-iso.sh          # Create custom Proxmox ISO (one-time)
 ├── step1-create-vm.sh           # Create nested Proxmox VM
-├── step2-install-deployer.sh    # Install/update oci-lxc-deployer
+├── step2-install-deployer.sh    # Install/update proxvex
 ├── install-ci.sh                # Install CI infrastructure (runner + test-worker)
 ├── script2a-template-tests.sh   # Initialize nested VM for template tests
 ├── clean-test-containers.sh     # Remove test containers, keep deployer
@@ -137,7 +137,7 @@ Creates a nested Proxmox VM from the custom ISO:
 
 ### step2-install-deployer.sh
 
-Installs oci-lxc-deployer in the nested VM:
+Installs proxvex in the nested VM:
 - Creates deployer LXC container (VMID 300)
 - Installs Node.js and dependencies
 - Deploys local package with production dependencies
@@ -209,7 +209,7 @@ ssh root@ubuntupve journalctl -u e2e-port-forwarding
 ssh -p 10022 root@ubuntupve "pct status 300"
 
 # Check logs
-ssh -p 10022 root@ubuntupve "pct exec 300 -- cat /var/log/oci-lxc-deployer.log"
+ssh -p 10022 root@ubuntupve "pct exec 300 -- cat /var/log/proxvex.log"
 
 # Restart container
 ssh -p 10022 root@ubuntupve "pct stop 300 && pct start 300"

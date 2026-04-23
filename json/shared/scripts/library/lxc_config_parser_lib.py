@@ -1,7 +1,7 @@
 """LXC Config Parser Library.
 
 Parses Proxmox LXC configuration files including:
-- Notes/description with oci-lxc-deployer markers
+- Notes/description with proxvex markers
 - ID mappings (lxc.idmap)
 - Mount points, hostname, and other config
 
@@ -16,21 +16,21 @@ from urllib.parse import unquote
 
 # --- Regex patterns for notes/description parsing ---
 
-MANAGED_RE = re.compile(r"(?:oci-lxc-deployer):managed", re.IGNORECASE)
-OCI_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):oci-image\s+(.+?)\s*-->", re.IGNORECASE)
+MANAGED_RE = re.compile(r"(?:proxvex):managed", re.IGNORECASE)
+OCI_MARKER_RE = re.compile(r"(?:proxvex):oci-image\s+(.+?)\s*-->", re.IGNORECASE)
 OCI_VISIBLE_RE = re.compile(r"^\s*OCI image:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 HOSTNAME_RE = re.compile(r"^hostname:\s*(.+?)\s*$", re.MULTILINE)
-APP_ID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):application-id\s+(.+?)\s*-->", re.IGNORECASE)
-APP_NAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):application-name\s+(.+?)\s*-->", re.IGNORECASE)
+APP_ID_MARKER_RE = re.compile(r"(?:proxvex):application-id\s+(.+?)\s*-->", re.IGNORECASE)
+APP_NAME_MARKER_RE = re.compile(r"(?:proxvex):application-name\s+(.+?)\s*-->", re.IGNORECASE)
 APP_ID_VISIBLE_RE = re.compile(r"^\s*#?\s*Application\s+ID\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 APP_NAME_VISIBLE_RE = re.compile(r"^\s*#?\s*##\s+(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
-VERSION_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):version\s+(.+?)\s*-->", re.IGNORECASE)
-ADDON_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):addon\s+(.+?)\s*-->", re.IGNORECASE)
-DEPLOYER_INSTANCE_RE = re.compile(r"(?:oci-lxc-deployer):deployer-instance", re.IGNORECASE)
-USERNAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):username\s+(.+?)\s*-->", re.IGNORECASE)
-UID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):uid\s+(.+?)\s*-->", re.IGNORECASE)
-GID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):gid\s+(.+?)\s*-->", re.IGNORECASE)
-STACK_ID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):stack-id\s+(.+?)\s*-->", re.IGNORECASE)
+VERSION_MARKER_RE = re.compile(r"(?:proxvex):version\s+(.+?)\s*-->", re.IGNORECASE)
+ADDON_MARKER_RE = re.compile(r"(?:proxvex):addon\s+(.+?)\s*-->", re.IGNORECASE)
+DEPLOYER_INSTANCE_RE = re.compile(r"(?:proxvex):deployer-instance", re.IGNORECASE)
+USERNAME_MARKER_RE = re.compile(r"(?:proxvex):username\s+(.+?)\s*-->", re.IGNORECASE)
+UID_MARKER_RE = re.compile(r"(?:proxvex):uid\s+(.+?)\s*-->", re.IGNORECASE)
+GID_MARKER_RE = re.compile(r"(?:proxvex):gid\s+(.+?)\s*-->", re.IGNORECASE)
+STACK_ID_MARKER_RE = re.compile(r"(?:proxvex):stack-id\s+(.+?)\s*-->", re.IGNORECASE)
 
 # --- Regex patterns for LXC config parsing ---
 

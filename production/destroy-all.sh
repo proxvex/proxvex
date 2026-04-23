@@ -79,7 +79,7 @@ case "${1:-all}" in
     destroy_container postgres
     ;;
   deployer)
-    destroy_container "${DEPLOYER_HOST:-oci-lxc-deployer}"
+    destroy_container "${DEPLOYER_HOST:-proxvex}"
     ;;
   all)
     destroy_container eclipse-mosquitto
@@ -90,7 +90,7 @@ case "${1:-all}" in
     destroy_container nginx
     destroy_container postgres
     destroy_container docker-registry-mirror
-    destroy_container "${DEPLOYER_HOST:-oci-lxc-deployer}"
+    destroy_container "${DEPLOYER_HOST:-proxvex}"
     ;;
   *) echo "Usage: $0 [deployer|postgres|nginx|zitadel|gitea|docker-registry-mirror|eclipse-mosquitto|all]"; exit 1 ;;
 esac

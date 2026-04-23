@@ -103,7 +103,7 @@ export class VeLogsService {
       "-o",
       "ControlPersist=60",
       "-o",
-      "ControlPath=/tmp/lxc-manager-ssh-%r@%h:%p",
+      "ControlPath=/tmp/proxvex-ssh-%r@%h:%p",
       "-T",
       "-q",
       "-p",

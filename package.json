@@ -1,7 +1,7 @@
 {
-  "name": "oci-lxc-deployer",
+  "name": "proxvex",
   "version": "0.5.21",
-  "description": "Packaged web UI and backend for OCI LXC Deployer",
+  "description": "Packaged web UI and backend for Proxvex",
   "type": "module",
   "draft": true,
   "author": {
@@ -30,7 +30,7 @@
     "git:pr": "sh scripts/git-pr"
   },
   "bin": {
-    "oci-lxc-deployer": "backend/dist/oci-lxc-deployer.mjs",
+    "proxvex": "backend/dist/proxvex.mjs",
     "oci-lxc-cli": "cli/dist/cli/src/oci-lxc-cli.mjs"
   },
   "files": [
@@ -43,7 +43,7 @@
     "scripts/git-hooks",
     "scripts/install-git-hooks.sh"
   ],
-  "ociLxcDeployer": {
+  "proxvex": {
     "frontendDir": "frontend/dist/webapp-angular/browser"
   },
   "dependencies": {

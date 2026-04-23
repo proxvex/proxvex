@@ -72,7 +72,7 @@ Optional `<scenario>.json` alongside `test.json` provides app-specific parameter
 | Option | Description |
 |--------|-------------|
 | `container_running` | LXC container status is "running" |
-| `notes_managed` | Notes contain `oci-lxc-deployer:managed` marker |
+| `notes_managed` | Notes contain `proxvex:managed` marker |
 | `services_up` | All docker services show "Up" status |
 | `lxc_log_no_errors` | No ERROR lines in LXC console log |
 | `docker_log_no_errors` | No ERROR lines in docker container logs |

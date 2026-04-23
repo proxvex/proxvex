@@ -1,8 +1,8 @@
 <div align="center">
 
-<img alt="OCI LXC Deployer Logo" src="docs/assets/oci-lxc-deployer-logo.svg" height="120" />
+<img alt="Proxvex Logo" src="docs/assets/proxvex-logo.svg" height="120" />
 
-# OCI LXC Deployer
+# Proxvex
 
 Deploy containerized applications to Proxmox LXC containers. Supports Docker/OCI images, npm packages, and custom configurations with a simple Web UI.
 </div>
@@ -11,10 +11,10 @@ Deploy containerized applications to Proxmox LXC containers. Supports Docker/OCI
 Run this on your Proxmox host:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | sh
+curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh | sh
 ```
 
-This installs oci-lxc-deployer with DHCP networking. For static IP configuration, see options below.
+This installs proxvex with DHCP networking. For static IP configuration, see options below.
 
 ## Installation Options
 
@@ -23,7 +23,7 @@ This installs oci-lxc-deployer with DHCP networking. For static IP configuration
 - `--disk-size <GB>`: Rootfs size (default: `1`)
 - `--memory <MB>`: Memory (default: `512`)
 - `--bridge <name>`: Network bridge (default: `vmbr0`)
-- `--hostname <name>`: Hostname (default: `oci-lxc-deployer`)
+- `--hostname <name>`: Hostname (default: `proxvex`)
 - `--config-volume <path>`: Host path for /config volume (default: auto-detected)
 - `--secure-volume <path>`: Host path for /secure volume (default: auto-detected)
 - `--storage <name>`: Proxmox storage for OCI image (default: `local`)
@@ -32,7 +32,7 @@ This installs oci-lxc-deployer with DHCP networking. For static IP configuration
 
 **IPv4:**
 ```sh
-curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh \
+curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh \
   | sh -s -- --static-ip 192.168.4.100/24 --static-gw 192.168.4.1
 ```
 - `--static-ip <ip/prefix>`: IPv4 address in CIDR (e.g., `192.168.4.100/24`)
@@ -41,7 +41,7 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
 
 **IPv6:**
 ```sh
-curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh \
+curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh \
   | sh -s -- --static-ip6 fd00::50/64 --static-gw6 fd00::1
 ```
 - `--static-ip6 <ip/prefix>`: IPv6 address in CIDR (e.g., `fd00::50/64`)
@@ -50,19 +50,19 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
 
 **Dual Stack (IPv4 + IPv6):**
 ```sh
-curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh \
+curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh \
   | sh -s -- \
     --static-ip 192.168.4.100/24 --static-gw 192.168.4.1 \
     --static-ip6 fd00::50/64 --static-gw6 fd00::1
 ```
 ## Internal HTTPS — Certificate Authority Setup
 
-`oci-lxc-deployer` automatically issues HTTPS certificates for all deployed containers
+`proxvex` automatically issues HTTPS certificates for all deployed containers
 using an internal Certificate Authority (CA). This is a one-time setup.
 
 ### On the server
 
-During initial setup, `oci-lxc-deployer` generates a CA certificate and private key.
+During initial setup, `proxvex` generates a CA certificate and private key.
 The public CA certificate is available for download at the web UI under **Settings → Certificate Authority → Download CA**.
 
 ### On every client machine
@@ -91,13 +91,13 @@ refer to the [official mkcert documentation](https://github.com/FiloSottile/mkce
 > export NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem"
 > ```
 ## Access the Web UI
-- Open `http://oci-lxc-deployer:3080` from your network (or replace `oci-lxc-deployer` with the container's IP/hostname you configured).
+- Open `http://proxvex:3080` from your network (or replace `proxvex` with the container's IP/hostname you configured).
 - If Proxmox VE is behind a firewall, ensure port `3080/tcp` is reachable from the browser.
 
 ## Key Concepts
 
 ### Applications
-An **Application** in OCI LXC Deployer is similar to a `docker-compose.yml` - it defines how to deploy a containerized service. Applications can be:
+An **Application** in Proxvex is similar to a `docker-compose.yml` - it defines how to deploy a containerized service. Applications can be:
 - **OCI Images**: Any Docker/OCI image (e.g., `docker.io/nodered/node-red:latest`)
 - **npm packages**: Node.js applications installed via npm
 - **Custom configurations**: Your own templates and scripts
@@ -141,7 +141,7 @@ json/
 └── stacktypes.json        # Stack type definitions
 ```
 
-## Why OCI LXC Deployer?
+## Why Proxvex?
 
 - **Deploy docker-compose.yml to LXC** - Use familiar Docker images without running Docker
 - **Data persistence outside container** - Volumes on host make updates and migrations easy

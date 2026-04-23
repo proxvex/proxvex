@@ -13,8 +13,8 @@ SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+
 
 PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data")/pgdata/postgresql.conf"
 
-SSL_START="# oci-lxc-deployer SSL start"
-SSL_END="# oci-lxc-deployer SSL end"
+SSL_START="# proxvex SSL start"
+SSL_END="# proxvex SSL end"
 
 if [ ! -f "$PG_CONF" ]; then
   echo "postgresql.conf not found, nothing to disable" >&2

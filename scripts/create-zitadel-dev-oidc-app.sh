@@ -1,7 +1,7 @@
 #!/bin/sh
 # Create (or reuse) a Zitadel OIDC app for local dev and — optionally — a
 # human user with ORG_OWNER + project-admin grants. Prints a VSCode
-# launch-config entry ready to paste into oci-lxc-deployer-green.code-workspace.
+# launch-config entry ready to paste into proxvex-green.code-workspace.
 #
 # The admin PAT is fetched via SSH from the PVE host that runs the Zitadel
 # LXC (reads /rpool/data/subvol-*-zitadel-bootstrap/admin-client.pat).
@@ -29,8 +29,8 @@
 # Environment overrides:
 #   PVE_HOST          default: pve1.cluster
 #   ZITADEL_URL       default: https://auth.ohnewarum.de
-#   PROJECT_NAME      default: oci-lxc-deployer
-#   OIDC_APP_NAME     default: oci-lxc-deployer-dev
+#   PROJECT_NAME      default: proxvex
+#   OIDC_APP_NAME     default: proxvex-dev
 #   CALLBACK_URL      default: http://localhost:3201/api/auth/callback
 #   POST_LOGOUT_URL   default: http://localhost:4301
 #   PAT_GLOB          default: /rpool/data/subvol-*-zitadel-bootstrap/admin-client.pat
@@ -49,8 +49,8 @@ set -eu
 
 PVE_HOST="${PVE_HOST:-pve1.cluster}"
 ZITADEL_URL="${ZITADEL_URL:-https://auth.ohnewarum.de}"
-PROJECT_NAME="${PROJECT_NAME:-oci-lxc-deployer}"
-OIDC_APP_NAME="${OIDC_APP_NAME:-oci-lxc-deployer-dev}"
+PROJECT_NAME="${PROJECT_NAME:-proxvex}"
+OIDC_APP_NAME="${OIDC_APP_NAME:-proxvex-dev}"
 CALLBACK_URL="${CALLBACK_URL:-http://localhost:3201/api/auth/callback}"
 POST_LOGOUT_URL="${POST_LOGOUT_URL:-http://localhost:4301}"
 PAT_GLOB="${PAT_GLOB:-/rpool/data/subvol-*-zitadel-bootstrap/admin-client.pat}"
@@ -233,12 +233,12 @@ SESSION_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 48 /dev/urandom | b
 cat <<JSON
 
 # --- Paste the following into "launch.configurations" in ---
-# ---   oci-lxc-deployer-green.code-workspace              ---
+# ---   proxvex-green.code-workspace              ---
 ${USER_INFO}
 
       {
         "name": "Launch OIDC Backend",
-        "program": "\${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
+        "program": "\${workspaceFolder:backend}/dist/proxvex.mjs",
         "preLaunchTask": "build backend",
         "request": "launch",
         "sourceMaps": true,

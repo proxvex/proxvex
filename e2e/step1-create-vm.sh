@@ -468,7 +468,7 @@ nested_ssh "
     # Container hostnames → static IPs (used by dependency resolution)
     grep -q '10.0.0.10.*postgres' /etc/hosts || echo '10.0.0.10 postgres' >> /etc/hosts
     grep -q '10.0.0.11.*zitadel' /etc/hosts || echo '10.0.0.11 zitadel' >> /etc/hosts
-    grep -q '10.0.0.12.*oci-lxc-deployer-test' /etc/hosts || echo '10.0.0.12 oci-lxc-deployer-test' >> /etc/hosts
+    grep -q '10.0.0.12.*proxvex-test' /etc/hosts || echo '10.0.0.12 proxvex-test' >> /etc/hosts
     grep -q '10.0.0.13.*nginx' /etc/hosts || echo '10.0.0.13 nginx' >> /etc/hosts
 
     # Public domains → container IPs (PVE host DNAT maps 443→8443)

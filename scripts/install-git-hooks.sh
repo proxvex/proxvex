@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install Git hooks for the oci-lxc-deployer project
+# Install Git hooks for the proxvex project
 # Only installs if hook is missing or outdated (silent if up-to-date)
 
 set -e

@@ -23,14 +23,14 @@ On first start, Zitadel runs `start-from-init` which:
 1. Creates the database schema in PostgreSQL
 2. Creates a default admin user (`admin` with auto-generated password)
 3. Generates Personal Access Tokens (PATs) for API access at `/bootstrap/`
-4. Sets up the oci-lxc-deployer OIDC project with roles and client credentials
+4. Sets up the proxvex OIDC project with roles and client credentials
 
 The bootstrap credentials are stored in `/bootstrap/deployer-oidc.json` inside the container and are used by the `addon-oidc` addon to configure other applications.
 
 ### What Gets Created Automatically
 
 - **Admin user** — username `admin`, password is `ZITADEL_ADMIN_PASSWORD` (from the `oidc` stack) + `!Aa1` suffix. Retrieve the password from **Stacks > oidc** in the deployer web UI
-- **OIDC Project** — "oci-lxc-deployer" with role assertion enabled
+- **OIDC Project** — "proxvex" with role assertion enabled
 - **Service accounts** — `admin-client` and `login-client` with PATs
 - **Roles and OIDC apps** — Created per-application when `addon-oidc` is enabled on other apps
 

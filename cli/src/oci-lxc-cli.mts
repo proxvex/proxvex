@@ -246,7 +246,7 @@ async function runValidateCommand(args: ParsedArgs): Promise<void> {
 }
 
 function printHelp(): void {
-  console.log("OCI LXC CLI - Command-line tools for OCI LXC Deployer");
+  console.log("OCI LXC CLI - Command-line tools for Proxvex");
   console.log("");
   console.log("Usage:");
   console.log("  oci-lxc-cli <command> [options]");

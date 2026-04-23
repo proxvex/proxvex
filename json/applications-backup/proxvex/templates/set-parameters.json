@@ -1,0 +1,37 @@
+{
+  "name": "Proxvex Parameters",
+  "description": "Set application-specific parameters for Proxvex",
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "OS Hostname",
+      "type": "string",
+      "default": "proxvex",
+      "required": true,
+      "description": "Hostname for the Proxvex OS"
+    },
+
+    {
+      "id": "host_device_path",
+      "name": "USB Serial Port",
+      "type": "enum",
+      "required": false,
+      "enumValuesTemplate": "list-host-usb-serial-ports.json",
+      "description": "Select USB serial port to map to the container using a stable /dev/serial/by-id/* path. The port will be mapped as /dev/ttyUSB0 in the container."
+    }
+  ],
+  "commands": [
+    {
+      "properties": [
+        { "id": "ostype", "value": "alpine" },
+        { "id": "command", "value": "proxvex" },
+        { "id": "package", "value": "proxvex" },
+        { "id": "owned_paths", "value": "" }, 
+        { "id": "volumes", "value": "data=/data\nconfig=/config\nssl=/ssl" },
+        { "id": "packages", "value": "nodejs npm git openrc" },
+        { "id": "command_args", "value": "-c /config -d /data -s /ssl" }
+       
+      ]
+    }
+  ]
+}

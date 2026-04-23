@@ -18,7 +18,7 @@ This directory contains Docker Compose configurations for various services.
 | Zitadel | `Zitadel.docker-compose.yml` | 8080 | Identity provider |
 | Mosquitto | `mosquitto.docker-compose.yml` | 1883/9001 | MQTT broker |
 | Node-RED | `node-red.docker-compose.yml` | 1880 | Flow-based development |
-| Modbus2MQTT | `modbus2mqtt.docker-compose.yml` | 3000 | Modbus to MQTT bridge |
+| Proxvex | `proxvex.docker-compose.yml` | 3000 | Modbus to MQTT bridge |
 
 ---
 
@@ -125,7 +125,7 @@ Automatically creates:
 - App user (`MARIADB_USER`) with `MARIADB_PASSWORD`
 - Database (`MARIADB_DATABASE`) with full privileges for app user
 
-### Mosquitto / Node-RED / Modbus2MQTT
+### Mosquitto / Node-RED / Proxvex
 
 - No passwords required in `.env`
 - Authentication optional (see section below)

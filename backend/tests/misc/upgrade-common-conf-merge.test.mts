@@ -14,33 +14,33 @@ import os from "node:os";
  */
 
 /** Backup conf: full PVE config with URL-encoded notes (as written by pct set --description) */
-const BACKUP_CONF = `#<!-- oci-lxc-deployer%3Amanaged -->
-#<!-- oci-lxc-deployer%3Aoci-image ghcr.io/modbus2mqtt/oci-lxc-deployer -->
-#<!-- oci-lxc-deployer%3Aapplication-id oci-lxc-deployer -->
-#<!-- oci-lxc-deployer%3Aapplication-name oci-lxc-deployer -->
-#<!-- oci-lxc-deployer%3Aversion 0.3.4 -->
-#<!-- oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105 -->
-#<!-- oci-lxc-deployer%3Aicon-url data%3Aimage/svg+xml;base64,... -->
-#<!-- oci-lxc-deployer%3Ausername lxc -->
-#<!-- oci-lxc-deployer%3Auid 1001 -->
-#<!-- oci-lxc-deployer%3Agid 1001 -->
-## oci-lxc-deployer
+const BACKUP_CONF = `#<!-- proxvex%3Amanaged -->
+#<!-- proxvex%3Aoci-image ghcr.io/proxvex/proxvex -->
+#<!-- proxvex%3Aapplication-id proxvex -->
+#<!-- proxvex%3Aapplication-name proxvex -->
+#<!-- proxvex%3Aversion 0.3.4 -->
+#<!-- proxvex%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105 -->
+#<!-- proxvex%3Aicon-url data%3Aimage/svg+xml;base64,... -->
+#<!-- proxvex%3Ausername lxc -->
+#<!-- proxvex%3Auid 1001 -->
+#<!-- proxvex%3Agid 1001 -->
+## proxvex
 #
-#Managed by [oci-lxc-deployer](http%3A//myhost.cluster%3A3201/).
+#Managed by [proxvex](http%3A//myhost.cluster%3A3201/).
 #
 #Version%3A 0.3.4
 #
-#OCI image%3A ghcr.io/modbus2mqtt/oci-lxc-deployer
+#OCI image%3A ghcr.io/proxvex/proxvex
 #
-#Log file%3A /var/log/lxc/oci-lxc-deployer-105.log
+#Log file%3A /var/log/lxc/proxvex-105.log
 #
 ### Links
 #- [Console Logs](http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105)
 arch: amd64
 cmode: console
 cores: 2
-entrypoint: /usr/local/bin/entrypoint-wrapper.sh oci-lxc-deployer --local /config
-hostname: oci-lxc-deployer
+entrypoint: /usr/local/bin/entrypoint-wrapper.sh proxvex --local /config
+hostname: proxvex
 memory: 1024
 net0: name=eth0,bridge=vmbr0,hwaddr=BC:24:11:1D:6F:77,ip=dhcp,type=veth
 onboot: 1
@@ -56,14 +56,14 @@ lxc.init.uid: 1001
 lxc.init.gid: 1001
 lxc.init.cwd: /
 lxc.signal.halt: SIGTERM
-lxc.console.logfile: /var/log/lxc/oci-lxc-deployer-105.log
+lxc.console.logfile: /var/log/lxc/proxvex-105.log
 mp0: local-zfs:subvol-105-disk-1,mp=/config,size=1G
 `;
 
 /** New conf: simulated pct create output with minimal params + OCI-derived settings */
 const NEW_CONF = `arch: amd64
 cmode: console
-entrypoint: /usr/local/bin/entrypoint-wrapper.sh oci-lxc-deployer --local /config --secretsFilePath /secure/secret.txt
+entrypoint: /usr/local/bin/entrypoint-wrapper.sh proxvex --local /config --secretsFilePath /secure/secret.txt
 hostname: CT105
 ostype: newos
 rootfs: local-zfs:subvol-105-disk-0,size=4G
@@ -156,13 +156,13 @@ ${scriptBody}
     it("should preserve all comment lines (notes) from backup", () => {
       const merged = runMerge();
 
-      expect(merged).toContain("<!-- oci-lxc-deployer%3Amanaged -->");
-      expect(merged).toContain("oci-lxc-deployer%3Aversion 0.3.4");
+      expect(merged).toContain("<!-- proxvex%3Amanaged -->");
+      expect(merged).toContain("proxvex%3Aversion 0.3.4");
       expect(merged).toContain(
-        "oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105",
+        "proxvex%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/105",
       );
-      expect(merged).toContain("oci-lxc-deployer%3Aicon-url");
-      expect(merged).toContain("## oci-lxc-deployer");
+      expect(merged).toContain("proxvex%3Aicon-url");
+      expect(merged).toContain("## proxvex");
       expect(merged).toContain("Managed by");
       expect(merged).toContain("Version%3A 0.3.4");
       expect(merged).toContain("## Links");
@@ -229,7 +229,7 @@ ${scriptBody}
         "mp0: local-zfs:subvol-105-disk-1,mp=/config,size=1G",
       );
       expect(merged).toContain(
-        "lxc.console.logfile: /var/log/lxc/oci-lxc-deployer-105.log",
+        "lxc.console.logfile: /var/log/lxc/proxvex-105.log",
       );
     });
 
@@ -257,8 +257,8 @@ ${scriptBody}
       expect(result.exitCode).toBe(0);
 
       const content = fs.readFileSync(confPath, "utf-8");
-      expect(content).toContain("oci-lxc-deployer%3Aversion 0.4.0");
-      expect(content).not.toContain("oci-lxc-deployer%3Aversion 0.3.4");
+      expect(content).toContain("proxvex%3Aversion 0.4.0");
+      expect(content).not.toContain("proxvex%3Aversion 0.3.4");
     });
 
     it("should update visible version text (URL-encoded)", () => {
@@ -284,7 +284,7 @@ ${scriptBody}
 
       const content = fs.readFileSync(confPath, "utf-8");
       expect(content).toContain(
-        "oci-lxc-deployer%3Aoci-image ghcr.io/newowner/new-image",
+        "proxvex%3Aoci-image ghcr.io/newowner/new-image",
       );
       expect(content).toContain("#OCI image%3A ghcr.io/newowner/new-image");
     });
@@ -298,9 +298,9 @@ ${scriptBody}
       expect(result.exitCode).toBe(0);
 
       const content = fs.readFileSync(confPath, "utf-8");
-      expect(content).toContain("<!-- oci-lxc-deployer%3Amanaged -->");
+      expect(content).toContain("<!-- proxvex%3Amanaged -->");
       expect(content).toContain("## Links");
-      expect(content).toContain("hostname: oci-lxc-deployer");
+      expect(content).toContain("hostname: proxvex");
     });
   });
 
@@ -330,8 +330,8 @@ ${scriptBody}
       expect(result.exitCode).toBe(0);
 
       const content = fs.readFileSync(confPath, "utf-8");
-      expect(content).toContain("oci-lxc-deployer-110.log");
-      expect(content).not.toContain("oci-lxc-deployer-105.log");
+      expect(content).toContain("proxvex-110.log");
+      expect(content).not.toContain("proxvex-105.log");
     });
 
     it("should update visible log file path VMID", () => {
@@ -341,8 +341,8 @@ ${scriptBody}
       expect(result.exitCode).toBe(0);
 
       const content = fs.readFileSync(confPath, "utf-8");
-      expect(content).toContain("oci-lxc-deployer-110.log");
-      expect(content).not.toContain("oci-lxc-deployer-105.log");
+      expect(content).toContain("proxvex-110.log");
+      expect(content).not.toContain("proxvex-105.log");
     });
 
     it("should preserve all other content", () => {
@@ -352,9 +352,9 @@ ${scriptBody}
       expect(result.exitCode).toBe(0);
 
       const content = fs.readFileSync(confPath, "utf-8");
-      expect(content).toContain("<!-- oci-lxc-deployer%3Amanaged -->");
+      expect(content).toContain("<!-- proxvex%3Amanaged -->");
       expect(content).toContain("Version%3A 0.3.4");
-      expect(content).toContain("hostname: oci-lxc-deployer");
+      expect(content).toContain("hostname: proxvex");
       expect(content).toContain("memory: 1024");
     });
   });

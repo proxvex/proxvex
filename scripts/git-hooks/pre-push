@@ -68,7 +68,7 @@ fi
 if ! git remote get-url upstream >/dev/null 2>&1; then
   echo "${YELLOW}Warning: No 'upstream' remote configured. Skipping rebase.${NC}"
   echo "${YELLOW}Add it with:${NC}"
-  echo "  git remote add upstream git@github.com:modbus2mqtt/oci-lxc-deployer.git"
+  echo "  git remote add upstream git@github.com:proxvex/proxvex.git"
   exit 0
 fi
 

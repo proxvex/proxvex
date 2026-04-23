@@ -26,7 +26,7 @@ set -euo pipefail
 RUNNER_HOST=""
 WORKER_HOST=""
 GITHUB_TOKEN=""
-REPO_URL="https://github.com/modbus2mqtt/oci-lxc-deployer"
+REPO_URL="https://github.com/proxvex/proxvex"
 RUNNER_NAME=""
 LABELS="self-hosted,linux,x64,pve1"
 RUNNER_VMID=""
@@ -41,8 +41,8 @@ RUNNER_HOSTNAME="gh-runner"
 WORKER_HOSTNAME="ci-test-worker"
 
 # Images (built by runner-image-publish.yml)
-RUNNER_IMAGE="ghcr.io/modbus2mqtt/github-actions-runner:latest"
-WORKER_IMAGE="ghcr.io/modbus2mqtt/ci-test-worker:latest"
+RUNNER_IMAGE="ghcr.io/proxvex/github-actions-runner:latest"
+WORKER_IMAGE="ghcr.io/proxvex/ci-test-worker:latest"
 
 # pvetest infrastructure defaults
 WOL_MAC=""
@@ -96,8 +96,8 @@ Required:
   --wol-mac <mac>            MAC address of worker-host for WOL
 
 Optional:
-  --repo-url <url>           GitHub repo URL (default: modbus2mqtt/oci-lxc-deployer)
-  --runner-name <name>       Runner display name (default: <runner-host>-modbus2mqtt)
+  --repo-url <url>           GitHub repo URL (default: proxvex/proxvex)
+  --runner-name <name>       Runner display name (default: <runner-host>-proxvex)
   --labels <labels>          Runner labels (default: self-hosted,linux,x64,pve1)
   --runner-vmid <id>         VMID for runner (default: auto)
   --worker-vmid <id>         VMID for test-worker (default: auto)
@@ -119,7 +119,7 @@ done
 [ -z "$WORKER_HOST" ] && fail "--worker-host is required"
 [ -z "$GITHUB_TOKEN" ] && fail "--github-token is required"
 [ -z "$WOL_MAC" ] && fail "--wol-mac is required"
-[ -z "$RUNNER_NAME" ] && RUNNER_NAME="${RUNNER_HOST}-modbus2mqtt"
+[ -z "$RUNNER_NAME" ] && RUNNER_NAME="${RUNNER_HOST}-proxvex"
 
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10"
 

@@ -304,15 +304,15 @@ describe("ProxmoxConfiguration.loadApplication", () => {
   });
 
   it("should inherit upgrade task from parent application", async () => {
-    // oci-lxc-deployer extends oci-image which defines upgrade task
+    // proxvex extends oci-image which defines upgrade task
     // This test reproduces the production error:
-    // "Template upgrade not found in oci-lxc-deployer application"
+    // "Template upgrade not found in proxvex application"
     const config = helper.createStorageContext();
     const templateProcessor = config.getTemplateProcessor();
 
     // This should NOT throw - upgrade is defined in parent oci-image
     const result = await templateProcessor.loadApplication(
-      "oci-lxc-deployer",
+      "proxvex",
       "upgrade",
       { host: "localhost", port: 22 } as any,
       ExecutionMode.TEST,

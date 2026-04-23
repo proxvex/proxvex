@@ -37,7 +37,7 @@ export interface CreateTestEnvironmentOptions {
   /**
    * Regex patterns (as strings) matched against the repo-relative path under `json/`.
    * If empty/undefined, nothing is copied from `json/`.
-   * Example: [".*modbus2mqtt.*"]
+   * Example: [".*proxvex.*"]
    */
   jsonIncludePatterns?: string[];
 
@@ -152,7 +152,7 @@ export function createTestEnvironment(
 ): TestEnvironment {
   const repoRoot = repoRootFromTestFile(testFileUrl);
   const rootDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "oci-lxc-deployer-test-"),
+    path.join(os.tmpdir(), "proxvex-test-"),
   );
 
   const localDir = path.join(rootDir, "local");

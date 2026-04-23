@@ -332,7 +332,7 @@ test.describe('Addon Installation E2E Tests', () => {
     console.log(`Loaded ${applications.length} test applications`);
   });
 
-  test('install oci-lxc-deployer with ssl addon', async ({ page }) => {
+  test('install proxvex with ssl addon', async ({ page }) => {
     const addonConfig = loadAddonConfig('ssl-addon');
     console.log(`Testing addon: ${addonConfig.addon} on base application: ${addonConfig.baseApplication}`);
 

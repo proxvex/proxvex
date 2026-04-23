@@ -2,7 +2,7 @@
 """Resolve dependency hostnames from LXC container notes.
 
 Scans `/etc/pve/lxc/*.conf` for containers that:
-- are managed by oci-lxc-deployer
+- are managed by proxvex
 - match a dependency's application_id
 - belong to the same stack (stack_name)
 

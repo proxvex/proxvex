@@ -185,7 +185,7 @@ export function prepareVms(
       try {
         const notes = nestedSsh(config.pveHost, config.portPveSsh,
           `pct config ${p.vmId} 2>/dev/null | grep -a 'description:' | head -1`, 5000);
-        isManaged = /oci-lxc-deployer(%3A|:)managed/.test(notes);
+        isManaged = /proxvex(%3A|:)managed/.test(notes);
         if (isManaged) {
           const appMatch = notes.match(/application-id\s+(\S+)/);
           const appId = appMatch?.[1]?.replace(/%20/g, " ");

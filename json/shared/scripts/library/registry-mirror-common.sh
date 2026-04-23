@@ -14,7 +14,7 @@
 
 MIRROR_HOST="docker-registry-mirror"
 MIRROR_IP=""
-MIRROR_MARKER="# oci-lxc-deployer: registry mirror"
+MIRROR_MARKER="# proxvex: registry mirror"
 MIRROR_REGISTRIES="registry-1.docker.io index.docker.io"
 
 # Detect local registry mirror. Sets MIRROR_IP. Returns 1 if not found.

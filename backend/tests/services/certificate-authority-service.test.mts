@@ -46,7 +46,7 @@ describe("CertificateAuthorityService", () => {
       service.generateCA(veContextKey);
       const info = service.getCaInfo(veContextKey);
       expect(info.exists).toBe(true);
-      expect(info.subject).toContain("OCI-LXC-Deployer CA");
+      expect(info.subject).toContain("Proxvex CA");
     });
   });
 

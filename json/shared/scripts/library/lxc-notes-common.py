@@ -62,30 +62,30 @@ def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
     marker is emitted per entry, allowing per-stack dependency lookups.
     """
     lines = []
-    lines.append("<!-- oci-lxc-deployer:managed -->")
+    lines.append("<!-- proxvex:managed -->")
     if is_deployer:
-        lines.append("<!-- oci-lxc-deployer:deployer-instance -->")
+        lines.append("<!-- proxvex:deployer-instance -->")
     if oci_image_visible:
-        lines.append("<!-- oci-lxc-deployer:oci-image %s -->" % oci_image_visible)
+        lines.append("<!-- proxvex:oci-image %s -->" % oci_image_visible)
     if app_id:
-        lines.append("<!-- oci-lxc-deployer:application-id %s -->" % app_id)
+        lines.append("<!-- proxvex:application-id %s -->" % app_id)
     if app_name:
-        lines.append("<!-- oci-lxc-deployer:application-name %s -->" % app_name)
+        lines.append("<!-- proxvex:application-name %s -->" % app_name)
     if version:
-        lines.append("<!-- oci-lxc-deployer:version %s -->" % version)
+        lines.append("<!-- proxvex:version %s -->" % version)
     if deployer_url and ve_context:
-        lines.append("<!-- oci-lxc-deployer:log-url %s/logs/%s/%s -->" % (deployer_url, ve_context, vmid))
+        lines.append("<!-- proxvex:log-url %s/logs/%s/%s -->" % (deployer_url, ve_context, vmid))
     if icon_base64 and icon_mime_type:
-        lines.append("<!-- oci-lxc-deployer:icon-url data:%s;base64,... -->" % icon_mime_type)
+        lines.append("<!-- proxvex:icon-url data:%s;base64,... -->" % icon_mime_type)
     if username:
-        lines.append("<!-- oci-lxc-deployer:username %s -->" % username)
+        lines.append("<!-- proxvex:username %s -->" % username)
     if uid:
-        lines.append("<!-- oci-lxc-deployer:uid %s -->" % uid)
+        lines.append("<!-- proxvex:uid %s -->" % uid)
     if gid:
-        lines.append("<!-- oci-lxc-deployer:gid %s -->" % gid)
+        lines.append("<!-- proxvex:gid %s -->" % gid)
     for sid in (stack_ids or []):
         if sid:
-            lines.append("<!-- oci-lxc-deployer:stack-id %s -->" % sid)
+            lines.append("<!-- proxvex:stack-id %s -->" % sid)
     return lines
 
 
@@ -116,7 +116,7 @@ def build_links_section(vmid, deployer_url, ve_context, link_text="Logs"):
     lines.append("- [%s](%s/logs/%s/%s)" % (link_text, deployer_url, ve_context, vmid))
 
     if deployer_url:
-        lines.append("Managed by [oci-lxc-deployer](%s/)." % deployer_url)
+        lines.append("Managed by [proxvex](%s/)." % deployer_url)
 
     return lines
 

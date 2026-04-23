@@ -71,16 +71,16 @@ sys.stdout.write(json.dumps({"text": new_text, "changed": changed}))
   };
 }
 
-const REAL_ZITADEL_CONF = `#<!-- oci-lxc-deployer%3Amanaged -->
-#<!-- oci-lxc-deployer%3Aapplication-id zitadel -->
-#<!-- oci-lxc-deployer%3Aapplication-name zitadel -->
-#<!-- oci-lxc-deployer%3Aversion traefik%3A3.6%2C%20zitadel-login%3A4.12.3%2C%20zitadel%3A4.12.3 -->
-#<!-- oci-lxc-deployer%3Aicon-url data%3Aimage/svg+xml;base64,... -->
-#<!-- oci-lxc-deployer%3Ausername root -->
-#<!-- oci-lxc-deployer%3Auid 0 -->
-#<!-- oci-lxc-deployer%3Agid 0 -->
-#<!-- oci-lxc-deployer%3Astack-id postgres_production -->
-#<!-- oci-lxc-deployer%3Aaddon addon-ssl -->
+const REAL_ZITADEL_CONF = `#<!-- proxvex%3Amanaged -->
+#<!-- proxvex%3Aapplication-id zitadel -->
+#<!-- proxvex%3Aapplication-name zitadel -->
+#<!-- proxvex%3Aversion traefik%3A3.6%2C%20zitadel-login%3A4.12.3%2C%20zitadel%3A4.12.3 -->
+#<!-- proxvex%3Aicon-url data%3Aimage/svg+xml;base64,... -->
+#<!-- proxvex%3Ausername root -->
+#<!-- proxvex%3Auid 0 -->
+#<!-- proxvex%3Agid 0 -->
+#<!-- proxvex%3Astack-id postgres_production -->
+#<!-- proxvex%3Aaddon addon-ssl -->
 ## zitadel (0.5.6)
 #<img src="data%3Aimage/svg+xml;base64,PHN2Zy..." width="16" height="16" alt="zitadel"/>
 arch: amd64
@@ -108,8 +108,8 @@ describe("post-update-version-from-docker.apply_version_to_conf_text", () => {
   it("updates hidden URL-encoded version marker when old version is known", () => {
     // Fresh conf where hidden marker still has the old (deployer-fallback) version
     const confWithOldMarker = REAL_ZITADEL_CONF.replace(
-      /oci-lxc-deployer%3Aversion [^\n]+/,
-      "oci-lxc-deployer%3Aversion 0.5.6 -->",
+      /proxvex%3Aversion [^\n]+/,
+      "proxvex%3Aversion 0.5.6 -->",
     ).replace("## zitadel (0.5.6)", "## zitadel (0.5.6)");
 
     const result = applyVersion(
@@ -123,9 +123,9 @@ describe("post-update-version-from-docker.apply_version_to_conf_text", () => {
     expect(result.changed).toBe(true);
     // URL-encoded form: ':' → %3A, ',' → %2C, ' ' → %20
     expect(result.text).toContain(
-      "oci-lxc-deployer%3Aversion traefik%3A3.6%2C%20zitadel-login%3A4.12.3%2C%20zitadel%3A4.12.3",
+      "proxvex%3Aversion traefik%3A3.6%2C%20zitadel-login%3A4.12.3%2C%20zitadel%3A4.12.3",
     );
-    expect(result.text).not.toContain("oci-lxc-deployer%3Aversion 0.5.6 ");
+    expect(result.text).not.toContain("proxvex%3Aversion 0.5.6 ");
   });
 
   it("handles header without existing version suffix", () => {

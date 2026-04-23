@@ -100,7 +100,7 @@ export class CertificateAuthorityService implements ICaProvider {
 
       execSync(
         `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" ` +
-        `-days 3650 -nodes -subj "/CN=OCI-LXC-Deployer CA/O=oci-lxc-deployer"`,
+        `-days 3650 -nodes -subj "/CN=Proxvex CA/O=proxvex"`,
         { encoding: "utf-8", stdio: "pipe" },
       );
 
@@ -253,7 +253,7 @@ export class CertificateAuthorityService implements ICaProvider {
       // Generate key + CSR
       execSync(
         `openssl req -newkey rsa:2048 -keyout "${keyPath}" -out "${csrPath}" ` +
-        `-nodes -subj "/CN=${effectiveHostname}/O=oci-lxc-deployer"`,
+        `-nodes -subj "/CN=${effectiveHostname}/O=proxvex"`,
         { encoding: "utf-8", stdio: "pipe" },
       );
 

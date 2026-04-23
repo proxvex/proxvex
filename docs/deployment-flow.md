@@ -1,17 +1,17 @@
 # Deployment Flow: From Installation to Running Containers
 
-This guide covers the full deployment lifecycle of OCI LXC Deployer (OLD) — from installing the deployer itself through to managing applications on Proxmox VE hosts.
+This guide covers the full deployment lifecycle of Proxvex (OLD) — from installing the deployer itself through to managing applications on Proxmox VE hosts.
 
 ## Overview
 
-OCI LXC Deployer creates **native LXC containers** on Proxmox VE. It is itself an LXC container that manages other containers via SSH.
+Proxvex creates **native LXC containers** on Proxmox VE. It is itself an LXC container that manages other containers via SSH.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Proxmox VE Host                                        │
 │                                                         │
 │  ┌─────────────────────┐     ┌────────────────────┐    │
-│  │ OCI LXC Deployer    │────>│ App Container 1    │    │
+│  │ Proxvex    │────>│ App Container 1    │    │
 │  │ (LXC, manages all)  │     │ (postgres, etc.)   │    │
 │  │                      │────>│ App Container 2    │    │
 │  │  Web UI + API        │     │ (zitadel, etc.)    │    │
@@ -30,7 +30,7 @@ For a single PVE host, one OLD instance is sufficient. Hub/Spoke setups for mult
 Install OLD on a Proxmox VE host:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | bash -s -- --vm-id 300
+curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh | bash -s -- --vm-id 300
 ```
 
 This creates an LXC container running the deployer with:
@@ -47,7 +47,7 @@ A typical production installation follows this order. Each step depends on the p
 ### Step 1: Install Deployer
 
 ```bash
-install-oci-lxc-deployer.sh --vm-id 300
+install-proxvex.sh --vm-id 300
 ```
 
 ### Step 2: Set Project Defaults
@@ -58,7 +58,7 @@ Configure project-specific parameters (VM ID range, mirrors, OIDC issuer URL). T
 #!/bin/sh
 # production/project.sh — Example for ohnewarum.de
 
-CONFIG_VOL="/rpool/data/subvol-999999-oci-lxc-deployer-volumes/volumes/oci-lxc-deployer/config"
+CONFIG_VOL="/rpool/data/subvol-999999-proxvex-volumes/volumes/proxvex/config"
 SHARED_VOL="${CONFIG_VOL}/shared/templates"
 
 mkdir -p "${SHARED_VOL}/create_ct"
@@ -104,7 +104,7 @@ Install postgres first, then Zitadel for OIDC authentication:
 
 In the Zitadel UI:
 1. Create a deployer user with **IAM_ORG_OWNER** role
-2. Assign the **oci-lxc-deployer** application to this user
+2. Assign the **proxvex** application to this user
 
 ### Step 7: Reconfigure Deployer with SSL + OIDC
 
@@ -122,7 +122,7 @@ After this step, the deployer is fully secured and ready for production use.
 
 An Application defines everything needed to deploy a service — comparable to a `docker-compose.yml`:
 
-| Concept | OCI LXC Deployer |
+| Concept | Proxvex |
 |---------|-----------------|
 | Image | OCI image reference or docker-compose.yml |
 | Volumes | Volume definitions in templates |
@@ -175,7 +175,7 @@ Clicking **Install** triggers template execution:
 After successful deployment:
 - **LXC container** running on Proxmox with configured resources
 - **Persistent volumes** on the host filesystem (ZFS-backed)
-- **Container notes** with `oci-lxc-deployer:managed` marker, web links, and version info
+- **Container notes** with `proxvex:managed` marker, web links, and version info
 - **Service** running inside the container (OpenRC or systemd)
 
 ---

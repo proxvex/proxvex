@@ -1,0 +1,12 @@
+{
+  "selectedAddons": ["addon-ssl", "addon-oidc"],
+  "params": [
+    { "name": "check_oidc_enabled", "value": "true" },
+    { "name": "check_oidc_api_protected", "value": "true" }
+  ],
+  "task": "reconfigure",
+  "depends_on": ["proxvex/plain", "zitadel/default"],
+  "wait_seconds": 30,
+  "cli_timeout": 360,
+  "description": "Reconfigure: enable SSL and OIDC addon on existing deployer container"
+}

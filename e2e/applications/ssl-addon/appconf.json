@@ -1,8 +1,8 @@
 {
     "name": "ssl-addon",
-    "description": "E2E test for SSL addon installation on oci-lxc-deployer",
+    "description": "E2E test for SSL addon installation on proxvex",
 
-    "baseApplication": "oci-lxc-deployer",
+    "baseApplication": "proxvex",
     "addon": "addon-ssl",
 
     "addonParams": {

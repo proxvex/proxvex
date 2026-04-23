@@ -14,7 +14,7 @@ describe("Validation routes", () => {
 
   beforeEach(async () => {
     setup = await createWebAppTestSetup(import.meta.url, {
-      jsonIncludePatterns: ["addons/.*", "stacktypes/.*", "applications/oci-lxc-deployer/.*", "shared/.*"],
+      jsonIncludePatterns: ["addons/.*", "stacktypes/.*", "applications/proxvex/.*", "shared/.*"],
     });
     app = setup.app;
     setup.ctx.setVEContext({ host: "testhost", current: true });
@@ -27,7 +27,7 @@ describe("Validation routes", () => {
   describe("POST /api/:veContext/validate-parameters/:application", () => {
     it("should reject unknown stackId for app without stacktype", async () => {
       const res = await request(app)
-        .post(`/api/${veContextKey}/validate-parameters/oci-lxc-deployer`)
+        .post(`/api/${veContextKey}/validate-parameters/proxvex`)
         .send({
           task: "installation",
           params: [],
@@ -51,7 +51,7 @@ describe("Validation routes", () => {
       const stackName = oidcStack?.id || "test-oidc";
 
       const res = await request(app)
-        .post(`/api/${veContextKey}/validate-parameters/oci-lxc-deployer`)
+        .post(`/api/${veContextKey}/validate-parameters/proxvex`)
         .send({
           task: "installation",
           params: [],
@@ -75,7 +75,7 @@ describe("Validation routes", () => {
 
       // Install without addon-oidc — app has no stacktype, no addon provides oidc
       const res = await request(app)
-        .post(`/api/${veContextKey}/validate-parameters/oci-lxc-deployer`)
+        .post(`/api/${veContextKey}/validate-parameters/proxvex`)
         .send({
           task: "installation",
           params: [],

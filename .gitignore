@@ -34,7 +34,7 @@ alpine/repo/
 test-results/
 **/secret.txt
 **/storagecontext.json
-docker/oci-lxc-deployer.tgz
+docker/proxvex.tgz
 
 # Environment files with credentials (keep .env.template)
 **/.env
@@ -61,5 +61,6 @@ oci*.tgz
 # Local hub/spoke dev instances (scripts/dev-hub-spoke-setup.sh)
 .dev/
 .hubs/
+
 # Rename-script dry-run/apply manifest (reproducible via --dry-run)
 scripts/replace_oci_lxc_deployer_changes.json

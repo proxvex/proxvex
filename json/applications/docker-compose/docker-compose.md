@@ -91,7 +91,7 @@ Container UID 500  → Host UID 100500
 Container UID 1000 → Host UID 101000
 ```
 
-The OCI LXC Deployer calculates these mappings automatically.
+The Proxvex calculates these mappings automatically.
 
 ## UID Sources
 
@@ -472,13 +472,13 @@ output.append({"id": "compose_services", "value": ",".join(services)})
 #### Neue Notes-Struktur
 
 ```markdown
-<!-- lxc-manager:managed -->
-<!-- lxc-manager:application-id docker-compose -->
-<!-- lxc-manager:compose-services nextcloud,db,redis -->
+<!-- proxvex:managed -->
+<!-- proxvex:application-id docker-compose -->
+<!-- proxvex:compose-services nextcloud,db,redis -->
 
-# LXC Manager
+# Proxvex
 
-Managed by **lxc-manager**.
+Managed by **proxvex**.
 
 Application: Nextcloud (docker-compose)
 

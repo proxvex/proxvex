@@ -90,7 +90,7 @@ describe("Certificate API routes", () => {
       const res = await request(app).post(url).send({});
       expect(res.status).toBe(200);
       expect(res.body.exists).toBe(true);
-      expect(res.body.subject).toContain("OCI-LXC-Deployer CA");
+      expect(res.body.subject).toContain("Proxvex CA");
     });
 
     it("should overwrite existing CA", async () => {

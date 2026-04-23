@@ -3,7 +3,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 PVE_HOST="pve1.cluster"
-DEPLOYER_HOST="${DEPLOYER_HOST:-oci-lxc-deployer}"
+DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 
 # Auto-detect: HTTPS (port 3443) or HTTP (port 3080)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then

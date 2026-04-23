@@ -59,7 +59,7 @@ export class InstalledList implements OnInit {
     dialogRef.afterClosed().subscribe((result?: UpgradeVersionDialogResult) => {
       if (!result) return; // User cancelled
 
-      const application = installation.application_id || 'oci-lxc-deployer';
+      const application = installation.application_id || 'proxvex';
       this.svc.postVeUpgrade(application, {
         previouse_vm_id: installation.vm_id,
         oci_image: installation.oci_image,

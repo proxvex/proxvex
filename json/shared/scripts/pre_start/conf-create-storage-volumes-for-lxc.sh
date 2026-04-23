@@ -59,7 +59,7 @@ fi
 # Upgrade-safety: if we're upgrading an existing container, volumes must be
 # named after the PREVIOUS container's hostname, not the new container's
 # application-default hostname. Template processing gives us {{ hostname }} =
-# app default (e.g. "oci-lxc-deployer"), but the actual running container was
+# app default (e.g. "proxvex"), but the actual running container was
 # named via user input (e.g. "old-prod-hub"). Upgrade path needs the old name
 # so the existing volumes can be found and copied.
 if [ -n "$PREV_VMID" ] && [ "$PREV_VMID" != "NOT_DEFINED" ]; then

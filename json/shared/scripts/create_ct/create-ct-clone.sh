@@ -2,7 +2,7 @@
 # Clone an existing LXC container for reconfigure.
 #
 # Steps:
-# 1) Verify source container exists and was created by oci-lxc-deployer.
+# 1) Verify source container exists and was created by proxvex.
 # 2) Determine target VMID (explicit, vm_id_start-based, or next free).
 # 3) Clone source to target using vzdump + pct restore.
 # 4) Output target VMID, source VMID, and installed addons.
@@ -34,14 +34,14 @@ if [ ! -f "$SOURCE_CONF" ]; then
   fail "Source container config not found: $SOURCE_CONF"
 fi
 
-# Verify source was created by oci-lxc-deployer
+# Verify source was created by proxvex
 SOURCE_DESC=$(extract_description "$SOURCE_CONF")
 SOURCE_CONF_TEXT=$(cat "$SOURCE_CONF" 2>/dev/null || echo "")
 SOURCE_DESC_DECODED=$(decode_url "$SOURCE_DESC")
 SOURCE_CONF_TEXT_DECODED=$(decode_url "$SOURCE_CONF_TEXT")
 
 if ! check_managed_marker "$SOURCE_DESC" "$SOURCE_DESC_DECODED" "$SOURCE_CONF_TEXT" "$SOURCE_CONF_TEXT_DECODED"; then
-  fail "Source container does not look like it was created by oci-lxc-deployer (missing notes marker)."
+  fail "Source container does not look like it was created by proxvex (missing notes marker)."
 fi
 
 # Determine target VMID

@@ -14,7 +14,7 @@ This template provides the following capabilities:
 
 This template is used by the following applications (usage examples):
 
-- [modbus2mqtt](../../../modbus2mqtt.md)
+- [proxvex](../../../proxvex.md)
 
 <!-- GENERATED_START:PARAMETERS -->
 ## Parameters

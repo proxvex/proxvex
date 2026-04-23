@@ -13,7 +13,7 @@ Parameters (via template variables):
   platform (optional): Target platform (e.g., linux/amd64, linux/arm64). Default: auto-detected from host via uname -m
 
 Output (JSON to stdout):
-    [{"id": "template_path", "value": "storage:vztmpl/image_tag.tar"}, {"id": "ostype", "value": "alpine"}, {"id": "arch", "value": "amd64"}, {"id": "application_id", "value": "oci-lxc-deployer"}, {"id": "application_name", "value": "OCI LXC Deployer"}, {"id": "oci_image", "value": "ghcr.io/modbus2mqtt/oci-lxc-deployer:latest"}, {"id": "oci_image_tag", "value": "0.17.5"}]
+    [{"id": "template_path", "value": "storage:vztmpl/image_tag.tar"}, {"id": "ostype", "value": "alpine"}, {"id": "arch", "value": "amd64"}, {"id": "application_id", "value": "proxvex"}, {"id": "application_name", "value": "Proxvex"}, {"id": "oci_image", "value": "ghcr.io/proxvex/proxvex:latest"}, {"id": "oci_image_tag", "value": "0.17.5"}]
 
 All logs and progress go to stderr.
 
@@ -346,7 +346,7 @@ def ensure_ca(deployer_url: str, ve_context: str) -> None:
     Downloads the CA cert from the deployer and installs it so that skopeo
     trusts TLS connections to a local registry mirror (registry-1.docker.io).
     """
-    ca_path = "/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
+    ca_path = "/usr/local/share/ca-certificates/proxvex-ca.crt"
     if os.path.isfile(ca_path):
         return  # Already installed
 
@@ -401,7 +401,7 @@ def ensure_registry_mirror_hosts() -> bool:
     """
     import socket
     hosts_path = "/etc/hosts"
-    marker = "# oci-lxc-deployer: registry mirror"
+    marker = "# proxvex: registry mirror"
     mirror_hosts = ["registry-1.docker.io", "index.docker.io"]
 
     # Path 1: registry hostnames already point to a private IP (mirror via DNS).

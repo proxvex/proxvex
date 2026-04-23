@@ -1,11 +1,11 @@
 services:
-  gh-runner-oci-lxc-deployer:
-    image: ghcr.io/modbus2mqtt/github-actions-runner:latest
+  gh-runner-proxvex:
+    image: ghcr.io/proxvex/github-actions-runner:latest
     restart: unless-stopped
     environment:
-      REPO_URL: "https://github.com/modbus2mqtt/oci-lxc-deployer"
+      REPO_URL: "https://github.com/proxvex/proxvex"
       ACCESS_TOKEN: "{{ GITHUB_RUNNER_TOKEN }}"
-      RUNNER_NAME: "${RUNNER_NAME:-pve1-modbus2mqtt}"
+      RUNNER_NAME: "${RUNNER_NAME:-pve1-proxvex}"
       LABELS: "self-hosted,linux,x64,pve1"
       PVETEST_HOST: "${PVETEST_HOST:-ubuntupve}"
       PVETEST_WORKER_HOST: "${PVETEST_WORKER_HOST:-ci-test-worker}"
@@ -16,4 +16,4 @@ services:
       PVETEST_NESTED_SSH_PORT: "${PVETEST_NESTED_SSH_PORT:-2022}"
       PVETEST_NESTED_VMID: "${PVETEST_NESTED_VMID:-9001}"
     volumes:
-      - ./config:/etc/oci-lxc-deployer:ro
+      - ./config:/etc/proxvex:ro

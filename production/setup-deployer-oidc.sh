@@ -1,9 +1,9 @@
 #!/bin/bash
-# Reconfigure oci-lxc-deployer to enable OIDC authentication.
+# Reconfigure proxvex to enable OIDC authentication.
 # This also activates native HTTPS (port 3443).
 #
 # Prerequisites:
-#   - oci-lxc-deployer is running (HTTP on port 3080)
+#   - proxvex is running (HTTP on port 3080)
 #   - Zitadel is deployed (auto-creates deployer OIDC credentials)
 #
 # Usage:
@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PVE_HOST="${PVE_HOST:-pve1.cluster}"
-DEPLOYER_HOST="${DEPLOYER_HOST:-oci-lxc-deployer}"
+DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 CLI="npx tsx $PROJECT_ROOT/cli/src/oci-lxc-cli.mts"
 
 # --- Step 1: Detect deployer API (HTTP or HTTPS) ---
@@ -33,7 +33,7 @@ echo "  Using ${SERVER}"
 
 # --- Step 2: Find deployer VM ID ---
 echo ""
-echo "=== Step 2: Find oci-lxc-deployer VM ID ==="
+echo "=== Step 2: Find proxvex VM ID ==="
 
 VE_KEY=$(curl -sk "${SERVER}/api/ssh/config/${PVE_HOST}" 2>/dev/null | \
   python3 -c "import sys,json; print(json.load(sys.stdin)['key'])" 2>/dev/null || echo "")
@@ -48,13 +48,13 @@ DEPLOYER_VMID=$(curl -sk "${SERVER}/api/${VE_KEY}/installations" 2>/dev/null | \
 import sys, json
 data = json.load(sys.stdin)
 for ct in (data if isinstance(data, list) else data.get('installations', [])):
-    if ct.get('application_id') == 'oci-lxc-deployer':
+    if ct.get('application_id') == 'proxvex':
         print(ct.get('vm_id', ''))
         break
 " 2>/dev/null || echo "")
 
 if [ -z "$DEPLOYER_VMID" ]; then
-  echo "ERROR: Could not find oci-lxc-deployer container"
+  echo "ERROR: Could not find proxvex container"
   exit 1
 fi
 echo "  VM ID: ${DEPLOYER_VMID}"
@@ -66,7 +66,7 @@ echo "=== Step 3: Reconfigure with addon-oidc ==="
 PARAMS_FILE=$(mktemp)
 cat > "$PARAMS_FILE" <<EOF
 {
-  "application": "oci-lxc-deployer",
+  "application": "proxvex",
   "task": "reconfigure",
   "params": [
     { "name": "previouse_vm_id", "value": ${DEPLOYER_VMID} }
@@ -101,4 +101,4 @@ done
 
 echo ""
 echo "=== Setup complete ==="
-echo "  oci-lxc-deployer: ${HTTPS_URL} (OIDC login via Zitadel)"
+echo "  proxvex: ${HTTPS_URL} (OIDC login via Zitadel)"

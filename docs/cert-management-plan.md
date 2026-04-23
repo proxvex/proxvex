@@ -2,7 +2,7 @@
 
 ## Context
 
-Applications deployed via oci-lxc-deployer often need TLS certificates (MQTT brokers, web servers, etc.). Currently, certificates must be manually created and uploaded. Since the hostname is known during deployment and FQDN is simple (hostname + suffix), oci-lxc-deployer can auto-generate self-signed certificates.
+Applications deployed via proxvex often need TLS certificates (MQTT brokers, web servers, etc.). Currently, certificates must be manually created and uploaded. Since the hostname is known during deployment and FQDN is simple (hostname + suffix), proxvex can auto-generate self-signed certificates.
 
 **Goal:** Add `certtype` property to parameters and uploadfiles. When set, the system auto-generates certificates if the user doesn't upload their own. Provide Web UI for CA management and bulk certificate renewal.
 

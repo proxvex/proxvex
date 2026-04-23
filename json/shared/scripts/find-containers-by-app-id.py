@@ -2,7 +2,7 @@
 """Find running containers by application_id.
 
 Scans `${LXC_MANAGER_PVE_LXC_DIR:-/etc/pve/lxc}/*.conf` for containers that:
-- contain the oci-lxc-deployer managed marker
+- contain the proxvex managed marker
 - match the specified application_id
 
 Only checks status for matching containers (not all), then returns only running ones.

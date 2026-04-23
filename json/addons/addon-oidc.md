@@ -36,7 +36,7 @@ Each application defines its own default callback path:
 
 | Application | Callback Path |
 |-------------|---------------|
-| oci-lxc-deployer | `/api/auth/callback` |
+| proxvex | `/api/auth/callback` |
 | nginx | `/oauth2/callback` |
 | gptwol | `/oidc/callback` |
 | gitea | (configured via CLI, not callback-based) |
@@ -62,7 +62,7 @@ The addon writes these variables into the container's LXC configuration:
 
 Instead of environment variables, Gitea uses its built-in CLI to register an OIDC authentication source. The addon runs `gitea admin auth add-oauth` inside the container after startup with the OpenID Connect discovery URL and credentials.
 
-### Other Apps (nginx, gptwol, node-red, oci-lxc-deployer)
+### Other Apps (nginx, gptwol, node-red, proxvex)
 
 OIDC configuration is injected as environment variables into the LXC config. The application reads these variables at startup.
 

@@ -17,8 +17,8 @@ if [ -z "$DEPLOYER_URL" ] || [ -z "$VE_CONTEXT" ]; then
 fi
 
 CA_URL="${DEPLOYER_URL}/api/${VE_CONTEXT}/ve/certificates/ca/download"
-CA_CERT="/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
-CA_CERT_SYSTEM="/usr/share/ca-certificates/oci-lxc-deployer-ca.crt"
+CA_CERT="/usr/local/share/ca-certificates/proxvex-ca.crt"
+CA_CERT_SYSTEM="/usr/share/ca-certificates/proxvex-ca.crt"
 
 CA_TMP=$(mktemp)
 trap 'rm -f "$CA_TMP"' EXIT
@@ -38,8 +38,8 @@ fi
 cp "$CA_TMP" "$CA_CERT"
 if [ -d /usr/share/ca-certificates ]; then
   cp "$CA_TMP" "$CA_CERT_SYSTEM"
-  if ! grep -q "oci-lxc-deployer-ca.crt" /etc/ca-certificates.conf 2>/dev/null; then
-    echo "oci-lxc-deployer-ca.crt" >> /etc/ca-certificates.conf
+  if ! grep -q "proxvex-ca.crt" /etc/ca-certificates.conf 2>/dev/null; then
+    echo "proxvex-ca.crt" >> /etc/ca-certificates.conf
   fi
 fi
 

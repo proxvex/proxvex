@@ -41,7 +41,7 @@ async function findExistingVm(
       try {
         const conf = nestedSsh(pveHost, sshPort,
           `pct config ${vmId} 2>/dev/null | head -40`, 5000);
-        if (!conf.includes("oci-lxc-deployer") || !conf.includes("managed")) continue;
+        if (!conf.includes("proxvex") || !conf.includes("managed")) continue;
         const appMatch = conf.match(/application-id\s+(\S+)/);
         const appId = appMatch?.[1]?.replace(/%20/g, " ");
         if (appId !== applicationId) continue;
@@ -412,7 +412,7 @@ export async function executeScenarios(
           if (!version && depStep) {
             try {
               const raw = nestedSsh(config.pveHost, config.portPveSsh,
-                `sed -n 's/.*oci-lxc-deployer%3Aversion \\([^ <]*\\).*/\\1/p' /etc/pve/lxc/${depStep.vmId}.conf 2>/dev/null | head -1`,
+                `sed -n 's/.*proxvex%3Aversion \\([^ <]*\\).*/\\1/p' /etc/pve/lxc/${depStep.vmId}.conf 2>/dev/null | head -1`,
                 5000);
               version = decodeURIComponent(raw.trim());
             } catch { /* ignore */ }

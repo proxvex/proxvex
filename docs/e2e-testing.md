@@ -14,7 +14,7 @@
 
 ## Goal
 
-End-to-end testing with automated VM creation, oci-lxc-deployer installation, and Mosquitto deployment via docker-compose.
+End-to-end testing with automated VM creation, proxvex installation, and Mosquitto deployment via docker-compose.
 
 ## Test Flow
 
@@ -25,7 +25,7 @@ End-to-end testing with automated VM creation, oci-lxc-deployer installation, an
 │           └── Step 0: Create custom Proxmox ISO with answer file        │
 │           └── Step 1: Create VM (QEMU) with Proxmox ISO                 │
 │           └── Step 2: Wait for unattended Proxmox installation          │
-│           └── Step 3: Install oci-lxc-deployer                          │
+│           └── Step 3: Install proxvex                          │
 │           └── Step 4: Install Samba addon for local directory           │
 │           └── Step 5: Create Mosquitto via docker-compose.yml           │
 │           └── Step 6: Upload configuration file                         │
@@ -103,13 +103,13 @@ Creates a nested Proxmox VM using the custom ISO with:
 - Network: vmbr1 (NAT bridge)
 - Port forwarding: 1008→8006, 1022→22, 3000→3080
 
-## Step 2: Install oci-lxc-deployer
+## Step 2: Install proxvex
 
 ```bash
 ./e2e/step2-install-deployer.sh
 ```
 
-Installs oci-lxc-deployer container (VMID 300) with:
+Installs proxvex container (VMID 300) with:
 - Static IP: 10.0.0.100/24
 - API accessible at http://ubuntupve:3080
 

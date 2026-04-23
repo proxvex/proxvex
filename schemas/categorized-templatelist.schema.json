@@ -7,6 +7,11 @@
     {
       "type": "object",
       "properties": {
+        "no_extend": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, do not merge phases from the parent via 'extends'; use only the phases listed on this task. Used by the proxvex migration upgrade-task to avoid inheriting replace_ct from oci-image parent."
+        },
         "image": { "$ref": "templatelist" },
         "create_ct": { "$ref": "templatelist" },
         "pre_start": { "$ref": "templatelist" },

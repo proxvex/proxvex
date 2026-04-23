@@ -20,7 +20,7 @@ if [ ! -d "$CLAUDE_PROJECT_DIR/backend/dist" ]; then
 fi
 
 # Run validation, capture output
-OUTPUT=$(cd "$CLAUDE_PROJECT_DIR/backend" && node dist/oci-lxc-deployer.mjs validate 2>&1)
+OUTPUT=$(cd "$CLAUDE_PROJECT_DIR/backend" && node dist/proxvex.mjs validate 2>&1)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 0 ]; then

@@ -31,7 +31,7 @@ const SSH_PORT = getSshPort();
  */
 export class ApplicationCreateHelper {
   private sshValidator: SSHValidator;
-  private remoteAppBasePath = '/root/oci-lxc-deployer/json/applications';
+  private remoteAppBasePath = '/root/proxvex/json/applications';
   private localPath: string | undefined;
 
   constructor(private page: Page) {

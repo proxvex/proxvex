@@ -8,7 +8,7 @@ import { createLogger } from "../logger/index.mjs";
 
 const logger = createLogger("cert-auto-renewal");
 
-export const CA_ISSUER_MARKER = "OCI-LXC-Deployer CA";
+export const CA_ISSUER_MARKER = "Proxvex CA";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const STATE_KEY = "auto_renewal";
 

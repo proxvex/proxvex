@@ -4,7 +4,7 @@
 #
 # Prerequisites:
 #   - Deployer installed manually:
-#     ./install-oci-lxc-deployer.sh --vm-id-start 500 --hostname old-prod-hub \
+#     ./install-proxvex.sh --vm-id-start 500 --hostname old-prod-hub \
 #       --static-ip 192.168.4.51/24 --nameserver 192.168.4.1 --gateway 192.168.4.1 \
 #       --deployer-url https://old-prod-hub
 #   - SSH access to router (root@router-kg) and PVE host (root@pve1.cluster)
@@ -31,7 +31,7 @@ DEPLOYER_VMID_START="${DEPLOYER_VMID_START:-500}"
 DEPLOYER_STATIC_IP="${DEPLOYER_STATIC_IP:-192.168.4.51/24}"
 DEPLOYER_GATEWAY="${DEPLOYER_GATEWAY:-192.168.4.1}"
 DEPLOYER_NAMESERVER="${DEPLOYER_NAMESERVER:-192.168.4.1}"
-INSTALLER_URL="${INSTALLER_URL:-https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh}"
+INSTALLER_URL="${INSTALLER_URL:-https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh}"
 
 # Secrets
 CF_TOKEN="${CF_TOKEN:-}"
@@ -101,7 +101,7 @@ Environment:
   DEPLOYER_STATIC_IP   default: 192.168.4.51/24
   DEPLOYER_GATEWAY     default: 192.168.4.1
   DEPLOYER_NAMESERVER  default: 192.168.4.1
-  INSTALLER_URL        default: github raw install-oci-lxc-deployer.sh
+  INSTALLER_URL        default: github raw install-proxvex.sh
 EOF
 }
 
@@ -236,8 +236,8 @@ if [ "$JSON_DEV_SYNC" -eq 1 ]; then
   # Push into the container, wipe stale json/, untar, clean up.
   pve_ssh "set -e
     pct push $deployer_vmid '$REMOTE_TARBALL' '$REMOTE_TARBALL'
-    pct exec $deployer_vmid -- rm -rf /usr/local/lib/node_modules/oci-lxc-deployer/json || true
-    pct exec $deployer_vmid -- tar xzf '$REMOTE_TARBALL' -C /usr/local/lib/node_modules/oci-lxc-deployer/
+    pct exec $deployer_vmid -- rm -rf /usr/local/lib/node_modules/proxvex/json || true
+    pct exec $deployer_vmid -- tar xzf '$REMOTE_TARBALL' -C /usr/local/lib/node_modules/proxvex/
     pct exec $deployer_vmid -- rm -f '$REMOTE_TARBALL'
     rm -f '$REMOTE_TARBALL'
   " || {
@@ -374,7 +374,7 @@ if should_run 2; then
   else
     echo "ERROR: Deployer not reachable at ${DEPLOYER_HOST}:3080 (HTTP) or :3443 (HTTPS)"
     echo "  Install it first:"
-    echo "    ./install-oci-lxc-deployer.sh --vm-id-start 500 --hostname ${DEPLOYER_HOST} \\"
+    echo "    ./install-proxvex.sh --vm-id-start 500 --hostname ${DEPLOYER_HOST} \\"
     echo "      --static-ip 192.168.4.51/24 --nameserver 192.168.4.1 --gateway 192.168.4.1 \\"
     echo "      --deployer-url https://${DEPLOYER_HOST}"
     exit 1

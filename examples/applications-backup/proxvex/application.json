@@ -1,0 +1,16 @@
+{
+  "name": "Proxvex",
+  "description": "proxvex Docker Image",
+  "extends": "oci-image",
+  "icon": "icon.png",
+  "installation": [
+    {
+      "name": "proxvex-parameters.json",
+      "before": "011-host-get-oci-image.json"
+    }
+  ],
+  "url": "https://github.com/proxvex/hassio-addon-repository",
+  "documentation": "https://github.com/proxvex/proxvex/blob/main/README.md",
+  "source": "https://github.com/proxvex/proxvex",
+  "vendor": "Carcam 360"
+}

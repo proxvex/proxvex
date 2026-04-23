@@ -1,6 +1,6 @@
 # Production Deployment
 
-Reproduzierbares Setup für oci-lxc-deployer, postgres, nginx, zitadel und gitea auf `pve1.cluster`.
+Reproduzierbares Setup für proxvex, postgres, nginx, zitadel und gitea auf `pve1.cluster`.
 
 ## VM-Zuordnung
 
@@ -8,7 +8,7 @@ VMs werden per `vm_id_start` ab einem Startwert automatisch vergeben (nächste f
 
 | App              | vm_id_start | Node      | IP             | Hostname            |
 |------------------|-------------|-----------|----------------|---------------------|
-| oci-lxc-deployer | 500         | pve1      | DHCP           | oci-lxc-deployer    |
+| proxvex | 500         | pve1      | DHCP           | proxvex    |
 | postgres         | 500         | pve1      | DHCP           | postgres            |
 | zitadel          | 500         | pve1      | DHCP           | zitadel             |
 | gitea            | 600         | ubuntupve | DHCP           | gitea               |
@@ -80,13 +80,13 @@ ssh root@router sh dns.sh
 ```
 
 
-### 2. oci-lxc-deployer installieren (auf PVE-Host)
+### 2. proxvex installieren (auf PVE-Host)
 
 Das Install-Script wird **mit `--https`** ausgeführt. Self-signed Zertifikate werden automatisch generiert.
 
 ```bash
 # Auf pve1.cluster:
-curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | sh -s -- \
+curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh | sh -s -- \
   --hostname old-prod-hub \
   --vm-id-start 500 \
   --static-ip 192.168.4.51/24 \
@@ -171,11 +171,11 @@ Das PAT wird automatisch aus dem laufenden Zitadel-Container gelesen.
 
 Das Script erstellt:
 - Machine User `deployer-cli` in Zitadel
-- Projekt `oci-lxc-deployer` mit Rolle `admin`
+- Projekt `proxvex` mit Rolle `admin`
 - Client Credentials (client_id + client_secret)
 - Datei `production/.env` mit den Credentials
 
-### 7. oci-lxc-deployer auf OIDC umstellen
+### 7. proxvex auf OIDC umstellen
 
 Reconfiguriert den Deployer mit `addon-oidc`. Das Addon erstellt automatisch einen OIDC-Client in Zitadel und konfiguriert die Umgebungsvariablen.
 
@@ -224,7 +224,7 @@ Alle anderen Apps bekommen self-signed Zertifikate aus der globalen CA. Der Depl
 | Nginx (Reverse Proxy + Static-Host) | `addon-acme` | Öffentlich |
 | Zitadel | `addon-ssl` | Öffentlich (via Nginx) + Lokal direkt |
 | Gitea | `addon-ssl` | Öffentlich (via Nginx) + Lokal direkt |
-| oci-lxc-deployer | `addon-ssl` | Nur Lokal |
+| proxvex | `addon-ssl` | Nur Lokal |
 | Node-RED | `addon-ssl` | Nur Lokal |
 | PostgREST | `addon-ssl` | Nur Lokal |
 | Postgres | `addon-ssl` | Nur DB-Clients |
@@ -253,7 +253,7 @@ Lokaler Zugang (LAN, alle *.ohnewarum.de über gleichen Pfad):
 
 Lokaler Direktzugang (LAN, CA auf Browser installiert):
   Browser (LAN) → DNS (DHCP-Hostname) → Container-IP
-    ├── oci-lxc-deployer:3443   → [self-signed] oci-lxc-deployer
+    ├── proxvex:3443   → [self-signed] proxvex
     ├── zitadel:1443            → [self-signed] Zitadel (direkt)
     └── nodered:1443            → [self-signed] Node-RED
 
@@ -347,7 +347,7 @@ Backends nutzen self-signed Zertifikate. Nginx verifiziert sie gegen die globale
 | Nebenkosten | ✓ nebenkosten.ohnewarum.de | — | Nginx-ACME | Client-seitig (PKCE) |
 | Zitadel | ✓ auth.ohnewarum.de | ✓ direkt :1443 | Self-signed | — |
 | Gitea | ✓ git.ohnewarum.de | ✓ direkt :1443 | Self-signed | addon-oidc |
-| oci-lxc-deployer | ✗ | ✓ direkt :3443 | Self-signed | addon-oidc |
+| proxvex | ✗ | ✓ direkt :3443 | Self-signed | addon-oidc |
 | Node-RED | ✗ | ✓ direkt :1443 | Self-signed | — |
 | Postgres | ✗ | ✓ nur DB-Clients | Self-signed | — |
 | MQTT | ✗ | ✓ nur MQTT-Clients | Self-signed | — |

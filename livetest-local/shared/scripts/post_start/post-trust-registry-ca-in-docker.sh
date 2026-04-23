@@ -3,8 +3,8 @@
 # Mirrors run on nested VM: Docker Hub on 10.0.0.1:443, ghcr.io on 10.0.0.2:443.
 # Uses insecure-registries (no TLS certificates needed).
 
-DOCKERHUB_MARKER="# oci-lxc-deployer: registry mirror"
-GHCR_MARKER="# oci-lxc-deployer: ghcr mirror"
+DOCKERHUB_MARKER="# proxvex: registry mirror"
+GHCR_MARKER="# proxvex: ghcr mirror"
 
 # /etc/hosts entries
 grep -q "$DOCKERHUB_MARKER" /etc/hosts 2>/dev/null || {

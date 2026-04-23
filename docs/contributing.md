@@ -1,4 +1,4 @@
-# Contributing to OCI LXC Deployer
+# Contributing to Proxvex
 
 This guide describes the fork-based rebase workflow used by this project.
 The goal is a clean, linear commit history on `main` with no merge commits.
@@ -17,24 +17,24 @@ The goal is a clean, linear commit history on `main` with no merge commits.
 Fork the repository on GitHub, then clone your fork:
 
 ```bash
-git clone git@github.com:YOUR_USERNAME/oci-lxc-deployer.git
-cd oci-lxc-deployer
+git clone git@github.com:YOUR_USERNAME/proxvex.git
+cd proxvex
 ```
 
 ### 2. Add Upstream Remote
 
 ```bash
-git remote add upstream git@github.com:modbus2mqtt/oci-lxc-deployer.git
+git remote add upstream git@github.com:proxvex/proxvex.git
 ```
 
 Verify:
 
 ```bash
 git remote -v
-# origin    git@github.com:YOUR_USERNAME/oci-lxc-deployer.git (fetch)
-# origin    git@github.com:YOUR_USERNAME/oci-lxc-deployer.git (push)
-# upstream  git@github.com:modbus2mqtt/oci-lxc-deployer.git (fetch)
-# upstream  git@github.com:modbus2mqtt/oci-lxc-deployer.git (push)
+# origin    git@github.com:YOUR_USERNAME/proxvex.git (fetch)
+# origin    git@github.com:YOUR_USERNAME/proxvex.git (push)
+# upstream  git@github.com:proxvex/proxvex.git (fetch)
+# upstream  git@github.com:proxvex/proxvex.git (push)
 ```
 
 ### 3. Install Dependencies
@@ -280,5 +280,5 @@ git rebase --abort
 ### No 'upstream' remote
 
 ```bash
-git remote add upstream git@github.com:modbus2mqtt/oci-lxc-deployer.git
+git remote add upstream git@github.com:proxvex/proxvex.git
 ```

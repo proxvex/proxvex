@@ -1,0 +1,11 @@
+{
+  "execute_on": "lxc",
+  "name": "Set download URLs",
+  "description": "Sets default download URL and public key for Proxvex package and key for signature verification from GitHub",
+  "commands": [
+    {
+      "script": "set-download-url.sh",
+      "outputs": ["packagerpubkeyurl", "packageurl"]
+    }
+  ]
+}

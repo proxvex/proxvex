@@ -85,7 +85,7 @@ if [ "$POST_STATUS" != "running" ]; then
   fi
 
   # Show log viewer URL from notes if available
-  LOG_URL=$(pct config "$VMID" 2>/dev/null | grep -ao 'oci-lxc-deployer[:%]3[Aa]log-url [^ ]*' | head -1 | sed 's/.*log-url //')
+  LOG_URL=$(pct config "$VMID" 2>/dev/null | grep -ao 'proxvex[:%]3[Aa]log-url [^ ]*' | head -1 | sed 's/.*log-url //')
   if [ -n "$LOG_URL" ]; then
     echo "" >&2
     echo "Full log: $LOG_URL" >&2

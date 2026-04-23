@@ -550,7 +550,7 @@ export class WebAppVeRouteHandlers {
       }
 
       // Mark deployer-instance for self-reconfigure support
-      if (application === "oci-lxc-deployer") {
+      if (application === "proxvex") {
         defaults.set("is_deployer", "true");
       }
 

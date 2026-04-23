@@ -5,7 +5,7 @@ import { validateAllJson } from "@src/validateAllJson.mjs";
  * This test validates all JSON files in the project (templates, applications, frameworks, addons).
  * It ensures that when all unit tests pass, all JSON configurations are also valid.
  *
- * This is equivalent to running: node oci-lxc-deployer.mjs validate
+ * This is equivalent to running: node proxvex.mjs validate
  */
 describe("validateAllJson", () => {
   it("should validate all templates, applications, frameworks and addons without errors", async () => {

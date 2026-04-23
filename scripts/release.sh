@@ -6,10 +6,10 @@
 #
 set -euo pipefail
 
-UPSTREAM_REPO="modbus2mqtt/oci-lxc-deployer"
-UPSTREAM_GH_USER="modbus2mqtt"
+UPSTREAM_REPO="proxvex/proxvex"
+UPSTREAM_GH_USER="proxvex"
 ORIGIN_OWNER="volkmarnissen"
-ORIGIN_REPO="${ORIGIN_OWNER}/oci-lxc-deployer"
+ORIGIN_REPO="${ORIGIN_OWNER}/proxvex"
 VERSION="${1:-patch}"
 
 # ── Colors ────────────────────────────────────────────────────────────
