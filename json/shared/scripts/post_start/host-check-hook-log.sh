@@ -17,9 +17,9 @@ TIMEOUT=120
 
 CONF_FILE="/etc/pve/lxc/${VMID}.conf"
 
-# Find on_start.d scripts via oci-deployer mount (managed volume or bind mount)
+# Find on_start.d scripts via proxvex mount (managed volume or bind mount)
 OCI_DEPLOYER_PATH=""
-_mp_line=$(grep 'mp=/etc/lxc-oci-deployer' "$CONF_FILE" 2>/dev/null | head -1)
+_mp_line=$(grep 'mp=/etc/proxvex' "$CONF_FILE" 2>/dev/null | head -1)
 if [ -n "$_mp_line" ]; then
   _mp_source=$(echo "$_mp_line" | sed -E 's/^mp[0-9]+: *//' | cut -d, -f1)
   case "$_mp_source" in
@@ -34,7 +34,7 @@ if [ -n "$_mp_line" ]; then
   esac
 fi
 if [ -z "$OCI_DEPLOYER_PATH" ]; then
-  echo "No oci-deployer mount found, skipping" >&2
+  echo "No proxvex mount found, skipping" >&2
   printf '[{"id":"hook_status","value":"no_hooks"}]\n'
   exit 0
 fi

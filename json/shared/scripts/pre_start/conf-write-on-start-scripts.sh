@@ -1,7 +1,7 @@
 #!/bin/sh
 # Write on_start_container dispatcher and drop-in scripts to the host-side
 # volume directory. When the container starts, these files are available
-# at /etc/lxc-oci-deployer/ via bind mount.
+# at /etc/proxvex/ via bind mount.
 #
 # This script runs on the PVE host (execute_on: ve) and replaces the
 # post_start templates 332, 340, 342, and 325.
@@ -49,7 +49,7 @@ is_set() {
 }
 
 SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "oci-deployer")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
 
 if [ ! -d "$VOLUME_DIR" ]; then
   log "Warning: Volume directory $VOLUME_DIR does not exist, skipping"
@@ -85,11 +85,11 @@ chown "$VOL_OWNER" "${VOLUME_DIR}/on_start.d" 2>/dev/null || true
 cat > "${VOLUME_DIR}/on_start_container" << 'DISPEOF'
 #!/bin/sh
 # on_start_container - runs all drop-in scripts on container start
-# Called by Proxmox hookscript via: pct exec <CTID> -- /etc/lxc-oci-deployer/on_start_container [UID] [GID]
+# Called by Proxmox hookscript via: pct exec <CTID> -- /etc/proxvex/on_start_container [UID] [GID]
 
 APP_UID="${1:-0}"
 APP_GID="${2:-0}"
-DROPIN_DIR="/etc/lxc-oci-deployer/on_start.d"
+DROPIN_DIR="/etc/proxvex/on_start.d"
 
 echo "===OCI_HOOK_START===" >&2
 HOOK_FAILED=0
@@ -167,7 +167,7 @@ APP_UID="${1:-0}"
 APP_GID="${2:-0}"
 export HOME="/root"
 ACME_HOME="/root/.acme.sh"
-RELOAD_SCRIPT="/etc/lxc-oci-deployer/reload_certificates"
+RELOAD_SCRIPT="/etc/proxvex/reload_certificates"
 
 # Normalize "NOT_DEFINED" sentinels from the template engine to empty strings.
 [ "$ACME_EMAIL" = "NOT_DEFINED" ] && ACME_EMAIL=""
@@ -437,7 +437,7 @@ NGINX_CONF_DIR=""
 
 # --- Docker-Compose detection ---
 # If this is a compose app with SSL overlay, copy and start
-OCI_COMPOSE_DIR="/etc/lxc-oci-deployer/docker-compose/${COMPOSE_PROJECT}"
+OCI_COMPOSE_DIR="/etc/proxvex/docker-compose/${COMPOSE_PROJECT}"
 if [ -n "$COMPOSE_PROJECT" ] && [ "$COMPOSE_PROJECT" != "NOT_DEFINED" ] && [ -d "$OCI_COMPOSE_DIR" ]; then
   TARGET_DIR="/opt/docker-compose/${COMPOSE_PROJECT}"
   if [ -d "$TARGET_DIR" ]; then
@@ -600,7 +600,7 @@ else
 fi
 
 # --- Create reload_certificates hook for ACME renewal ---
-RELOAD_SCRIPT="/etc/lxc-oci-deployer/reload_certificates"
+RELOAD_SCRIPT="/etc/proxvex/reload_certificates"
 cat > "$RELOAD_SCRIPT" <<'RELOADEOF'
 #!/bin/sh
 # Reload nginx to pick up renewed certificates

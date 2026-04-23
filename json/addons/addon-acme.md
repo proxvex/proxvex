@@ -79,11 +79,11 @@ Only relevant for `proxy` mode. The HTTP port of the application to proxy, and t
 ```
 Container Start
   -> Proxmox Hookscript
-    -> /etc/lxc-oci-deployer/on_start_container
+    -> /etc/proxvex/on_start_container
       -> on_start.d/acme-renew.sh  (install acme.sh, issue/renew cert, background loop)
       -> on_start.d/ssl-proxy.sh   (install nginx, configure proxy, iptables)
 ```
 
-The on_start.d scripts are prepared on the PVE host during pre_start and placed into a bind-mounted volume at `/etc/lxc-oci-deployer/`. When the container starts, the hookscript executes them automatically.
+The on_start.d scripts are prepared on the PVE host during pre_start and placed into a bind-mounted volume at `/etc/proxvex/`. When the container starts, the hookscript executes them automatically.
 
 Certificate files are written to `/etc/ssl/addon/` (also bind-mounted). A background loop checks renewal every 24 hours.

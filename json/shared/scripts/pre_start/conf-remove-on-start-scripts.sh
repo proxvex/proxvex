@@ -15,7 +15,7 @@ HOSTNAME="{{ hostname }}"
 log() { echo "$@" >&2; }
 
 SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "oci-deployer")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
 
 if [ ! -d "$VOLUME_DIR" ]; then
   log "Volume directory $VOLUME_DIR does not exist, nothing to remove"

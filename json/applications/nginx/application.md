@@ -59,7 +59,7 @@ The two SSL-related addons solve **different** problems and are commonly used
 - **addon-acme** obtains and renews publicly-trusted Let's Encrypt certificates
   for domains you own. It writes `privkey.pem`, `cert.pem`, and `fullchain.pem`
   into `/etc/ssl/addon/`. Renewal runs as a background loop inside the
-  container and triggers `/etc/lxc-oci-deployer/reload_certificates` after each
+  container and triggers `/etc/proxvex/reload_certificates` after each
   successful renewal.
 
 - **addon-ssl** in `ssl_mode=certs` (with `ssl.needs_server_cert=false`) adds
@@ -177,7 +177,7 @@ Note:
 ### Reload hook
 
 When `addon-acme` is enabled on nginx, the application installs
-`/etc/lxc-oci-deployer/reload_certificates` at pre_start (see
+`/etc/proxvex/reload_certificates` at pre_start (see
 `conf-write-reload-hook.json`, gated by `skip_if_all_missing: ["acme_san"]`).
 Its content is:
 
@@ -403,7 +403,7 @@ pct exec <vmid> -- ss -tln | grep -E ":(1443|8080)"
 
 If only `:8080` shows up, your vhost config is stale — regenerate and reload.
 
-**Reload hook not running** — check that `/etc/lxc-oci-deployer/reload_certificates`
+**Reload hook not running** — check that `/etc/proxvex/reload_certificates`
 exists inside the container and is executable. It's written by the
 application's pre_start only when `acme_san` is set.
 

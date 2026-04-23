@@ -5,7 +5,7 @@
 # 1. Creates/updates the generic hookscript at /var/lib/vz/snippets/
 # 2. Registers it with the container via pct set --hookscript
 #
-# The hookscript calls /etc/lxc-oci-deployer/on_start_container inside
+# The hookscript calls /etc/proxvex/on_start_container inside
 # the container on post-start, which runs all scripts in on_start.d/.
 #
 # Version management:
@@ -19,7 +19,7 @@
 # Output: JSON to stdout
 
 VMID="{{ vm_id }}"
-HOOK_PATH="/var/lib/vz/snippets/lxc-oci-deployer-hook.sh"
+HOOK_PATH="/var/lib/vz/snippets/proxvex-hook.sh"
 NEW_VERSION=19
 
 # The hookscript body (everything below the header)
@@ -38,7 +38,7 @@ case $phase in
     systemctl stop "lxc-hook-${vmid}" 2>/dev/null || true
     systemctl reset-failed "lxc-hook-${vmid}" 2>/dev/null || true
     # Run on_start scripts in background via systemd-run (survives hookscript exit)
-    systemd-run --no-block --unit="lxc-hook-${vmid}" sh -c "pct exec ${vmid} -- /etc/lxc-oci-deployer/on_start_container ${APP_UID:-0} ${APP_GID:-0} >>${LOG_FILE:-/dev/null} 2>&1"
+    systemd-run --no-block --unit="lxc-hook-${vmid}" sh -c "pct exec ${vmid} -- /etc/proxvex/on_start_container ${APP_UID:-0} ${APP_GID:-0} >>${LOG_FILE:-/dev/null} 2>&1"
     ;;
   pre-stop)
     # Warn about persistent volumes with non-conventional names.
@@ -110,7 +110,7 @@ fi
 
 # Register hookscript with container (idempotent)
 CURRENT_HOOK=$(pct config "$VMID" 2>/dev/null | grep '^hookscript:' | awk '{print $2}')
-TARGET_HOOK="local:snippets/lxc-oci-deployer-hook.sh"
+TARGET_HOOK="local:snippets/proxvex-hook.sh"
 
 if [ "$CURRENT_HOOK" = "$TARGET_HOOK" ]; then
   echo "Hookscript already registered for container $VMID" >&2

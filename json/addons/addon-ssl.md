@@ -72,5 +72,5 @@ For proxy mode, an nginx reverse proxy is configured via an on_start.d drop-in s
 ## Notice
 
 This addon installs a **hookscript** on the Proxmox host
-(`/var/lib/vz/snippets/lxc-oci-deployer-hook.sh`) that automatically
+(`/var/lib/vz/snippets/proxvex-hook.sh`) that automatically
 runs on_start.d scripts after a container restart.

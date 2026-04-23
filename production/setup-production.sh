@@ -21,7 +21,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # --- Production Configuration ---
-export DEPLOYER_HOST="${DEPLOYER_HOST:-old-prod-hub}"
+export DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 export DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-$DEPLOYER_HOST}"
 export PVE_HOST="${PVE_HOST:-pve1.cluster}"
 ROUTER_HOST="${ROUTER_HOST:-router-kg}"
