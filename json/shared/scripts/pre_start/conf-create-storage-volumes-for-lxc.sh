@@ -193,7 +193,12 @@ while IFS= read -r line <&3; do
           if [ -n "$NEW_VOLID" ]; then
             pct set "$VMID" -delete "$_cur_mp_key" >&2 2>/dev/null || true
             _cur_mp_args="${NEW_VOLID},mp=${VOLUME_PATH}"
-            [ -n "$VOLUME_OPTS" ] && _cur_mp_args="${_cur_mp_args},${VOLUME_OPTS}"
+            # VOLUME_OPTS is set via `cut -d',' -f2-`, which returns the whole
+            # field when no comma is present. Only append when real options
+            # were provided (i.e., VOLUME_REST actually contained a comma).
+            case "$VOLUME_REST" in
+              *,*) _cur_mp_args="${_cur_mp_args},${VOLUME_OPTS}" ;;
+            esac
             pct set "$VMID" -"$_cur_mp_key" "$_cur_mp_args" >&2
             log "Renamed $_cur_mp_key: $_cur_volid → $NEW_VOLID"
           else
