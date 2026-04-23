@@ -514,7 +514,7 @@ export class VeConfigurationService {
     return this.post<ILogRotationStatus, object>(ApiUri.LogRotationCheck, {});
   }
 
-  checkDependencies(applicationId: string, addons?: string[], stackId?: string): Observable<IDependencyCheckResponse> {
+  checkDependencies(applicationId: string, addons?: string[], stackIds?: string[]): Observable<IDependencyCheckResponse> {
     let url = ApiUri.DependencyCheck.replace(':application', encodeURIComponent(applicationId));
     if (this.veContextKey) {
       url = url.replace(':veContext', this.veContextKey);
@@ -523,8 +523,8 @@ export class VeConfigurationService {
     if (addons && addons.length > 0) {
       params.push(`addons=${addons.map(a => encodeURIComponent(a)).join(',')}`);
     }
-    if (stackId) {
-      params.push(`stackId=${encodeURIComponent(stackId)}`);
+    if (stackIds && stackIds.length > 0) {
+      params.push(`stackIds=${stackIds.map(s => encodeURIComponent(s)).join(',')}`);
     }
     if (params.length > 0) {
       url += '?' + params.join('&');

@@ -18,7 +18,7 @@ USERNAME_RAW = "{{ username }}"
 UID_RAW = "{{ uid }}"
 GID_RAW = "{{ gid }}"
 IS_DEPLOYER_RAW = "{{ is_deployer }}"
-STACK_NAME_RAW = "{{ stack_id }}"
+ALL_STACK_IDS_RAW = "{{ all_stack_ids }}"
 
 
 def build_notes(include_icon):
@@ -34,7 +34,7 @@ def build_notes(include_icon):
     uid = normalize_value(UID_RAW)
     gid = normalize_value(GID_RAW)
     oci_image_raw = normalize_value(OCI_IMAGE_RAW)
-    stack_name = normalize_value(STACK_NAME_RAW)
+    stack_ids = parse_stack_ids(ALL_STACK_IDS_RAW)
 
     oci_image_visible = strip_oci_prefix(oci_image_raw)
 
@@ -45,7 +45,7 @@ def build_notes(include_icon):
         app_name=app_name, version=version, deployer_url=deployer_url,
         ve_context=ve_context, icon_base64=icon_base64,
         icon_mime_type=icon_mime_type, username=username, uid=uid, gid=gid,
-        is_deployer=is_deployer, stack_name=stack_name,
+        is_deployer=is_deployer, stack_ids=stack_ids,
     )
 
     lines += build_visible_header(

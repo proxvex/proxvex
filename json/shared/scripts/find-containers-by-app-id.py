@@ -80,14 +80,10 @@ def main() -> None:
             config = parse_lxc_config(conf_text)
 
             if config.application_id == app_id:
-                # If stack_id filter is set, only match containers in the same stack
+                # If stack_id filter is set, only match containers that declare
+                # this stack id in their stack_ids list.
                 if stack_id_filter:
-                    # Extract base name from stack_id for cross-stacktype matching
-                    # e.g. "postgres_ssl" and "oidc_ssl" share base "ssl"
-                    config_stack = config.stack_name or ""
-                    config_base = config_stack.split("_", 1)[1] if "_" in config_stack else config_stack
-                    filter_base = stack_id_filter.split("_", 1)[1] if "_" in stack_id_filter else stack_id_filter
-                    if config_base != filter_base:
+                    if stack_id_filter not in (config.stack_ids or []):
                         continue
                 matching.append({
                     "vm_id": int(vmid_str),

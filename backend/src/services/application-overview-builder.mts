@@ -298,7 +298,10 @@ export class ApplicationOverviewBuilder {
       if (c.cores !== undefined) installedValues.set("cores", c.cores);
       if (c.disk_size !== undefined) installedValues.set("disk_size", c.disk_size);
       if (c.volumes !== undefined) installedValues.set("volumes", c.volumes);
-      if (c.stack_name !== undefined) installedValues.set("stack_name", c.stack_name);
+      const primaryStackId = c.stack_ids?.[0];
+      if (primaryStackId) {
+        installedValues.set("stack_name", primaryStackId);
+      }
       if (c.vm_id !== undefined) installedValues.set("vm_id", c.vm_id);
     }
 

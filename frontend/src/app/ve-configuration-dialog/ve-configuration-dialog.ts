@@ -856,11 +856,13 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
 
   /** Check if dependency containers are running. Re-called on addon/stack changes. */
   private checkDependencies(): void {
-    const stackId = this.selectedStack?.id;
+    const stackIds = [...new Set(
+      Array.from(this.selectedStacks.values()).map(s => s.id)
+    )];
     this.configService.checkDependencies(
       this.data.app.id,
       this.selectedAddons(),
-      stackId ?? undefined,
+      stackIds.length > 0 ? stackIds : undefined,
     ).subscribe({
       next: (res) => {
         const errors = res.dependencies.filter(d => d.status !== 'running');

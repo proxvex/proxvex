@@ -141,9 +141,8 @@ function usageVarToAction(
  * Discovery: for a given stack + optional variable, enumerates all installed
  * containers that declare usage and produces a preview of refresh actions.
  *
- * Requires a VE context to query `listManagedContainers`. Assumes a single
- * stack binding per container via `stack_name` (today's data model) — future
- * work may expand to per-stacktype bindings.
+ * Requires a VE context to query `listManagedContainers`. Containers may bind
+ * multiple stacks via the `stack_ids` list (one per covered stacktype).
  */
 export async function findRefreshTargets(
   pm: PersistenceManager,
@@ -162,9 +161,9 @@ export async function findRefreshTargets(
   for (const container of containers) {
     if (!container.application_id) continue;
     if (vmIdFilter !== undefined && container.vm_id !== vmIdFilter) continue;
-    // Match stack binding: today only the single-primary stack_name exists.
-    // Include containers that either bind this stack directly, or that have
-    // an application whose stacktype list contains one of the stack's types.
+    // Match stack binding: container's stack_ids list contains one entry per
+    // stacktype it covers. Include containers whose application's stacktype
+    // list intersects this stack's stacktype.
     const declares = declaredStacktypes(
       container,
       repositories,
@@ -175,14 +174,18 @@ export async function findRefreshTargets(
     );
     if (relevantStacktypes.length === 0) continue;
 
-    // Optional tighter binding: if container has a stack_name and it is not
-    // our stack id, skip. This errs on the safe side.
+    // Tighter binding: if container exposes stack_ids and none of them match
+    // this stack id, only keep the container when one of its bindings shares a
+    // stacktype with our stack (so refreshing across siblings still works).
     if (
-      container.stack_name &&
-      container.stack_name !== stack.id &&
-      !stacktypeSharedWithOtherStack(container.stack_name, stack, pm)
+      container.stack_ids &&
+      container.stack_ids.length > 0 &&
+      !container.stack_ids.includes(stack.id) &&
+      !container.stack_ids.some((sid) =>
+        stacktypeSharedWithOtherStack(sid, stack, pm),
+      )
     ) {
-      // container already bound to a different stack of a different type — keep
+      continue;
     }
 
     // Load application + active addons

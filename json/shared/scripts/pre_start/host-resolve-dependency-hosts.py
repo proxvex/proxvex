@@ -84,15 +84,6 @@ def main() -> None:
     if stack_name:
         all_stack_names.add(stack_name)
 
-    # Extract base names from stack IDs (e.g. "postgres_default" -> "default").
-    # Multi-stack apps (e.g. zitadel with stacktype ["postgres","oidc"]) store only
-    # their first stack ID, but dependencies may reference a different stacktype.
-    # Matching by base name ensures cross-stacktype dependencies resolve correctly.
-    all_base_names: set[str] = set()
-    for sn in all_stack_names:
-        idx = sn.find("_")
-        all_base_names.add(sn[idx + 1:] if idx >= 0 else sn)
-
     # Build set of needed application_ids
     needed = {dep["application"] for dep in deps if "application" in dep}
     if not needed:
@@ -132,12 +123,11 @@ def main() -> None:
             if config.application_id not in needed:
                 continue
 
-            # Match stack: container must belong to any of the selected stacks.
-            # Compare by base name to handle cross-stacktype dependencies
-            # (e.g. container has "postgres_default", deployment uses "oidc_default").
-            config_stack = config.stack_name or ""
-            config_base = config_stack[config_stack.find("_") + 1:] if "_" in config_stack else config_stack
-            if config_stack not in all_stack_names and config_base not in all_base_names:
+            # Match stack: container must declare membership in any of the
+            # selected stack IDs. Multi-stack containers (e.g. zitadel covers
+            # postgres+oidc+cloudflare) list one stack id per stacktype.
+            config_stack_ids = list(config.stack_ids or [])
+            if not any(sid in all_stack_names for sid in config_stack_ids):
                 continue
 
             if not config.hostname:
@@ -193,7 +183,7 @@ def main() -> None:
                 continue
             print(
                 "WARNING: Dependency %s found in different stack (%s), using anyway"
-                % (config.application_id, config.stack_name or "unknown"),
+                % (config.application_id, ",".join(config.stack_ids or []) or "unknown"),
                 file=sys.stderr,
             )
             found[config.application_id] = {

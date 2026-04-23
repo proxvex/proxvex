@@ -111,8 +111,8 @@ def main() -> None:
                 item["disk_size"] = config.disk_size
             if config.bridge:
                 item["bridge"] = config.bridge
-            if config.stack_name:
-                item["stack_name"] = config.stack_name
+            if config.stack_ids:
+                item["stack_ids"] = list(config.stack_ids)
             # Mount points for existing volumes display
             if config.mount_points:
                 item["mount_points"] = [

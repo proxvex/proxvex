@@ -32,12 +32,35 @@ def strip_oci_prefix(oci_image_raw):
     return oci_image_raw
 
 
+def parse_stack_ids(raw):
+    """Parse JSON list of stack IDs from a template variable.
+
+    Accepts the raw template-variable value and returns an empty list if
+    the variable was not defined or cannot be parsed.
+    """
+    val = normalize_value(raw)
+    if not val:
+        return []
+    try:
+        parsed = json.loads(val)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [s for s in parsed if isinstance(s, str) and s]
+
+
 def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
                          version="", deployer_url="", ve_context="",
                          icon_base64="", icon_mime_type="",
                          username="", uid="", gid="",
-                         is_deployer=False, stack_name=""):
-    """Build hidden HTML comment markers for machine parsing."""
+                         is_deployer=False, stack_ids=None):
+    """Build hidden HTML comment markers for machine parsing.
+
+    stack_ids: list of full stack IDs the container is a member of (e.g.
+    ["postgres_production", "oidc_production"]). One ``stack-id <id>``
+    marker is emitted per entry, allowing per-stack dependency lookups.
+    """
     lines = []
     lines.append("<!-- oci-lxc-deployer:managed -->")
     if is_deployer:
@@ -60,8 +83,9 @@ def build_hidden_markers(vmid, oci_image_visible="", app_id="", app_name="",
         lines.append("<!-- oci-lxc-deployer:uid %s -->" % uid)
     if gid:
         lines.append("<!-- oci-lxc-deployer:gid %s -->" % gid)
-    if stack_name:
-        lines.append("<!-- oci-lxc-deployer:stack-id %s -->" % stack_name)
+    for sid in (stack_ids or []):
+        if sid:
+            lines.append("<!-- oci-lxc-deployer:stack-id %s -->" % sid)
     return lines
 
 
