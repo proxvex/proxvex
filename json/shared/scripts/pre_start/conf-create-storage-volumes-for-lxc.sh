@@ -152,14 +152,6 @@ while IFS= read -r line <&3; do
 
   SAFE_KEY=$(pve_sanitize_name "$VOLUME_KEY")
 
-  # Check if mount target already exists on the container
-  case " $EXISTING_TARGETS " in
-    *" $VOLUME_PATH "*)
-      log "Skipping $VOLUME_KEY ($VOLUME_PATH) - mount already exists"
-      continue
-      ;;
-  esac
-
   # Volume naming strategy:
   # - Proxmox requires subvol-<VMID>-<suffix> format in .conf for pct start
   # - We use the suffix ({hostname}-{key}) as the stable reuse key
@@ -168,6 +160,54 @@ while IFS= read -r line <&3; do
   # - Reuse lookup checks clean name first, then conventional names
   VOL_SUFFIX="${SAFE_HOST}-${SAFE_KEY}"
   VOL_NAME="subvol-${VMID}-${VOL_SUFFIX}"
+
+  # Check if mount target already exists on the container
+  case " $EXISTING_TARGETS " in
+    *" $VOLUME_PATH "*)
+      # Mount is present (typical after pct clone --full during reconfigure).
+      # `pct clone` auto-numbers cloned volumes as subvol-<vmid>-disk-N — they
+      # need to be renamed to the convention so vol_get_existing /
+      # resolve_host_volume find them later. If the name already matches the
+      # convention, skip.
+      _cur_mp_line=$(pct config "$VMID" 2>/dev/null | grep -aE "^mp[0-9]+:[[:space:]].*mp=${VOLUME_PATH}([[:space:]]|,|$)" | head -n1)
+      _cur_mp_key=$(echo "$_cur_mp_line" | cut -d: -f1)
+      _cur_volid=$(echo "$_cur_mp_line" | sed -E 's/^mp[0-9]+:[[:space:]]+([^,]+),.*/\1/')
+      _cur_volname="${_cur_volid#*:}"
+
+      if [ "$_cur_volname" = "$VOL_NAME" ]; then
+        log "Skipping $VOLUME_KEY ($VOLUME_PATH) - mount already exists as $_cur_volname"
+        continue
+      fi
+
+      # Only rename when the current name follows pct's auto-numbered pattern
+      # (subvol-<vmid>-disk-N). Anything else is a user-provided mount we
+      # won't touch.
+      case "$_cur_volname" in
+        subvol-${VMID}-disk-[0-9]*)
+          if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
+            pct stop "$VMID" >&2 || true
+            NEEDS_STOP=1
+          fi
+          log "Renaming cloned volume $_cur_volid to convention: $VOL_NAME"
+          NEW_VOLID=$(vol_rename "$VOLUME_STORAGE" "$_cur_volid" "$VOL_NAME" "$STORAGE_TYPE" || true)
+          if [ -n "$NEW_VOLID" ]; then
+            pct set "$VMID" -delete "$_cur_mp_key" >&2 2>/dev/null || true
+            _cur_mp_args="${NEW_VOLID},mp=${VOLUME_PATH}"
+            [ -n "$VOLUME_OPTS" ] && _cur_mp_args="${_cur_mp_args},${VOLUME_OPTS}"
+            pct set "$VMID" -"$_cur_mp_key" "$_cur_mp_args" >&2
+            log "Renamed $_cur_mp_key: $_cur_volid → $NEW_VOLID"
+          else
+            log "Warning: rename $_cur_volid → $VOL_NAME failed, leaving mount unchanged"
+          fi
+          continue
+          ;;
+        *)
+          log "Skipping $VOLUME_KEY ($VOLUME_PATH) - mount already exists with non-conventional name $_cur_volname (not auto-numbered, leaving as-is)"
+          continue
+          ;;
+      esac
+      ;;
+  esac
 
   # Reuse lookup: clean name (from previous destroy) -> conventional names
   VOLID=$(vol_get_existing "$VOLUME_STORAGE" "$VOL_SUFFIX" "$STORAGE_TYPE" "$PREV_VMID")
