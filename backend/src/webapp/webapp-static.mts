@@ -15,11 +15,11 @@ export function setupStaticRoutes(
       const pkg = JSON.parse(fs.readFileSync(rootPkg, "utf-8"));
       if (
         pkg &&
-        pkg.ociLxcDeployer &&
-        pkg.ociLxcDeployer.frontendDir &&
+        pkg.proxvex &&
+        pkg.proxvex.frontendDir &&
         !configuredRel
       ) {
-        configuredRel = String(pkg.ociLxcDeployer.frontendDir);
+        configuredRel = String(pkg.proxvex.frontendDir);
       }
     }
   } catch {}

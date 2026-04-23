@@ -6,7 +6,7 @@ lxc-exec.mjs -> Simple command line tool to execute tasks (installation, backup)
 webapp.mjs -> As lxc-exec.mjs but with web ui: select application then execute task 
 
 Installation scenario:
-Install oci-lxc-deployer as lxc container on a ve host.(Currently proxmox only)
+Install proxvex as lxc container on a ve host.(Currently proxmox only)
 Use scenario:
 - open the web ui and install lxc containers for the commonly available applications (homeassistant nodered ...)
 - create own extended applications and templates with easier setup (e.g. static ip generation...)

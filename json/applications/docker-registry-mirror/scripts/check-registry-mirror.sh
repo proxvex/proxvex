@@ -36,14 +36,14 @@ else
 fi
 
 # 2. Add /etc/hosts entries for Docker Hub hostnames -> mirror IP
-MARKER="# oci-lxc-deployer: registry mirror"
+MARKER="# proxvex: registry mirror"
 if [ -n "$MIRROR_IP" ] && ! grep -q "$MARKER" /etc/hosts 2>/dev/null; then
   echo "${MIRROR_IP} registry-1.docker.io index.docker.io  ${MARKER}" >> /etc/hosts
   echo "Added /etc/hosts: ${MIRROR_IP} -> registry-1.docker.io, index.docker.io" >&2
 fi
 
 # 3. Verify CA certificate is installed (installed by 005-host-trust-deployer-ca)
-CA_CERT="/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
+CA_CERT="/usr/local/share/ca-certificates/proxvex-ca.crt"
 if [ ! -f "$CA_CERT" ]; then
   add_error "CA: Deployer CA certificate not installed at ${CA_CERT}"
 fi

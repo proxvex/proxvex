@@ -16,10 +16,10 @@ RUN chown -R runner:runner /home/runner
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
 LABEL \
-    org.opencontainers.image.title="oci-lxc-deployer-github-runner" \
-    org.opencontainers.image.description="GitHub Actions self-hosted runner for oci-lxc-deployer CI/CD with etherwake and pvetest" \
-    org.opencontainers.image.vendor="modbus2mqtt" \
+    org.opencontainers.image.title="proxvex-github-runner" \
+    org.opencontainers.image.description="GitHub Actions self-hosted runner for proxvex CI/CD with etherwake and pvetest" \
+    org.opencontainers.image.vendor="proxvex" \
     org.opencontainers.image.authors="Volkmar Nissen <volkmar.nissen@gmail.com>" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.source="https://github.com/modbus2mqtt/oci-lxc-deployer" \
+    org.opencontainers.image.source="https://github.com/proxvex/proxvex" \
     org.opencontainers.image.base.name="ghcr.io/actions/actions-runner:latest"

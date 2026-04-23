@@ -818,7 +818,7 @@ Die Library wird als separater Schritt vor dem eigentlichen Script übertragen u
 exec >&2
 
 LIBRARY_VERSION="{{ usb_library_version }}"
-LIBRARY_DIR="/tmp/oci-lxc-deployer-libs"
+LIBRARY_DIR="/tmp/proxvex-libs"
 LIBRARY_FILE="$LIBRARY_DIR/usb-device-common.sh"
 
 # Create library directory
@@ -843,7 +843,7 @@ echo "Library installed to $LIBRARY_FILE" >&2
 exec >&2
 
 # Source library from known location
-. /tmp/oci-lxc-deployer-libs/usb-device-common.sh
+. /tmp/proxvex-libs/usb-device-common.sh
 
 # Use library functions
 parse_usb_bus_device "{{ usb_bus_device }}" || exit 1
@@ -861,7 +861,7 @@ parse_usb_bus_device "{{ usb_bus_device }}" || exit 1
 exec >&2
 
 # Extract and source library
-LIBRARY_DIR="/tmp/oci-lxc-deployer-libs"
+LIBRARY_DIR="/tmp/proxvex-libs"
 mkdir -p "$LIBRARY_DIR"
 echo "{{ usb_library_base64 }}" | base64 -d > "$LIBRARY_DIR/usb-device-common.sh"
 chmod 755 "$LIBRARY_DIR/usb-device-common.sh"
@@ -922,7 +922,7 @@ Die Library wird von einem GitHub-Repository beim ersten Bedarf heruntergeladen 
 exec >&2
 
 # Download and source library if not exists
-LIBRARY_DIR="/tmp/oci-lxc-deployer-libs"
+LIBRARY_DIR="/tmp/proxvex-libs"
 LIBRARY_FILE="$LIBRARY_DIR/usb-device-common.sh"
 LIBRARY_VERSION="{{ usb_library_version }}"
 LIBRARY_URL="https://raw.githubusercontent.com/owner/repo/${LIBRARY_VERSION}/usb-device-common.sh"
@@ -987,7 +987,7 @@ parse_usb_bus_device "{{ usb_bus_device }}" || exit 1
 exec >&2
 
 LIBRARY_VERSION="{{ usb_library_version }}"
-LIBRARY_DIR="/tmp/oci-lxc-deployer-libs"
+LIBRARY_DIR="/tmp/proxvex-libs"
 LIBRARY_FILE="$LIBRARY_DIR/usb-device-common.sh"
 LIBRARY_URL="https://raw.githubusercontent.com/owner/repo/${LIBRARY_VERSION}/usb-device-common.sh"
 
@@ -1074,7 +1074,7 @@ Kombination beider Optionen mit Fallback-Mechanismus:
 exec >&2
 
 LIBRARY_VERSION="{{ usb_library_version }}"
-LIBRARY_DIR="/tmp/oci-lxc-deployer-libs"
+LIBRARY_DIR="/tmp/proxvex-libs"
 LIBRARY_FILE="$LIBRARY_DIR/usb-device-common.sh"
 LIBRARY_URL="https://raw.githubusercontent.com/owner/repo/${LIBRARY_VERSION}/usb-device-common.sh"
 

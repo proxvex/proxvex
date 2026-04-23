@@ -124,7 +124,7 @@ The runner uses the `github-action` instance from `e2e/config.json`:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GITHUB_RUNNER_TOKEN` | (required) | GitHub PAT for runner registration |
-| `RUNNER_NAME` | `lxc-manager-runner` | Runner display name in GitHub |
+| `RUNNER_NAME` | `proxvex-runner` | Runner display name in GitHub |
 | `UBUNTUPVE_MAC` | from config.json | Override WOL MAC address |
 | `WOL_WAIT` | `180` | Max seconds to wait for host wake |
 | `API_WAIT` | `300` | Max seconds to wait for deployer API |

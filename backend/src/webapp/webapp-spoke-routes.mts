@@ -77,7 +77,7 @@ export function registerSpokeRoutes(app: Application): void {
 
   /**
    * POST /api/spoke/probe-hub — Test whether a Hub URL is reachable and
-   * speaks the oci-lxc-deployer Hub protocol. Used by the SSH-config UI to
+   * speaks the proxvex Hub protocol. Used by the SSH-config UI to
    * validate the user-entered Hub API URL before save.
    *
    * Body: { hubApiUrl: string }

@@ -1,6 +1,6 @@
 # Application Development Guide
 
-This guide describes how to create applications for OCI LXC Deployer, focusing on different installation types and best practices.
+This guide describes how to create applications for Proxvex, focusing on different installation types and best practices.
 
 ## Quick Start: Using the Framework (Easiest Method)
 
@@ -13,7 +13,7 @@ The **framework-based approach** is the simplest way to create a new application
 
 ### Use the Web UI to create a new application:
 
-1. **Open the Framework UI** in OCI LXC Deployer web interface (usually under "Create Application" or "Frameworks")
+1. **Open the Framework UI** in Proxvex web interface (usually under "Create Application" or "Frameworks")
 2. **Select the OCI Image Framework** (`framework-oci-volumes`)
 3. **Enter the Docker image name** (e.g., `docker.io/your-org/your-app:latest`)
 4. **Fill in parameters**:
@@ -106,7 +106,7 @@ See [Application Creation with Frameworks](#application-creation-with-frameworks
 - [Installation Types](#installation-types)
 - [Example Applications](#example-applications)
 - [Creating an npm + Service Application](#creating-an-npm--service-application)
-  - [Approach 1: Extending an Existing Application (Modbus2Mqtt Example)](#approach-1-extending-an-existing-application-modbus2mqtt-example)
+  - [Approach 1: Extending an Existing Application (Proxvex Example)](#approach-1-extending-an-existing-application-proxvex-example)
   - [Approach 2: Creating a Standalone Application](#approach-2-creating-a-standalone-application)
   - [Key Parameters Explained](#key-parameters-explained)
   - [Template Execution Order](#step-4-template-execution-order)
@@ -118,7 +118,7 @@ See [Application Creation with Frameworks](#application-creation-with-frameworks
   - [Creating Applications from Frameworks](#creating-applications-from-frameworks)
   - [Framework-Provided Base Functionality](#framework-provided-base-functionality)
   - [Adding Special Features](#adding-special-features)
-  - [Example: Modbus2Mqtt](#example-modbus2mqtt)
+  - [Example: Proxvex](#example-proxvex)
 - [Template Reference](#template-reference)
   - [Shared Templates](#shared-templates)
   - [Custom Templates](#custom-templates)
@@ -129,11 +129,11 @@ See [Application Creation with Frameworks](#application-creation-with-frameworks
 
 ## Directory Structure and Search Order
 
-Understanding the directory structure and search order is crucial for developing applications. OCI LXC Deployer uses a hierarchical search system that allows you to override shared templates and scripts with application-specific or local versions.
+Understanding the directory structure and search order is crucial for developing applications. Proxvex uses a hierarchical search system that allows you to override shared templates and scripts with application-specific or local versions.
 
 ### Directory Structure
 
-OCI LXC Deployer uses two main directory hierarchies:
+Proxvex uses two main directory hierarchies:
 
 #### 1. Main Repository (`json/`)
 
@@ -149,7 +149,7 @@ json/
 │   │   │   └── import-flow.json
 │   │   ├── scripts/          # Optional: application-specific scripts
 │   │   └── icon.svg          # Optional: application icon
-│   ├── modbus2mqtt/
+│   ├── proxvex/
 │   │   ├── application.json
 │   │   ├── templates/
 │   │   │   └── set-parameters.json
@@ -200,7 +200,7 @@ examples/                     # or local/json/
 
 ### Search Order
 
-OCI LXC Deployer searches for files in a specific order, allowing you to override shared resources with application-specific or local versions.
+Proxvex searches for files in a specific order, allowing you to override shared resources with application-specific or local versions.
 
 #### Applications
 
@@ -273,7 +273,7 @@ To create a template only for your application:
 
 When using `extends`, templates are searched in the inheritance chain:
 
-1. Child application templates (`examples/applications/modbus2mqtt/templates/`)
+1. Child application templates (`examples/applications/proxvex/templates/`)
 2. Parent application templates (`json/applications/node-red/templates/`)
 3. Local shared templates (`examples/shared/templates/`)
 4. Repository shared templates (`json/shared/templates/`)
@@ -292,12 +292,12 @@ You can override these using the `--local` option:
 
 ```bash
 # Use custom local directory
-oci-lxc-deployer --local ./my-custom-local
+proxvex --local ./my-custom-local
 ```
 
 ## Core Concepts
 
-Before diving into application development, it's important to understand the three core building blocks of OCI LXC Deployer: Applications, Templates, and Scripts.
+Before diving into application development, it's important to understand the three core building blocks of Proxvex: Applications, Templates, and Scripts.
 
 ### Applications
 
@@ -460,7 +460,7 @@ This separation allows:
 
 ## Installation Types
 
-OCI LXC Deployer supports several installation types for applications:
+Proxvex supports several installation types for applications:
 
 1. **npm + service**: Node.js applications installed via npm with an OpenRC/systemd service
 2. **python3 + service**: Python applications with an OpenRC/systemd service
@@ -470,8 +470,8 @@ This guide focuses on the **npm + service** installation type. Similar patterns 
 
 ## Example Applications
 
-- **[Modbus2Mqtt](generated/json/applications/modbus2mqtt.md)**: A complete example of an npm-based application with service that extends Node-RED and adds serial device mapping
-- **Node-RED**: Base application that Modbus2Mqtt extends (see [Node-RED Application](generated/json/applications/node-red.md) for reference)
+- **[Proxvex](generated/json/applications/proxvex.md)**: A complete example of an npm-based application with service that extends Node-RED and adds serial device mapping
+- **Node-RED**: Base application that Proxvex extends (see [Node-RED Application](generated/json/applications/node-red.md) for reference)
 
 ## Creating an npm + Service Application
 
@@ -480,9 +480,9 @@ There are two approaches to creating an npm-based application:
 1. **Extend an existing application** (Recommended for similar applications): Inherit templates from a base application and add customizations
 2. **Create a standalone application**: Define all templates from scratch
 
-This guide shows both approaches, using Modbus2Mqtt as an example of extending Node-RED.
+This guide shows both approaches, using Proxvex as an example of extending Node-RED.
 
-### Approach 1: Extending an Existing Application (Modbus2Mqtt Example)
+### Approach 1: Extending an Existing Application (Proxvex Example)
 
 If your application is similar to an existing npm-based application (like Node-RED), you can extend it to reuse common templates.
 
@@ -649,10 +649,10 @@ The `volumes` parameter defines mount points for persistent data storage. **This
 
 Format: `key=value` pairs separated by spaces, where:
 - `key`: The mount point name (used as a variable like `$DATA_DIR`)
-- `value`: The directory name on the host (under `/var/lib/oci-lxc-deployer/data/`)
+- `value`: The directory name on the host (under `/var/lib/proxvex/data/`)
 
-Example: `data=modbus2mqtt` creates:
-- Host path: `/var/lib/oci-lxc-deployer/data/modbus2mqtt/`
+Example: `data=proxvex` creates:
+- Host path: `/var/lib/proxvex/data/proxvex/`
 - Container mount: Available as `$DATA_DIR` in scripts
 
 **Why volumes are important:**
@@ -738,9 +738,9 @@ The installation templates are executed in this order:
 During development, you can use a local directory instead of the main `json/` directory:
 
 1. Create your application in a local directory (e.g., `local/json/applications/your-app/`)
-2. Use the `--local` option when running OCI LXC Deployer:
+2. Use the `--local` option when running Proxvex:
    ```bash
-   oci-lxc-deployer --local ./local
+   proxvex --local ./local
    ```
 
 The local directory structure should mirror the main `json/` directory:
@@ -766,7 +766,7 @@ Before committing your application, validate it:
 cd backend
 npm run build
 cd ..
-backend/dist/oci-lxc-deployer.mjs validate
+backend/dist/proxvex.mjs validate
 ```
 
 This will:
@@ -878,14 +878,14 @@ While frameworks provide the essential base functionality, you can easily add sp
 - **Environment variables**: Configure runtime environment
 - **Network ports**: Expose additional network ports
 
-#### Example: Modbus2Mqtt
+#### Example: Proxvex
 
-The `modbus2mqtt` application demonstrates how to add special features to a framework-based application:
+The `proxvex` application demonstrates how to add special features to a framework-based application:
 
 ```json
 {
-  "name": "Modbus2Mqtt Gateway",
-  "description": "Modbus2Mqtt Gateway from Modbus RTU/TCP to MQTT and vice versa",
+  "name": "Proxvex Gateway",
+  "description": "Proxvex Gateway from Modbus RTU/TCP to MQTT and vice versa",
   "extends": "node-red",
   "installation": [
     {
@@ -975,7 +975,7 @@ The Web UI uses a small set of internal endpoints. These are not part of the pub
 3. **Use meaningful parameter names**: Make it clear what each parameter does
 4. **Provide sensible defaults**: Users should be able to install with minimal configuration
 5. **Mark advanced parameters**: Use `"advanced": true` for parameters most users won't need
-6. **Validate before committing**: Always run `oci-lxc-deployer validate` before committing
+6. **Validate before committing**: Always run `proxvex validate` before committing
 7. **Document your application**: Add clear descriptions to help users understand parameters
 8. **Test with local path**: Use `--local` during development to test changes safely
 9. **Consider security within the container**: Applications running as root inside the container are responsible for their own security. The container itself has no elevated permissions on the host system
@@ -988,7 +988,7 @@ To generate documentation for all applications and templates:
 cd backend
 npm run build
 cd ..
-backend/dist/oci-lxc-deployer.mjs updatedoc
+backend/dist/proxvex.mjs updatedoc
 ```
 
 This will generate documentation in `docs/generated/`:
@@ -998,12 +998,12 @@ This will generate documentation in `docs/generated/`:
 To generate documentation for a specific application:
 
 ```bash
-backend/dist/oci-lxc-deployer.mjs updatedoc node-red
+backend/dist/proxvex.mjs updatedoc node-red
 ```
 
 ## Next Steps
 
-- Review the [Modbus2Mqtt application](generated/json/applications/modbus2mqtt.md) as a complete example of an npm-based application
+- Review the [Proxvex application](generated/json/applications/proxvex.md) as a complete example of an npm-based application
 - Check the [Node-RED application](generated/json/applications/node-red.md) to see how applications can be extended using `extends`
 - Explore other applications in `json/applications/` for more examples
 - Read the [Template Documentation](generated/json/shared/) for detailed information about shared templates
@@ -1012,14 +1012,14 @@ backend/dist/oci-lxc-deployer.mjs updatedoc node-red
 
 ## Command Line Usage
 
-OCI LXC Deployer can be used via command line to execute tasks for applications.
+Proxvex can be used via command line to execute tasks for applications.
 
 ### Start Web Application
 
 Start the web application server (default behavior when no command is specified):
 
 ```sh
-oci-lxc-deployer [options]
+proxvex [options]
 ```
 
 **Options:**
@@ -1028,9 +1028,9 @@ oci-lxc-deployer [options]
 
 **Examples:**
 ```sh
-oci-lxc-deployer
-oci-lxc-deployer --local ./my-local
-oci-lxc-deployer --local ./my-local --secretsFilePath ./secrets.txt
+proxvex
+proxvex --local ./my-local
+proxvex --local ./my-local --secretsFilePath ./secrets.txt
 ```
 
 ### Execute Tasks
@@ -1038,7 +1038,7 @@ oci-lxc-deployer --local ./my-local --secretsFilePath ./secrets.txt
 Execute a task for a specific application:
 
 ```sh
-oci-lxc-deployer exec <application> <task> <parameters file> [options]
+proxvex exec <application> <task> <parameters file> [options]
 ```
 
 **Arguments:**
@@ -1061,16 +1061,16 @@ oci-lxc-deployer exec <application> <task> <parameters file> [options]
 **Examples:**
 ```sh
 # Install Node-RED
-oci-lxc-deployer exec node-red installation ./params.json
+proxvex exec node-red installation ./params.json
 
 # Install with custom local directory
-oci-lxc-deployer exec node-red installation ./params.json --local ./my-local
+proxvex exec node-red installation ./params.json --local ./my-local
 
 # Backup with secrets file
-oci-lxc-deployer exec node-red backup ./backup-params.json --secretsFilePath ./secrets.txt
+proxvex exec node-red backup ./backup-params.json --secretsFilePath ./secrets.txt
 
 # Resume interrupted task
-oci-lxc-deployer exec node-red installation ./params.json --restartInfoFile ./restart-info.json
+proxvex exec node-red installation ./params.json --restartInfoFile ./restart-info.json
 ```
 
 ### Generate Documentation
@@ -1078,7 +1078,7 @@ oci-lxc-deployer exec node-red installation ./params.json --restartInfoFile ./re
 Generate documentation for applications and templates:
 
 ```sh
-oci-lxc-deployer gendoc [options]
+proxvex gendoc [options]
 ```
 
 **Options:**
@@ -1087,8 +1087,8 @@ oci-lxc-deployer gendoc [options]
 
 **Examples:**
 ```sh
-oci-lxc-deployer gendoc
-oci-lxc-deployer gendoc --local ./my-local
+proxvex gendoc
+proxvex gendoc --local ./my-local
 ```
 
 ### Validate Templates
@@ -1096,7 +1096,7 @@ oci-lxc-deployer gendoc --local ./my-local
 Validate application templates against JSON schemas:
 
 ```sh
-oci-lxc-deployer validate [options]
+proxvex validate [options]
 ```
 
 **Options:**
@@ -1104,8 +1104,8 @@ oci-lxc-deployer validate [options]
 
 **Examples:**
 ```sh
-oci-lxc-deployer validate
-oci-lxc-deployer validate --local ./my-local
+proxvex validate
+proxvex validate --local ./my-local
 ```
 
 ### Help
@@ -1113,9 +1113,9 @@ oci-lxc-deployer validate --local ./my-local
 Display help information:
 
 ```sh
-oci-lxc-deployer --help
+proxvex --help
 # or
-oci-lxc-deployer -h
+proxvex -h
 ```
 
 ### Parameters File Format
@@ -1147,7 +1147,7 @@ The parameters file is a JSON file that contains the input values required for e
 **Finding Required Parameters:**
 1. **Use the Web UI**: Shows all required and optional parameters with descriptions
 2. **Check application templates**: Look in `json/applications/<application-name>/`
-3. **Run without parameters file**: OCI LXC Deployer will output a template with all required parameter names
+3. **Run without parameters file**: Proxvex will output a template with all required parameter names
 
 **Example for installing Node-RED:**
 ```json

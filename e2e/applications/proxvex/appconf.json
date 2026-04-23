@@ -1,0 +1,7 @@
+{
+    "description": "Proxvex is a Modbus to MQTT gateway for connecting industrial devices to IoT networks.",
+    "tags": ["iot", "messaging"],
+    "installParams": {
+        "bridge": "vmbr1"
+    }
+}

@@ -45,7 +45,7 @@ fi
 # The description line may contain large base64 icon data that grep treats as binary,
 # so use grep -a to force text mode and match both encoded and decoded forms.
 notes_raw=$(pct config "$VM_ID" 2>/dev/null | grep -a "^description:" || true)
-if echo "$notes_raw" | grep -aq "oci-lxc-deployer%3Amanaged\|oci-lxc-deployer:managed"; then
+if echo "$notes_raw" | grep -aq "proxvex%3Amanaged\|proxvex:managed"; then
     add_result "notes_managed" "true"
     echo "CHECK: notes_managed PASSED" >&2
 else

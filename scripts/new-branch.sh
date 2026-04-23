@@ -18,7 +18,7 @@ success() { printf "${GREEN}[OK]${NC}    %s\n" "$*"; }
 warn()    { printf "${YELLOW}[WARN]${NC}  %s\n" "$*"; }
 die()     { printf "${RED}[ERROR]${NC} %s\n" "$*" >&2; exit 1; }
 
-ORIGIN_REPO="volkmarnissen/oci-lxc-deployer"
+ORIGIN_REPO="volkmarnissen/proxvex"
 BRANCH_NAME="${1:-}"
 
 [ -n "$BRANCH_NAME" ] || die "Usage: $0 <branch-name>"

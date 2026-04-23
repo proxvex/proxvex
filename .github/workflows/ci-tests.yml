@@ -38,7 +38,7 @@ jobs:
               - 'e2e/**'
               - 'json/**'
               - 'scripts/**'
-              - 'install-oci-lxc-deployer.sh'
+              - 'install-proxvex.sh'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - '.nvmrc'

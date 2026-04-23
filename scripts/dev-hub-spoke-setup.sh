@@ -1,5 +1,5 @@
 #!/bin/sh
-# Set up two local oci-lxc-deployer instances — one Hub, one Spoke —
+# Set up two local proxvex instances — one Hub, one Spoke —
 # running from the current source tree. Used to verify the Spoke Hub-sync
 # path without needing the production Hub on pve1.cluster.
 #
@@ -55,8 +55,8 @@ for arg in "$@"; do
   esac
 done
 
-[ -f "$ROOT/backend/dist/oci-lxc-deployer.mjs" ] || die \
-  "backend/dist/oci-lxc-deployer.mjs missing — run 'cd backend && pnpm run build' first."
+[ -f "$ROOT/backend/dist/proxvex.mjs" ] || die \
+  "backend/dist/proxvex.mjs missing — run 'cd backend && pnpm run build' first."
 
 if [ "$RESET" -eq 1 ] && [ -d "$DEV" ]; then
   say "Wiping .dev/"
@@ -163,7 +163,7 @@ HUB=$HUB_DIR
 export DEPLOYER_PLAINTEXT_CONTEXT=1
 export DEPLOYER_PORT=${HUB_PORT}
 cd "\$ROOT/backend"
-exec node dist/oci-lxc-deployer.mjs \\
+exec node dist/proxvex.mjs \\
   --local "\$HUB/local" \\
   --storageContextFilePath "\$HUB/data/storagecontext.json" \\
   --secretsFilePath "\$HUB/data/secret.txt"
@@ -184,7 +184,7 @@ export DEPLOYER_PORT=${SPOKE_PORT}
 export HUB_URL=http://localhost:${HUB_PORT}
 export LXC_MANAGER_LOCAL_PATH="\$SPOKE/local"
 cd "\$ROOT/backend"
-exec node dist/oci-lxc-deployer.mjs \\
+exec node dist/proxvex.mjs \\
   --local "\$SPOKE/local" \\
   --storageContextFilePath "\$SPOKE/data/storagecontext.json" \\
   --secretsFilePath "\$SPOKE/data/secret.txt"

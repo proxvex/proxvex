@@ -6,7 +6,7 @@
     { "path": "backend" }
   ],
   "settings": {
-    "window.title": "${activeEditorShort} - oci-lxc-deployer [GREEN]",
+    "window.title": "${activeEditorShort} - proxvex [GREEN]",
     "workbench.colorCustomizations": {
     // Hintergrund des Editors
     "activityBar.background": "#71e971",
@@ -76,7 +76,7 @@
     "configurations": [
       {
         "name": "Launch Backend",
-        "program": "${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
+        "program": "${workspaceFolder:backend}/dist/proxvex.mjs",
         "preLaunchTask": "build backend",
         "request": "launch",
         "sourceMaps": true,
@@ -103,7 +103,7 @@
       },
           {
         "name": "Launch OIDC Backend",
-        "program": "${workspaceFolder:backend}/dist/oci-lxc-deployer.mjs",
+        "program": "${workspaceFolder:backend}/dist/proxvex.mjs",
         "preLaunchTask": "build backend",
         "request": "launch",
         "sourceMaps": true,

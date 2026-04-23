@@ -1,10 +1,10 @@
-# OCI LXC Deployer Project Rules
+# Proxvex Project Rules
 
 ## Project Overview
 
 LXC container management system for Proxmox VE with template-based deployment.
 
-**Important:** This project does NOT use Docker or Docker Swarm. The `docker-compose.yml` files are a configuration format that oci-lxc-deployer **parses and interprets** to create and configure LXC containers. There is no Docker daemon involved. Docker-specific features like `deploy.resources.limits`, `network_mode`, or Docker socket mounts are irrelevant.
+**Important:** This project does NOT use Docker or Docker Swarm. The `docker-compose.yml` files are a configuration format that proxvex **parses and interprets** to create and configure LXC containers. There is no Docker daemon involved. Docker-specific features like `deploy.resources.limits`, `network_mode`, or Docker socket mounts are irrelevant.
 
 ## File Locations
 
@@ -141,7 +141,7 @@ KEEP_VM=1 ./backend/tests/livetests/run-live-test.sh pve1.cluster
 
 The test creates a real container on a Proxmox host and verifies:
 - Container creation and startup
-- Notes contain `oci-lxc-deployer:managed` marker
+- Notes contain `proxvex:managed` marker
 - Notes contain log-url, icon-url, and Links section
 
 ## Import Resolution

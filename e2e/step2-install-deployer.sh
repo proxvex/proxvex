@@ -1,9 +1,9 @@
 #!/bin/bash
-# step2-install-deployer.sh - Installs oci-lxc-deployer for E2E testing
+# step2-install-deployer.sh - Installs proxvex for E2E testing
 #
 # This script:
 # 1. Rolls back to step1 baseline snapshot (clean state)
-# 2. Installs oci-lxc-deployer at DEPLOYER_VMID (HTTP only, no HTTPS)
+# 2. Installs proxvex at DEPLOYER_VMID (HTTP only, no HTTPS)
 # 3. Deploys local package build to the container
 # 4. Sets up registry mirrors for image caching
 #
@@ -142,16 +142,16 @@ deploy_to_container() {
         tar -xzf $TARBALL && \
         cd package && \
         npm install --omit=dev --no-audit --no-fund --ignore-scripts 2>/dev/null && \
-        rm -rf /usr/local/lib/node_modules/oci-lxc-deployer && \
+        rm -rf /usr/local/lib/node_modules/proxvex && \
         mkdir -p /usr/local/lib/node_modules && \
-        mv /tmp/package /usr/local/lib/node_modules/oci-lxc-deployer && \
-        ln -sf /usr/local/lib/node_modules/oci-lxc-deployer/backend/dist/oci-lxc-deployer.mjs /usr/local/bin/oci-lxc-deployer && \
-        ln -sf /usr/local/lib/node_modules/oci-lxc-deployer/cli/dist/cli/src/oci-lxc-cli.mjs /usr/local/bin/oci-lxc-cli
+        mv /tmp/package /usr/local/lib/node_modules/proxvex && \
+        ln -sf /usr/local/lib/node_modules/proxvex/backend/dist/proxvex.mjs /usr/local/bin/proxvex && \
+        ln -sf /usr/local/lib/node_modules/proxvex/cli/dist/cli/src/oci-lxc-cli.mjs /usr/local/bin/oci-lxc-cli
     '" || error "Failed to install package"
     success "Package installed in container $target_vmid"
 
     # Apply examples overrides (e.g., package mirror defaults for faster installs)
-    nested_ssh "pct exec $target_vmid -- sh -c 'cp -r /usr/local/lib/node_modules/oci-lxc-deployer/examples/shared/* /usr/local/lib/node_modules/oci-lxc-deployer/json/shared/ 2>/dev/null || true'"
+    nested_ssh "pct exec $target_vmid -- sh -c 'cp -r /usr/local/lib/node_modules/proxvex/examples/shared/* /usr/local/lib/node_modules/proxvex/json/shared/ 2>/dev/null || true'"
 
     # Restart container to reload updated code
     info "Restarting container $target_vmid..."
@@ -182,7 +182,7 @@ deploy_to_container() {
     success "API healthy in container $target_vmid"
 }
 
-header "Step 2: Install oci-lxc-deployer"
+header "Step 2: Install proxvex"
 echo "Instance: $E2E_INSTANCE"
 echo "Connection: $PVE_HOST:$PORT_PVE_SSH -> $NESTED_IP:22"
 echo "Owner: $OWNER"
@@ -265,42 +265,42 @@ if nested_ssh "pct status $DEPLOYER_VMID" &>/dev/null; then
     fi
 fi
 
-# Step 3: Clean up existing container and install oci-lxc-deployer (skip if --update-only)
+# Step 3: Clean up existing container and install proxvex (skip if --update-only)
 if [ "$UPDATE_ONLY" != "true" ]; then
-    header "Installing oci-lxc-deployer"
+    header "Installing proxvex"
 
     # No cleanup needed — baseline snapshot rollback provides clean state
 
 # Local script path on nested VM
-LOCAL_SCRIPT_PATH="/tmp/oci-lxc-deployer-scripts"
+LOCAL_SCRIPT_PATH="/tmp/proxvex-scripts"
 
 # Copy local install script and shared scripts to nested VM for testing
-LOCAL_INSTALL_SCRIPT="$PROJECT_ROOT/install-oci-lxc-deployer.sh"
+LOCAL_INSTALL_SCRIPT="$PROJECT_ROOT/install-proxvex.sh"
 LOCAL_SHARED_SCRIPTS="$PROJECT_ROOT/json/shared/scripts"
 if [ -f "$LOCAL_INSTALL_SCRIPT" ] && [ -d "$LOCAL_SHARED_SCRIPTS" ]; then
     info "Copying local install script to nested VM..."
-    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$LOCAL_INSTALL_SCRIPT" "root@$PVE_HOST:/tmp/install-oci-lxc-deployer.sh" || error "Failed to copy install script to PVE host"
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "root@$PVE_HOST" "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/install-oci-lxc-deployer.sh root@$NESTED_IP:/tmp/" || error "Failed to copy install script to nested VM"
+    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$LOCAL_INSTALL_SCRIPT" "root@$PVE_HOST:/tmp/install-proxvex.sh" || error "Failed to copy install script to PVE host"
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "root@$PVE_HOST" "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/install-proxvex.sh root@$NESTED_IP:/tmp/" || error "Failed to copy install script to nested VM"
     success "Local install script copied"
 
     info "Copying local shared scripts to nested VM..."
     # Create tarball of only json/shared/scripts (what install script needs)
-    tar -czf /tmp/oci-lxc-deployer-scripts.tar.gz -C "$PROJECT_ROOT" json/shared/scripts || error "Failed to create scripts tarball"
-    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/oci-lxc-deployer-scripts.tar.gz "root@$PVE_HOST:/tmp/" || error "Failed to copy scripts tarball to PVE host"
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "root@$PVE_HOST" "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/oci-lxc-deployer-scripts.tar.gz root@$NESTED_IP:/tmp/" || error "Failed to copy scripts tarball to nested VM"
+    tar -czf /tmp/proxvex-scripts.tar.gz -C "$PROJECT_ROOT" json/shared/scripts || error "Failed to create scripts tarball"
+    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/proxvex-scripts.tar.gz "root@$PVE_HOST:/tmp/" || error "Failed to copy scripts tarball to PVE host"
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "root@$PVE_HOST" "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/proxvex-scripts.tar.gz root@$NESTED_IP:/tmp/" || error "Failed to copy scripts tarball to nested VM"
     # Extract on nested VM
-    nested_ssh "mkdir -p $LOCAL_SCRIPT_PATH && tar -xzf /tmp/oci-lxc-deployer-scripts.tar.gz -C $LOCAL_SCRIPT_PATH" || error "Failed to extract scripts on nested VM"
-    rm -f /tmp/oci-lxc-deployer-scripts.tar.gz
+    nested_ssh "mkdir -p $LOCAL_SCRIPT_PATH && tar -xzf /tmp/proxvex-scripts.tar.gz -C $LOCAL_SCRIPT_PATH" || error "Failed to extract scripts on nested VM"
+    rm -f /tmp/proxvex-scripts.tar.gz
     success "Local shared scripts copied to $LOCAL_SCRIPT_PATH"
 
     info "Running installation script with OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH..."
     # Run local script with custom parameters and local scripts path
-    nested_ssh "chmod +x /tmp/install-oci-lxc-deployer.sh && \
-        OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH /tmp/install-oci-lxc-deployer.sh --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script failed"
+    nested_ssh "chmod +x /tmp/install-proxvex.sh && \
+        OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH /tmp/install-proxvex.sh --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script failed"
 else
     info "Running installation script from GitHub with OWNER=$OWNER OCI_OWNER=$OCI_OWNER..."
     # Fallback: Download and run from GitHub
-    nested_ssh "curl -sSL https://raw.githubusercontent.com/$OWNER/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | \
+    nested_ssh "curl -sSL https://raw.githubusercontent.com/$OWNER/proxvex/main/install-proxvex.sh | \
         OWNER=$OWNER OCI_OWNER=$OCI_OWNER bash -s -- --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL" || error "Installation script from GitHub failed"
 fi
 
@@ -364,14 +364,14 @@ success "Nested VM :3080 -> $DEPLOYER_IP:3080 (HTTP, persisted)"
 success "Nested VM :3443 -> $DEPLOYER_IP:3443 (HTTPS, persisted)"
 
 # Build and deploy local package
-if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "oci-lxc-deployer"' "$PROJECT_ROOT/package.json"; then
+if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"name": "proxvex"' "$PROJECT_ROOT/package.json"; then
     header "Building Local Package"
     cd "$PROJECT_ROOT"
 
-    info "Building local oci-lxc-deployer package..."
+    info "Building local proxvex package..."
     pnpm run build || error "Failed to build package"
 
-    TARBALL=$(pnpm pack 2>&1 | grep -o 'oci-lxc-deployer-.*\.tgz')
+    TARBALL=$(pnpm pack 2>&1 | grep -o 'proxvex-.*\.tgz')
 
     if [ -z "$TARBALL" ] || [ ! -f "$PROJECT_ROOT/$TARBALL" ]; then
         error "Failed to create package tarball"
@@ -559,7 +559,7 @@ if [ "$UPDATE_ONLY" != "true" ]; then
     pve_ssh "qm status $TEST_VMID 2>/dev/null | grep -q stopped" 2>/dev/null \
         || error "VM $TEST_VMID did not shut down cleanly — cannot create reliable snapshot"
     pve_ssh "qm delsnapshot $TEST_VMID deployer-installed 2>/dev/null || true"
-    pve_ssh "qm snapshot $TEST_VMID deployer-installed --description 'Nested VM with oci-lxc-deployer after step2'"
+    pve_ssh "qm snapshot $TEST_VMID deployer-installed --description 'Nested VM with proxvex after step2'"
     success "Snapshot 'deployer-installed' created"
     pve_ssh "qm start $TEST_VMID"
     info "Waiting for deployer API after VM restart..."

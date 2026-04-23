@@ -2,7 +2,7 @@
 # test-ssl-addon-cli.sh - E2E tests for SSL addon via CLI
 #
 # Tests SSL addon functionality for three scenarios:
-#   1. oci-lxc-deployer (reconfigure, proxy mode)
+#   1. proxvex (reconfigure, proxy mode)
 #   2. postgres (installation, certs mode)
 #   3. zitadel (installation, docker-compose, native mode)
 #
@@ -173,16 +173,16 @@ init_environment() {
 }
 
 ###############################################################################
-# Test 1: oci-lxc-deployer + SSL addon (reconfigure, proxy mode)
+# Test 1: proxvex + SSL addon (reconfigure, proxy mode)
 ###############################################################################
 test_deployer_ssl() {
-    header "Test 1: oci-lxc-deployer + SSL addon (proxy mode)"
+    header "Test 1: proxvex + SSL addon (proxy mode)"
 
     local params_file="$SCRIPT_DIR/test-params/deployer-ssl-reconfigure.json"
 
     # Run reconfigure
-    if ! cli_remote "oci-lxc-deployer" "reconfigure" "$params_file"; then
-        fail "oci-lxc-deployer reconfigure command failed"
+    if ! cli_remote "proxvex" "reconfigure" "$params_file"; then
+        fail "proxvex reconfigure command failed"
         return 1
     fi
 

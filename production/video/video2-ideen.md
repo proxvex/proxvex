@@ -3,7 +3,7 @@
 ## Ausgangslage
 
 Video 1 ist abgeschlossen. Es laufen:
-- oci-lxc-deployer (HTTP, 1xx VM-ID, OIDC via internes Zitadel)
+- proxvex (HTTP, 1xx VM-ID, OIDC via internes Zitadel)
 - Mosquitto, Postgres, Zitadel (alle 5xx VM-IDs)
 - Proxmox OIDC aktiv
 

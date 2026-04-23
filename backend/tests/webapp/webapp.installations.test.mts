@@ -51,7 +51,7 @@ describe("WebApp Installations API", () => {
       path.join(lxcDir, "101.conf"),
       [
         "hostname: cont-101",
-        "description: <!-- oci-lxc-deployer:managed -->\\n<!-- oci-lxc-deployer:oci-image docker://alpine:3.19 -->\\nOCI image: docker://alpine:3.19",
+        "description: <!-- proxvex:managed -->\\n<!-- proxvex:oci-image docker://alpine:3.19 -->\\nOCI image: docker://alpine:3.19",
       ].join("\n"),
     );
     // managed but NOT oci -> should be ignored
@@ -59,7 +59,7 @@ describe("WebApp Installations API", () => {
       path.join(lxcDir, "102.conf"),
       [
         "hostname: cont-102",
-        "description: <!-- oci-lxc-deployer:managed -->\\nLXC template: local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst",
+        "description: <!-- proxvex:managed -->\\nLXC template: local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst",
       ].join("\n"),
     );
     // oci but NOT managed -> should be ignored
@@ -67,7 +67,7 @@ describe("WebApp Installations API", () => {
       path.join(lxcDir, "103.conf"),
       [
         "hostname: cont-103",
-        "description: <!-- oci-lxc-deployer:oci-image docker://debian:bookworm -->",
+        "description: <!-- proxvex:oci-image docker://debian:bookworm -->",
       ].join("\n"),
     );
     // managed + oci (fallback visible line only) -> should be returned
@@ -75,7 +75,7 @@ describe("WebApp Installations API", () => {
       path.join(lxcDir, "104.conf"),
       [
         "hostname: cont-104",
-        "description: <!-- oci-lxc-deployer:managed -->\\nOCI image: ghcr.io/example/app:1.2.3",
+        "description: <!-- proxvex:managed -->\\nOCI image: ghcr.io/example/app:1.2.3",
       ].join("\n"),
     );
 

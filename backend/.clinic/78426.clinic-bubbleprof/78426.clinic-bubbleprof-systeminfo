@@ -71,5 +71,5 @@
     "VERIFYREQUEST"
   ],
   "pathSeparator": "/",
-  "mainDirectory": "/Users/volkmar/lxc-manager/backend/dist"
+  "mainDirectory": "/Users/volkmar/proxvex/backend/dist"
 }

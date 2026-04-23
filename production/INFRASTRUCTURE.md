@@ -8,7 +8,7 @@
 ```mermaid
 graph TB
     subgraph pve1["pve1.cluster - always-on, primary"]
-        deployer[oci-lxc-deployer :3443]
+        deployer[proxvex :3443]
         postgres[postgres :5432]
         nginx[nginx :1443]
         zitadel[zitadel :1443]
@@ -33,7 +33,7 @@ graph TB
 | **ubuntupve** | Secondary -runs dev/build workloads | 600-699 | No |
 | **pve2** | Fallback for pve1 | 700-799 | No |
 
-All containers are **unprivileged LXC** managed by oci-lxc-deployer. Shared volumes on ZFS (`subvol-999999-oci-lxc-deployer-volumes`).
+All containers are **unprivileged LXC** managed by proxvex. Shared volumes on ZFS (`subvol-999999-proxvex-volumes`).
 
 ## 2. Network & Public Access
 
@@ -116,7 +116,7 @@ Rootless LXC containers cannot bind port 443. All proxy-mode apps use **port 144
 | nginx | :1443 | proxy - ACME SSL proxy |
 | zitadel | :1443 | native - Traefik |
 | gitea | :1443 | native - Gitea built-in |
-| oci-lxc-deployer | :3443 | native - Node.js |
+| proxvex | :3443 | native - Node.js |
 | postgres | :5432 | certs - TLS on app port |
 | mosquitto | :8883 | certs - TLS on MQTTS port |
 
@@ -156,11 +156,11 @@ graph LR
     end
 
     LE["Let's Encrypt<br/>via Cloudflare DNS-01"] -->|addon-acme| acme_cert
-    CA["Global CA<br/>OCI-LXC-Deployer"] -->|addon-ssl| ca_client_n
+    CA["Global CA<br/>Proxvex"] -->|addon-ssl| ca_client_n
     CA -->|addon-ssl| ca_cert
 
     acme_renewal["acme.sh in nginx<br/>every 60 days"] -.->|renews| acme_cert
-    deployer_renewal["oci-lxc-deployer<br/>daily check"] -.->|renews| ca_cert
+    deployer_renewal["proxvex<br/>daily check"] -.->|renews| ca_cert
 
     style LE fill:#e8f5e9
     style CA fill:#fff3e0
@@ -178,14 +178,14 @@ graph LR
 | **nginx** | `*.ohnewarum.de` | Let's Encrypt | `addon-acme` | acme.sh (60 days) |
 | **zitadel** | `zitadel.local` | Global CA | `addon-ssl` | deployer (daily) |
 | **gitea** | `gitea.local` | Global CA | `addon-ssl` | deployer (daily) |
-| **deployer** | `oci-lxc-deployer.local` | Global CA | `addon-ssl` | deployer (daily) |
+| **deployer** | `proxvex.local` | Global CA | `addon-ssl` | deployer (daily) |
 | **postgres** | `postgres.local` | Global CA | `addon-ssl` | deployer (daily) |
 
 ## 4. OIDC Authentication
 
 | App | OIDC | Issuer URL |
 |-----|------|-----------|
-| oci-lxc-deployer | `addon-oidc` | `https://auth.ohnewarum.de` |
+| proxvex | `addon-oidc` | `https://auth.ohnewarum.de` |
 | Gitea | `addon-oidc` | `https://auth.ohnewarum.de` |
 | Nebenkosten | Client-side PKCE | `https://auth.ohnewarum.de` |
 | Homepage | None (public) | — |
@@ -242,13 +242,13 @@ Stack "production" (stacktype: postgres + oidc + cloudflare)
 
 ## 6. Installation & Configuration
 
-### oci-lxc-deployer
+### proxvex
 
 The management platform that deploys and configures all LXC containers. Runs on `pve1.cluster` as an unprivileged Alpine container.
 
-- **UI**: `https://oci-lxc-deployer:3443` (LAN only)
+- **UI**: `https://proxvex:3443` (LAN only)
 - **Deploy**: `./production/deploy.sh <app|all>` (runs from PVE host or dev machine)
-- **Config**: Shared volumes at `/rpool/data/subvol-999999-oci-lxc-deployer-volumes/`
+- **Config**: Shared volumes at `/rpool/data/subvol-999999-proxvex-volumes/`
 
 ### Nginx
 

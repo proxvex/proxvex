@@ -88,7 +88,7 @@ print(",".join(sorted(addons)))
 PY
 }
 
-# Check that the container has the oci-lxc-deployer managed marker.
+# Check that the container has the proxvex managed marker.
 # Returns 0 if marker found, 1 if not.
 # Args: desc desc_decoded conf_text conf_text_decoded
 check_managed_marker() {
@@ -97,16 +97,16 @@ check_managed_marker() {
   _conf_text="$3"
   _conf_text_decoded="$4"
 
-  if printf "%s\n" "$_desc" | grep -qiE 'oci-lxc-deployer:managed|oci-lxc-deployer%3Amanaged|^# OCI LXC Deployer|Managed by .*oci-lxc-deployer'; then
+  if printf "%s\n" "$_desc" | grep -qiE 'proxvex:managed|proxvex%3Amanaged|^# Proxvex|Managed by .*proxvex'; then
     return 0
   fi
-  if printf "%s\n" "$_desc_decoded" | grep -qiE 'oci-lxc-deployer:managed|^# OCI LXC Deployer|Managed by .*oci-lxc-deployer'; then
+  if printf "%s\n" "$_desc_decoded" | grep -qiE 'proxvex:managed|^# Proxvex|Managed by .*proxvex'; then
     return 0
   fi
-  if printf "%s\n" "$_conf_text" | grep -qiE 'oci-lxc-deployer:managed|oci-lxc-deployer%3Amanaged'; then
+  if printf "%s\n" "$_conf_text" | grep -qiE 'proxvex:managed|proxvex%3Amanaged'; then
     return 0
   fi
-  if printf "%s\n" "$_conf_text_decoded" | grep -qiE 'oci-lxc-deployer:managed'; then
+  if printf "%s\n" "$_conf_text_decoded" | grep -qiE 'proxvex:managed'; then
     return 0
   fi
   return 1
@@ -156,8 +156,8 @@ normalize_size_to_gb() {
   esac
 }
 
-# Write the oci-lxc-deployer notes/marker block into a container conf file.
-# Replaces any existing oci-lxc-deployer comment lines in description.
+# Write the proxvex notes/marker block into a container conf file.
+# Replaces any existing proxvex comment lines in description.
 # Args: conf_file oci_image_raw app_id app_name
 write_notes_block() {
   _conf="$1"
@@ -169,15 +169,15 @@ write_notes_block() {
 
   TMP_DESC=$(mktemp)
   {
-    printf "<!-- oci-lxc-deployer:managed -->\n"
+    printf "<!-- proxvex:managed -->\n"
     if [ -n "$OCI_IMAGE_VISIBLE" ]; then
-      printf "<!-- oci-lxc-deployer:oci-image %s -->\n" "$OCI_IMAGE_VISIBLE"
+      printf "<!-- proxvex:oci-image %s -->\n" "$OCI_IMAGE_VISIBLE"
     fi
     if [ -n "$_app_id" ]; then
-      printf "<!-- oci-lxc-deployer:application-id %s -->\n" "$_app_id"
+      printf "<!-- proxvex:application-id %s -->\n" "$_app_id"
     fi
     if [ -n "$_app_name" ]; then
-      printf "<!-- oci-lxc-deployer:application-name %s -->\n" "$_app_name"
+      printf "<!-- proxvex:application-name %s -->\n" "$_app_name"
     fi
     if [ -n "$_app_id" ] || [ -n "$_app_name" ]; then
       if [ -n "$_app_id" ] && [ -n "$_app_name" ]; then
@@ -195,9 +195,9 @@ write_notes_block() {
 
   TMP_CONF=$(mktemp)
   awk '
-    /^#.*oci-lxc-deployer/ { next }
-    /^#.*OCI LXC Deployer/ { next }
-    /^#.*Managed by .*oci-lxc-deployer/ { next }
+    /^#.*proxvex/ { next }
+    /^#.*Proxvex/ { next }
+    /^#.*Managed by .*proxvex/ { next }
     /^#.*Application:/ { next }
     /^#.*Application ID:/ { next }
     /^#.*OCI image:/ { next }
@@ -407,14 +407,14 @@ for line in lines:
     orig = line.rstrip('\n')
 
     # Update version hidden marker (URL-encoded)
-    if new_version and re.search(r'oci-lxc-deployer%3Aversion\s', orig):
+    if new_version and re.search(r'proxvex%3Aversion\s', orig):
         orig = re.sub(
-            r'(oci-lxc-deployer%3Aversion\s+)\S+(\s*-->)',
+            r'(proxvex%3Aversion\s+)\S+(\s*-->)',
             r'\g<1>' + new_version + r'\2', orig)
     # Update version hidden marker (plain)
-    elif new_version and re.search(r'oci-lxc-deployer:version\s', orig):
+    elif new_version and re.search(r'proxvex:version\s', orig):
         orig = re.sub(
-            r'(oci-lxc-deployer:version\s+)\S+(\s*-->)',
+            r'(proxvex:version\s+)\S+(\s*-->)',
             r'\g<1>' + new_version + r'\2', orig)
 
     # Update visible version text (URL-encoded: Version%3A)
@@ -425,14 +425,14 @@ for line in lines:
         orig = re.sub(r'^(#Version:\s+)\S+', r'\g<1>' + new_version, orig)
 
     # Update OCI image hidden marker (URL-encoded)
-    if new_oci_image and re.search(r'oci-lxc-deployer%3Aoci-image\s', orig):
+    if new_oci_image and re.search(r'proxvex%3Aoci-image\s', orig):
         orig = re.sub(
-            r'(oci-lxc-deployer%3Aoci-image\s+)\S+(\s*-->)',
+            r'(proxvex%3Aoci-image\s+)\S+(\s*-->)',
             r'\g<1>' + new_oci_image + r'\2', orig)
     # Update OCI image hidden marker (plain)
-    elif new_oci_image and re.search(r'oci-lxc-deployer:oci-image\s', orig):
+    elif new_oci_image and re.search(r'proxvex:oci-image\s', orig):
         orig = re.sub(
-            r'(oci-lxc-deployer:oci-image\s+)\S+(\s*-->)',
+            r'(proxvex:oci-image\s+)\S+(\s*-->)',
             r'\g<1>' + new_oci_image + r'\2', orig)
 
     # Update visible OCI image text (URL-encoded)
@@ -474,7 +474,7 @@ for line in lines:
     orig = line.rstrip('\n')
 
     # Update log-url marker: .../logs/VE_CONTEXT/OLD_VMID -> .../logs/VE_CONTEXT/NEW_VMID
-    if re.search(r'oci-lxc-deployer[:%]3[Aa]log-url', orig):
+    if re.search(r'proxvex[:%]3[Aa]log-url', orig):
         orig = re.sub(
             r'(/logs/[^/\s]+/)' + re.escape(old_vmid) + r'(?=[\s">)]|$)',
             r'\g<1>' + new_vmid, orig)

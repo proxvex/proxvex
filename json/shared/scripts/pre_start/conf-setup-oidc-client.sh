@@ -113,7 +113,7 @@ fi
 # If the Zitadel bootstrap (340) already created an OIDC app for this application,
 # the credentials are stored in deployer-oidc.json. Use them directly without API access.
 DEPLOYER_CRED_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap")/deployer-oidc.json"
-if [ -f "$DEPLOYER_CRED_FILE" ] && [ "$OIDC_APP_NAME" = "oci-lxc-deployer" ]; then
+if [ -f "$DEPLOYER_CRED_FILE" ] && [ "$OIDC_APP_NAME" = "proxvex" ]; then
   echo "Using pre-provisioned credentials from ${DEPLOYER_CRED_FILE}" >&2
   CRED_ISSUER=$(sed -n 's/.*"issuer_url": *"\([^"]*\)".*/\1/p' "$DEPLOYER_CRED_FILE")
   CRED_CLIENT_ID=$(sed -n 's/.*"client_id": *"\([^"]*\)".*/\1/p' "$DEPLOYER_CRED_FILE")

@@ -1,0 +1,70 @@
+{
+  "execute_on": "ve",
+  "name": "Map Serial Device (M2M)",
+  "description": "Map serial device to VM (required for Proxvex RTU)",
+  "parameters": [
+    {
+      "id": "host_device_path",
+      "name": "USB Serial Port",
+      "type": "enum",
+      "required": true,
+      "enumValuesTemplate": "list-host-usb-serial-ports.json"
+    },
+    {
+      "id": "install_replug_watcher",
+      "name": "Live Replug (Host Installation)",
+      "type": "boolean",
+      "default": true,
+      "advanced": true
+    },
+    {
+      "id": "vm_id",
+      "name": "ID of the VM",
+      "type": "string",
+      "required": true
+    },
+    {
+      "id": "uid",
+      "name": "UID",
+      "type": "string",
+      "default": "0",
+      "advanced": true
+    },
+    {
+      "id": "gid",
+      "name": "GID",
+      "type": "string",
+      "default": "20",
+      "advanced": true
+    },
+    {
+      "id": "mapped_uid",
+      "name": "Mapped UID (Host)",
+      "type": "string",
+      "default": "",
+      "advanced": true
+    },
+    {
+      "id": "mapped_gid",
+      "name": "Mapped GID (Host)",
+      "type": "string",
+      "default": "",
+      "advanced": true
+    },
+    {
+      "id": "container_device_path",
+      "name": "Container Device Path",
+      "type": "string",
+      "default": "/dev/ttyUSB0",
+      "required": false,
+      "advanced": true
+    }
+  ],
+  "commands": [
+    {
+      "name": "Map Serial Device",
+      "script": "conf-map-serial-device.py",
+      "library": "map_device_lib.py"
+    }
+  ]
+}

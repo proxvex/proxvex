@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Live Integration Test for OCI LXC Deployer
+# Live Integration Test for Proxvex
 #
 # Delegates to the TypeScript runner (src/live-test-runner.mts) if tsx is available.
 # Falls back to the built-in bash implementation otherwise.
@@ -181,7 +181,7 @@ verify_notes_managed() {
     local vmid="$1"
     local notes
     notes=$(nested_ssh "pct config $vmid 2>/dev/null" | grep -a -A100 "description:" || echo "")
-    assert 'echo "$notes" | grep -aqE "oci-lxc-deployer(:managed|%3Amanaged)"' "[$vmid] Notes contain managed marker"
+    assert 'echo "$notes" | grep -aqE "proxvex(:managed|%3Amanaged)"' "[$vmid] Notes contain managed marker"
 }
 
 # ── Verify: services_up (docker-compose apps) ──
@@ -341,7 +341,7 @@ wait_for_services() {
 # ════════════════════════════════════════════════════
 
 echo "========================================"
-echo " OCI LXC Deployer - Live Integration Test"
+echo " Proxvex - Live Integration Test"
 echo "========================================"
 echo ""
 echo "Instance:  $E2E_INSTANCE"

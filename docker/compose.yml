@@ -1,8 +1,8 @@
 services:
-  modbus2mqtt:
+  proxvex:
     # We use a mariadb image which supports both amd64 & arm64 architecture
-    image: modbus2mqtt.latest:latest
-    container_name: modbus2mqtt
+    image: proxvex.latest:latest
+    container_name: proxvex
     ports:
       - 3080:3080
       - 3443:3443

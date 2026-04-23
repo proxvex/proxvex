@@ -1,6 +1,6 @@
 {
   "name": "Setup Deployer in Zitadel",
-  "description": "Creates oci-lxc-deployer project, OIDC app, and roles in Zitadel using the ephemeral admin PAT. Stores credentials in /bootstrap/deployer-oidc.json for downstream OIDC addon activation without API access.",
+  "description": "Creates proxvex project, OIDC app, and roles in Zitadel using the ephemeral admin PAT. Stores credentials in /bootstrap/deployer-oidc.json for downstream OIDC addon activation without API access.",
   "execute_on": "lxc",
   "parameters": [
     {

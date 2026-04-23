@@ -9,14 +9,14 @@ RUN apk add --no-cache openssh-client openssl
 ARG BUILD_DATE
 ARG BUILD_DESCRIPTION="Deploys and manages LXC containers on Proxmox from OCI images via a web UI and API, and lets you easily define custom container services"
 ARG BUILD_REF="main"
-ARG BUILD_REPOSITORY="modbus2mqtt/oci-lxc-deployer"
+ARG BUILD_REPOSITORY="proxvex/proxvex"
 ARG BUILD_VERSION
-ARG IMAGE_NAME="oci-lxc-deployer"
+ARG IMAGE_NAME="proxvex"
 
 ENV NODE_ENV=production
 
 # Copy the pre-built tarball into the image
-COPY docker/oci-lxc-deployer.tgz /tmp/app.tgz
+COPY docker/proxvex.tgz /tmp/app.tgz
 
 # Install the application globally from the tarball and create a non-root user
 # Use fixed UID/GID 1000:1000 for easier volume permission management
@@ -46,7 +46,7 @@ ENV HOME=/home/lxc
 # Create entrypoint wrapper that runs as lxc user
 RUN cat > /usr/local/bin/entrypoint-wrapper.sh <<'EOF'
 #!/bin/sh
-# Wrapper to ensure oci-lxc-deployer runs as lxc user, even when started as root
+# Wrapper to ensure proxvex runs as lxc user, even when started as root
 # Also ensure the SSH key symlink exists so keys persist in /secure/.ssh
 ensure_ssh_setup() {
   # Create target dir if missing
@@ -81,7 +81,7 @@ RUN chmod +x /usr/local/bin/entrypoint-wrapper.sh
 USER lxc
 
 EXPOSE 3080 3443
-ENTRYPOINT ["/usr/local/bin/entrypoint-wrapper.sh", "oci-lxc-deployer"]
+ENTRYPOINT ["/usr/local/bin/entrypoint-wrapper.sh", "proxvex"]
 CMD ["--local", "/config", "--secretsFilePath", "/secure/secret.txt"]
 
 # Labels

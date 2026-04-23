@@ -146,7 +146,7 @@
             </div>
           } @else {
             <div class="help" style="color: #d32f2f;">
-              ⚠️ No service SSH key could be generated automatically. Please create an SSH key pair inside the oci-lxc-deployer container (for example with <code>ssh-keygen -t ed25519</code>) or provide a key via <code>LXC_MANAGER_PUBKEY_FILE</code>, then click <strong>Check Again</strong>.
+              ⚠️ No service SSH key could be generated automatically. Please create an SSH key pair inside the proxvex container (for example with <code>ssh-keygen -t ed25519</code>) or provide a key via <code>LXC_MANAGER_PUBKEY_FILE</code>, then click <strong>Check Again</strong>.
             </div>
           }
         </div>
@@ -158,7 +158,7 @@
             </h3>
             <div class="help">
               Run on the Proxmox host as <strong>root</strong>, after the public key is present.<br />
-              This installs <code>openssh-server</code> (if needed), writes a drop‑in at <code>/etc/ssh/sshd_config.d/oci-lxc-deployer.conf</code>,
+              This installs <code>openssh-server</code> (if needed), writes a drop‑in at <code>/etc/ssh/sshd_config.d/proxvex.conf</code>,
               enables public key authentication and disables password authentication, then restarts SSH.<br />
               Tip: Ensure you have console access in case you need to revert settings.
             </div>

@@ -1,0 +1,16 @@
+services:
+  proxvex:
+    image: ghcr.io/proxvex/proxvex:${MODBUS2MQTT_VERSION:-latest}
+    restart: unless-stopped
+    user: "${UID:-999}:${GID:-999}"
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - ./config:/config
+      - ./data:/data
+      - ./ssl:/ssl
+    ports:
+      - "${MODBUS2MQTT_PORT:-3000}:3000"
+
+volumes:
+  data:

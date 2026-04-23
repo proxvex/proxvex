@@ -38,8 +38,8 @@ jobs:
                 run_all=true ;;
               e2e/*|livetest-local/*)
                 run_all=true ;;
-              install-oci-lxc-deployer.sh)
-                apps="$apps oci-lxc-deployer" ;;
+              install-proxvex.sh)
+                apps="$apps proxvex" ;;
             esac
           done < /tmp/changed.txt
 

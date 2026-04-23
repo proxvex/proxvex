@@ -15,7 +15,7 @@ import json
 import os
 from typing import Any
 
-ROOT = "/Users/volkmar/lxc-manager"
+ROOT = "/Users/volkmar/proxvex"
 
 
 def walk(obj: Any, refs: set[str]) -> None:

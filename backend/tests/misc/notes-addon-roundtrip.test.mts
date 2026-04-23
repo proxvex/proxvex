@@ -169,14 +169,14 @@ describe("Notes addon-update roundtrip", () => {
 
   it("generates notes with log-url and Links", () => {
     originalNotes = generateNotes();
-    expect(originalNotes).toContain("oci-lxc-deployer:log-url");
+    expect(originalNotes).toContain("proxvex:log-url");
     expect(originalNotes).toContain("**Links**");
     expect(originalNotes).toContain("[Logs](http://old-prod-hub:3080/logs/ve_pve1.cluster/504)");
   });
 
   it("converts to PVE config format", () => {
     pveConfig = toPveConfig(originalNotes);
-    expect(pveConfig).toContain("#<!-- oci-lxc-deployer%3Amanaged -->");
+    expect(pveConfig).toContain("#<!-- proxvex%3Amanaged -->");
     expect(pveConfig).toContain("arch: amd64");
   });
 
@@ -185,7 +185,7 @@ describe("Notes addon-update roundtrip", () => {
     expect(result.status).toBe(0);
 
     // The extracted + modified description must still contain log-url and Links
-    expect(result.description).toContain("oci-lxc-deployer:log-url");
+    expect(result.description).toContain("proxvex:log-url");
     expect(result.description).toContain("**Links**");
     expect(result.description).toContain("[Logs](http://old-prod-hub:3080/logs/ve_pve1.cluster/504)");
   });
@@ -195,11 +195,11 @@ describe("Notes addon-update roundtrip", () => {
     expect(result.status).toBe(0);
 
     // Addon marker present
-    expect(result.description).toContain("oci-lxc-deployer:addon addon-ssl");
+    expect(result.description).toContain("proxvex:addon addon-ssl");
 
     // Original markers still present
-    expect(result.description).toContain("oci-lxc-deployer:managed");
-    expect(result.description).toContain("oci-lxc-deployer:application-id zitadel");
+    expect(result.description).toContain("proxvex:managed");
+    expect(result.description).toContain("proxvex:application-id zitadel");
     expect(result.description).toContain("# zitadel");
   });
 });

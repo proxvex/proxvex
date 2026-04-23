@@ -15,7 +15,7 @@ The OIDC addon automatically:
 
 ## User Management
 
-User management is done **exclusively through the Zitadel Web UI or API** — not through oci-lxc-deployer.
+User management is done **exclusively through the Zitadel Web UI or API** — not through proxvex.
 After installation, access the Zitadel admin console at \`https://<hostname>/ui/console\` to:
 - Create and manage users
 - Assign roles to users

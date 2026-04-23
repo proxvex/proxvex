@@ -8,7 +8,7 @@ function cert(overrides: Partial<ICertificateStatus>): ICertificateStatus {
     file: "certs/cert.pem",
     certtype: "server",
     subject: "CN=test.local",
-    issuer: `CN=${CA_ISSUER_MARKER}/O=oci-lxc-deployer`,
+    issuer: `CN=${CA_ISSUER_MARKER}/O=proxvex`,
     expiry_date: "2026-06-01",
     days_remaining: 200,
     status: "ok",

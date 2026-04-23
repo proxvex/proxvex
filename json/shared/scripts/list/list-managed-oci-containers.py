@@ -3,7 +3,7 @@
 
 Scans `${LXC_MANAGER_PVE_LXC_DIR:-/etc/pve/lxc}/*.conf` (env override supported for tests)
 for containers that:
-- contain the oci-lxc-deployer managed marker
+- contain the proxvex managed marker
 - contain an OCI image marker or visible OCI image line
 
 Outputs a single VeExecution output id `containers` whose value is a JSON string

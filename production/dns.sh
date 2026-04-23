@@ -103,7 +103,7 @@ add_dns docker-registry-mirror "$REGISTRY_MIRROR_IP"
 add_dns eclipse-mosquitto      "$MOSQUITTO_IP"
 add_dns old-prod-hub           "$OLD_PROD_HUB_IP"
 # Internal apps use DHCP — dnsmasq resolves hostnames automatically:
-#   oci-lxc-deployer, postgres, zitadel, gitea
+#   proxvex, postgres, zitadel, gitea
 
 # Public domains → Router alt IP
 # All go through the same path: DNS → 192.168.1.1 → NAT → nginx:1443
@@ -157,4 +157,4 @@ echo "MQTT (${ROUTER_ALT_IP}:8883 → ${MOSQUITTO_IP}:8883, LAN only):"
 echo "  mqtt.ohnewarum.de"
 echo ""
 echo "Internal apps (DHCP, no manual DNS):"
-echo "  oci-lxc-deployer, postgres, zitadel, gitea"
+echo "  proxvex, postgres, zitadel, gitea"

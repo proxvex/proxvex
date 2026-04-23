@@ -5,18 +5,18 @@
 #   ./check-registry-mirror.sh <deployer-url> <ve-context>
 #
 # Example:
-#   ./check-registry-mirror.sh http://oci-lxc-deployer:3080 ve_pve1.cluster
+#   ./check-registry-mirror.sh http://proxvex:3080 ve_pve1.cluster
 
 set -e
 
 DEPLOYER_URL="${1:-}"
 VE_CONTEXT="${2:-}"
 MIRROR_HOST="docker-registry-mirror"
-CA_CERT="/usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt"
+CA_CERT="/usr/local/share/ca-certificates/proxvex-ca.crt"
 
 if [ -z "$DEPLOYER_URL" ] || [ -z "$VE_CONTEXT" ]; then
   echo "Usage: $0 <deployer-url> <ve-context>" >&2
-  echo "Example: $0 http://oci-lxc-deployer:3080 ve_pve1.cluster" >&2
+  echo "Example: $0 http://proxvex:3080 ve_pve1.cluster" >&2
   exit 1
 fi
 
@@ -36,7 +36,7 @@ fi
 
 # 2. /etc/hosts: registry-1.docker.io + index.docker.io -> mirror IP
 echo "[2/4] Setting /etc/hosts entries..." >&2
-MARKER="# oci-lxc-deployer: registry mirror"
+MARKER="# proxvex: registry mirror"
 if [ -n "$MIRROR_IP" ]; then
   if grep -q "$MARKER" /etc/hosts 2>/dev/null; then
     echo "  OK: Already configured" >&2

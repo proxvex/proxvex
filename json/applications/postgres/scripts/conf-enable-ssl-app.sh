@@ -28,8 +28,8 @@ CERTS_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
 PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data")/pgdata/postgresql.conf"
 INITDB_DIR=$(resolve_host_volume "$SAFE_HOST" "initdb")
 
-SSL_START="# oci-lxc-deployer SSL start"
-SSL_END="# oci-lxc-deployer SSL end"
+SSL_START="# proxvex SSL start"
+SSL_END="# proxvex SSL end"
 
 # ── Mode 1: Existing database ──────────────────────────────────────
 if [ -f "$PG_CONF" ]; then

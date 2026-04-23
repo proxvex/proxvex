@@ -49,7 +49,7 @@ Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `-
 5. **Start deployer in background** if not running (using livetest-specific context):
    ```
    mkdir -p .livetest-data
-   cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs \
+   cd backend && DEPLOYER_PORT=3201 node dist/proxvex.mjs \
      --local ../livetest-local \
      --storageContextFilePath ../.livetest-data/storagecontext.json \
      --secretsFilePath ../.livetest-data/secret.txt &
@@ -89,7 +89,7 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
      cd backend && pnpm run build
      kill $(lsof -ti :3201 -sTCP:LISTEN) 2>/dev/null; sleep 2
      mkdir -p ../.livetest-data
-     cd backend && DEPLOYER_PORT=3201 node dist/oci-lxc-deployer.mjs \
+     cd backend && DEPLOYER_PORT=3201 node dist/proxvex.mjs \
        --local ../livetest-local \
        --storageContextFilePath ../.livetest-data/storagecontext.json \
        --secretsFilePath ../.livetest-data/secret.txt &

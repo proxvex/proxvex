@@ -2,11 +2,11 @@
 set -e
 
 # docker/test.sh 
-# Test script for modbus2mqtt Docker image
+# Test script for proxvex Docker image
 # Usage: ./docker/test.sh [--keep|-k] [--quick|-q] [IMAGE_TAG]
 
 # Optional: --docker-tag <TAG> als Argument
-IMAGE_TAG="modbus2mqtt"
+IMAGE_TAG="proxvex"
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [--keep|-k] [--quick|-q] [--docker-tag <TAG>]"
       echo "  --keep|-k         Keep containers running for debugging"
       echo "  --quick|-q        Quick test (web service only, no SSH tests)"
-      echo "  --docker-tag TAG  Use specific Docker image tag (default: modbus2mqtt)"
+      echo "  --docker-tag TAG  Use specific Docker image tag (default: proxvex)"
       exit 1
       ;;
   esac
@@ -61,14 +61,14 @@ for arg in "$@"; do
   esac
 done
 
-echo "Testing modbus2mqtt Docker image..."
+echo "Testing proxvex Docker image..."
 
 
 
 cleanup_containers() {
   echo "Cleaning up test containers..." 
-  docker stop modbus2mqtt-test-main modbus2mqtt-test-standalone >/dev/null 2>&1 || true
-  docker rm modbus2mqtt-test-main modbus2mqtt-test-standalone >/dev/null 2>&1 || true
+  docker stop proxvex-test-main proxvex-test-standalone >/dev/null 2>&1 || true
+  docker rm proxvex-test-main proxvex-test-standalone >/dev/null 2>&1 || true
 }
 # Function: Cleanup containers_or_keep
 cleanup_containers_or_keep() {
@@ -76,19 +76,19 @@ cleanup_containers_or_keep() {
 if [ "$KEEP_CONTAINER" = "true" ]; then
   echo ""
   echo "=== Containers kept for debugging ==="
-  echo "Main container:       modbus2mqtt-test-main"
+  echo "Main container:       proxvex-test-main"
   echo "  Web:  http://localhost:3010/"
   echo "  SSH:  ssh -p 3022 root@localhost"
   if [ "$QUICK_TEST" = "false" ]; then
-    echo "Standalone container: modbus2mqtt-test-standalone" 
+    echo "Standalone container: proxvex-test-standalone" 
     echo "  Web:  http://localhost:3011/"
   fi
   echo ""
   echo "Commands:"
-  echo "  docker logs modbus2mqtt-test-main"
-  echo "  docker exec -it modbus2mqtt-test-main sh"
-  echo "  docker stop modbus2mqtt-test-main modbus2mqtt-test-standalone"
-  echo "  docker rm modbus2mqtt-test-main modbus2mqtt-test-standalone"
+  echo "  docker logs proxvex-test-main"
+  echo "  docker exec -it proxvex-test-main sh"
+  echo "  docker stop proxvex-test-main proxvex-test-standalone"
+  echo "  docker rm proxvex-test-main proxvex-test-standalone"
 else
   cleanup_containers
 fi
@@ -106,7 +106,7 @@ check_ports() {
   
   if [ ${#ports_in_use[@]} -gt 0 ]; then
     echo "ERROR: Ports in use: ${ports_in_use[*]}" >&2
-    echo "Run: docker ps -a | grep modbus2mqtt" >&2
+    echo "Run: docker ps -a | grep proxvex" >&2
     exit 1
   fi
 }
@@ -161,7 +161,7 @@ setup_ssh_test() {
   local test_dir=$1
   
   # Generate test SSH key pair
-  ssh-keygen -t ed25519 -f "$test_dir/test_key" -N "" -C "modbus2mqtt-test" >/dev/null 2>&1
+  ssh-keygen -t ed25519 -f "$test_dir/test_key" -N "" -C "proxvex-test" >/dev/null 2>&1
   TEST_PUBKEY=$(cat "$test_dir/test_key.pub")
   
   # Create options.json with test public key
@@ -195,7 +195,7 @@ test_ssh_advanced() {
   local auth_keys
   auth_keys=$(docker exec "$container_name" cat /root/.ssh/authorized_keys 2>/dev/null || echo "")
   
-  if echo "$auth_keys" | grep -q "modbus2mqtt-test"; then
+  if echo "$auth_keys" | grep -q "proxvex-test"; then
     echo "✓ SSH key configured in container"
   else
     echo "⚠️  SSH key not found in authorized_keys (but container is running)"
@@ -211,7 +211,7 @@ test_ssh_advanced() {
 }
 
 # Main execution starts here
-echo "=== modbus2mqtt Docker Test ==="
+echo "=== proxvex Docker Test ==="
 
 # Preliminary checks
 cleanup_containers_or_keep
@@ -240,10 +240,10 @@ chmod -R  755 "$TEST_DIR"
 sudo chown -R root:root "$TEST_DIR"
 cleanup_containers
 echo "Starting container with volume mount..."
-docker run -d -p 3010:3080 -p 3022:22 -v "$TEST_DIR/data:/data" -v "$TEST_DIR/ssl:/ssl" -v "$TEST_DIR/config:/config" --name modbus2mqtt-test-main "$IMAGE_TAG"
+docker run -d -p 3010:3080 -p 3022:22 -v "$TEST_DIR/data:/data" -v "$TEST_DIR/ssl:/ssl" -v "$TEST_DIR/config:/config" --name proxvex-test-main "$IMAGE_TAG"
 
 # Wait for web service
-if ! wait_for_service 3010 "Web service" "modbus2mqtt-test-main"; then
+if ! wait_for_service 3010 "Web service" "proxvex-test-main"; then
   cleanup_containers_or_keep
   exit 1
 fi
@@ -254,7 +254,7 @@ if ! test_ssh_basic 3022; then
   exit 1
 fi
 
-test_ssh_advanced "modbus2mqtt-test-main" "$TEST_DATA_DIR"
+test_ssh_advanced "proxvex-test-main" "$TEST_DATA_DIR"
 
 echo "✓ Test 1 passed: Container with volume mount"
 
@@ -263,10 +263,10 @@ if [ "$QUICK_TEST" = "false" ]; then
   echo ""
   echo "=== Test 2: Standalone Container Test ==="
   echo "Starting standalone container..."
-  docker run -d -p 3011:3080 -p 3023:22 --name modbus2mqtt-test-standalone "$IMAGE_TAG"
+  docker run -d -p 3011:3080 -p 3023:22 --name proxvex-test-standalone "$IMAGE_TAG"
 
-  if ! wait_for_service 3011 "Standalone web service" "modbus2mqtt-test-standalone"; then
-    docker exec modbus2mqtt-test-standalone ls -la /var/logs
+  if ! wait_for_service 3011 "Standalone web service" "proxvex-test-standalone"; then
+    docker exec proxvex-test-standalone ls -la /var/logs
     cleanup_containers_or_keep
     exit 1
   fi

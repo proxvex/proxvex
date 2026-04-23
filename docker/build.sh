@@ -30,7 +30,7 @@ case "$HOST_ARCH" in
 esac
 
 GENERATE=false
-IMAGE_TAG="modbus2mqtt"
+IMAGE_TAG="proxvex"
 for arg in "$@"; do
     if [ "$arg" = "--generate" ]; then GENERATE=true; fi
 done

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * TypeScript Live Integration Test Runner for OCI LXC Deployer.
+ * TypeScript Live Integration Test Runner for Proxvex.
  *
  * Creates real containers on a Proxmox host via the CLI tool and verifies
  * application-level functionality including dependencies and docker services.
@@ -266,7 +266,7 @@ async function main() {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
   console.log("========================================");
-  console.log(" OCI LXC Deployer - Live Integration Test");
+  console.log(" Proxvex - Live Integration Test");
   console.log("========================================");
   console.log("");
   console.log(`Instance:  ${config.instance}`);

@@ -1,11 +1,11 @@
 #!/bin/sh
-# Setup oci-lxc-deployer project, OIDC app, and roles in Zitadel.
+# Setup proxvex project, OIDC app, and roles in Zitadel.
 #
 # Runs inside the Zitadel LXC container (execute_on: lxc) after docker
 # compose start. Uses the ephemeral admin PAT from Docker tmpfs to create:
-#   1. Project "oci-lxc-deployer" with projectRoleAssertion
+#   1. Project "proxvex" with projectRoleAssertion
 #   2. Roles from oidc_roles (admin)
-#   3. OIDC app "oci-lxc-deployer" with callback URLs
+#   3. OIDC app "proxvex" with callback URLs
 #   4. Stores credentials in /bootstrap/deployer-oidc.json
 #
 # The admin PAT is only available during first start (start-from-init)
@@ -34,8 +34,8 @@ ZITADEL_EXTERNALDOMAIN="{{ ZITADEL_EXTERNALDOMAIN }}"
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
 [ "$ZITADEL_EXTERNALDOMAIN" = "NOT_DEFINED" ] && ZITADEL_EXTERNALDOMAIN=""
 
-PROJECT_NAME="oci-lxc-deployer"
-OIDC_APP_NAME="oci-lxc-deployer"
+PROJECT_NAME="proxvex"
+OIDC_APP_NAME="proxvex"
 OIDC_CALLBACK_PATH="/api/auth/callback"
 CRED_FILE="/bootstrap/deployer-oidc.json"
 

@@ -4,7 +4,7 @@
 # This script installs a systemd service on the PVE host (ubuntupve) that
 # automatically sets up iptables port forwarding rules on boot.
 #
-# The service reads configuration from /etc/oci-lxc-deployer/e2e/config.json
+# The service reads configuration from /etc/proxvex/e2e/config.json
 # and applies forwarding rules for all configured instances.
 #
 # Usage:
@@ -38,7 +38,7 @@ pve_ssh() {
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 "root@$PVE_HOST" "$@"
 }
 
-CONFIG_DIR="/etc/oci-lxc-deployer/e2e"
+CONFIG_DIR="/etc/proxvex/e2e"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 SERVICE_SCRIPT="/usr/local/bin/e2e-port-forwarding.sh"
 SERVICE_NAME="e2e-port-forwarding"
@@ -66,7 +66,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-CONFIG_FILE = Path('/etc/oci-lxc-deployer/e2e/config.json')
+CONFIG_FILE = Path('/etc/proxvex/e2e/config.json')
 
 def run(cmd, check=True):
     \"\"\"Run shell command, optionally ignoring errors.\"\"\"

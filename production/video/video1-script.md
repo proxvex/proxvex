@@ -4,7 +4,7 @@
 
 | Aspekt | Detail |
 |--------|--------|
-| Ziel | oci-lxc-deployer installieren, Apps deployen, OIDC einrichten |
+| Ziel | proxvex installieren, Apps deployen, OIDC einrichten |
 | Ergebnis | Deployer + Mosquitto + Postgres + Zitadel laufen, OIDC aktiv für Deployer und Proxmox |
 | Voraussetzungen | Proxmox-Host erreichbar, DNS/NAT auf Router vorbereitet |
 
@@ -13,7 +13,7 @@
 ```
 ┌──────────────────────────────────────────────┬─────────────────┐
 │                                              │                 │
-│         oci-lxc-deployer Web UI              │                 │
+│         proxvex Web UI              │                 │
 │              (70% Breite)                    │    Ablauf-      │
 │              (70% Höhe)                      │    Panel        │
 │                                              │   (30% Breite)  │
@@ -29,7 +29,7 @@ Schritte 1 und 2 sind terminal-basiert — Layout wird beim Schneiden festgelegt
 
 ---
 
-## Schritt 1: oci-lxc-deployer installieren
+## Schritt 1: proxvex installieren
 
 **Ablauf-Panel:** `video1-ablauf-01-installer.html`
 **Darstellung:** Terminal (Vollbild oder mit Ablauf-Panel rechts)
@@ -42,7 +42,7 @@ Schritte 1 und 2 sind terminal-basiert — Layout wird beim Schneiden festgelegt
 
 ```bash
 # Auf dem Proxmox-Host (pve1.cluster):
-curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/install-oci-lxc-deployer.sh | sh
+curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh | sh
 ```
 
 ### Was passiert (Voice-Over während Installation)
@@ -73,7 +73,7 @@ curl -fsSL https://raw.githubusercontent.com/modbus2mqtt/oci-lxc-deployer/main/i
 
 > "Der Deployer läuft — auf HTTP, Port 3080. Kein HTTPS, kein Login. Das kommt gleich."
 
-1. **UI öffnen:** `http://oci-lxc-deployer:3080`
+1. **UI öffnen:** `http://proxvex:3080`
 2. **Proxmox zeigen:** Container mit 1xx VM-ID sichtbar
 3. **Kurz durch die UI klicken** — App-Liste, Parameter-Ansicht
 
@@ -148,7 +148,7 @@ Beim Process-Monitor-Zeitraffer jedes Mal den gleichen visuellen Effekt verwende
 
 ---
 
-## Schritt 4: OIDC für oci-lxc-deployer
+## Schritt 4: OIDC für proxvex
 
 **Ablauf-Panel:** `video1-ablauf-04-oidc-deployer.html`
 **Darstellung:** Split-Screen
@@ -163,7 +163,7 @@ Beim Process-Monitor-Zeitraffer jedes Mal den gleichen visuellen Effekt verwende
 1. **Parameter-Datei vorbereiten** (vorab, kurz zeigen):
    ```json
    {
-     "application": "oci-lxc-deployer",
+     "application": "proxvex",
      "task": "reconfigure",
      "params": [
        { "name": "previouse_vm_id", "value": 100 }
@@ -181,7 +181,7 @@ Beim Process-Monitor-Zeitraffer jedes Mal den gleichen visuellen Effekt verwende
 
 ### Ergebnis demonstrieren
 
-1. **Browser öffnen:** `https://oci-lxc-deployer:3443`
+1. **Browser öffnen:** `https://proxvex:3443`
 2. **Redirect zu Zitadel:** Login-Seite erscheint
 3. **Einloggen:** Mit Zitadel-Credentials
 4. **Zurück im Deployer:** Eingeloggt!

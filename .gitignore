@@ -34,7 +34,7 @@ alpine/repo/
 test-results/
 **/secret.txt
 **/storagecontext.json
-docker/oci-lxc-deployer.tgz
+docker/proxvex.tgz
 
 # Environment files with credentials (keep .env.template)
 **/.env

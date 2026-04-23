@@ -1,5 +1,5 @@
 #!/bin/sh
-# Bootstrap Zitadel project for oci-lxc-deployer
+# Bootstrap Zitadel project for proxvex
 #
 # One-time initialization: Creates a Zitadel project, service account,
 # OIDC app, and assigns PROJECT_OWNER role. Invalidates the admin PAT

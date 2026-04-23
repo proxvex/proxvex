@@ -1,0 +1,12 @@
+{
+  "name": "Proxvex Gateway",
+  "description": "Proxvex Gateway from Modbus RTU/TCP to MQTT and vice versa",
+  "extends": "node-red",
+  "tags": ["iot", "messaging"],
+  "installation": [
+    {
+      "name": "110-conf-map-serial.json",
+      "after": "100-conf-create-configure-lxc.json"
+    }
+  ]
+}

@@ -11,7 +11,7 @@
       "current": { "type": "boolean" },
       "isHub": {
         "type": "boolean",
-        "description": "When true, this host runs an oci-lxc-deployer Hub and this deployer acts as a Spoke against it. Requires hubApiUrl."
+        "description": "When true, this host runs an proxvex Hub and this deployer acts as a Spoke against it. Requires hubApiUrl."
       },
       "hubApiUrl": {
         "type": "string",

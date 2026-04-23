@@ -1113,7 +1113,7 @@ lxc.cgroup2.devices.allow: c <major>:<minor> rwm
 lxc.mount.entry: /dev/<device> dev/<device> none bind,optional,create=file
 \`\`\`
 
-For USB devices, use the OCI LXC Deployer's USB mapping feature.`,
+For USB devices, use the Proxvex's USB mapping feature.`,
         category: 'manual',
         severity: 'warning',
         checkService: true

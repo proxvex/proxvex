@@ -5,8 +5,8 @@
 #
 # Usage:
 #   ./scripts/fork-status                              # uses defaults from git remotes
-#   ./scripts/fork-status volkmarnissen modbus2mqtt     # explicit owner/upstream
-#   ./scripts/fork-status --repo oci-lxc-deployer      # override repo name
+#   ./scripts/fork-status volkmarnissen proxvex     # explicit owner/upstream
+#   ./scripts/fork-status --repo proxvex      # override repo name
 #
 # Requires: gh (GitHub CLI), authenticated
 set -e

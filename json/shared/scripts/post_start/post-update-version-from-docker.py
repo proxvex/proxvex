@@ -123,7 +123,7 @@ def apply_version_to_conf_text(
     """Pure function: apply a version update to a /etc/pve/lxc/<id>.conf text.
 
     Returns (new_text, changed). Does no I/O so it is trivially unit-testable.
-    - Updates the hidden `<!-- oci-lxc-deployer:version ... -->` marker (URL-encoded).
+    - Updates the hidden `<!-- proxvex:version ... -->` marker (URL-encoded).
     - Updates the visible Markdown header `# AppName (version)` (plain text).
 
     PVE stores description lines with only SOME characters URL-encoded
@@ -134,15 +134,15 @@ def apply_version_to_conf_text(
     changed = False
     original = conf_text
 
-    encoded_old = "oci-lxc-deployer%%3Aversion %s" % quote(old_version or "", safe="")
-    encoded_new = "oci-lxc-deployer%%3Aversion %s" % quote(new_version, safe="")
+    encoded_old = "proxvex%%3Aversion %s" % quote(old_version or "", safe="")
+    encoded_new = "proxvex%%3Aversion %s" % quote(new_version, safe="")
 
     if encoded_old in conf_text:
         conf_text = conf_text.replace(encoded_old, encoded_new)
-    elif "oci-lxc-deployer%3Aversion" in conf_text:
+    elif "proxvex%3Aversion" in conf_text:
         conf_text = re.sub(
-            r"oci-lxc-deployer%3Aversion\s+[^\s<]+",
-            "oci-lxc-deployer%%3Aversion %s" % quote(new_version, safe=""),
+            r"proxvex%3Aversion\s+[^\s<]+",
+            "proxvex%%3Aversion %s" % quote(new_version, safe=""),
             conf_text,
         )
 

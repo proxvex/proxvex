@@ -31,7 +31,7 @@ After 5-6 iterations, the restore procedure is battle-tested and 100% reliable. 
 - **syncoid** — ZFS send/receive with resume support (part of sanoid)
 - **rsync** — for non-ZFS directories
 - **WOL via LXC container** — a gptwol container on pve1 provides a WOL API (called via `curl`). The same container also serves as a web-based GitHub Actions runner trigger. No `etherwake` needed on the host.
-- **vzdump** — not needed (OCI containers are reproducible via oci-lxc-deployer)
+- **vzdump** — not needed (OCI containers are reproducible via proxvex)
 
 ## Architecture
 
@@ -225,9 +225,9 @@ fi
 - `/etc/lxc-oci-deployer/` — inside containers, covered by ZFS snapshots
 - Logs — in ZFS snapshots or expendable
 - Container rootfs — covered by ZFS snapshots + syncoid
-- vzdump — OCI containers are reproducible via oci-lxc-deployer templates
+- vzdump — OCI containers are reproducible via proxvex templates
 
-**Critical data:** The shared volume (`subvol-999999-oci-lxc-deployer-volumes`) contains databases and persistent application data. It is a ZFS subvolume and fully covered by sanoid snapshots + syncoid replication.
+**Critical data:** The shared volume (`subvol-999999-proxvex-volumes`) contains databases and persistent application data. It is a ZFS subvolume and fully covered by sanoid snapshots + syncoid replication.
 
 ## Cron Schedule
 
@@ -257,7 +257,7 @@ pct start <vmid>
 ### Shared volume (database) rollback
 ```sh
 pct stop <vmid1> <vmid2> ...
-zfs rollback rpool/data/subvol-999999-oci-lxc-deployer-volumes@autosnap_2026-03-09_00:00:00_daily
+zfs rollback rpool/data/subvol-999999-proxvex-volumes@autosnap_2026-03-09_00:00:00_daily
 pct start <vmid1> <vmid2> ...
 ```
 
@@ -267,8 +267,8 @@ See "Two Modes in First-Boot Script" above — the restore mode handles this aut
 ### Single dataset from ubuntupve
 ```sh
 pct stop <vmid1> <vmid2> ...
-ssh root@ubuntupve "zfs send macbackup/pve1/rpool/data/subvol-999999-oci-lxc-deployer-volumes@<snapshot>" \
-  | zfs receive -F rpool/data/subvol-999999-oci-lxc-deployer-volumes
+ssh root@ubuntupve "zfs send macbackup/pve1/rpool/data/subvol-999999-proxvex-volumes@<snapshot>" \
+  | zfs receive -F rpool/data/subvol-999999-proxvex-volumes
 pct start <vmid1> <vmid2> ...
 ```
 

@@ -119,7 +119,7 @@ describe("host-write-docker-compose-notes.py / build_notes", () => {
     const result = callBuildNotes(baseVars);
     expect(result.status).toBe(0);
     expect(result.notes).toContain(
-      "<!-- oci-lxc-deployer:log-url http://old-prod-hub:3080/logs/ve_pve1.cluster/504 -->",
+      "<!-- proxvex:log-url http://old-prod-hub:3080/logs/ve_pve1.cluster/504 -->",
     );
   });
 

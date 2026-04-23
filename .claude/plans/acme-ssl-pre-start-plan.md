@@ -6,7 +6,7 @@ ACME und SSL Addon-Templates sollen komplett in pre_start laufen — fuer ALLE A
 
 - OCI-image reconfigure: clone -> pre_start -> replace_ct (kein start/post_start)
 - Docker-compose: post_start bleibt fuer Base-App-Templates (320, 330), aber Addon-Templates sind pre_start
-- oci-lxc-deployer wird sicher reconfigurierbar fuer SSL/ACME
+- proxvex wird sicher reconfigurierbar fuer SSL/ACME
 
 **Kein `skip_addon_post_start`, kein CommandBuilder-Filtering noetig.**
 

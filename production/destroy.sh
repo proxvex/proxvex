@@ -94,14 +94,14 @@ $SSH_CMD '
   zfs list -H -o name -r rpool/data 2>/dev/null || true
 
   echo "=== Removing deployer CA from system trust store ==="
-  rm -f /usr/local/share/ca-certificates/oci-lxc-deployer-ca.crt 2>/dev/null || true
-  rm -f /usr/share/ca-certificates/oci-lxc-deployer-ca.crt 2>/dev/null || true
-  sed -i "/oci-lxc-deployer-ca.crt/d" /etc/ca-certificates.conf 2>/dev/null || true
+  rm -f /usr/local/share/ca-certificates/proxvex-ca.crt 2>/dev/null || true
+  rm -f /usr/share/ca-certificates/proxvex-ca.crt 2>/dev/null || true
+  sed -i "/proxvex-ca.crt/d" /etc/ca-certificates.conf 2>/dev/null || true
   update-ca-certificates >/dev/null 2>&1 || true
   echo "  CA certificate removed from trust store"
 
   echo "=== Removing registry mirror /etc/hosts entries ==="
-  sed -i "/oci-lxc-deployer: registry mirror/d" /etc/hosts 2>/dev/null || true
+  sed -i "/proxvex: registry mirror/d" /etc/hosts 2>/dev/null || true
 
   echo "=== Wiping /var/log/lxc ==="
   rm -rf /var/log/lxc/* 2>/dev/null || true

@@ -133,13 +133,13 @@ EOF
   # Schedule the switchover. TARGET is already running (start phase started
   # it), but its network is racing with SOURCE. Stop SOURCE, wait, restart
   # TARGET so it cleanly takes over the IP.
-  UNIT_NAME="oci-lxc-deployer-upgrade-${SOURCE_VMID}-to-${TARGET_VMID}"
+  UNIT_NAME="proxvex-upgrade-${SOURCE_VMID}-to-${TARGET_VMID}"
   DELAY_SECONDS=5
   log "systemd-run: unit=${UNIT_NAME}, delay=${DELAY_SECONDS}s"
   if ! systemd-run \
       --on-active="${DELAY_SECONDS}s" \
       --unit="${UNIT_NAME}" \
-      --description="oci-lxc-deployer upgrade switchover ${SOURCE_VMID} -> ${TARGET_VMID}" \
+      --description="proxvex upgrade switchover ${SOURCE_VMID} -> ${TARGET_VMID}" \
       /bin/sh -c "pct stop ${SOURCE_VMID}; sleep 2; pct restart ${TARGET_VMID}" >&2; then
     fail "systemd-run failed — cannot schedule self-upgrade switchover"
   fi

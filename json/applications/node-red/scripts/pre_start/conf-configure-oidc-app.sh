@@ -65,7 +65,7 @@ echo "  Issuer: $OIDC_ISSUER_URL" >&2
 echo "  Callback: $CALLBACK_URL" >&2
 
 # Build the adminAuth block
-ADMIN_AUTH_BLOCK='    // OIDC authentication — managed by oci-lxc-deployer
+ADMIN_AUTH_BLOCK='    // OIDC authentication — managed by proxvex
     adminAuth: {
         type: "strategy",
         strategy: {

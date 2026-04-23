@@ -27,7 +27,7 @@ describe("FrameworkLoader - docker-compose", () => {
 
     // Verify that localDir is a temporary directory (not the repo's local directory)
     expect(env.localDir).not.toContain("examples");
-    expect(env.localDir).toContain("oci-lxc-deployer-test-");
+    expect(env.localDir).toContain("proxvex-test-");
 
     const init = env.initPersistence({ enableCache: false });
     pm = init.pm;

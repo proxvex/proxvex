@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+cd /var/lib/proxvex || { echo "ERROR: Cannot access home directory"; exit 1; }
+export HOME=/var/lib/proxvex
+s6-setuidgid proxvex /usr/bin/proxvex -c /config -d /data -s /ssl 2>&1
+[ $? -ne 0 ] && echo "proxvex exited with error code $?" 2>&1

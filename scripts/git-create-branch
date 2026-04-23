@@ -34,7 +34,7 @@ esac
 # Check upstream remote
 if ! git remote get-url upstream >/dev/null 2>&1; then
   echo "${RED}Error: No 'upstream' remote configured.${NC}"
-  echo "Add it with: git remote add upstream git@github.com:modbus2mqtt/oci-lxc-deployer.git"
+  echo "Add it with: git remote add upstream git@github.com:proxvex/proxvex.git"
   exit 1
 fi
 
@@ -49,4 +49,4 @@ echo ""
 echo "Next steps:"
 echo "  1. Make your changes and commit"
 echo "  2. Push: git push -u origin ${BRANCH}"
-echo "  3. Create PR: gh pr create --base main --repo modbus2mqtt/oci-lxc-deployer"
+echo "  3. Create PR: gh pr create --base main --repo proxvex/proxvex"

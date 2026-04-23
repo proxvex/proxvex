@@ -16,25 +16,25 @@ import {
  * Real PVE config format: description is stored as #-prefixed comment lines
  * at the top of the file, with URL-encoded content.
  */
-const PVE_CONFIG_WITH_NOTES = `#<!-- oci-lxc-deployer%3Amanaged -->
-#<!-- oci-lxc-deployer%3Aoci-image ghcr.io/modbus2mqtt/oci-lxc-deployer -->
-#<!-- oci-lxc-deployer%3Aapplication-id oci-lxc-deployer -->
-#<!-- oci-lxc-deployer%3Aapplication-name oci-lxc-deployer -->
-#<!-- oci-lxc-deployer%3Aversion 0.3.4 -->
-#<!-- oci-lxc-deployer%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/106 -->
-#<!-- oci-lxc-deployer%3Ausername lxc -->
-#<!-- oci-lxc-deployer%3Auid 1001 -->
-#<!-- oci-lxc-deployer%3Agid 1001 -->
-## oci-lxc-deployer (0.3.4)
+const PVE_CONFIG_WITH_NOTES = `#<!-- proxvex%3Amanaged -->
+#<!-- proxvex%3Aoci-image ghcr.io/proxvex/proxvex -->
+#<!-- proxvex%3Aapplication-id proxvex -->
+#<!-- proxvex%3Aapplication-name proxvex -->
+#<!-- proxvex%3Aversion 0.3.4 -->
+#<!-- proxvex%3Alog-url http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/106 -->
+#<!-- proxvex%3Ausername lxc -->
+#<!-- proxvex%3Auid 1001 -->
+#<!-- proxvex%3Agid 1001 -->
+## proxvex (0.3.4)
 #
-#Log file%3A /var/log/lxc/oci-lxc-deployer-106.log
+#Log file%3A /var/log/lxc/proxvex-106.log
 #
 #**Links**
 #- [Console Logs](http%3A//myhost.cluster%3A3201/logs/ve_pve1.cluster/106)
-#Managed by [oci-lxc-deployer](http%3A//myhost.cluster%3A3201/).
+#Managed by [proxvex](http%3A//myhost.cluster%3A3201/).
 arch: amd64
 cmode: console
-hostname: oci-lxc-deployer
+hostname: proxvex
 memory: 512
 net0: name=eth0,bridge=vmbr0,hwaddr=BC:24:11:40:E1:19,ip=dhcp,type=veth
 onboot: 1
@@ -48,7 +48,7 @@ unprivileged: 1
  * Alternative PVE config format: single-line URL-encoded description.
  * This format may be used by older PVE versions or shorter descriptions.
  */
-const PVE_CONFIG_SINGLE_LINE = `description: %3C%21--+oci-lxc-deployer%3Amanaged+--%3E%0A%3C%21--+oci-lxc-deployer%3Aapplication-id+test-app+--%3E%0A%23+test-app%0A%0A**Links**%0A-+%5BLogs%5D(http%3A%2F%2Fhost%3A3201%2Flogs%2F100)%0AManaged+by+oci-lxc-deployer.
+const PVE_CONFIG_SINGLE_LINE = `description: %3C%21--+proxvex%3Amanaged+--%3E%0A%3C%21--+proxvex%3Aapplication-id+test-app+--%3E%0A%23+test-app%0A%0A**Links**%0A-+%5BLogs%5D(http%3A%2F%2Fhost%3A3201%2Flogs%2F100)%0AManaged+by+proxvex.
 arch: amd64
 hostname: test-app
 memory: 512
@@ -179,13 +179,13 @@ exit 1
 
       // Must contain the addon marker
       expect(description).toContain(
-        "<!-- oci-lxc-deployer:addon addon-ssl -->",
+        "<!-- proxvex:addon addon-ssl -->",
       );
 
       // Must preserve existing notes content
-      expect(description).toContain("<!-- oci-lxc-deployer:managed -->");
-      expect(description).toContain("oci-lxc-deployer:application-id");
-      expect(description).toContain("# oci-lxc-deployer");
+      expect(description).toContain("<!-- proxvex:managed -->");
+      expect(description).toContain("proxvex:application-id");
+      expect(description).toContain("# proxvex");
       expect(description).toContain("Managed by");
       expect(description).toContain("**Links**");
       expect(description).toContain("Console Logs");
@@ -197,7 +197,7 @@ exit 1
 
       const description = readPctOutput();
       const markerPos = description.indexOf(
-        "<!-- oci-lxc-deployer:addon addon-ssl -->",
+        "<!-- proxvex:addon addon-ssl -->",
       );
       const linksPos = description.indexOf("**Links**");
 
@@ -263,13 +263,13 @@ exit 1
 
       const secondDescription = readPctOutput();
       expect(secondDescription).toContain(
-        "<!-- oci-lxc-deployer:addon addon-ssl -->",
+        "<!-- proxvex:addon addon-ssl -->",
       );
       expect(secondDescription).toContain(
-        "<!-- oci-lxc-deployer:addon samba-shares -->",
+        "<!-- proxvex:addon samba-shares -->",
       );
       // Must still contain original content
-      expect(secondDescription).toContain("<!-- oci-lxc-deployer:managed -->");
+      expect(secondDescription).toContain("<!-- proxvex:managed -->");
     });
 
     it("should remove addon marker", () => {
@@ -300,10 +300,10 @@ exit 1
 
       const removedDescription = readPctOutput();
       expect(removedDescription).not.toContain(
-        "oci-lxc-deployer:addon addon-ssl",
+        "proxvex:addon addon-ssl",
       );
       // Other content must remain
-      expect(removedDescription).toContain("<!-- oci-lxc-deployer:managed -->");
+      expect(removedDescription).toContain("<!-- proxvex:managed -->");
     });
   });
 
@@ -323,9 +323,9 @@ exit 1
 
       const description = readPctOutput();
       expect(description).toContain(
-        "<!-- oci-lxc-deployer:addon addon-ssl -->",
+        "<!-- proxvex:addon addon-ssl -->",
       );
-      expect(description).toContain("<!-- oci-lxc-deployer:managed -->");
+      expect(description).toContain("<!-- proxvex:managed -->");
       expect(description).toContain("test-app");
       expect(description).toContain("**Links**");
     });
@@ -347,7 +347,7 @@ exit 1
 
       const description = readPctOutput();
       expect(description).toContain(
-        "<!-- oci-lxc-deployer:addon addon-ssl -->",
+        "<!-- proxvex:addon addon-ssl -->",
       );
     });
   });

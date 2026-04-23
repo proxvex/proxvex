@@ -1,6 +1,6 @@
-# OCI LXC Deployer Applications - OCI Images
+# Proxvex Applications - OCI Images
 
-This document lists all applications in OCI LXC Deployer and their available OCI images from Docker Hub or GitHub Container Registry (ghcr.io).
+This document lists all applications in Proxvex and their available OCI images from Docker Hub or GitHub Container Registry (ghcr.io).
 
 ## Applications OCI Images Table
 
@@ -10,7 +10,7 @@ This document lists all applications in OCI LXC Deployer and their available OCI
 | mosquitto | Mosquitto | `eclipse-mosquitto` |
 | node-red | Node-RED | `nodered/node-red` |
 | phpmyadmin | phpMyAdmin | `phpmyadmin` |
-| modbus2mqtt | Modbus2Mqtt Gateway | `ghcr.io/mazocode/modbus2mqtt` |
+| proxvex | Proxvex Gateway | `ghcr.io/mazocode/proxvex` |
 | alpine-packages | Alpine APK Build Environment | `alpine` |
 | macbckpsrv | Mac OS Time Machine Backup Server | `willtho/samba-timemachine` |
 
@@ -19,7 +19,7 @@ This document lists all applications in OCI LXC Deployer and their available OCI
 Some applications have alternative images available:
 
 - **Node-RED**: Also available as `ghcr.io/node-red/node-red` (GHCR)
-- **Modbus2Mqtt**: Also available as `004helix/modbus2mqtt` (Docker Hub, community)
+- **Proxvex**: Also available as `004helix/proxvex` (Docker Hub, community)
 - **Samba Time Machine**: Alternative: `timjdfletcher/samba-timemachine` (Docker Hub)
 
 ## Usage Notes
@@ -43,7 +43,7 @@ Some applications have alternative images available:
 - **Mosquitto**: Official Eclipse Mosquitto image from Docker Hub
 - **Node-RED**: Available on both Docker Hub and GHCR
 - **phpMyAdmin**: Official image from Docker Hub
-- **Modbus2Mqtt**: Available on both Docker Hub (community) and GHCR (mazocode)
+- **Proxvex**: Available on both Docker Hub (community) and GHCR (mazocode)
 - **Alpine**: Official Alpine Linux base image
 - **Samba Time Machine**: Community images available (no official image)
 

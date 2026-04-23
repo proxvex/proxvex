@@ -3,7 +3,7 @@
 # ACME is only used for the nginx wildcard certificate.
 #
 # Prerequisites:
-#   - oci-lxc-deployer is installed and running (HTTPS on port 3443 or HTTP on port 3080)
+#   - proxvex is installed and running (HTTPS on port 3443 or HTTP on port 3080)
 #   - Cloudflare API token with Zone:DNS:Edit permission for all relevant domains
 #
 # Usage:
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # --- Configuration ---
 PVE_HOST="pve1.cluster"
-DEPLOYER_HOST="${DEPLOYER_HOST:-oci-lxc-deployer}"
+DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-.ohnewarum.de}"
 # Auto-detect: HTTPS (port 3443) or HTTP (port 3080)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then

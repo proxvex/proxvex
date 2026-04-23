@@ -10,8 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd -P)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd -P)"
 
 # Default values
-IMAGE_TAG="oci-lxc-deployer-test"
-CONTAINER_NAME="oci-lxc-deployer-test"
+IMAGE_TAG="proxvex-test"
+CONTAINER_NAME="proxvex-test"
 SKIP_BUILD=false
 SKIP_PACK=false
 SKIP_RUN=false
@@ -88,10 +88,10 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [options]"
       echo ""
       echo "Options:"
-      echo "  --tag <image>         Docker image tag (default: oci-lxc-deployer-test)"
-      echo "  --container-name <n>  Container name (default: oci-lxc-deployer-test)"
+      echo "  --tag <image>         Docker image tag (default: proxvex-test)"
+      echo "  --container-name <n>  Container name (default: proxvex-test)"
       echo "  --no-build           Skip npm build steps (use existing dist/)"
-      echo "  --no-pack            Skip npm pack (use existing docker/oci-lxc-deployer.tgz)"
+      echo "  --no-pack            Skip npm pack (use existing docker/proxvex.tgz)"
       echo "  --no-run             Skip starting container after build"
       echo "  --detach, -d          Run container in detached mode"
       echo "  --port <p>, -p <p>   Host port to map to container port 3080 (default: 3000)"
@@ -114,9 +114,9 @@ cd "$PROJECT_ROOT"
 BUILD_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "dev")
 BUILD_REF=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-BUILD_REPOSITORY="${BUILD_REPOSITORY:-modbus2mqtt/oci-lxc-deployer}"
+BUILD_REPOSITORY="${BUILD_REPOSITORY:-proxvex/proxvex}"
 
-echo "=== OCI LXC Deployer npm pack + Docker Build Test ==="
+echo "=== Proxvex npm pack + Docker Build Test ==="
 echo "  Image tag: $IMAGE_TAG"
 echo "  Version: $BUILD_VERSION"
 echo "  Git ref: ${BUILD_REF:0:8}"
@@ -157,9 +157,9 @@ if [ "$SKIP_PACK" = "false" ]; then
   echo "=== Step 2: Creating npm pack tarball ==="
   
   # Remove old tarball if exists
-  if [ -f "docker/oci-lxc-deployer.tgz" ]; then
+  if [ -f "docker/proxvex.tgz" ]; then
     echo "Removing old tarball..."
-    rm -f docker/oci-lxc-deployer.tgz
+    rm -f docker/proxvex.tgz
   fi
   
   echo "Running npm pack..."
@@ -171,19 +171,19 @@ if [ "$SKIP_PACK" = "false" ]; then
     exit 1
   fi
   
-  echo "Moving tarball to docker/oci-lxc-deployer.tgz..."
-  mv "$TARBALL" docker/oci-lxc-deployer.tgz
+  echo "Moving tarball to docker/proxvex.tgz..."
+  mv "$TARBALL" docker/proxvex.tgz
   
-  TARBALL_SIZE=$(du -h docker/oci-lxc-deployer.tgz | cut -f1)
-  echo "✓ Tarball created: docker/oci-lxc-deployer.tgz ($TARBALL_SIZE)"
+  TARBALL_SIZE=$(du -h docker/proxvex.tgz | cut -f1)
+  echo "✓ Tarball created: docker/proxvex.tgz ($TARBALL_SIZE)"
   echo ""
 else
-  echo "=== Step 2: Skipping npm pack (using existing docker/oci-lxc-deployer.tgz) ==="
-  if [ ! -f "docker/oci-lxc-deployer.tgz" ]; then
-    echo "ERROR: docker/oci-lxc-deployer.tgz not found. Run without --no-pack first." >&2
+  echo "=== Step 2: Skipping npm pack (using existing docker/proxvex.tgz) ==="
+  if [ ! -f "docker/proxvex.tgz" ]; then
+    echo "ERROR: docker/proxvex.tgz not found. Run without --no-pack first." >&2
     exit 1
   fi
-  echo "✓ Using existing tarball: docker/oci-lxc-deployer.tgz"
+  echo "✓ Using existing tarball: docker/proxvex.tgz"
   echo ""
 fi
 
@@ -197,17 +197,17 @@ if ! docker buildx version >/dev/null 2>&1; then
 else
   USE_BUILDX=true
   # Ensure buildx builder exists
-  if ! docker buildx ls | grep -q "oci-lxc-deployer-builder"; then
+  if ! docker buildx ls | grep -q "proxvex-builder"; then
     echo "Creating buildx builder..."
-    docker buildx create --name oci-lxc-deployer-builder --use >/dev/null 2>&1 || true
+    docker buildx create --name proxvex-builder --use >/dev/null 2>&1 || true
   else
-    docker buildx use oci-lxc-deployer-builder >/dev/null 2>&1 || true
+    docker buildx use proxvex-builder >/dev/null 2>&1 || true
   fi
 fi
 
 echo "Building Docker image..."
 echo "  Dockerfile: docker/Dockerfile.npm-pack"
-echo "  Tarball: docker/oci-lxc-deployer.tgz"
+echo "  Tarball: docker/proxvex.tgz"
 echo ""
 
 if [ "$USE_BUILDX" = "true" ]; then
@@ -215,7 +215,7 @@ if [ "$USE_BUILDX" = "true" ]; then
     --file docker/Dockerfile.npm-pack \
     --tag "$IMAGE_TAG:latest" \
     --tag "$IMAGE_TAG:$BUILD_VERSION" \
-    --build-arg NPM_TARBALL=docker/oci-lxc-deployer.tgz \
+    --build-arg NPM_TARBALL=docker/proxvex.tgz \
     --build-arg BUILD_VERSION="$BUILD_VERSION" \
     --build-arg BUILD_REF="$BUILD_REF" \
     --build-arg BUILD_DATE="$BUILD_DATE" \
@@ -227,7 +227,7 @@ else
     --file docker/Dockerfile.npm-pack \
     --tag "$IMAGE_TAG:latest" \
     --tag "$IMAGE_TAG:$BUILD_VERSION" \
-    --build-arg NPM_TARBALL=docker/oci-lxc-deployer.tgz \
+    --build-arg NPM_TARBALL=docker/proxvex.tgz \
     --build-arg BUILD_VERSION="$BUILD_VERSION" \
     --build-arg BUILD_REF="$BUILD_REF" \
     --build-arg BUILD_DATE="$BUILD_DATE" \

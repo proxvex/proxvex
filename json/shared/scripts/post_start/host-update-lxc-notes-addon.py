@@ -89,7 +89,7 @@ def extract_description_from_config(conf_text: str) -> str:
 
 def build_addon_marker(addon_id: str) -> str:
     """Build the addon marker comment."""
-    return f"<!-- oci-lxc-deployer:addon {addon_id} -->"
+    return f"<!-- proxvex:addon {addon_id} -->"
 
 
 def insert_addon_marker(description: str, addon_id: str) -> str:
@@ -97,7 +97,7 @@ def insert_addon_marker(description: str, addon_id: str) -> str:
     marker = build_addon_marker(addon_id)
 
     # Check if marker already exists
-    if f"oci-lxc-deployer:addon {addon_id}" in description:
+    if f"proxvex:addon {addon_id}" in description:
         return description  # Already present
 
     lines = description.split("\n")
@@ -116,7 +116,7 @@ def insert_addon_marker(description: str, addon_id: str) -> str:
         # Find last marker comment and insert after it
         last_marker_idx = -1
         for i, line in enumerate(result_lines):
-            if "oci-lxc-deployer:" in line and line.strip().startswith("<!--"):
+            if "proxvex:" in line and line.strip().startswith("<!--"):
                 last_marker_idx = i
 
         if last_marker_idx >= 0:
@@ -130,7 +130,7 @@ def insert_addon_marker(description: str, addon_id: str) -> str:
 
 def remove_addon_marker(description: str, addon_id: str) -> str:
     """Remove addon marker from description if present."""
-    marker_text = f"oci-lxc-deployer:addon {addon_id}"
+    marker_text = f"proxvex:addon {addon_id}"
 
     if marker_text not in description:
         return description  # Not present, nothing to do
@@ -174,7 +174,7 @@ def main() -> None:
 
         if addon_action == "remove":
             # Remove addon marker
-            if f"oci-lxc-deployer:addon {addon_id}" not in current_desc:
+            if f"proxvex:addon {addon_id}" not in current_desc:
                 print(f"Addon marker not found for {addon_id}, skipping", file=sys.stderr)
                 print(json.dumps([{"id": "success", "value": "true"}]))
                 return
@@ -185,7 +185,7 @@ def main() -> None:
 
         else:
             # Add addon marker (default)
-            if f"oci-lxc-deployer:addon {addon_id}" in current_desc:
+            if f"proxvex:addon {addon_id}" in current_desc:
                 print(f"Addon marker already exists for {addon_id}, skipping", file=sys.stderr)
                 print(json.dumps([{"id": "success", "value": "true"}]))
                 return

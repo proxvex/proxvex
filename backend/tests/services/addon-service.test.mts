@@ -866,7 +866,7 @@ describe("AddonService", () => {
         required_parameters: ["http_port", "https_port"],
       });
       const app = createApplication({
-        id: "oci-lxc-deployer",
+        id: "proxvex",
         supported_addons: ["test-addon"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string", default: "3000" },
@@ -882,7 +882,7 @@ describe("AddonService", () => {
         required_parameters: ["http_port", "https_port"],
       });
       const app = createApplication({
-        id: "oci-lxc-deployer",
+        id: "proxvex",
         supported_addons: ["test-addon"],
         properties: [
           { id: "http_port", value: "{{http_port}}" },

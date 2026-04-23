@@ -35,7 +35,7 @@ esac
 UPSTREAM_REPO=$(git remote get-url upstream 2>/dev/null | sed 's|.*github.com[:/]||;s|\.git$||')
 if [ -z "$UPSTREAM_REPO" ]; then
   echo "${RED}Error: No 'upstream' remote configured.${NC}"
-  echo "Add it with: git remote add upstream git@github.com:modbus2mqtt/oci-lxc-deployer.git"
+  echo "Add it with: git remote add upstream git@github.com:proxvex/proxvex.git"
   exit 1
 fi
 

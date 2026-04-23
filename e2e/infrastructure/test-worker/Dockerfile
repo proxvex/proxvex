@@ -37,11 +37,11 @@ RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
 LABEL \
-    org.opencontainers.image.title="oci-lxc-deployer-ci-test-worker" \
-    org.opencontainers.image.description="CI test worker with pnpm and SSH for oci-lxc-deployer E2E tests" \
-    org.opencontainers.image.vendor="modbus2mqtt" \
+    org.opencontainers.image.title="proxvex-ci-test-worker" \
+    org.opencontainers.image.description="CI test worker with pnpm and SSH for proxvex E2E tests" \
+    org.opencontainers.image.vendor="proxvex" \
     org.opencontainers.image.authors="Volkmar Nissen <volkmar.nissen@gmail.com>" \
     org.opencontainers.image.licenses="MIT" \
     org.opencontainers.image.version="2.0.0" \
-    org.opencontainers.image.source="https://github.com/modbus2mqtt/oci-lxc-deployer" \
+    org.opencontainers.image.source="https://github.com/proxvex/proxvex" \
     org.opencontainers.image.base.name="node:24-bookworm-slim"

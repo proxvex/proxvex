@@ -31,8 +31,8 @@ permissions:
   packages: write
 
 env:
-  product_name: oci-lxc-deployer
-  main_docker_name: 'ghcr.io/${{ github.repository_owner }}/oci-lxc-deployer'
+  product_name: proxvex
+  main_docker_name: 'ghcr.io/${{ github.repository_owner }}/proxvex'
 
 jobs:
   build-and-release:
@@ -91,8 +91,8 @@ jobs:
       - name: Create npm pack tarball
         run: |
           npm pack --pack-destination docker/
-          mv docker/oci-lxc-deployer-*.tgz docker/oci-lxc-deployer.tgz
-          echo "Tarball size: $(du -h docker/oci-lxc-deployer.tgz | cut -f1)"
+          mv docker/proxvex-*.tgz docker/proxvex.tgz
+          echo "Tarball size: $(du -h docker/proxvex.tgz | cut -f1)"
 
       - name: Read Node.js major version from .nvmrc
         id: nodeversion
