@@ -37,7 +37,14 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
     FormsModule,
   ],
   template: `
-    <h2 mat-dialog-title>Certificate Management</h2>
+    <h2 mat-dialog-title>
+      Certificate Management
+      @if (spokeStatus()?.active) {
+        <span class="spoke-badge" matTooltip="This deployer is a Spoke. Certificates and the CA are managed by the Hub.">
+          <mat-icon>hub</mat-icon> Spoke
+        </span>
+      }
+    </h2>
     <mat-dialog-content>
       <mat-tab-group animationDuration="200ms">
 
@@ -46,14 +53,7 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
           <div class="tab-content">
             <mat-card appearance="outlined">
               <mat-card-header>
-                <mat-card-title>
-                  CA Status
-                  @if (spokeStatus()?.active) {
-                    <span class="spoke-badge" matTooltip="This deployer is a Spoke. The CA is managed by the Hub.">
-                      <mat-icon>hub</mat-icon> Spoke
-                    </span>
-                  }
-                </mat-card-title>
+                <mat-card-title>CA Status</mat-card-title>
               </mat-card-header>
               <mat-card-content>
                 @if (loadingCa()) {
@@ -109,19 +109,21 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
               </mat-card-actions>
             </mat-card>
 
-            <mat-card appearance="outlined">
-              <mat-card-header>
-                <mat-card-title>Domain Suffix</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                <mat-form-field class="domain-suffix-field" appearance="outline">
-                  <mat-label>Domain Suffix</mat-label>
-                  <input matInput [ngModel]="domainSuffix()" (ngModelChange)="domainSuffix.set($event)"
-                    (blur)="saveDomainSuffix()" placeholder=".local">
-                  <mat-hint>FQDN = hostname + suffix (e.g. myhost{{ domainSuffix() }})</mat-hint>
-                </mat-form-field>
-              </mat-card-content>
-            </mat-card>
+            @if (!spokeStatus()?.active) {
+              <mat-card appearance="outlined">
+                <mat-card-header>
+                  <mat-card-title>Domain Suffix</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <mat-form-field class="domain-suffix-field" appearance="outline">
+                    <mat-label>Domain Suffix</mat-label>
+                    <input matInput [ngModel]="domainSuffix()" (ngModelChange)="domainSuffix.set($event)"
+                      (blur)="saveDomainSuffix()" placeholder=".local">
+                    <mat-hint>FQDN = hostname + suffix (e.g. myhost{{ domainSuffix() }})</mat-hint>
+                  </mat-form-field>
+                </mat-card-content>
+              </mat-card>
+            }
           </div>
         </mat-tab>
 
@@ -332,8 +334,15 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
               </mat-card-header>
               <mat-card-content>
                 <p class="hint-text">Automatically rotate and clean up LXC console logs in /var/log/lxc/ on all PVE hosts. Rotated logs are deleted after 7 days.</p>
+                @if (spokeStatus()?.active) {
+                  <p class="hint-text warn">Log rotation runs on the Hub — this Spoke doesn't manage PVE host logs.</p>
+                }
                 <div class="auto-renewal-row">
-                  <mat-slide-toggle [checked]="logRotationEnabled()" (change)="toggleLogRotation($event.checked)">
+                  <mat-slide-toggle
+                    [checked]="logRotationEnabled()"
+                    [disabled]="spokeStatus()?.active"
+                    (change)="toggleLogRotation($event.checked)"
+                    [matTooltip]="spokeStatus()?.active ? 'Log rotation is managed on the Hub in Spoke mode.' : ''">
                     Enable daily log rotation
                   </mat-slide-toggle>
                   <span class="auto-renewal-info">
@@ -353,7 +362,9 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                 </div>
               </mat-card-content>
               <mat-card-actions>
-                <button mat-stroked-button (click)="triggerLogRotation()" [disabled]="runningLogRotation()">
+                <button mat-stroked-button (click)="triggerLogRotation()"
+                  [disabled]="runningLogRotation() || spokeStatus()?.active"
+                  [matTooltip]="spokeStatus()?.active ? 'Log rotation is managed on the Hub in Spoke mode.' : ''">
                   @if (runningLogRotation()) {
                     <mat-spinner diameter="18"></mat-spinner>
                   } @else {
