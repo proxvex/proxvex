@@ -53,18 +53,36 @@ DEFAULT_EXCLUDE_FILES = {
 }
 
 
-# Match any spelling/separator variant of "oci lxc deployer" AND the legacy
+# Match any spelling/separator variant of "oci lxc deployer", the legacy
 # pre-rename form "lxc manager" that survived in a few doc blocks and SSH
-# control-socket paths. Both alternatives map through the same case-aware
-# replacement_for() below. Word boundaries prevent matching inside longer
-# identifiers.
+# control-socket paths, AND the plain "modbus2mqtt" org name (so references
+# like ghcr.io/modbus2mqtt/oci-lxc-deployer or github.com/modbus2mqtt/… are
+# rewritten to the new org "proxvex"). All alternatives map through the
+# same case-aware replacement_for() below.
+#
+# Word boundaries (?<!\w)/(?!\w) protect shell variable names such as
+# OCI_modbus2mqtt_TAG — the leading "_" is \w, so the inner token is not
+# matched. The json/applications/modbus2mqtt/ broker app directory is
+# exempted separately (see MODBUS2MQTT_APP_REL below).
 PATTERN = re.compile(
     r"(?<!\w)("
     r"oci[\s._\-]?lxc[\s._\-]?deployer"
     r"|lxc[\s._\-]?manager"
+    r"|modbus2mqtt"
     r")(?!\w)",
     re.IGNORECASE,
 )
+
+# Broker app directory: its contents legitimately carry the "modbus2mqtt"
+# brand (it references github.com/modbus2mqtt/modbus2mqtt — a separate
+# product not owned by the proxvex org). We skip it both from content
+# rewriting and from the directory rename.
+MODBUS2MQTT_APP_REL = "json/applications/modbus2mqtt"
+
+
+def is_modbus2mqtt_app_path(rel_path: str) -> bool:
+    rel_norm = rel_path.replace("\\", "/")
+    return rel_norm == MODBUS2MQTT_APP_REL or rel_norm.startswith(MODBUS2MQTT_APP_REL + "/")
 
 
 def replacement_for(token: str) -> str:
@@ -175,6 +193,8 @@ def replace_in_files(root: str, excludes: set[str], gitignore: list[str], dry_ru
             rel = os.path.normpath(os.path.relpath(fpath, root)).replace("\\", "/")
             if matches_gitignore(rel, fname, gitignore):
                 continue
+            if is_modbus2mqtt_app_path(rel):
+                continue
             if is_binary_file(fpath):
                 continue
             try:
@@ -221,6 +241,8 @@ def rename_paths(root: str, excludes: set[str], gitignore: list[str], dry_run: b
         rel_dir = os.path.normpath(os.path.relpath(dirpath, root)).replace("\\", "/")
         if _ignored_dir(rel_dir, excludes, gitignore):
             continue
+        if is_modbus2mqtt_app_path(rel_dir):
+            continue
 
         # Directories first (bottom-up ensures deepest first)
         for d in list(dirnames):
@@ -235,6 +257,8 @@ def rename_paths(root: str, excludes: set[str], gitignore: list[str], dry_run: b
             dst = os.path.join(dirpath, new_name)
             src_rel = os.path.normpath(os.path.relpath(src, root)).replace("\\", "/")
             dst_rel = os.path.normpath(os.path.relpath(dst, root)).replace("\\", "/")
+            if is_modbus2mqtt_app_path(src_rel):
+                continue  # do not rename the broker app directory itself
             dir_renames.append((src_rel, dst_rel))
             if not dry_run:
                 if os.path.exists(dst):
