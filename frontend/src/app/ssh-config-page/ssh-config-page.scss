@@ -1,18 +1,21 @@
 .ssh-config-page { padding: 16px; display: flex; justify-content: center; }
-.ssh-config-page .ssh-dialog { width: 100%; max-width: 520px; }
+.ssh-config-page .ssh-dialog { width: 100%; max-width: 720px; }
 .page-header { display: block; margin-bottom: 12px; text-align: center; }
 .ssh-config-page h2 { margin: 0; font-weight: 600; }
 .add-row { display: flex; align-items: center; gap: 8px; }
 .emphasized { background: #fff8e1; border: 1px solid #f9a825; padding: 8px 12px; border-radius: 6px; }
 
-.grid-row { display: grid; grid-template-columns: 40px 1fr 140px 48px; gap: 8px; align-items: center; margin-bottom: 12px; }
+.grid-row { display: grid; grid-template-columns: 40px 1fr 110px 130px 48px; gap: 8px; align-items: center; margin-bottom: 12px; }
+.grid-row.add-row { grid-template-columns: 40px 1fr 110px 130px 48px; }
+.grid-row.hub-url-row { grid-template-columns: 40px 1fr 48px; }
 .col.radio { display: flex; align-items: center; justify-content: center; }
-.col.host, .col.port, .col.actions { display: flex; align-items: center; justify-content: center; }
+.col.host, .col.port, .col.hub, .col.actions { display: flex; align-items: center; justify-content: center; }
+.col.hub { justify-content: flex-start; }
 .col.actions button { align-self: center; }
 .col.radio mat-radio-button { display: inline-flex; align-items: center; }
 .field { width: 100%; }
-.col.host .field { max-width: 280px; margin: 0 auto; }
-.col.port .field { max-width: 120px; margin: 0 auto; }
+.col.host .field { width: 100%; }
+.col.port .field { width: 100%; }
 
 .ok-banner, .warn-banner, .info-banner {
   display: flex;
