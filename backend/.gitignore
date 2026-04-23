@@ -25,3 +25,4 @@ coverage/
 *.tgz
 
 .dev/
+.hubs/

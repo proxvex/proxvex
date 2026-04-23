@@ -60,3 +60,6 @@ oci*.tgz
 
 # Local hub/spoke dev instances (scripts/dev-hub-spoke-setup.sh)
 .dev/
+.hubs/
+# Rename-script dry-run/apply manifest (reproducible via --dry-run)
+scripts/replace_oci_lxc_deployer_changes.json
