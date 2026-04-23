@@ -563,10 +563,17 @@ export function registerCertificateRoutes(
     }
   });
 
-  // POST /api/certificates/renew-all - Force-renew every self-signed leaf certificate
-  app.post(ApiUri.CertificateRenewAll, express.json(), async (_req, res) => {
+  // POST /api/certificates/renew-all - Force-renew self-signed leaf certificates.
+  // Body: { hostnames?: string[] } — optional allow-list to scope the renewal
+  // to specific hostnames (used by per-row renew actions in the UI). When
+  // omitted/empty, every self-signed cert gets renewed.
+  app.post(ApiUri.CertificateRenewAll, express.json(), async (req, res) => {
     try {
-      const result = await autoRenewalService!.renewAllSelfSigned();
+      const body = (req.body ?? {}) as { hostnames?: string[] };
+      const filter = Array.isArray(body.hostnames) && body.hostnames.length > 0
+        ? body.hostnames.map(String).filter((s) => s.length > 0)
+        : undefined;
+      const result = await autoRenewalService!.renewAllSelfSigned(filter);
       res.status(200).json(result);
     } catch (err: any) {
       sendErrorResponse(res, err);

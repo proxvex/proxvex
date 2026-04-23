@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -55,6 +55,10 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                   <div class="info-grid">
                     <span class="label">Subject:</span>
                     <span>{{ caInfo()?.subject }}</span>
+                    @if (caInfo()?.issued_date) {
+                      <span class="label">Issued:</span>
+                      <span>{{ caInfo()?.issued_date | date:'mediumDate' }}</span>
+                    }
                     <span class="label">Expires:</span>
                     <span>{{ caInfo()?.expiry_date | date:'mediumDate' }}</span>
                     <span class="label">Days remaining:</span>
@@ -211,46 +215,88 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                 } @else if (certificates().length === 0) {
                   <p class="hint-text">No certificates found.</p>
                 } @else {
-                  <table mat-table [dataSource]="certificates()" class="cert-table">
-                    <ng-container matColumnDef="host">
-                      <th mat-header-cell *matHeaderCellDef>Host</th>
-                      <td mat-cell *matCellDef="let cert">{{ cert.host }}</td>
-                    </ng-container>
+                  @for (group of certificatesByHostIssuer(); track group.host + '|' + group.issuer) {
+                    <div class="host-group">
+                      <h4 class="host-header">
+                        <mat-icon class="host-icon">dns</mat-icon>
+                        <span>{{ group.host }}</span>
+                        <span class="host-sep">·</span>
+                        <span [matTooltip]="group.issuer">Signed by {{ group.issuerCn }}</span>
+                        <span class="host-count">({{ group.certs.length }})</span>
+                      </h4>
+                      @if (group.caIssuedDate || group.caExpiryDate) {
+                        <div class="host-subheader">
+                          @if (group.caIssuedDate) {
+                            <span>CA issued {{ group.caIssuedDate | date:'mediumDate' }}</span>
+                          }
+                          @if (group.caIssuedDate && group.caExpiryDate) {
+                            <span class="host-sep">·</span>
+                          }
+                          @if (group.caExpiryDate) {
+                            <span>expires {{ group.caExpiryDate | date:'mediumDate' }}</span>
+                          }
+                        </div>
+                      }
+                      <table mat-table [dataSource]="group.certs" class="cert-table">
+                        <ng-container matColumnDef="subject">
+                          <th mat-header-cell *matHeaderCellDef>Subject</th>
+                          <td mat-cell *matCellDef="let cert">{{ cert.subject }}</td>
+                        </ng-container>
 
-                    <ng-container matColumnDef="subject">
-                      <th mat-header-cell *matHeaderCellDef>Subject</th>
-                      <td mat-cell *matCellDef="let cert">{{ cert.subject }}</td>
-                    </ng-container>
+                        <ng-container matColumnDef="expiry">
+                          <th mat-header-cell *matHeaderCellDef>Expires</th>
+                          <td mat-cell *matCellDef="let cert">{{ cert.expiry_date | date:'mediumDate' }}</td>
+                        </ng-container>
 
-                    <ng-container matColumnDef="expiry">
-                      <th mat-header-cell *matHeaderCellDef>Expires</th>
-                      <td mat-cell *matCellDef="let cert">{{ cert.expiry_date | date:'mediumDate' }}</td>
-                    </ng-container>
+                        <ng-container matColumnDef="status">
+                          <th mat-header-cell *matHeaderCellDef></th>
+                          <td mat-cell *matCellDef="let cert">
+                            @if (cert.status === 'expired') {
+                              <mat-icon class="status-icon status-expired" matTooltip="Expired">error</mat-icon>
+                            } @else if (cert.status === 'warning') {
+                              <mat-icon class="status-icon status-warning" matTooltip="Expires within 30 days">warning</mat-icon>
+                            }
+                          </td>
+                        </ng-container>
 
-                    <ng-container matColumnDef="status">
-                      <th mat-header-cell *matHeaderCellDef></th>
-                      <td mat-cell *matCellDef="let cert">
-                        @if (cert.status === 'expired') {
-                          <mat-icon class="status-icon status-expired" matTooltip="Expired">error</mat-icon>
-                        } @else if (cert.status === 'warning') {
-                          <mat-icon class="status-icon status-warning" matTooltip="Expires within 30 days">warning</mat-icon>
-                        }
-                      </td>
-                    </ng-container>
+                        <ng-container matColumnDef="actions">
+                          <th mat-header-cell *matHeaderCellDef></th>
+                          <td mat-cell *matCellDef="let cert">
+                            @if (canRenewCert(cert)) {
+                              <button mat-icon-button color="warn"
+                                [disabled]="isRenewing(cert) || renewingAll()"
+                                (click)="renewOne(cert)"
+                                [matTooltip]="'Re-issue this certificate with current CA'">
+                                @if (isRenewing(cert)) {
+                                  <mat-spinner diameter="16"></mat-spinner>
+                                } @else {
+                                  <mat-icon>autorenew</mat-icon>
+                                }
+                              </button>
+                            }
+                          </td>
+                        </ng-container>
 
-                    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-                  </table>
+                        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+                      </table>
+                    </div>
+                  }
                 }
               </mat-card-content>
-              <mat-card-actions>
+              <mat-card-actions class="renew-actions">
+                <div class="renew-hint">
+                  Re-issues every certificate in the list above that was signed by your <strong>current</strong> CA
+                  (<em>{{ caInfo()?.subject ? shortIssuer(caInfo()!.subject) : '—' }}</em>).
+                  New validity period, same subjects. Certificates from other CAs stay untouched.
+                </div>
                 <button mat-stroked-button color="warn" (click)="renewAll()"
-                  [disabled]="renewingAll() || certificates().length === 0"
-                  matTooltip="Force-renew every self-signed server certificate, regardless of remaining validity. Useful after rotating the root CA.">
+                  [disabled]="renewingAll() || certificates().length === 0 || !caInfo()?.exists"
+                  matTooltip="Re-sign all server certificates using the current CA. Useful after the CA was regenerated or on a fresh deployer install.">
                   @if (renewingAll()) {
                     <mat-spinner diameter="18"></mat-spinner>
                   } @else {
-                    <ng-container><mat-icon>autorenew</mat-icon> Renew All</ng-container>
+                    <ng-container><mat-icon>autorenew</mat-icon> Renew certificates with current CA</ng-container>
                   }
                 </button>
               </mat-card-actions>
@@ -388,6 +434,62 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
       margin-bottom: 0.75rem;
     }
 
+    .host-group {
+      margin-bottom: 1rem;
+    }
+
+    .host-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.75rem 0 0.25rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #444;
+    }
+
+    .host-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: #888;
+    }
+
+    .host-count {
+      color: #888;
+      font-weight: 400;
+      font-size: 0.85rem;
+    }
+
+    .host-sep {
+      color: #bbb;
+    }
+
+    .host-subheader {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0 0 0.5rem 1.75rem;
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    .renew-actions {
+      flex-direction: column;
+      align-items: flex-start !important;
+      gap: 0.5rem;
+    }
+
+    .renew-hint {
+      font-size: 0.85rem;
+      color: #555;
+      max-width: 60ch;
+    }
+
+    .renew-hint em {
+      font-style: normal;
+      font-weight: 500;
+    }
+
     .auto-renewal-row {
       display: flex;
       align-items: center;
@@ -438,7 +540,46 @@ export class CertificateManagementDialog implements OnInit {
   loadingCerts = signal(false);
   renewingAll = signal(false);
 
-  displayedColumns = ['host', 'subject', 'expiry', 'status'];
+  displayedColumns = ['subject', 'expiry', 'status', 'actions'];
+  /** Hostnames currently being renewed (per-row spinner state). */
+  renewingHostnames = signal<Set<string>>(new Set());
+
+  /** Group certificates by (host, issuer) so the group header can show CA info. */
+  certificatesByHostIssuer = computed(() => {
+    const ca = this.caInfo();
+    const activeCaCn = ca?.subject ? this.shortIssuer(ca.subject) : undefined;
+
+    const groups = new Map<string, { host: string; issuer: string; certs: ICertificateStatus[] }>();
+    for (const c of this.certificates()) {
+      const host = c.host || '(unknown)';
+      const issuer = c.issuer || '(unknown)';
+      const key = `${host}|||${issuer}`;
+      if (!groups.has(key)) groups.set(key, { host, issuer, certs: [] });
+      groups.get(key)!.certs.push(c);
+    }
+
+    return Array.from(groups.values())
+      .sort((a, b) => a.host.localeCompare(b.host) || a.issuer.localeCompare(b.issuer))
+      .map((g) => {
+        const issuerCn = this.shortIssuer(g.issuer);
+        const isActiveCa = !!activeCaCn && issuerCn === activeCaCn;
+        return {
+          ...g,
+          issuerCn,
+          // Only attach CA dates when issuer matches the active deployer CA;
+          // older/foreign CAs have the same CN but different expiry we don't know.
+          caIssuedDate: isActiveCa ? ca?.issued_date : undefined,
+          caExpiryDate: isActiveCa ? ca?.expiry_date : undefined,
+        };
+      });
+  });
+
+  /** Extract the CN of an X.509 issuer DN for compact display. */
+  shortIssuer(issuer: string | undefined): string {
+    if (!issuer) return '—';
+    const match = /CN\s*=\s*([^,/]+)/i.exec(issuer);
+    return match ? match[1].trim() : issuer;
+  }
 
   ngOnInit(): void {
     this.loadCaInfo();
@@ -688,6 +829,46 @@ export class CertificateManagementDialog implements OnInit {
       error: (err) => {
         this.errorHandler.handleError('Failed to renew certificates', err);
         this.renewingAll.set(false);
+      }
+    });
+  }
+
+  /** A cert is renewable if its issuer matches the current CA (only then we
+   *  have the key to re-sign it). */
+  canRenewCert(cert: ICertificateStatus): boolean {
+    const ca = this.caInfo();
+    if (!ca?.exists || !ca.subject) return false;
+    const activeCn = this.shortIssuer(ca.subject);
+    return !!cert?.issuer && this.shortIssuer(cert.issuer) === activeCn;
+  }
+
+  isRenewing(cert: ICertificateStatus): boolean {
+    const hn = (cert as { hostname?: string }).hostname;
+    return !!hn && this.renewingHostnames().has(hn);
+  }
+
+  renewOne(cert: ICertificateStatus): void {
+    const hn = (cert as { hostname?: string }).hostname;
+    if (!hn) return;
+    if (!confirm(`Re-issue the certificate for "${hn}" using the current CA? The leaf cert will be replaced with the same subject but a fresh validity period.`)) return;
+
+    const next = new Set(this.renewingHostnames());
+    next.add(hn);
+    this.renewingHostnames.set(next);
+
+    this.configService.renewAllCertificates([hn]).subscribe({
+      next: (status) => {
+        const done = new Set(this.renewingHostnames());
+        done.delete(hn);
+        this.renewingHostnames.set(done);
+        this.autoRenewalStatus.set(status);
+        this.loadCertificates();
+      },
+      error: (err) => {
+        this.errorHandler.handleError(`Failed to renew certificate for ${hn}`, err);
+        const done = new Set(this.renewingHostnames());
+        done.delete(hn);
+        this.renewingHostnames.set(done);
       }
     });
   }

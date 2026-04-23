@@ -66,16 +66,20 @@ export class CertificateAuthorityService implements ICaProvider {
       writeFileSync(certPath, Buffer.from(ca.cert, "base64"), "utf-8");
 
       const subjectOut = execSync(`openssl x509 -in "${certPath}" -noout -subject`, { encoding: "utf-8" }).trim();
+      const startDateOut = execSync(`openssl x509 -in "${certPath}" -noout -startdate`, { encoding: "utf-8" }).trim();
       const endDateOut = execSync(`openssl x509 -in "${certPath}" -noout -enddate`, { encoding: "utf-8" }).trim();
 
       const subject = subjectOut.replace(/^subject\s*=\s*/, "");
+      const startDateStr = startDateOut.replace(/^notBefore\s*=\s*/, "");
       const endDateStr = endDateOut.replace(/^notAfter\s*=\s*/, "");
+      const startDate = new Date(startDateStr);
       const endDate = new Date(endDateStr);
       const daysRemaining = Math.floor((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
       return {
         exists: true,
         subject,
+        issued_date: startDate.toISOString(),
         expiry_date: endDate.toISOString(),
         days_remaining: daysRemaining,
       };

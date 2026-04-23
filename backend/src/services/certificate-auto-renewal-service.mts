@@ -153,9 +153,15 @@ export class CertificateAutoRenewalService {
    * Force-renew every self-signed server certificate across all VE contexts,
    * regardless of remaining validity. Intended for manual use after the root CA
    * has been rotated, so outstanding leaf certs get re-signed immediately.
+   *
+   * @param hostnameFilter Optional allow-list of hostnames — if provided, only
+   *        certs whose hostname matches one of these are renewed (used by the
+   *        per-row renew action in the UI).
    */
-  async renewAllSelfSigned(): Promise<IAutoRenewalStatus> {
-    return this.runRenewal({ forceAll: true });
+  async renewAllSelfSigned(hostnameFilter?: string[]): Promise<IAutoRenewalStatus> {
+    const opts: { forceAll: boolean; hostnameFilter?: string[] } = { forceAll: true };
+    if (hostnameFilter) opts.hostnameFilter = hostnameFilter;
+    return this.runRenewal(opts);
   }
 
   /**
@@ -166,7 +172,10 @@ export class CertificateAutoRenewalService {
     return this.runRenewal({ forceAll: false });
   }
 
-  private async runRenewal({ forceAll }: { forceAll: boolean }): Promise<IAutoRenewalStatus> {
+  private async runRenewal({
+    forceAll,
+    hostnameFilter,
+  }: { forceAll: boolean; hostnameFilter?: string[] }): Promise<IAutoRenewalStatus> {
     if (this.running) {
       logger.info("Auto-renewal check already in progress, skipping");
       return this.getStatus();
@@ -201,7 +210,11 @@ export class CertificateAutoRenewalService {
           const { selfSigned: selfSignedCerts, toRenew } = filterRenewableCerts(certificates);
           totalSelfSigned += selfSignedCerts.length;
 
-          const targets = forceAll ? selfSignedCerts : toRenew;
+          let targets = forceAll ? selfSignedCerts : toRenew;
+          if (hostnameFilter && hostnameFilter.length > 0) {
+            const allow = new Set(hostnameFilter);
+            targets = targets.filter((c) => allow.has(c.hostname));
+          }
           if (targets.length > 0) {
             const hostnames = Array.from(new Set(targets.map((c) => c.hostname)));
             await this.renewCertificatesForContext(veKey, caService, hostnames);

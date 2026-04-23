@@ -1021,6 +1021,8 @@ export interface IPostCaImportBody {
 export interface ICaInfoResponse {
   exists: boolean;
   subject?: string;
+  /** notBefore of the CA certificate (ISO 8601). */
+  issued_date?: string;
   expiry_date?: string;
   days_remaining?: number;
   domain_suffix?: string;

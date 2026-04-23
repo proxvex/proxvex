@@ -497,8 +497,9 @@ export class VeConfigurationService {
     return this.post<IAutoRenewalStatus, object>(ApiUri.CertificateAutoRenewalCheck, {});
   }
 
-  renewAllCertificates(): Observable<IAutoRenewalStatus> {
-    return this.post<IAutoRenewalStatus, object>(ApiUri.CertificateRenewAll, {});
+  renewAllCertificates(hostnames?: string[]): Observable<IAutoRenewalStatus> {
+    const body = hostnames && hostnames.length > 0 ? { hostnames } : {};
+    return this.post<IAutoRenewalStatus, object>(ApiUri.CertificateRenewAll, body);
   }
 
   getLogRotationStatus(): Observable<ILogRotationStatus> {
