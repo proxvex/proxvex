@@ -1,7 +1,7 @@
 #!/bin/sh
 # Install the SSL proxy on-start drop-in script.
 #
-# Creates /etc/lxc-oci-deployer/on_start.d/ssl-proxy.sh which handles:
+# Creates /etc/proxvex/on_start.d/ssl-proxy.sh which handles:
 # - Docker-Compose detection (skip if compose app — handled by 325)
 # - nginx installation and SSL configuration (proxy mode)
 # - iptables rules to block external HTTP access (proxy mode)
@@ -22,7 +22,7 @@ HTTPS_PORT="{{ https_port }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
 
-SCRIPT_PATH="/etc/lxc-oci-deployer/on_start.d/ssl-proxy.sh"
+SCRIPT_PATH="/etc/proxvex/on_start.d/ssl-proxy.sh"
 mkdir -p "$(dirname "$SCRIPT_PATH")"
 
 # Part 1: Write header with baked-in values (expanded from template)
@@ -218,7 +218,7 @@ else
 fi
 
 # --- Create reload_certificates hook for ACME renewal ---
-RELOAD_SCRIPT="/etc/lxc-oci-deployer/reload_certificates"
+RELOAD_SCRIPT="/etc/proxvex/reload_certificates"
 cat > "$RELOAD_SCRIPT" <<'RELOADEOF'
 #!/bin/sh
 # Reload nginx to pick up renewed certificates

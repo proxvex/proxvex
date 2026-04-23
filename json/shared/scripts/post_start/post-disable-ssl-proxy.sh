@@ -14,7 +14,7 @@ HTTP_PORT="{{ http_port }}"
 echo "Disabling SSL proxy addon..." >&2
 
 # Remove the on-start drop-in script
-rm -f /etc/lxc-oci-deployer/on_start.d/ssl-proxy.sh
+rm -f /etc/proxvex/on_start.d/ssl-proxy.sh
 echo "Removed on_start.d/ssl-proxy.sh" >&2
 
 # Stop nginx if running

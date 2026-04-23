@@ -60,7 +60,7 @@ def resolve_host_volume(hostname: str, volume_key: str) -> str:
         for line in all_lines:
             # pvesm list returns multi-column output:
             #   VolID                                    Format  Type    Size  VMID
-            #   local-zfs:subvol-506-nginx-oci-deployer  subvol  rootdir  ...  506
+            #   local-zfs:subvol-506-nginx-proxvex  subvol  rootdir  ...  506
             # Match against the first column (the volid), NOT the raw line.
             parts = line.split()
             if not parts:

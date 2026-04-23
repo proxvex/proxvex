@@ -33,7 +33,7 @@
   ],
 
   "properties": [
-    { "id": "ssl.addon_volumes", "value": "certs=/etc/ssl/addon,0700,0:0\noci_deployer=/etc/lxc-oci-deployer,0755,0:0" },
+    { "id": "ssl.addon_volumes", "value": "certs=/etc/ssl/addon,0700,0:0\nproxvex=/etc/proxvex,0755,0:0" },
     { "id": "has_on_start_hooks", "value": "true" }
   ],
 

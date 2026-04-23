@@ -72,13 +72,13 @@ def parse_lxc_env(conf_text: str) -> Dict[str, str]:
 
 def read_on_start_env(hostname: str) -> Dict[str, str]:
     """Flatten all KEY=VALUE assignments from every shell script under
-    the host's oci-deployer/on_start.d/ directory. Silent best-effort.
+    the host's proxvex/on_start.d/ directory. Silent best-effort.
 
     These scripts are written by stack-refresh with replacement method
     `on-start-env` and contain lines like `CF_API_TOKEN="xxx"`.
     """
     try:
-        vol = resolve_host_volume(hostname, "oci-deployer")  # noqa: F821
+        vol = resolve_host_volume(hostname, "proxvex")  # noqa: F821
     except Exception as e:
         sys.stderr.write(
             f"[stack-restore-scan] read_on_start_env({hostname}): "
@@ -220,7 +220,7 @@ def read_compose_env(hostname: str, vm_id: int) -> Dict[str, str]:
     """Flatten env vars from all docker-compose files the container uses.
 
     Two sources are tried in order:
-      1. The container's oci-deployer managed volume under ``docker-compose/``
+      1. The container's proxvex managed volume under ``docker-compose/``
          (used by simple compose apps that persist the file in a volume).
       2. The container's rootfs at ``/opt/docker-compose/`` (zitadel, gitea
          and similar deploy their compose into the rootfs at this path —
@@ -228,23 +228,23 @@ def read_compose_env(hostname: str, vm_id: int) -> Dict[str, str]:
 
     The first source that yields a non-empty env dict wins.
     """
-    # Source 1: oci-deployer managed volume
+    # Source 1: proxvex managed volume
     try:
-        vol = resolve_host_volume(hostname, "oci-deployer")  # noqa: F821
+        vol = resolve_host_volume(hostname, "proxvex")  # noqa: F821
         compose_root = Path(vol) / "docker-compose"
         if compose_root.is_dir():
-            result = _scan_compose_dir(compose_root, hostname, "oci-deployer-vol")
+            result = _scan_compose_dir(compose_root, hostname, "proxvex-vol")
             if result:
                 return result
         else:
             sys.stderr.write(
                 f"[stack-restore-scan] read_compose_env({hostname}): "
-                f"no docker-compose/ dir in oci-deployer volume at {compose_root}\n"
+                f"no docker-compose/ dir in proxvex volume at {compose_root}\n"
             )
     except Exception as e:
         sys.stderr.write(
             f"[stack-restore-scan] read_compose_env({hostname}): "
-            f"oci-deployer volume unavailable: {type(e).__name__}: {e}\n"
+            f"proxvex volume unavailable: {type(e).__name__}: {e}\n"
         )
 
     # Source 2: container rootfs /opt/docker-compose/

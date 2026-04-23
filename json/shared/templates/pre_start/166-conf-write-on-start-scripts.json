@@ -1,7 +1,7 @@
 {
   "execute_on": "ve",
   "name": "Write On-Start Scripts",
-  "description": "Writes the on_start_container dispatcher and drop-in scripts (acme-renew, ssl-proxy) to the host-side volume directory. Files appear inside the container at /etc/lxc-oci-deployer/ via bind mount.",
+  "description": "Writes the on_start_container dispatcher and drop-in scripts (acme-renew, ssl-proxy) to the host-side volume directory. Files appear inside the container at /etc/proxvex/ via bind mount.",
   "parameters": [
     {
       "id": "hostname",

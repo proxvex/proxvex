@@ -1,5 +1,5 @@
 #!/bin/sh
-# Write /etc/lxc-oci-deployer/reload_certificates so the acme-renew loop
+# Write /etc/proxvex/reload_certificates so the acme-renew loop
 # (post-install-acme-renew-on-start.sh) can trigger a graceful nginx reload
 # after issuing or renewing a TLS certificate.
 set -eu
@@ -7,7 +7,7 @@ set -eu
 HOSTNAME="{{ hostname }}"
 
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "oci-deployer")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
 
 if [ ! -d "$VOLUME_DIR" ]; then
   echo "Volume directory not found: $VOLUME_DIR" >&2

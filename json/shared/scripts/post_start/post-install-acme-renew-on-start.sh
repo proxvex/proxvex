@@ -1,11 +1,11 @@
 #!/bin/sh
 # Install the ACME certificate renewal on-start drop-in script.
 #
-# Creates /etc/lxc-oci-deployer/on_start.d/acme-renew.sh which handles:
+# Creates /etc/proxvex/on_start.d/acme-renew.sh which handles:
 # - Installing acme.sh if not present
 # - Issuing/renewing certificates via Cloudflare DNS challenge
 # - Running a background loop for periodic renewal (every 24h)
-# - Calling /etc/lxc-oci-deployer/reload_certificates after renewal
+# - Calling /etc/proxvex/reload_certificates after renewal
 #
 # Requires:
 #   - CF_TOKEN: Cloudflare API token
@@ -26,7 +26,7 @@ NEEDS_CA_CERT="{{ acme.needs_ca_cert }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
 
-SCRIPT_PATH="/etc/lxc-oci-deployer/on_start.d/acme-renew.sh"
+SCRIPT_PATH="/etc/proxvex/on_start.d/acme-renew.sh"
 mkdir -p "$(dirname "$SCRIPT_PATH")"
 
 # Part 1: Write header with baked-in values (expanded from template)
@@ -51,7 +51,7 @@ cat >> "$SCRIPT_PATH" << 'ACMEEOF'
 APP_UID="${1:-0}"
 APP_GID="${2:-0}"
 ACME_HOME="/root/.acme.sh"
-RELOAD_SCRIPT="/etc/lxc-oci-deployer/reload_certificates"
+RELOAD_SCRIPT="/etc/proxvex/reload_certificates"
 
 # --- Check if renewal loop already running ---
 if pgrep -f "acme-renew-loop" >/dev/null 2>&1; then
