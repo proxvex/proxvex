@@ -50,6 +50,7 @@ export class StacksPage implements OnInit, OnDestroy {
   loading = signal(false);
   restoring = signal(false);
   restoreNotice = signal<string>('');
+  spokeStatus = signal<{ active: boolean; hubUrl?: string } | null>(null);
   stacktypes = signal<IStacktypeEntry[]>([]);
   stacks = signal<IStack[]>([]);
   selectedStacktype = signal<string>('');
@@ -97,6 +98,10 @@ export class StacksPage implements OnInit, OnDestroy {
       this._requestedStacktype = params.get('stacktype') ?? undefined;
     });
     this.loadStacktypes();
+    this.configService.getSpokeSyncStatus().subscribe({
+      next: (s) => this.spokeStatus.set(s),
+      error: () => this.spokeStatus.set(null),
+    });
   }
 
   ngOnDestroy(): void {

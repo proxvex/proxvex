@@ -46,12 +46,26 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
           <div class="tab-content">
             <mat-card appearance="outlined">
               <mat-card-header>
-                <mat-card-title>CA Status</mat-card-title>
+                <mat-card-title>
+                  CA Status
+                  @if (spokeStatus()?.active) {
+                    <span class="spoke-badge" matTooltip="This deployer is a Spoke. The CA is managed by the Hub.">
+                      <mat-icon>hub</mat-icon> Spoke
+                    </span>
+                  }
+                </mat-card-title>
               </mat-card-header>
               <mat-card-content>
                 @if (loadingCa()) {
                   <mat-spinner diameter="24"></mat-spinner>
                 } @else if (caInfo()?.exists) {
+                  @if (spokeStatus()?.active) {
+                    <p class="ca-origin-note">
+                      <mat-icon class="inline-icon">hub</mat-icon>
+                      Synced from Hub:
+                      <span class="ca-origin-hub">{{ spokeStatus()?.hubUrl }}</span>
+                    </p>
+                  }
                   <div class="info-grid">
                     <span class="label">Subject:</span>
                     <span>{{ caInfo()?.subject }}</span>
@@ -74,11 +88,15 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                 }
               </mat-card-content>
               <mat-card-actions>
-                <button mat-stroked-button (click)="generateCa()" [disabled]="loadingCa()">
+                <button mat-stroked-button (click)="generateCa()"
+                  [disabled]="loadingCa() || spokeStatus()?.active"
+                  [matTooltip]="spokeStatus()?.active ? 'CA is managed by the Hub in Spoke mode — generate it there.' : ''">
                   <mat-icon>add_circle</mat-icon>
                   Generate CA
                 </button>
-                <button mat-stroked-button (click)="importCa()" [disabled]="loadingCa()">
+                <button mat-stroked-button (click)="importCa()"
+                  [disabled]="loadingCa() || spokeStatus()?.active"
+                  [matTooltip]="spokeStatus()?.active ? 'CA is managed by the Hub in Spoke mode.' : ''">
                   <mat-icon>upload_file</mat-icon>
                   Import CA
                 </button>
@@ -490,6 +508,44 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
       font-weight: 500;
     }
 
+    .ca-origin-note {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 0 0 0.5rem 0;
+      padding: 0.4rem 0.6rem;
+      background: #e3f2fd;
+      border-left: 3px solid #1976d2;
+      color: #0d47a1;
+      font-size: 0.85rem;
+    }
+
+    .ca-origin-hub {
+      font-family: monospace;
+      font-weight: 500;
+    }
+
+    .spoke-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      margin-left: 0.75rem;
+      padding: 0.1rem 0.5rem;
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      border-radius: 10px;
+      color: #1565c0;
+      font-size: 0.75rem;
+      font-weight: 500;
+      vertical-align: middle;
+    }
+
+    .spoke-badge mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
     .auto-renewal-row {
       display: flex;
       align-items: center;
@@ -539,6 +595,7 @@ export class CertificateManagementDialog implements OnInit {
   loadingPve = signal(false);
   loadingCerts = signal(false);
   renewingAll = signal(false);
+  spokeStatus = signal<{ active: boolean; hubUrl?: string; synced?: boolean } | null>(null);
 
   displayedColumns = ['subject', 'expiry', 'status', 'actions'];
   /** Hostnames currently being renewed (per-row spinner state). */
@@ -587,6 +644,14 @@ export class CertificateManagementDialog implements OnInit {
     this.loadCertificates();
     this.loadAutoRenewalStatus();
     this.loadLogRotationStatus();
+    this.loadSpokeStatus();
+  }
+
+  private loadSpokeStatus(): void {
+    this.configService.getSpokeSyncStatus().subscribe({
+      next: (s) => this.spokeStatus.set(s),
+      error: () => this.spokeStatus.set(null),
+    });
   }
 
   private loadCaInfo(): void {

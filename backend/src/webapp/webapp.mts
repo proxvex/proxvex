@@ -168,12 +168,16 @@ export class VEWebApp {
     const webAppVE = new WebAppVE(this.app);
     webAppVE.init();
 
-    const { LocalStackProvider } = await import("../services/local-stack-provider.mjs");
-    const localStackProvider = new LocalStackProvider(this.storageContext);
-    const webAppStack = new WebAppStack(this.app, localStackProvider);
+    // Use the PersistenceManager-provided stack provider: in Hub/standalone
+    // mode this is a LocalStackProvider; in Spoke mode it is a
+    // RemoteStackProvider that forwards all stack CRUD to the Hub's API.
+    // Hardcoding LocalStackProvider here was a bug that made spoke-side
+    // stack changes invisible to the Hub.
+    const stackProvider = PersistenceManager.getInstance().getStackProvider();
+    const webAppStack = new WebAppStack(this.app, stackProvider);
     webAppStack.init();
 
-    const webAppStackRefresh = new WebAppStackRefresh(this.app, localStackProvider);
+    const webAppStackRefresh = new WebAppStackRefresh(this.app, stackProvider);
     webAppStackRefresh.init();
 
     // Hub endpoints (always active — CA signing + stack API for spokes)

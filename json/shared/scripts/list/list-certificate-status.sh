@@ -66,9 +66,12 @@ if command -v pvesm >/dev/null 2>&1; then
   for volid in $VOLIDS; do
     volname="${volid##*:}"
 
-    # Skip root disks (subvol-<VMID>-disk-N)
+    # Skip root disks and stale/backup volumes. The deployer leaves *.backup
+    # and *.bak suffixes behind after destructive operations; they hold the
+    # same certs the active volume has and would produce duplicate rows.
     case "$volname" in
       subvol-*-disk-*) continue ;;
+      *.backup|*.bak|*.old) continue ;;
     esac
 
     # Extract hostname: subvol-<VMID>-<hostname>-<key> → <hostname>

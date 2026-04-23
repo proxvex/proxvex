@@ -1,6 +1,13 @@
 <div class="stacks-page">
   <header class="page-header">
-    <h1>Secrets</h1>
+    <h1>
+      Secrets
+      @if (spokeStatus()?.active) {
+        <span class="spoke-badge" [matTooltip]="'Stored on Hub: ' + spokeStatus()?.hubUrl">
+          <mat-icon>hub</mat-icon> Spoke — values stored on Hub
+        </span>
+      }
+    </h1>
     <p class="subtitle">Manage passwords and secrets for deployments</p>
   </header>
 

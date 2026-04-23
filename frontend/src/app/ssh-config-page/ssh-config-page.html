@@ -26,8 +26,9 @@
               <mat-checkbox
                 [checked]="!!s.isHub"
                 (change)="onHubToggle(s, $event.checked)"
-                aria-label="Acts as Hub"
-              >Hub</mat-checkbox>
+                matTooltip="Designate this host as my Hub. This deployer then runs in Spoke mode and forwards stack/CA operations to the Hub's API."
+                aria-label="This host serves as my Hub"
+              >Use as Hub</mat-checkbox>
             </div>
             <div class="col actions">
               <button type="button" mat-icon-button color="warn" (click)="removeSsh(idx)" aria-label="Remove">🗑️</button>
@@ -37,6 +38,9 @@
             <div class="grid-row hub-url-row">
               <div class="col radio"></div>
               <div class="col hub-url" style="flex: 1;">
+                <p style="margin: 0 0 0.5rem 0; font-size: 0.82rem; color: #6a4a00; background: #fff8e1; border-left: 3px solid #ffb300; padding: 0.4rem 0.6rem;">
+                  <strong>Spoke mode.</strong> This deployer will forward all stack/CA operations to the Hub below. Stack changes you make here are stored on the Hub, not locally.
+                </p>
                 <mat-form-field appearance="fill" class="field full-width">
                   <mat-label>Hub API URL</mat-label>
                   <input
