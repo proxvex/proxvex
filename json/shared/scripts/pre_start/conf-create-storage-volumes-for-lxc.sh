@@ -191,14 +191,18 @@ while IFS= read -r line <&3; do
           log "Renaming cloned volume $_cur_volid to convention: $VOL_NAME"
           NEW_VOLID=$(vol_rename "$VOLUME_STORAGE" "$_cur_volid" "$VOL_NAME" "$STORAGE_TYPE" || true)
           if [ -n "$NEW_VOLID" ]; then
+            # Preserve the existing mp options (mp=/path,backup=1,size=…).
+            # VOLUME_OPTS from the volumes property is NOT an mp option list —
+            # it carries PERM/UID:GID hints for post-create chmod/chown, which
+            # would make `pct set` reject the value as "duplicate key: volume".
+            _cur_mp_value=$(echo "$_cur_mp_line" | sed -E 's/^mp[0-9]+:[[:space:]]+//')
+            _cur_mp_tail="${_cur_mp_value#*,}"
+            if [ "$_cur_mp_tail" = "$_cur_mp_value" ]; then
+              _cur_mp_args="${NEW_VOLID},mp=${VOLUME_PATH}"
+            else
+              _cur_mp_args="${NEW_VOLID},${_cur_mp_tail}"
+            fi
             pct set "$VMID" -delete "$_cur_mp_key" >&2 2>/dev/null || true
-            _cur_mp_args="${NEW_VOLID},mp=${VOLUME_PATH}"
-            # VOLUME_OPTS is set via `cut -d',' -f2-`, which returns the whole
-            # field when no comma is present. Only append when real options
-            # were provided (i.e., VOLUME_REST actually contained a comma).
-            case "$VOLUME_REST" in
-              *,*) _cur_mp_args="${_cur_mp_args},${VOLUME_OPTS}" ;;
-            esac
             pct set "$VMID" -"$_cur_mp_key" "$_cur_mp_args" >&2
             log "Renamed $_cur_mp_key: $_cur_volid → $NEW_VOLID"
           else
