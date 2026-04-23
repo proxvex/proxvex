@@ -21,7 +21,7 @@ ICON_MIME_TYPE = "{{ icon_mime_type }}"
 USERNAME_RAW = "{{ username }}"
 UID_RAW = "{{ uid }}"
 GID_RAW = "{{ gid }}"
-STACK_NAME_RAW = "{{ stack_id }}"
+ALL_STACK_IDS_RAW = "{{ all_stack_ids }}"
 
 
 def build_notes(include_icon):
@@ -35,13 +35,13 @@ def build_notes(include_icon):
     username = normalize_value(USERNAME_RAW)
     uid = normalize_value(UID_RAW)
     gid = normalize_value(GID_RAW)
-    stack_name = normalize_value(STACK_NAME_RAW)
+    stack_ids = parse_stack_ids(ALL_STACK_IDS_RAW)
 
     lines = build_hidden_markers(
         VMID, app_id=app_id, app_name=app_name, version=version,
         deployer_url=deployer_url, ve_context=ve_context,
         icon_base64=icon_base64, icon_mime_type=icon_mime_type,
-        username=username, uid=uid, gid=gid, stack_name=stack_name,
+        username=username, uid=uid, gid=gid, stack_ids=stack_ids,
     )
 
     lines += build_visible_header(

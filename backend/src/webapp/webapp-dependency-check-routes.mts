@@ -40,13 +40,52 @@ export function registerDependencyCheckRoutes(
 
       // Parse query params
       const addonsParam = String(req.query.addons || "");
-      const stackId = String(req.query.stackId || "");
+      const stackIdsParam = String(req.query.stackIds || req.query.stackId || "");
       const selectedAddons = addonsParam
         ? addonsParam.split(",").filter(Boolean)
         : [];
+      const selectedStackIds = stackIdsParam
+        ? stackIdsParam.split(",").filter(Boolean)
+        : [];
 
-      // Collect all dependencies (application + addons)
-      const allDeps: { application: string; source: string }[] = [];
+      // Build map stacktype -> requested stack id for the install context. The
+      // dep-check filters per-stacktype to resolve cross-stack dependencies
+      // (e.g. addon-oidc -> zitadel via the OIDC stack).
+      const requestedStackIdByType: Record<string, string> = {};
+      for (const sid of selectedStackIds) {
+        const stack = storageContext.getStack(sid);
+        if (!stack) continue;
+        const types = Array.isArray(stack.stacktype) ? stack.stacktype : [stack.stacktype];
+        for (const t of types) {
+          if (t && !requestedStackIdByType[t]) requestedStackIdByType[t] = stack.id;
+        }
+      }
+
+      // Collect all dependencies (application + addons), each tagged with the
+      // stacktype that determines stack-membership for the dependency match.
+      const allDeps: { application: string; source: string; stacktype: string | null }[] = [];
+
+      const consumerStacktypes = (() => {
+        try {
+          const cfg = pm.getRepositories().getApplication(application) as { stacktype?: string | string[] };
+          const st = cfg?.stacktype;
+          if (!st) return [];
+          return Array.isArray(st) ? st : [st];
+        } catch { return []; }
+      })();
+
+      const sharedStacktype = (depApp: string): string | null => {
+        try {
+          const cfg = pm.getRepositories().getApplication(depApp) as { stacktype?: string | string[] };
+          const depTypes = cfg?.stacktype
+            ? (Array.isArray(cfg.stacktype) ? cfg.stacktype : [cfg.stacktype])
+            : [];
+          for (const t of consumerStacktypes) {
+            if (depTypes.includes(t)) return t;
+          }
+          return null;
+        } catch { return null; }
+      };
 
       try {
         const appConfig = pm.getRepositories().getApplication(application);
@@ -55,6 +94,7 @@ export function registerDependencyCheckRoutes(
             allDeps.push({
               application: dep.application,
               source: "application",
+              stacktype: sharedStacktype(dep.application),
             });
           }
         }
@@ -62,23 +102,25 @@ export function registerDependencyCheckRoutes(
         /* app not found — continue with addon deps only */
       }
 
-      // Merge addon dependencies
+      // Merge addon dependencies. Stacktype comes from the addon itself (e.g.
+      // addon-oidc has stacktype "oidc" -> match dep against the OIDC stack).
       if (selectedAddons.length > 0) {
         const addonSvc = pm.getAddonService();
         for (const addonId of selectedAddons) {
           try {
             const addon = addonSvc.getAddon(addonId);
-            if (addon?.dependencies) {
-              for (const dep of addon.dependencies) {
-                if (
-                  !allDeps.some((d) => d.application === dep.application)
-                ) {
-                  allDeps.push({
-                    application: dep.application,
-                    source: addonId,
-                  });
-                }
-              }
+            if (!addon?.dependencies) continue;
+            const addonTypes = addon.stacktype
+              ? (Array.isArray(addon.stacktype) ? addon.stacktype : [addon.stacktype])
+              : [];
+            const addonStacktype = addonTypes[0] ?? null;
+            for (const dep of addon.dependencies) {
+              if (allDeps.some((d) => d.application === dep.application)) continue;
+              allDeps.push({
+                application: dep.application,
+                source: addonId,
+                stacktype: addonStacktype,
+              });
             }
           } catch {
             /* unknown addon */
@@ -96,15 +138,18 @@ export function registerDependencyCheckRoutes(
       // Fetch all managed containers via the existing listing script
       const containers = await listManagedContainers(pm, veContext);
 
-      // Match each dependency against running containers
+      // Match each dependency against running containers. A container matches when
+      // application_id matches and (if the dep is bound to a stacktype with a
+      // requested stack) the container is a member of that exact stack.
       const results: IDependencyStatus[] = allDeps.map((dep) => {
-        // Find containers matching application_id (and optionally stack_name)
-        const matching = containers.filter((c) => {
+        const wantedStackId = dep.stacktype
+          ? requestedStackIdByType[dep.stacktype]
+          : undefined;
+
+        const matching = containers.filter((c: IManagedOciContainer) => {
           if (c.application_id !== dep.application) return false;
-          // If stackId is provided, match stack_name
-          if (stackId && c.stack_name && c.stack_name !== stackId)
-            return false;
-          return true;
+          if (!wantedStackId) return true;
+          return Array.isArray(c.stack_ids) && c.stack_ids.includes(wantedStackId);
         });
 
         if (matching.length === 0) {

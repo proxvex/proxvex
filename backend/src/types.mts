@@ -507,7 +507,11 @@ export interface IManagedOciContainer {
   bridge?: string;
   mount_points?: { source: string; target: string }[];
   volumes?: string;
-  stack_name?: string;
+  /** Stack memberships parsed from `stack-id <id>` markers in container notes.
+   * A container belongs to one stack per stacktype it covers (e.g. zitadel
+   * spans postgres/oidc/cloudflare → three stack ids). Used by the dependency
+   * check to match containers per the dep's stacktype. */
+  stack_ids?: string[];
   /** True for PVE host entries (not LXC containers). */
   is_host?: boolean;
 }

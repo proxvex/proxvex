@@ -31,7 +31,6 @@ USERNAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):username\s+(.+?)\s*-->", 
 UID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):uid\s+(.+?)\s*-->", re.IGNORECASE)
 GID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):gid\s+(.+?)\s*-->", re.IGNORECASE)
 STACK_ID_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):stack-id\s+(.+?)\s*-->", re.IGNORECASE)
-STACK_NAME_MARKER_RE = re.compile(r"(?:oci-lxc-deployer):stack-name\s+(.+?)\s*-->", re.IGNORECASE)  # legacy fallback
 
 # --- Regex patterns for LXC config parsing ---
 
@@ -101,9 +100,11 @@ class LxcConfig:
     uid: Optional[str] = None
     gid: Optional[str] = None
 
-    # Stack info from notes (for dependency discovery)
-    stack_id: Optional[str] = None
-    stack_name: Optional[str] = None  # legacy alias for stack_id
+    # Stack memberships from notes (for dependency discovery). One entry per
+    # ``stack-id <stack-id>`` marker. A container can belong to multiple stacks
+    # when it covers more than one stacktype (e.g. zitadel covers postgres,
+    # oidc, cloudflare).
+    stack_ids: List[str] = field(default_factory=list)
 
     # LXC config entries
     id_mappings: List[IdMapping] = field(default_factory=list)
@@ -143,10 +144,8 @@ class LxcConfig:
             result["uid"] = self.uid
         if self.gid:
             result["gid"] = self.gid
-        if self.stack_id:
-            result["stack_name"] = self.stack_id  # key stays "stack_name" for API compat
-        elif self.stack_name:
-            result["stack_name"] = self.stack_name
+        if self.stack_ids:
+            result["stack_ids"] = list(self.stack_ids)
         if self.memory is not None:
             result["memory"] = self.memory
         if self.cores is not None:
@@ -317,17 +316,14 @@ def parse_lxc_config(conf_text: str) -> LxcConfig:
         _extract_from_patterns(normalized, [GID_MARKER_RE])
     )
 
-    # Parse stack id from notes (new marker: stack-id, legacy fallback: stack-name)
-    config.stack_id = (
-        _extract_from_patterns(decoded, [STACK_ID_MARKER_RE]) or
-        _extract_from_patterns(normalized, [STACK_ID_MARKER_RE])
-    )
-    if not config.stack_id:
-        config.stack_id = (
-            _extract_from_patterns(decoded, [STACK_NAME_MARKER_RE]) or
-            _extract_from_patterns(normalized, [STACK_NAME_MARKER_RE])
-        )
-    config.stack_name = config.stack_id  # legacy alias
+    # Parse all stack-id markers (a container may belong to multiple stacks).
+    config.stack_ids = []
+    seen_stack_ids = set()
+    for source_text in (decoded, normalized):
+        for sid in _extract_all_matches(source_text, STACK_ID_MARKER_RE):
+            if sid not in seen_stack_ids:
+                seen_stack_ids.add(sid)
+                config.stack_ids.append(sid)
 
     # Parse LXC config entries (from raw/normalized, not decoded)
     config.id_mappings = parse_id_mappings(normalized)

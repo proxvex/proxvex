@@ -319,16 +319,16 @@ def main() -> None:
             if not is_managed_container(conf_text):  # noqa: F821
                 continue
             cfg = parse_lxc_config(conf_text)  # noqa: F821
-            cfg_stack = cfg.stack_id or cfg.stack_name or ""
+            cfg_stack_ids = list(cfg.stack_ids or [])
             cfg_app_id = cfg.application_id or ""
             cfg_addons = set(cfg.addons or [])
 
-            direct_match = cfg_stack == stack_id
+            direct_match = stack_id in cfg_stack_ids
             app_match = cfg_app_id in consumer_apps
             addon_match = bool(cfg_addons & consumer_addons)
 
             if not (direct_match or app_match or addon_match):
-                sys.stderr.write(f"[stack-restore-scan] vm {vmid_str}: skip (stack_id='{cfg_stack}', app_id='{cfg_app_id}', addons={sorted(cfg_addons)})\n")
+                sys.stderr.write(f"[stack-restore-scan] vm {vmid_str}: skip (stack_ids={cfg_stack_ids}, app_id='{cfg_app_id}', addons={sorted(cfg_addons)})\n")
                 continue
             if not cfg.hostname:
                 sys.stderr.write(f"[stack-restore-scan] vm {vmid_str}: skip (no hostname)\n")
