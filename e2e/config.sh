@@ -3,7 +3,7 @@
 #
 # Usage in scripts:
 #   source "$(dirname "$0")/config.sh"
-#   load_config "local-test"  # or load_config (uses default)
+#   load_config "green"  # or load_config (uses default)
 #
 # This will export all configuration variables for use in the script.
 

@@ -1,17 +1,17 @@
 #!/bin/bash
 set -e
 
-# docker/test.sh 
+# docker/test.sh
 # Test script for proxvex Docker image
-# Usage: ./docker/test.sh [--keep|-k] [--quick|-q] [IMAGE_TAG]
+# Usage: ./docker/test.sh [--keep|-k] [--docker-tag <TAG>]
 
-# Optional: --docker-tag <TAG> als Argument
 IMAGE_TAG="proxvex"
-POSITIONAL=()
+KEEP_CONTAINER=false
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --keep|-k|--quick|-q)
-      POSITIONAL+=("$1")
+    --keep|-k)
+      KEEP_CONTAINER=true
       shift
       ;;
     --docker-tag)
@@ -24,78 +24,45 @@ while [[ $# -gt 0 ]]; do
       fi
       ;;
     *)
-      echo "Usage: $0 [--keep|-k] [--quick|-q] [--docker-tag <TAG>]"
+      echo "Usage: $0 [--keep|-k] [--docker-tag <TAG>]"
       echo "  --keep|-k         Keep containers running for debugging"
-      echo "  --quick|-q        Quick test (web service only, no SSH tests)"
       echo "  --docker-tag TAG  Use specific Docker image tag (default: proxvex)"
       exit 1
       ;;
   esac
 done
-set -- "${POSITIONAL[@]}"
 
-# Configuration
-KEEP_CONTAINER=false
-QUICK_TEST=false
-TEST_PORTS=(3010 3011 3022 3023)
-MAX_ATTEMPTS=6
+: "${TEST_PORT_MAIN:=38010}"
+: "${TEST_PORT_STANDALONE:=38011}"
+TEST_PORTS=("$TEST_PORT_MAIN" "$TEST_PORT_STANDALONE")
+MAX_ATTEMPTS=15
 WAIT_SECONDS=2
 
-# Parse command line options
-for arg in "$@"; do
-  case "$arg" in
-    --keep|-k)
-      KEEP_CONTAINER=true
-      echo "Container will be kept running for debugging"
-      ;;
-    --quick|-q)
-      QUICK_TEST=true
-      echo "Running quick test (web service only)"
-      ;;
-    *)
-      echo "Usage: $0 [--keep|-k] [--quick|-q]"
-      echo "  --keep|-k      Keep containers running for debugging"
-      echo "  --quick|-q     Quick test (web service only, no SSH tests)"
-      exit 1
-      ;;
-  esac
-done
-
-echo "Testing proxvex Docker image..."
-
-
+echo "Testing proxvex Docker image '$IMAGE_TAG'..."
 
 cleanup_containers() {
-  echo "Cleaning up test containers..." 
+  echo "Cleaning up test containers..."
   docker stop proxvex-test-main proxvex-test-standalone >/dev/null 2>&1 || true
-  docker rm proxvex-test-main proxvex-test-standalone >/dev/null 2>&1 || true
+  docker rm   proxvex-test-main proxvex-test-standalone >/dev/null 2>&1 || true
 }
-# Function: Cleanup containers_or_keep
-cleanup_containers_or_keep() {
-# Cleanup or keep for debugging
-if [ "$KEEP_CONTAINER" = "true" ]; then
-  echo ""
-  echo "=== Containers kept for debugging ==="
-  echo "Main container:       proxvex-test-main"
-  echo "  Web:  http://localhost:3010/"
-  echo "  SSH:  ssh -p 3022 root@localhost"
-  if [ "$QUICK_TEST" = "false" ]; then
-    echo "Standalone container: proxvex-test-standalone" 
-    echo "  Web:  http://localhost:3011/"
+
+cleanup_or_keep() {
+  if [ "$KEEP_CONTAINER" = "true" ]; then
+    echo ""
+    echo "=== Containers kept for debugging ==="
+    echo "Main container:       proxvex-test-main       (http://localhost:${TEST_PORT_MAIN}/)"
+    echo "Standalone container: proxvex-test-standalone (http://localhost:${TEST_PORT_STANDALONE}/)"
+    echo ""
+    echo "Commands:"
+    echo "  docker logs proxvex-test-main"
+    echo "  docker exec -it proxvex-test-main sh"
+    echo "  docker stop proxvex-test-main proxvex-test-standalone"
+    echo "  docker rm   proxvex-test-main proxvex-test-standalone"
+  else
+    cleanup_containers
   fi
-  echo ""
-  echo "Commands:"
-  echo "  docker logs proxvex-test-main"
-  echo "  docker exec -it proxvex-test-main sh"
-  echo "  docker stop proxvex-test-main proxvex-test-standalone"
-  echo "  docker rm proxvex-test-main proxvex-test-standalone"
-else
-  cleanup_containers
-fi
-
 }
 
-# Function: Check if ports are free
 check_ports() {
   local ports_in_use=()
   for port in "${TEST_PORTS[@]}"; do
@@ -103,7 +70,6 @@ check_ports() {
       ports_in_use+=("$port")
     fi
   done
-  
   if [ ${#ports_in_use[@]} -gt 0 ]; then
     echo "ERROR: Ports in use: ${ports_in_use[*]}" >&2
     echo "Run: docker ps -a | grep proxvex" >&2
@@ -111,180 +77,87 @@ check_ports() {
   fi
 }
 
-# Function: Wait for service to be ready
 wait_for_service() {
   local port=$1
   local name=$2
+  local container=$3
   local attempts=0
-  
   echo "Waiting for $name on port $port..."
   while [ $attempts -lt $MAX_ATTEMPTS ]; do
     attempts=$((attempts + 1))
     echo "  Attempt $attempts/$MAX_ATTEMPTS..."
-    
     if curl -s -f -o /dev/null "http://localhost:$port/"; then
       echo "✓ $name is ready on port $port"
       return 0
     fi
-    
-    # Check if container is still running
-    if ! docker inspect -f '{{.State.Running}}' "$3" >/dev/null 2>&1 || [ "$(docker inspect -f '{{.State.Running}}' "$3")" != "true" ]; then
-      echo "ERROR: Container $3 stopped unexpectedly" >&2
-      docker logs "$3" >&2
+    if ! docker inspect -f '{{.State.Running}}' "$container" >/dev/null 2>&1 \
+       || [ "$(docker inspect -f '{{.State.Running}}' "$container")" != "true" ]; then
+      echo "ERROR: Container $container stopped unexpectedly" >&2
+      docker logs "$container" >&2
       return 1
     fi
-    
     sleep $WAIT_SECONDS
   done
-  
   echo "ERROR: $name failed to respond after $MAX_ATTEMPTS attempts" >&2
-  docker logs "$3" >&2
+  docker logs "$container" >&2
   return 1
 }
 
-# Function: Test SSH service (basic connectivity)
-test_ssh_basic() {
-  local port=$1
-  echo "Testing SSH connectivity on port $port..."
-  
-  if nc -z -w 2 localhost "$port" >/dev/null 2>&1; then
-    echo "✓ SSH port $port is accessible"
-    return 0
-  else
-    echo "✗ SSH port $port is not accessible" >&2
-    return 1
-  fi
-}
-
-# Function: Create test SSH setup
-setup_ssh_test() {
-  local test_dir=$1
-  
-  # Generate test SSH key pair
-  ssh-keygen -t ed25519 -f "$test_dir/test_key" -N "" -C "proxvex-test" >/dev/null 2>&1
-  TEST_PUBKEY=$(cat "$test_dir/test_key.pub")
-  
-  # Create options.json with test public key
-  cat > "$test_dir/options.json" << EOF
-{
-  "ssh_port": 22,
-  "user_pubkey": "$TEST_PUBKEY"
-}
-EOF
-
-  # Set correct permissions
-  chmod 755 "$test_dir"
-  chmod 644 "$test_dir"/* 2>/dev/null || true
-  
-  echo "✓ SSH test setup created"
-}
-
-# Function: Advanced SSH test
-test_ssh_advanced() {
-  local container_name=$1
-  local test_dir=$2
-  
-  if [ "$QUICK_TEST" = "true" ]; then
-    echo "ℹ️  Skipping advanced SSH tests (quick mode)"
-    return 0
-  fi
-  
-  echo "Testing SSH key authentication..."
-  
-  # Check authorized_keys in container
-  local auth_keys
-  auth_keys=$(docker exec "$container_name" cat /root/.ssh/authorized_keys 2>/dev/null || echo "")
-  
-  if echo "$auth_keys" | grep -q "proxvex-test"; then
-    echo "✓ SSH key configured in container"
-  else
-    echo "⚠️  SSH key not found in authorized_keys (but container is running)"
-    return 0  # Don't fail the test, just warn
-  fi
-  
-  # Test actual SSH connection (optional - can be flaky)
-  if ssh -i "$test_dir/test_key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o BatchMode=yes -p 3022 root@localhost "echo 'SSH OK'" >/dev/null 2>&1; then
-    echo "✓ SSH key authentication successful"
-  else
-    echo "⚠️  SSH key authentication failed (but SSH service is running)"
-  fi
-}
-
-# Main execution starts here
 echo "=== proxvex Docker Test ==="
 
-# Preliminary checks
-cleanup_containers_or_keep
+cleanup_containers
 check_ports
 
-# Check if image exists
-if [ -z "$(docker images -q "$IMAGE_TAG" 2> /dev/null)" ]; then
+if [ -z "$(docker images -q "$IMAGE_TAG" 2>/dev/null)" ]; then
   docker images >&2
   echo "ERROR: Docker image '$IMAGE_TAG' not found" >&2
-  echo "Run: ./docker/build.sh first" >&2
+  echo "Build it via:" >&2
+  echo "  pnpm install && pnpm run build" >&2
+  echo "  npm pack --pack-destination docker/ && mv docker/proxvex-*.tgz docker/proxvex.tgz" >&2
+  echo "  docker build -t proxvex -f docker/Dockerfile.npm-pack ." >&2
   exit 1
 fi
 
-# Create test data directory
 TEST_DIR=$(mktemp -d)
-mkdir -p "$TEST_DIR/data"
-mkdir -p "$TEST_DIR/ssl"
-mkdir -p "$TEST_DIR/config"
-trap 'rm -rf "$TEST_DATA_DIR"' EXIT
+mkdir -p "$TEST_DIR/config" "$TEST_DIR/secure"
+trap 'rm -rf "$TEST_DIR"' EXIT
 
-# Test 1: Container with volume mount and SSH configuration
+# Test 1: container with persistent /config + /secure volumes
 echo ""
-echo "=== Test 1: Full Configuration Test ==="
-setup_ssh_test "$TEST_DIR/data"
-chmod -R  755 "$TEST_DIR"
-sudo chown -R root:root "$TEST_DIR"
-cleanup_containers
-echo "Starting container with volume mount..."
-docker run -d -p 3010:3080 -p 3022:22 -v "$TEST_DIR/data:/data" -v "$TEST_DIR/ssl:/ssl" -v "$TEST_DIR/config:/config" --name proxvex-test-main "$IMAGE_TAG"
+echo "=== Test 1: Volume-mounted configuration ==="
+echo "Starting container with /config + /secure volumes..."
+docker run -d \
+  -p "${TEST_PORT_MAIN}":3080 \
+  -v "$TEST_DIR/config:/config" \
+  -v "$TEST_DIR/secure:/secure" \
+  --name proxvex-test-main \
+  "$IMAGE_TAG"
 
-# Wait for web service
-if ! wait_for_service 3010 "Web service" "proxvex-test-main"; then
-  cleanup_containers_or_keep
+if ! wait_for_service "$TEST_PORT_MAIN" "Web service" "proxvex-test-main"; then
+  cleanup_or_keep
   exit 1
 fi
+echo "✓ Test 1 passed: container starts, web service responds"
 
-# Test SSH
-if ! test_ssh_basic 3022; then
-  cleanup_containers_or_keep  
+# Test 2: standalone container without mounted volumes
+echo ""
+echo "=== Test 2: Standalone container (no volume mounts) ==="
+echo "Starting standalone container..."
+docker run -d \
+  -p "${TEST_PORT_STANDALONE}":3080 \
+  --name proxvex-test-standalone \
+  "$IMAGE_TAG"
+
+if ! wait_for_service "$TEST_PORT_STANDALONE" "Standalone web service" "proxvex-test-standalone"; then
+  docker logs proxvex-test-standalone >&2 || true
+  cleanup_or_keep
   exit 1
 fi
+echo "✓ Test 2 passed: standalone container works"
 
-test_ssh_advanced "proxvex-test-main" "$TEST_DATA_DIR"
+cleanup_or_keep
 
-echo "✓ Test 1 passed: Container with volume mount"
-
-# Test 2: Standalone container (if not in quick mode)
-if [ "$QUICK_TEST" = "false" ]; then
-  echo ""
-  echo "=== Test 2: Standalone Container Test ==="
-  echo "Starting standalone container..."
-  docker run -d -p 3011:3080 -p 3023:22 --name proxvex-test-standalone "$IMAGE_TAG"
-
-  if ! wait_for_service 3011 "Standalone web service" "proxvex-test-standalone"; then
-    docker exec proxvex-test-standalone ls -la /var/logs
-    cleanup_containers_or_keep
-    exit 1
-  fi
-
-  if ! test_ssh_basic 3023; then
-    echo "⚠️  SSH not accessible in standalone mode (expected)"
-  fi
-
-  echo "✓ Test 2 passed: Standalone container"
-fi
-
-cleanup_containers_or_keep
-   
 echo ""
 echo "=== All Tests Passed ==="
 echo "✓ Docker image works correctly"
-echo "✓ Web service accessible"  
-echo "✓ SSH service functional"
-if [ "$QUICK_TEST" = "false" ]; then
-  echo "✓ Standalone mode works"
-fi
+echo "✓ Web service accessible (main + standalone)"

@@ -1,17 +1,17 @@
 {
-  "default": "local-test",
+  "default": "green",
   "instances": {
-    "dev": {
-      "description": "Local development (deployer runs on localhost)",
+    "green": {
+      "description": "Local dev env (proxvex-green worktree)",
       "pveHost": "${PVE_HOST:-ubuntupve}",
       "vmId": 9000,
-      "vmName": "pve-e2e-dev",
+      "vmName": "pve-e2e-green",
       "portOffset": 0,
       "subnet": "10.99.1",
       "bridge": "vmbr1",
       "filesystem": "zfs",
       "deployerHost": "localhost",
-      "deployerPort": "${DEPLOYER_PORT}",
+      "deployerPort": "${DEPLOYER_PORT:-3201}",
       "snapshot": {
         "enabled": true
       },
@@ -23,18 +23,27 @@
         { "port": 1809, "hostname": "gitea-default", "ip": "10.0.0.203", "containerPort": 3000 }
       ]
     },
-    "local-test": {
-      "description": "Local development testing",
+    "yellow": {
+      "description": "Local dev env (proxvex-yellow worktree)",
       "pveHost": "${PVE_HOST:-ubuntupve}",
-      "vmId": 9000,
-      "vmName": "pve-e2e-local",
-      "portOffset": 0,
-      "subnet": "10.99.1",
-      "bridge": "vmbr1",
-      "localPath": "./examples",
+      "vmId": 9002,
+      "vmName": "pve-e2e-yellow",
+      "portOffset": 200,
+      "subnet": "10.99.3",
+      "bridge": "vmbr3",
       "filesystem": "zfs",
-      "veHost": "pve-e2e-nested.local",
-      "veSshPort": 22
+      "deployerHost": "localhost",
+      "deployerPort": "${DEPLOYER_PORT:-3301}",
+      "snapshot": {
+        "enabled": true
+      },
+      "registryMirror": {
+        "dnsForwarder": "192.168.4.1"
+      },
+      "portForwarding": [
+        { "port": 2808, "hostname": "zitadel-default", "ip": "10.0.0.226", "containerPort": 1443 },
+        { "port": 2809, "hostname": "gitea-default", "ip": "10.0.0.203", "containerPort": 3000 }
+      ]
     },
     "github-action": {
       "description": "GitHub Actions CI testing",
@@ -44,10 +53,7 @@
       "portOffset": 1000,
       "subnet": "10.99.2",
       "bridge": "vmbr2",
-      "filesystem": "ext4",
-      "wol": {
-        "macAddress": "XX:XX:XX:XX:XX:XX"
-      }
+      "filesystem": "ext4"
     }
   },
   "defaults": {

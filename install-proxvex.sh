@@ -239,6 +239,11 @@ deployer_url=""
 enable_https=""
 domain_suffix=".local"
 
+# Bypass for local/offline installs: use an existing OCI template tarball
+# instead of pulling from the registry. Expected to be a path the PVE host
+# can read (e.g. /var/lib/vz/template/cache/proxvex-local.tar).
+use_existing_image=""
+
 # Parse CLI flags
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -257,6 +262,7 @@ while [ "$#" -gt 0 ]; do
     --deployer-url) deployer_url="$2"; shift 2 ;;
     --https) enable_https="true"; shift ;;
     --domain-suffix) domain_suffix="$2"; shift 2 ;;
+    --use-existing-image) use_existing_image="$2"; shift 2 ;;
     --help|-h)
       cat >&2 <<USAGE
 Usage: $0 [options]
@@ -279,6 +285,10 @@ Options:
   --deployer-url <URL>  External URL for deployer (e.g., http://pve1:3080 for NAT setups)
   --https               Enable HTTPS (reconfigures with SSL addon after install)
   --domain-suffix <sfx> Domain suffix for SSL certificates (default: .local)
+  --use-existing-image <PATH>
+                        Skip the OCI registry pull and use a pre-built template
+                        tarball at PATH on the PVE host (e.g. for local/offline
+                        installs or e2e tests).
 
 Notes:
   - OCI image: ${OCI_IMAGE}
@@ -442,49 +452,67 @@ SSHCONF
   fi
 fi
 
-# 1) Download OCI image
-step "Downloading OCI image"
-template_path=$(execute_script_from_github \
-  "json/shared/scripts/image/host-get-oci-image.py" \
-  "template_path" \
-  "oci_image=${OCI_IMAGE}" \
-  "storage=local" \
-  "registry_username=" \
-  "registry_password=" \
-  "platform=linux/amd64")
+# 1) Obtain OCI image: either use a pre-built tarball or pull from the registry
+if [ -n "$use_existing_image" ]; then
+  step "Using existing OCI image ${use_existing_image}"
+  if [ ! -f "$use_existing_image" ] && [ ! -d "$use_existing_image" ]; then
+    log "Error: --use-existing-image path does not exist: $use_existing_image"
+    exit 1
+  fi
+  template_path="$use_existing_image"
+  # Sensible defaults for the local-build path (proxvex runtime image is
+  # Debian-based since the switch to node:${NODE_MAJOR}-slim).
+  ostype="debian"
+  arch="amd64"
+  application_id="proxvex"
+  application_name="proxvex"
+  resolved_oci_image="local:${use_existing_image##*/}"
+  oci_image_tag="local"
+  log "OCI image ready (local): ${template_path}"
+else
+  step "Downloading OCI image"
+  template_path=$(execute_script_from_github \
+    "json/shared/scripts/image/host-get-oci-image.py" \
+    "template_path" \
+    "oci_image=${OCI_IMAGE}" \
+    "storage=local" \
+    "registry_username=" \
+    "registry_password=" \
+    "platform=linux/amd64")
 
-if [ -z "$template_path" ]; then
-  log "Error: Failed to download OCI image"
-  exit 1
-fi
+  if [ -z "$template_path" ]; then
+    log "Error: Failed to download OCI image"
+    exit 1
+  fi
 
-oci_outputs=$(execute_script_from_github \
-  "json/shared/scripts/image/host-get-oci-image.py" \
-  "ostype,arch,application_id,application_name,oci_image,oci_image_tag" \
-  "oci_image=${OCI_IMAGE}" \
-  "storage=local" \
-  "registry_username=" \
-  "registry_password=" \
-  "platform=linux/amd64")
+  oci_outputs=$(execute_script_from_github \
+    "json/shared/scripts/image/host-get-oci-image.py" \
+    "ostype,arch,application_id,application_name,oci_image,oci_image_tag" \
+    "oci_image=${OCI_IMAGE}" \
+    "storage=local" \
+    "registry_username=" \
+    "registry_password=" \
+    "platform=linux/amd64")
 
-IFS=',' read -r ostype arch application_id application_name resolved_oci_image oci_image_tag <<EOF
+  IFS=',' read -r ostype arch application_id application_name resolved_oci_image oci_image_tag <<EOF
 $oci_outputs
 EOF
 
-if [ -z "$application_id" ]; then
-  application_id="proxvex"
-fi
-if [ -z "$arch" ]; then
-  arch="amd64"
-fi
-if [ -z "$resolved_oci_image" ]; then
-  resolved_oci_image="${OCI_IMAGE}"
-fi
-if [ -z "$oci_image_tag" ]; then
-  oci_image_tag=""
-fi
+  if [ -z "$application_id" ]; then
+    application_id="proxvex"
+  fi
+  if [ -z "$arch" ]; then
+    arch="amd64"
+  fi
+  if [ -z "$resolved_oci_image" ]; then
+    resolved_oci_image="${OCI_IMAGE}"
+  fi
+  if [ -z "$oci_image_tag" ]; then
+    oci_image_tag=""
+  fi
 
-log "OCI image ready: ${template_path}"
+  log "OCI image ready: ${template_path}"
+fi
 
 
 # 2) Create LXC container from OCI image

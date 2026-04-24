@@ -1,0 +1,95 @@
+name: Livetest (non-blocking)
+
+# Runs the full live integration suite against a self-hosted runner on
+# ubuntupve. Intentionally non-blocking so PRs can merge even when the
+# runner is offline (skipped) or when tests fail (continue-on-error).
+#
+# Triggers:
+#   - pull_request: on changes to code paths that could affect runtime behaviour
+#   - workflow_dispatch: manual run for a specific branch + optional filter
+
+on:
+  pull_request:
+    paths:
+      - backend/**
+      - frontend/**
+      - json/**
+      - e2e/**
+      - install-proxvex.sh
+      - scripts/**
+      - docker/**
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run livetest against'
+        type: string
+        required: false
+        default: main
+      test_filter:
+        description: 'Test filter (e.g. postgres/default, zitadel, --all)'
+        type: string
+        required: false
+        default: --all
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+jobs:
+  check-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      runner_online: ${{ steps.probe.outputs.runner_online }}
+    steps:
+      - name: Probe self-hosted runner status
+        id: probe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # Query repo-level runners and look for one labelled 'ubuntupve' in status 'online'.
+          count=$(gh api "/repos/${{ github.repository }}/actions/runners" --paginate \
+            | jq '[.runners[]
+                   | select(.status == "online")
+                   | select(.labels[].name == "ubuntupve")] | length')
+          echo "Online ubuntupve runners: $count"
+          if [ "$count" -gt 0 ]; then
+            echo "runner_online=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "runner_online=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  livetest:
+    needs: check-runner
+    if: needs.check-runner.outputs.runner_online == 'true'
+    runs-on: [self-hosted, linux, ubuntupve]
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install deployer (step2b on mirrors-ready)
+        run: ./e2e/step2b-install-deployer.sh github-action
+
+      - name: Run livetests
+        run: |
+          FILTER="${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '--all' }}"
+          npx tsx backend/tests/livetests/src/live-test-runner.mts github-action "$FILTER"
+
+      - name: Upload diagnostic artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: livetest-diagnostics-${{ github.run_id }}
+          path: |
+            /tmp/livetest-*.tar.gz
+            .livetest-data/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7

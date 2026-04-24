@@ -1,0 +1,51 @@
+name: Refresh registry mirrors on versions.sh change
+
+# Triggered when json/shared/scripts/library/versions.sh lands on main.
+# Runs step2a (mirror pull-through refresh) against every nested-VM instance
+# on ubuntupve. step2a is idempotent — for instances where the mirrors-ready
+# snapshot already carries the current versions.sh hash, the job exits
+# immediately without touching the VM. Instances that need an update rebuild
+# their mirrors-ready + deployer-installed snapshots.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - json/shared/scripts/library/versions.sh
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force full rebuild (ignore versions-hash match)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: [self-hosted, linux, ubuntupve]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        instance: [green, yellow, github-action]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Refresh mirrors for ${{ matrix.instance }}
+        run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            ./e2e/step2a-setup-mirrors.sh ${{ matrix.instance }} --force
+          else
+            ./e2e/step2a-setup-mirrors.sh ${{ matrix.instance }}
+          fi
+
+      - name: Rebuild deployer on ${{ matrix.instance }}
+        if: success()
+        run: ./e2e/step2b-install-deployer.sh ${{ matrix.instance }}

@@ -1,6 +1,6 @@
 # E2E_INSTANCE=github-action ./e2e/step0-*.sh
 # E2E_INSTANCE=github-action ./e2e/step1-*.sh
-E2E_INSTANCE=github-action ./e2e/step2-*.sh # --update-only
+E2E_INSTANCE=github-action ./e2e/step2b-install-deployer.sh
 cat https-addon-params.json
 node backend/dist/cli/oci-lxc-cli.mjs remote \
   --server http://ubuntupve:2080 --ve pve-e2e-nested.local \

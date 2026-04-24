@@ -103,15 +103,32 @@ Creates a nested Proxmox VM using the custom ISO with:
 - Network: vmbr1 (NAT bridge)
 - Port forwarding: 1008→8006, 1022→22, 3000→3080
 
-## Step 2: Install proxvex
+## Step 2a: Fill registry mirrors (once, ~15 min)
 
 ```bash
-./e2e/step2-install-deployer.sh
+./e2e/step2a-setup-mirrors.sh           # default instance (green)
+./e2e/step2a-setup-mirrors.sh yellow    # other instance
+./e2e/step2a-setup-mirrors.sh green --force   # bypass idempotency check
 ```
 
-Installs proxvex container (VMID 300) with:
-- Static IP: 10.0.0.100/24
-- API accessible at http://ubuntupve:3080
+Rolls back to `baseline`, installs Docker on the nested VM, starts pull-through
+caches for Docker Hub (10.0.0.1) and ghcr.io (10.0.0.2), pre-pulls every image
+referenced by `json/shared/scripts/library/versions.sh`, and creates the
+`mirrors-ready` snapshot. The short sha256 prefix of `versions.sh` is stored
+in the snapshot description — re-running the script with an unchanged file is
+a no-op (exits immediately, VM untouched). Use `--force` to bypass the check.
+
+## Step 2b: Install proxvex
+
+```bash
+./e2e/step2b-install-deployer.sh
+```
+
+Rolls back to `mirrors-ready` and installs proxvex via the production OCI path:
+local `docker build` → `skopeo copy oci-archive:` → scp → `install-proxvex.sh
+--use-existing-image`. Container (VMID 300) gets static IP 10.0.0.100/24, API
+at http://ubuntupve:3080. Ends with the `deployer-installed` snapshot that
+livetests roll back to.
 
 ---
 
