@@ -5,6 +5,12 @@
 #   ACCESS_TOKEN   - GitHub PAT with Actions read/write permission
 #   RUNNER_NAME    - Display name for this runner
 #   LABELS         - Comma-separated labels (e.g. self-hosted,linux,x64,pve1)
+#
+# Optional:
+#   RUNNER_SECRETS_DIR  - Mount point of the host-side secrets volume
+#                         (default: /var/lib/gh-runner-secrets). If the file
+#                         <dir>/nested_vm_id_ed25519 exists, it is installed
+#                         as the outbound SSH identity for the nested-VM hop.
 
 # Runs as root (Dockerfile sets USER root) — needed for DHCP in LXC containers
 export RUNNER_ALLOW_RUNASROOT=1
@@ -41,6 +47,29 @@ if [ -n "$SSH_PRIVATE_KEY" ]; then
     echo "$SSH_PRIVATE_KEY" > /home/runner/.ssh/id_ed25519
     chmod 600 /home/runner/.ssh/id_ed25519
     echo "SSH private key installed"
+fi
+
+# Pick up the nested-VM identity from the secrets mount if provided. The key
+# lives on the host so it can be rotated without touching the image. Runs on
+# every container start: edit the file on the host, pct restart the LXC.
+SECRETS_DIR="${RUNNER_SECRETS_DIR:-/var/lib/gh-runner-secrets}"
+if [ -f "$SECRETS_DIR/nested_vm_id_ed25519" ]; then
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    install -m 600 "$SECRETS_DIR/nested_vm_id_ed25519" /root/.ssh/id_ed25519_nested
+    # Make SSH offer BOTH keys (install-ci.sh-generated + nested-VM key) so
+    # runner -> ubuntupve uses the first, runner -> nested-VM uses the second.
+    # SSH tries them in order until one is accepted.
+    cat >> /root/.ssh/config <<'SSHCFG'
+Host *
+    IdentityFile ~/.ssh/id_ed25519
+    IdentityFile ~/.ssh/id_ed25519_nested
+    IdentitiesOnly no
+SSHCFG
+    chmod 600 /root/.ssh/config
+    echo "Nested-VM SSH key installed from $SECRETS_DIR"
+else
+    echo "No nested-VM SSH key found at $SECRETS_DIR/nested_vm_id_ed25519 — runner -> nested-VM will fail"
 fi
 
 RUNNER_NAME="${RUNNER_NAME:-$(hostname)}"

@@ -277,11 +277,58 @@ info "Using storage: $RUNNER_STORAGE"
 RUNNER_VMID=$(create_lxc "$RUNNER_HOST" "$RUNNER_TARBALL" "$RUNNER_VMID" \
     "$RUNNER_HOSTNAME" "$RUNNER_MEMORY" "$RUNNER_DISK" "ubuntu" "$RUNNER_STORAGE")
 
+# ------------------------------------------------------------
+# Mount a host-side secrets directory into the runner LXC.
+# The operator places a private SSH key there (nested_vm_id_ed25519)
+# that the entrypoint picks up and installs in /root/.ssh/. Keeping
+# this key out of the image means the public runner image on GHCR
+# carries no credentials, and rotating the key is a matter of editing
+# the file on the host — no image rebuild, no re-install.
+# ------------------------------------------------------------
+SECRETS_DIR_HOST="/srv/gh-runner/secrets"
+SECRETS_DIR_LXC="/var/lib/gh-runner-secrets"
+CI_KEY_DIR="/srv/proxvex-ci"
+CI_KEY_FILE="$CI_KEY_DIR/nested-vm-key"
+# Unprivileged LXC maps container-root (UID 0) to host UID 100000. Files in
+# the bind-mount must be owned by 100000:100000 so the LXC can read them.
+LXC_ROOT_UID=100000
+info "Creating secrets mount on host: $SECRETS_DIR_HOST -> LXC:$SECRETS_DIR_LXC"
+ssh $SSH_OPTS "root@$RUNNER_HOST" "
+    mkdir -p '$SECRETS_DIR_HOST'
+    chmod 700 '$SECRETS_DIR_HOST'
+    chown $LXC_ROOT_UID:$LXC_ROOT_UID '$SECRETS_DIR_HOST'
+    # One secrets dir shared across all runner LXCs on this host.
+    pct set $RUNNER_VMID -mp0 '$SECRETS_DIR_HOST,mp=$SECRETS_DIR_LXC,backup=0,ro=0'
+
+    # Ensure the CI nested-VM keypair exists on this host. step1-create-vm.sh
+    # uses the same location and injects the public key into the nested VM
+    # before the baseline snapshot, so runs of step1 + install-ci.sh in any
+    # order converge on a working state.
+    mkdir -p '$CI_KEY_DIR'
+    chmod 700 '$CI_KEY_DIR'
+    if [ ! -f '$CI_KEY_FILE' ]; then
+        ssh-keygen -t ed25519 -N '' -f '$CI_KEY_FILE' -C 'proxvex-ci-nested-vm' -q
+        chmod 600 '$CI_KEY_FILE'
+        chmod 644 '${CI_KEY_FILE}.pub'
+        echo 'Generated new CI keypair (run step1 for each instance so the pubkey lands in its baseline snapshot)' >&2
+    else
+        echo 'Reusing existing CI keypair' >&2
+    fi
+
+    # Copy the private key into the runner's secrets mount, chown'd to the
+    # LXC's host-side root UID. The entrypoint installs it as
+    # /root/.ssh/id_ed25519_nested on every container start.
+    install -o $LXC_ROOT_UID -g $LXC_ROOT_UID -m 600 \
+        '$CI_KEY_FILE' '$SECRETS_DIR_HOST/nested_vm_id_ed25519'
+" || fail "Failed to configure secrets mount on $RUNNER_VMID"
+ok "Secrets mount configured + CI key installed"
+
 configure_lxc "$RUNNER_HOST" "$RUNNER_VMID" \
     "REPO_URL=$REPO_URL" \
     "ACCESS_TOKEN=$GITHUB_TOKEN" \
     "RUNNER_NAME=$RUNNER_NAME" \
-    "LABELS=$LABELS"
+    "LABELS=$LABELS" \
+    "RUNNER_SECRETS_DIR=$SECRETS_DIR_LXC"
 
 start_lxc "$RUNNER_HOST" "$RUNNER_VMID"
 sleep 2
@@ -304,27 +351,30 @@ ssh $SSH_OPTS "root@$RUNNER_HOST" "
 "
 ok "Runner authorized on $RUNNER_HOST"
 
-echo ""
-info "NOTE: the runner also needs SSH to the nested VM for pct commands."
-info "e2e/step1-create-vm.sh already installs the dev SSH public key there;"
-info "if the runner needs access too, append its pubkey before taking 'baseline':"
-echo ""
-echo "  ssh -p <nested-ssh-port> root@$RUNNER_HOST \"mkdir -p /root/.ssh && echo '$SSH_PUBLIC_KEY' >> /root/.ssh/authorized_keys\""
-
 # ============================================================
 # Summary
 # ============================================================
 header "Installation Complete"
 
 echo "GitHub Runner:"
-echo "  Host:     $RUNNER_HOST"
-echo "  VMID:     $RUNNER_VMID"
-echo "  Hostname: $RUNNER_HOSTNAME"
-echo "  Image:    $RUNNER_IMAGE"
-echo "  Labels:   $LABELS"
+echo "  Host:          $RUNNER_HOST"
+echo "  VMID:          $RUNNER_VMID"
+echo "  Hostname:      $RUNNER_HOSTNAME"
+echo "  Image:         $RUNNER_IMAGE"
+echo "  Labels:        $LABELS"
+echo "  Secrets mount: $SECRETS_DIR_HOST (on host) -> $SECRETS_DIR_LXC (in LXC)"
 echo ""
 echo "Container uses DHCP on $BRIDGE. The runner SSHs to $RUNNER_HOST"
-echo "directly for qm commands (key was added to /root/.ssh/authorized_keys)."
+echo "directly for qm commands (runner pubkey was added to authorized_keys)."
+echo ""
+echo "CI nested-VM key: $CI_KEY_FILE on $RUNNER_HOST"
+echo "  Private key mounted at $SECRETS_DIR_LXC/nested_vm_id_ed25519 in the runner;"
+echo "  entrypoint installs it on every container start."
+echo ""
+echo "Note: the runner can only SSH into a nested VM whose baseline snapshot"
+echo "already contains the public key. step1-create-vm.sh injects it automatically"
+echo "before snapshotting. For instances bootstrapped BEFORE this install-ci.sh"
+echo "change was in place, re-run step1 for that instance to refresh the baseline."
 echo ""
 echo "Verify:"
 echo "  ssh root@$RUNNER_HOST 'pct status $RUNNER_VMID'"

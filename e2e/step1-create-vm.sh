@@ -617,6 +617,43 @@ info "Installing additional tools..."
 nested_ssh "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq jq curl netcat-openbsd smbclient" || error "Failed to install tools"
 success "Tools installed (jq, curl, netcat, smbclient)"
 
+# Step 12a: Inject CI runner SSH key into nested VM's authorized_keys.
+# The keypair lives persistently on the PVE host at /srv/proxvex-ci/nested-vm-key;
+# install-ci.sh reads the private key from there and places it in the runner LXC's
+# secrets mount. The public key needs to be in the nested VM's authorized_keys
+# before the baseline snapshot is taken, otherwise rollbacks would wipe it.
+header "Authorizing CI runner key on nested VM"
+CI_KEY_DIR="/srv/proxvex-ci"
+CI_KEY_FILE="$CI_KEY_DIR/nested-vm-key"
+info "Ensuring CI keypair exists on $PVE_HOST at $CI_KEY_FILE..."
+pve_ssh "
+    mkdir -p '$CI_KEY_DIR'
+    chmod 700 '$CI_KEY_DIR'
+    if [ ! -f '$CI_KEY_FILE' ]; then
+        ssh-keygen -t ed25519 -N '' -f '$CI_KEY_FILE' -C 'proxvex-ci-nested-vm' -q
+        chmod 600 '$CI_KEY_FILE'
+        chmod 644 '${CI_KEY_FILE}.pub'
+        echo 'Generated new CI keypair' >&2
+    else
+        echo 'Reusing existing CI keypair' >&2
+    fi
+" || error "Failed to ensure CI keypair on $PVE_HOST"
+
+CI_PUBKEY=$(pve_ssh "cat '${CI_KEY_FILE}.pub'") || error "Failed to read CI pubkey"
+info "Appending CI pubkey to nested VM /root/.ssh/authorized_keys..."
+nested_ssh "
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    if ! grep -qF '$CI_PUBKEY' /root/.ssh/authorized_keys 2>/dev/null; then
+        echo '$CI_PUBKEY' >> /root/.ssh/authorized_keys
+        chmod 600 /root/.ssh/authorized_keys
+        echo 'CI pubkey added'
+    else
+        echo 'CI pubkey already present'
+    fi
+" || error "Failed to add CI pubkey to nested VM"
+success "CI runner key authorized on nested VM"
+
 # Step 13: Create baseline snapshot (VM must be stopped for clean snapshot)
 header "Creating Baseline Snapshot"
 info "Stopping VM $TEST_VMID for clean snapshot..."
