@@ -220,7 +220,17 @@ export function prepareVms(
       logOk(`VM ${p.vmId} (${p.scenario.id}) running — ${task} in place`);
     } else if (!p.isDependency || status.includes("status:")) {
       logInfo(`Destroying VM ${p.vmId} (${p.scenario.id})...`);
+      // Release any leftover host-side LV mounts first — vol_mount
+      // (used on LVM/LVM-thin storage) leaves /var/lib/pve-vol-mounts/<volname>
+      // mounted on failure paths, and `pct destroy` then fails with
+      // "Logical volume contains a filesystem in use". Parse mp volids from
+      // the container config before we shut it down.
       nestedSsh(config.pveHost, config.portPveSsh,
+        `pct config ${p.vmId} 2>/dev/null | awk '/^mp[0-9]+:/ {sub(/^mp[0-9]+:[[:space:]]+/, ""); n=split($0,a,","); print a[1]}' | while IFS= read -r vid; do ` +
+        `  [ -z "$vid" ] && continue; ` +
+        `  mnt="/var/lib/pve-vol-mounts/\${vid#*:}"; ` +
+        `  mountpoint -q "$mnt" 2>/dev/null && { umount "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null; rmdir "$mnt" 2>/dev/null; }; ` +
+        `done; ` +
         `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
         30000);
     }

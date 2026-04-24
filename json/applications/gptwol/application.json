@@ -44,8 +44,7 @@
       "description": "Proxmox storage for the container rootfs",
       "advanced": true,
       "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "local-zfs"
+      "templatename": "Create and Configure LXC"
     },
     {
       "id": "volume_storage",
@@ -85,9 +84,14 @@
   "tags": [
     "infrastructure"
   ],
-  "supported_addons": ["addon-oidc"],
+  "supported_addons": [
+    "addon-oidc"
+  ],
   "oidc_roles": [
-    { "key": "admin", "display_name": "Administrator" }
+    {
+      "key": "admin",
+      "display_name": "Administrator"
+    }
   ],
   "stacktype": "oidc"
 }

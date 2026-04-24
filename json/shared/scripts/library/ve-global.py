@@ -27,8 +27,27 @@ def resolve_host_volume(hostname: str, volume_key: str) -> str:
     1. Dedicated managed volume: subvol-*-<hostname>-<key> (OCI-image apps)
     2. App managed volume subdirectory: subvol-*-<hostname>-app/<key> (docker-compose apps)
     """
-    storage = os.environ.get("VOLUME_STORAGE", "local-zfs")
     pvesm = _find_pvesm()
+
+    # Storages to search: VOLUME_STORAGE if set (explicit override), otherwise
+    # every rootdir-content storage known to pvesm. Scanning all handles mixed
+    # setups (e.g. LVM-thin on github-action CI) without the caller needing to
+    # know which storage holds a given volume.
+    env_storage = os.environ.get("VOLUME_STORAGE")
+    if env_storage:
+        storages = [env_storage]
+    else:
+        try:
+            result = subprocess.run(
+                [pvesm, "status", "--content", "rootdir"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                storages = [line.split()[0] for line in result.stdout.splitlines()[1:] if line.strip()]
+            else:
+                storages = ["local-zfs"]
+        except Exception:
+            storages = ["local-zfs"]
 
     # Stable mount root used by vol_mount (vol-common.sh) for block-based
     # storages that don't naturally appear as a directory via pvesm path.
@@ -36,29 +55,31 @@ def resolve_host_volume(hostname: str, volume_key: str) -> str:
     vol_mount_root = "/var/lib/pve-vol-mounts"
 
     def _pvesm_find(suffix: str):
-        try:
-            result = subprocess.run(
-                [pvesm, "list", storage, "--content", "rootdir"],
-                capture_output=True, text=True, timeout=5,
-            )
-        except FileNotFoundError as e:
-            sys.stderr.write(f"[resolve_host_volume] pvesm not executable at '{pvesm}': {e}\n")
-            return None
-        except subprocess.TimeoutExpired:
-            sys.stderr.write(f"[resolve_host_volume] '{pvesm} list {storage}' timed out\n")
-            return None
-        if result.returncode != 0:
-            sys.stderr.write(
-                f"[resolve_host_volume] '{pvesm} list {storage}' exit={result.returncode}: "
-                f"{result.stderr.strip()[:200]}\n"
-            )
-            return None
+        # Scan every storage in `storages` for a volid ending in suffix.
+        all_lines = []
+        for storage in storages:
+            try:
+                result = subprocess.run(
+                    [pvesm, "list", storage, "--content", "rootdir"],
+                    capture_output=True, text=True, timeout=5,
+                )
+            except FileNotFoundError as e:
+                sys.stderr.write(f"[resolve_host_volume] pvesm not executable at '{pvesm}': {e}\n")
+                return None
+            except subprocess.TimeoutExpired:
+                sys.stderr.write(f"[resolve_host_volume] '{pvesm} list {storage}' timed out\n")
+                continue
+            if result.returncode != 0:
+                sys.stderr.write(
+                    f"[resolve_host_volume] '{pvesm} list {storage}' exit={result.returncode}: "
+                    f"{result.stderr.strip()[:200]}\n"
+                )
+                continue
+            all_lines.extend(result.stdout.splitlines())
 
-        # DEBUG: dump first few non-header lines so we can see what pvesm returned
-        all_lines = result.stdout.splitlines()
         sample = [ln for ln in all_lines[:5]]
         sys.stderr.write(
-            f"[resolve_host_volume] pvesm list output ({len(all_lines)} lines), sample: {sample!r}\n"
+            f"[resolve_host_volume] pvesm list output ({len(all_lines)} lines) over {storages}, sample: {sample!r}\n"
         )
 
         match_count = 0

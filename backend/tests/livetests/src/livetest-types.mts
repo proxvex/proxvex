@@ -69,6 +69,10 @@ export interface E2EConfig {
     portOffset: number;
     subnet: string;
     bridge: string;
+    /** Inner bridge used by test LXC containers INSIDE the nested VM.
+     *  Defaults to `vmbr1` (standard nested-PVE setup). Only set if the
+     *  nested VM's internal bridge is named differently. */
+    lxcBridge?: string;
     filesystem?: string;
     deployerHost?: string;
     deployerPort?: string;

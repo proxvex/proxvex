@@ -1,9 +1,3 @@
 {
-  "params": [
-    {
-      "name": "volume_storage",
-      "value": "local-zfs"
-    }
-  ],
   "wait_seconds": 30
 }

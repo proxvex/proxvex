@@ -3,10 +3,20 @@
   "description": "Bridge that exposes Modbus RTU/TCP devices over MQTT with Home Assistant auto-discovery. Runs as an LXC container on Proxmox with optional HTTPS and OIDC authentication.",
   "extends": "oci-image",
   "icon": "icon.png",
-  "tags": ["automation", "iot"],
-  "supported_addons": ["addon-oidc", "addon-ssl"],
+  "tags": [
+    "automation",
+    "iot"
+  ],
+  "supported_addons": [
+    "addon-oidc",
+    "addon-ssl"
+  ],
   "oidc_roles": [
-    { "key": "admin", "display_name": "Administrator", "group": "modbus2mqtt" }
+    {
+      "key": "admin",
+      "display_name": "Administrator",
+      "group": "modbus2mqtt"
+    }
   ],
   "parameters": [
     {
@@ -56,8 +66,7 @@
       "description": "Proxmox storage for the container rootfs",
       "advanced": true,
       "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "local-zfs"
+      "templatename": "Create and Configure LXC"
     },
     {
       "id": "volume_storage",
@@ -72,17 +81,50 @@
     }
   ],
   "properties": [
-    { "id": "oci_image", "value": "ghcr.io/modbus2mqtt/modbus2mqtt:{{oci_image_tag}}" },
-    { "id": "wait_for_network", "value": "true" },
-    { "id": "uid", "value": "1000" },
-    { "id": "gid", "value": "1000" },
-    { "id": "username", "value": "node" },
-    { "id": "http_port", "value": "{{http_port}}" },
-    { "id": "https_port", "value": "{{https_port}}" },
-    { "id": "volume_backup", "value": "true" },
-    { "id": "ssl_mode", "value": "native" },
-    { "id": "oidc_callback_path", "value": "/api/auth/callback" },
-    { "id": "oidc_required_role", "value": "admin" }
+    {
+      "id": "oci_image",
+      "value": "ghcr.io/modbus2mqtt/modbus2mqtt:{{oci_image_tag}}"
+    },
+    {
+      "id": "wait_for_network",
+      "value": "true"
+    },
+    {
+      "id": "uid",
+      "value": "1000"
+    },
+    {
+      "id": "gid",
+      "value": "1000"
+    },
+    {
+      "id": "username",
+      "value": "node"
+    },
+    {
+      "id": "http_port",
+      "value": "{{http_port}}"
+    },
+    {
+      "id": "https_port",
+      "value": "{{https_port}}"
+    },
+    {
+      "id": "volume_backup",
+      "value": "true"
+    },
+    {
+      "id": "ssl_mode",
+      "value": "native"
+    },
+    {
+      "id": "oidc_callback_path",
+      "value": "/api/auth/callback"
+    },
+    {
+      "id": "oidc_required_role",
+      "value": "admin"
+    }
   ],
   "installation": {},
   "url": "https://github.com/modbus2mqtt/modbus2mqtt",

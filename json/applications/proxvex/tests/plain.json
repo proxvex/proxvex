@@ -1,8 +1,13 @@
 {
   "params": [
-    { "name": "volume_storage", "value": "local-zfs" },
-    { "name": "memory", "value": "1024" },
-    { "name": "oci_image_tag", "value": "latest" }
+    {
+      "name": "memory",
+      "value": "1024"
+    },
+    {
+      "name": "oci_image_tag",
+      "value": "latest"
+    }
   ],
   "wait_seconds": 30,
   "cli_timeout": 360,

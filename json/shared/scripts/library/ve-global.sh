@@ -16,11 +16,27 @@ resolve_host_volume() {
   _rhv_host="$1"
   _rhv_key="$2"
 
-  _rhv_storage="${VOLUME_STORAGE:-local-zfs}"
   # Keep in sync with VOL_MOUNT_ROOT in vol-common.sh.
   _rhv_mount_root="/var/lib/pve-vol-mounts"
 
-  if command -v pvesm >/dev/null 2>&1; then
+  # Storages to search: VOLUME_STORAGE if set (explicit override), otherwise
+  # every rootdir-content storage known to pvesm. Single-storage iteration was
+  # fine when deployments were homogeneous (all ZFS), but with mixed setups
+  # (e.g. LVM-thin on github-action CI) the caller rarely knows which storage
+  # holds a given volume — scanning all rootdir storages is the right default.
+  if [ -n "${VOLUME_STORAGE-}" ]; then
+    _rhv_storages="$VOLUME_STORAGE"
+  else
+    _rhv_storages=$(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 {print $1}' | tr '\n' ' ')
+    [ -z "$_rhv_storages" ] && _rhv_storages="local-zfs"
+  fi
+
+  command -v pvesm >/dev/null 2>&1 || {
+    echo "ERROR: resolve_host_volume failed for ${_rhv_host}/${_rhv_key} (pvesm not found)" >&2
+    return 1
+  }
+
+  for _rhv_storage in $_rhv_storages; do
     # 1. Try dedicated managed volume (one volume per key)
     _rhv_volname="${_rhv_host}-${_rhv_key}"
     _rhv_volid=$(pvesm list "$_rhv_storage" --content rootdir 2>/dev/null \
@@ -60,7 +76,7 @@ resolve_host_volume() {
         done
       fi
     fi
-  fi
+  done
 
   echo "ERROR: resolve_host_volume failed for ${_rhv_host}/${_rhv_key}" >&2
   return 1

@@ -265,6 +265,27 @@ nested_ssh "
 "
 success "Nested VM :3080 → $DEPLOYER_IP:3080, :3443 → $DEPLOYER_IP:3443 (persisted)"
 
+# Make the deployer hostname resolvable from sibling LXC containers.
+# The deployer generates its base URL as http://$(hostname):3080 which becomes
+# http://proxvex:3080 — other LXCs use this URL to fetch the CA cert (via
+# `Trust Deployer CA`). Without a DNS entry, those containers get
+# "Could not download CA certificate". Add it to dnsmasq and reload.
+nested_ssh "
+  cfg=/etc/dnsmasq.d/proxvex-deployer.conf
+  {
+    # Sibling LXCs use 'http://proxvex:3080' as deployer URL.
+    echo 'address=/proxvex/$DEPLOYER_IP'
+    # 'docker-registry-mirror' is what registry-mirror-common.sh's mirror_detect
+    # looks for. Point it at 10.0.0.1 (the dockerhub-mirror) so the trust-CA
+    # post_start script enters its mirror branch and configures Docker.
+    echo 'address=/docker-registry-mirror/10.0.0.1'
+  } > \$cfg
+  # Full restart — SIGHUP/reload doesn't always pick up new files under
+  # /etc/dnsmasq.d/ on this Proxmox install.
+  systemctl restart dnsmasq 2>/dev/null || true
+"
+success "dnsmasq: proxvex → $DEPLOYER_IP"
+
 # Step 9: Verify API before snapshotting
 info "Verifying deployer API..."
 api_ok=false

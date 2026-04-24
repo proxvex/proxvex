@@ -144,7 +144,11 @@ function loadConfig(instanceName?: string): {
     pveWebUrl,
     deployerUrl,
     deployerHttpsUrl,
-    bridge: inst.bridge || "vmbr0",
+    // `inst.bridge` is the OUTER bridge attaching the nested VM to the host.
+    // Test LXC containers live *inside* the nested VM and need the inner bridge
+    // (always `vmbr1` per step1's nested-PVE setup). Config can override via
+    // `lxcBridge` for unusual setups.
+    bridge: inst.lxcBridge || "vmbr1",
     veHost,
     veSshPort,
     vmId: inst.vmId,
