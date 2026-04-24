@@ -14,14 +14,48 @@ End-to-end tests using a nested Proxmox VM to test the full deployment workflow.
 ```bash
 cd e2e
 
-# Step 1: Create nested Proxmox VM (~2 min)
+# Defaults to the 'green' instance (vmId 9000 on ubuntupve). Pass 'yellow',
+# 'github-action' or another instance name as the first argument to target
+# a different one.
+
+# Step 1: Create nested Proxmox VM (~2 min) — ends with snapshot 'baseline'
 ./step1-create-vm.sh
 
-# Step 2: Install deployer (~1.5 min)
-./step2-install-deployer.sh
+# Step 2a: Install Docker + fill registry mirrors (~15 min, once)
+#          ends with snapshot 'mirrors-ready' on top of baseline
+#          Idempotent: re-running with unchanged versions.sh exits immediately.
+#          Pass --force for a full rebuild.
+./step2a-setup-mirrors.sh
+
+# Step 2b: Install proxvex via local docker build → skopeo → OCI archive → pct
+#          ends with snapshot 'deployer-installed' on top of mirrors-ready
+./step2b-install-deployer.sh
 
 # Access deployer
 open http://ubuntupve:13000
+```
+
+### green + yellow worktrees
+
+The repo is typically checked out twice as parallel worktrees (`proxvex-green`
+and `proxvex-yellow`). Each worktree runs its own local deployer on a different
+port and targets its own nested VM on ubuntupve:
+
+| Worktree | Instance | `DEPLOYER_PORT` | nested VM | PVE SSH port |
+|---|---|---|---|---|
+| proxvex-green  | `green`  | 3201 | 9000 | 1022 |
+| proxvex-yellow | `yellow` | 3301 | 9002 | 1222 |
+
+`DEPLOYER_PORT` is set by each worktree's VS Code workspace file. The livetest
+skill (`.claude/commands/livetest.md`) derives the target instance from this
+env var.
+
+First-time bootstrap for a fresh instance (example: yellow):
+
+```bash
+./step1-create-vm.sh yellow        # VM 9002, baseline
+./step2a-setup-mirrors.sh yellow   # mirrors-ready
+./step2b-install-deployer.sh yellow  # deployer-installed
 ```
 
 ## Workflow
@@ -29,12 +63,16 @@ open http://ubuntupve:13000
 | Task | Command | Duration |
 |------|---------|----------|
 | Create nested VM | `./step1-create-vm.sh` | ~2 min |
-| Install deployer | `./step2-install-deployer.sh` | ~92s |
-| Update code only | `./step2-install-deployer.sh --update-only` | ~24s |
-| Install CI infra | `./install-ci.sh --runner-host pve1 --worker-host ubuntupve --github-token <token>` | |
+| Fill registry mirrors (once) | `./step2a-setup-mirrors.sh` | ~15 min |
+| Install / rebuild proxvex | `./step2b-install-deployer.sh` | ~2 min |
+| Install CI runner LXC | `./install-ci.sh --runner-host ubuntupve --github-token <token>` | |
 | Init template tests | `./script2a-template-tests.sh` | |
 | Clean test containers | `./clean-test-containers.sh` | ~5s |
-| Fresh start | `./step1-create-vm.sh && ./step2-install-deployer.sh` | ~3.5 min |
+| Fresh proxvex on filled mirrors | `./step2b-install-deployer.sh` | ~2 min |
+| Full wipe | `./step1-create-vm.sh && ./step2a-setup-mirrors.sh && ./step2b-install-deployer.sh` | ~20 min |
+
+For fast code iteration without nested-VM involvement, use `docker/test.sh`
+against the local Docker image (seconds).
 
 ## Files
 
@@ -43,9 +81,11 @@ e2e/
 ├── config.json                  # Instance configuration (ports, subnets, etc.)
 ├── config.sh                    # Shared config loader for all scripts
 ├── step0-create-iso.sh          # Create custom Proxmox ISO (one-time)
-├── step1-create-vm.sh           # Create nested Proxmox VM
-├── step2-install-deployer.sh    # Install/update proxvex
-├── install-ci.sh                # Install CI infrastructure (runner + test-worker)
+├── step1-create-vm.sh           # Create nested Proxmox VM → snapshot 'baseline'
+├── step2a-setup-mirrors.sh      # Fill registry mirrors → snapshot 'mirrors-ready'
+├── step2b-install-deployer.sh   # Install proxvex via docker build + skopeo + OCI archive
+│                                #   → snapshot 'deployer-installed'
+├── install-ci.sh                # Install the GitHub Actions runner LXC on a Proxmox host
 ├── script2a-template-tests.sh   # Initialize nested VM for template tests
 ├── clean-test-containers.sh     # Remove test containers, keep deployer
 ├── applications/                # Application definitions for deployment tests
@@ -63,37 +103,34 @@ e2e/
 
 Central configuration for all E2E instances:
 
-```json
+```jsonc
 {
-  "default": "dev",
-  "pveHost": "ubuntupve",
-  "ports": {
-    "pveWeb": 18006,
-    "pveSsh": 10022,
-    "deployer": 13000
-  },
+  "default": "green",
   "instances": {
-    "dev": {
-      "vmid": 9000,
-      "subnet": "10.99.0",
-      "portOffset": 0
-    }
+    "green":  { "vmId": 9000, "portOffset":    0, "deployerPort": "${DEPLOYER_PORT:-3201}", ... },
+    "yellow": { "vmId": 9002, "portOffset":  200, "deployerPort": "${DEPLOYER_PORT:-3301}", ... },
+    "github-action": { "vmId": 9001, "portOffset": 1000, ... }
   }
 }
 ```
 
-### Multiple Instances
+### Multiple instances
 
-Run multiple isolated test environments by adding instances to `config.json`:
+Pass the instance name as the first positional argument to any step-script.
+Every step is instance-aware; omitting the argument falls back to `default`.
 
 ```bash
-# Use specific instance
-./step1-create-vm.sh ci
-./step2-install-deployer.sh ci
+./step1-create-vm.sh yellow
+./step2a-setup-mirrors.sh yellow
+./step2b-install-deployer.sh yellow
 
 # Or via environment variable
-E2E_INSTANCE=ci ./step1-create-vm.sh
+E2E_INSTANCE=yellow ./step1-create-vm.sh
 ```
+
+`portOffset` avoids host-port collisions when multiple instances share one
+outer PVE host: `pveSsh` host port becomes `1022 + portOffset`, `pveWeb` is
+`1008 + portOffset`, and so on.
 
 ## Network Architecture
 
@@ -135,35 +172,75 @@ Creates a nested Proxmox VM from the custom ISO:
 - Configures NAT networking (vmbr1)
 - Sets up persistent port forwarding
 
-### step2-install-deployer.sh
+### step2a-setup-mirrors.sh
 
-Installs proxvex in the nested VM:
-- Creates deployer LXC container (VMID 300)
-- Installs Node.js and dependencies
-- Deploys local package with production dependencies
-- Configures API and port forwarding
+Rolls back to `baseline` and fills the Docker Hub + ghcr.io pull-through
+caches on the nested VM:
+- Installs Docker inside the nested VM
+- Starts two `distribution/distribution:3.0.0` mirrors bound to 10.0.0.1 / 10.0.0.2
+- Pre-pulls all images referenced by `json/shared/scripts/library/versions.sh`
+- Wires dnsmasq so LXC containers resolve registry hostnames to the mirrors
+- Creates the `mirrors-ready` snapshot
 
-Options:
-- `--update-only`: Skip container creation, just update code (~24s)
+Run once per environment; step2b requires `mirrors-ready` and aborts if missing
+(re-filling mirrors on every run hits Docker Hub rate limits).
+
+### step2b-install-deployer.sh
+
+Rolls back to `mirrors-ready` and installs proxvex via the same OCI path the
+production install uses:
+- `pnpm build` + `npm pack` + `docker build -f docker/Dockerfile.npm-pack`
+- `skopeo copy docker-daemon:proxvex:local oci-archive:…` to get a pct-createable tarball
+- `scp` tarball to `/var/lib/vz/template/cache/proxvex-local.tar` on the nested VM
+- `install-proxvex.sh --use-existing-image <tar>` creates the deployer LXC
+- Sets up iptables port forwarding
+- Creates the `deployer-installed` snapshot (what livetests roll back to)
+
+No `--update-only` mode — for fast code iteration use `docker/test.sh` against
+the local image instead (seconds, no nested-VM roundtrip).
 
 ### install-ci.sh
 
-Installs CI infrastructure on Proxmox hosts (runner + test-worker):
-- Creates a GitHub Actions runner LXC on the runner host (from OCI image)
-- Creates a CI test-worker LXC on the worker host (from OCI image)
-- Generates an SSH key pair for inter-container communication
-- Configures environment variables for `pvetest` integration
+Installs the GitHub Actions runner LXC on a Proxmox host from the
+`ghcr.io/proxvex/github-actions-runner:latest` OCI image
+(built by [runner-image-publish.yml](../.github/workflows/runner-image-publish.yml)).
+The runner image already contains `docker`, `skopeo`, `git`, `openssh-client`
+and `etherwake`; Node is installed per-workflow via `actions/setup-node@v4`
+so the version stays pinned in each workflow file.
+
+The script also appends the runner's SSH public key to the host's
+`/root/.ssh/authorized_keys` so the runner can SSH to the PVE host for `qm`
+commands against the nested VM.
 
 Required arguments:
-- `--runner-host <host>`: Proxmox host for GitHub runner (e.g., `pve1.cluster`)
-- `--worker-host <host>`: Proxmox host for test-worker (e.g., `ubuntupve`)
-- `--github-token <token>`: GitHub PAT with repository Administration read/write permission
+- `--runner-host <host>`: Proxmox host on which to install the runner LXC (e.g. `ubuntupve`)
+- `--github-token <token>`: GitHub PAT with Actions + Administration read/write permission
+  (classic PAT with `repo` scope works; fine-grained PAT must target the exact repository)
 
 Run `./install-ci.sh --help` for all options.
-Example:
+
+**Install runner for a fork (example: `volkmarnissen/proxvex`):**
+
 ```
-install-ci.sh --runner-host pve1.cluster --worker-host  ubuntupve --github-token github_pat_1******
+./install-ci.sh \
+  --runner-host ubuntupve \
+  --repo-url https://github.com/volkmarnissen/proxvex \
+  --runner-name ubuntupve-fork \
+  --labels "self-hosted,linux,x64,ubuntupve" \
+  --github-token github_pat_1******
 ```
+
+The `ubuntupve` label matches `runs-on: [self-hosted, linux, ubuntupve]` in
+`livetest-on-pr.yml`. GitHub → Repository Settings → Actions → Runners shows
+the runner as **Idle** after a few seconds.
+
+**Prerequisite**: the runner image on GHCR must be public (proxvex org → Packages →
+`github-actions-runner` → Visibility → Public). Without that, `skopeo copy`
+inside the script fails with 401.
+
+**Former test-worker LXC** (`ci-test-worker`): no longer installed. The
+current `livetest-on-pr.yml` workflow invokes `e2e/step2b-install-deployer.sh`
+directly from the runner — no pvetest worker-delegation hop needed.
 
 ### script2a-template-tests.sh
 

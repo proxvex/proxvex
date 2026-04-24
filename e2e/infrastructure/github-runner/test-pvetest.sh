@@ -245,7 +245,8 @@ if $FAST; then
     run_step "5-7"  "Snapshot rollback (fast)" $PVETEST snapshot-rollback deployer-installed
 else
     run_step 5  "Snapshot rollback"        $PVETEST snapshot-rollback baseline
-    run_step 6  "Install deployer"         "$REPO_ROOT/e2e/step2-install-deployer.sh" github-action
+    run_step 6a "Setup mirrors"            "$REPO_ROOT/e2e/step2a-setup-mirrors.sh" github-action
+    run_step 6b "Install deployer"         "$REPO_ROOT/e2e/step2b-install-deployer.sh" github-action
 fi
 run_step 7  "Check ports"              check_ports "$PORT_PVE_SSH" "$PORT_DEPLOYER"
 run_step 8  "Frontend tests"           $PVETEST exec "cd frontend && CI=true pnpm test"

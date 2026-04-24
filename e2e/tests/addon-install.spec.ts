@@ -20,7 +20,7 @@ const __dirname = dirname(__filename);
  *
  * Prerequisites:
  * - Proxmox VM running (step1-create-vm.sh)
- * - Deployer container installed (step2-install-deployer.sh)
+ * - Deployer container installed (step2b-install-deployer.sh)
  * - Angular dev server running
  */
 

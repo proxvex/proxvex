@@ -153,13 +153,19 @@ while IFS= read -r line <&3; do
   SAFE_KEY=$(pve_sanitize_name "$VOLUME_KEY")
 
   # Volume naming strategy:
-  # - Proxmox requires subvol-<VMID>-<suffix> format in .conf for pct start
+  # - Proxmox requires a storage-dependent prefix in .conf for pct start:
+  #     zfspool / dir: subvol-<vmid>-<suffix>
+  #     lvm / lvmthin: vm-<vmid>-<suffix>
   # - We use the suffix ({hostname}-{key}) as the stable reuse key
   # - On container destroy, vol_unlink_persistent() renames volumes to
   #   clean names (without VMID prefix) so they persist independently
   # - Reuse lookup checks clean name first, then conventional names
   VOL_SUFFIX="${SAFE_HOST}-${SAFE_KEY}"
-  VOL_NAME="subvol-${VMID}-${VOL_SUFFIX}"
+  case "$STORAGE_TYPE" in
+    lvm|lvmthin) VOL_PREFIX="vm" ;;
+    *)           VOL_PREFIX="subvol" ;;
+  esac
+  VOL_NAME="${VOL_PREFIX}-${VMID}-${VOL_SUFFIX}"
 
   # Check if mount target already exists on the container
   case " $EXISTING_TARGETS " in
@@ -179,11 +185,13 @@ while IFS= read -r line <&3; do
         continue
       fi
 
-      # Only rename when the current name follows pct's auto-numbered pattern
-      # (subvol-<vmid>-disk-N). Anything else is a user-provided mount we
-      # won't touch.
+      # Only rename when the current name follows pct's auto-numbered pattern.
+      # Storage-dependent:
+      #   zfspool / dir: subvol-<vmid>-disk-N
+      #   lvm / lvmthin: vm-<vmid>-disk-N
+      # Anything else is a user-provided mount we won't touch.
       case "$_cur_volname" in
-        subvol-${VMID}-disk-[0-9]*)
+        subvol-${VMID}-disk-[0-9]*|vm-${VMID}-disk-[0-9]*)
           if [ "$NEEDS_STOP" -eq 0 ] && [ "$WAS_RUNNING" -eq 1 ]; then
             pct stop "$VMID" >&2 || true
             NEEDS_STOP=1

@@ -34,7 +34,7 @@ MAC="${UBUNTUPVE_MAC:-$WOL_MAC}"
 WOL_WAIT="${WOL_WAIT:-180}"
 API_WAIT="${API_WAIT:-300}"
 
-# Colors (matching step2-install-deployer.sh pattern)
+# Colors (matching step2b-install-deployer.sh pattern)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

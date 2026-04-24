@@ -16,16 +16,16 @@ Tests use the central `e2e/config.json` for all settings (PVE host, ports, etc.)
 
 ```bash
 # Run all tests
-npx tsx backend/tests/livetests/src/live-test-runner.mts local-test --all
+npx tsx backend/tests/livetests/src/live-test-runner.mts green --all
 
 # Run specific app (all scenarios + dependencies)
-npx tsx backend/tests/livetests/src/live-test-runner.mts local-test postgres
+npx tsx backend/tests/livetests/src/live-test-runner.mts green postgres
 
 # Run specific scenario (+ dependencies)
-npx tsx backend/tests/livetests/src/live-test-runner.mts local-test zitadel/ssl
+npx tsx backend/tests/livetests/src/live-test-runner.mts green zitadel/ssl
 
 # Keep containers for debugging
-KEEP_VM=1 npx tsx backend/tests/livetests/src/live-test-runner.mts local-test zitadel/ssl
+KEEP_VM=1 npx tsx backend/tests/livetests/src/live-test-runner.mts green zitadel/ssl
 ```
 
 ### Arguments

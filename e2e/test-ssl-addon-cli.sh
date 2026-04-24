@@ -166,9 +166,10 @@ init_environment() {
         done
         log "VM is up after snapshot rollback"
     else
-        log "No deployer-installed snapshot found, running step1 + step2..."
+        log "No deployer-installed snapshot found, running step1 + step2a + step2b..."
         "$SCRIPT_DIR/step1-create-vm.sh" "$E2E_INSTANCE"
-        "$SCRIPT_DIR/step2-install-deployer.sh" "$E2E_INSTANCE"
+        "$SCRIPT_DIR/step2a-setup-mirrors.sh" "$E2E_INSTANCE"
+        "$SCRIPT_DIR/step2b-install-deployer.sh" "$E2E_INSTANCE"
     fi
 }
 

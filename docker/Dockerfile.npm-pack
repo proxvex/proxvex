@@ -1,9 +1,11 @@
 # Runtime image built from the npm pack tarball
 ARG NODE_MAJOR=24
-FROM node:${NODE_MAJOR}-alpine
+FROM node:${NODE_MAJOR}-slim
 
-# Install tools needed for SSH key generation (ssh-keygen)
-RUN apk add --no-cache openssh-client openssl
+# Install tools needed for SSH key generation (ssh-keygen) and TLS trust store
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssh-client openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
 # Build metadata
 ARG BUILD_DATE
@@ -23,7 +25,7 @@ COPY docker/proxvex.tgz /tmp/app.tgz
 RUN set -eux; \
     npm install -g /tmp/app.tgz --omit=dev --ignore-scripts; \
     rm /tmp/app.tgz; \
-    addgroup -S -g 1001 lxc && adduser -S -u 1001 -G lxc lxc; \
+    groupadd -g 1001 lxc && useradd -u 1001 -g lxc -m -s /bin/sh -d /home/lxc lxc; \
     mkdir -p /home/lxc && chown -R lxc:lxc /home/lxc; \
     npm cache clean --force
 
