@@ -40,7 +40,6 @@
     { "id": "oidc_callback_path", "value": "/api/auth/callback" },
     { "id": "oidc_required_role", "value": "admin" }
   ],
-  "installation": {},
   "check": {
     "check": [
       "check-oidc-endpoint.json"

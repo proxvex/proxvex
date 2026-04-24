@@ -19,9 +19,8 @@
       "id": "oci_image_tag",
       "name": "Version",
       "type": "string",
-      "advanced": true,
-      "required": ["installation", "upgrade"],
-      "description": "OCI image tag / version to deploy (e.g. '1.2.3', 'v4.12.3'). Explicit versions are required so registry-mirror caches stay deterministic and tests reproduce cleanly. Optional for reconfigure — the backend reuses the tag recorded on the existing container."
+      "required": true,
+      "description": "OCI image tag / version to deploy (e.g. '1.2.3', 'v4.12.3'). Explicit versions are required so registry-mirror caches stay deterministic and tests reproduce cleanly. Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes."
     }
   ],
   "commands": [

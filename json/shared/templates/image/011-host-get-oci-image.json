@@ -12,6 +12,13 @@
       "description": "OCI image reference (e.g., docker://alpine:latest, docker://debian:bookworm, oci://ghcr.io/owner/repo:latest)"
     },
     {
+      "id": "oci_image_tag",
+      "name": "Version",
+      "type": "string",
+      "required": true,
+      "description": "OCI image tag / version to pull (e.g. '0.5.28', 'v4.12.3'). Explicit versions keep registry-mirror caches deterministic and make tests reproducible. Apps typically template this into their `oci_image` property (e.g. `ghcr.io/foo/bar:{{oci_image_tag}}`). Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes."
+    },
+    {
       "id": "storage",
       "name": "Storage",
       "type": "string",

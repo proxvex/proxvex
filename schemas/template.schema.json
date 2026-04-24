@@ -67,18 +67,7 @@
             "enum": ["ca", "ca_pub", "server", "fullchain"],
             "description": "Certificate type. Enables auto-generation when upload has no value."
           },
-          "required": {
-            "default": false,
-            "description": "`true` makes the parameter required for every task. An array of task names (e.g. [\"installation\", \"upgrade\"]) limits the requirement to those tasks — useful when the same parameter is optional during reconfigure because it can be inferred from the existing container.",
-            "oneOf": [
-              { "type": "boolean" },
-              {
-                "type": "array",
-                "items": { "enum": ["installation", "upgrade", "reconfigure", "check", "disable"] },
-                "minItems": 1
-              }
-            ]
-          },
+          "required": { "type": "boolean", "default": false },
           "validatePattern": { "type": "string", "default": false },
           "secure": { "type": "boolean", "default": false },
           "advanced": { "type": "boolean", "default": false },

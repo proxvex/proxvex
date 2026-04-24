@@ -3,24 +3,7 @@ import type {
   IParameterValue,
   IAddonWithParameters,
   IStack,
-  TaskType,
 } from "./types.mjs";
-
-/**
- * A parameter definition's `required` field can either be a boolean (required
- * for every task) or a list of task names (required only for those tasks).
- * This helper collapses the two forms to a single yes/no decision given the
- * current task.
- */
-function isRequiredForTask(
-  required: boolean | TaskType[] | undefined,
-  task: TaskType | undefined,
-): boolean {
-  if (required === true) return true;
-  if (!Array.isArray(required)) return false;
-  if (!task) return required.length > 0;
-  return required.includes(task);
-}
 
 export interface ValidationError {
   field: string;
@@ -48,12 +31,6 @@ export class ParameterValidator {
     knownPropertyIds?: Set<string>;
     stackId?: string;
     availableStacks?: IStack[];
-    /**
-     * Current task ("installation", "upgrade", "reconfigure", …). Used to
-     * evaluate task-scoped `required` declarations (e.g. `required: ["installation"]`
-     * means the parameter is only required for installation, not reconfigure).
-     */
-    task?: TaskType;
   }): ValidationResult {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
@@ -65,7 +42,6 @@ export class ParameterValidator {
       availableAddons,
       stackId,
       availableStacks,
-      task,
     } = input;
 
     const paramMap = new Map<string, IParameterValue>();
@@ -75,7 +51,7 @@ export class ParameterValidator {
 
     // Check required params
     for (const def of parameterDefs) {
-      if (!isRequiredForTask(def.required, task)) continue;
+      if (!def.required) continue;
 
       // Conditional requirement: if 'if' is set, only require when the
       // referenced parameter/property has a truthy value
@@ -181,14 +157,14 @@ export class ParameterValidator {
           }
         }
 
-        // Check the addon's own required parameters have a value.
+        // Check the addon's own required:true parameters have a value.
         // Mirrors the application-level required check (lines 52-70) so addons
         // with required inputs (e.g. addon-acme's acme_san) fail deploy-time
         // validation instead of silently skipping at pre_start time.
         const addon = availableAddons.find((a) => a.id === addonId);
         if (addon?.parameters?.length) {
           for (const def of addon.parameters) {
-            if (!isRequiredForTask(def.required, task)) continue;
+            if (!def.required) continue;
             if (def.if) {
               const condValue = paramMap.get(def.if);
               if (!condValue || condValue === "false" || condValue === "0")

@@ -134,19 +134,13 @@ export class FrameworkLoader {
           } else if (propId === "compose_project") {
             cloned.required = false; // Force optional for docker-compose
           } else {
-            // For other parameters, keep original required value (default to false if not defined).
-            // Preserve task-scoped required arrays (e.g. ["installation", "upgrade"]) verbatim —
-            // coercing to boolean would drop the per-task filter.
-            cloned.required = Array.isArray(match.required)
-              ? match.required
-              : match.required === true;
+            // For other parameters, keep original required value (default to false if not defined)
+            cloned.required = match.required === true;
           }
         } else {
-          // For other frameworks, respect template-defined required value.
-          // Only mark as required if explicitly set (boolean true or task array).
-          cloned.required = Array.isArray(match.required)
-            ? match.required
-            : match.required === true;
+          // For other frameworks, respect template-defined required value
+          // Only mark as required if explicitly set to true in template
+          cloned.required = match.required === true;
         }
 
         result.push(cloned);
