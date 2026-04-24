@@ -65,7 +65,7 @@ First-time bootstrap for a fresh instance (example: yellow):
 | Create nested VM | `./step1-create-vm.sh` | ~2 min |
 | Fill registry mirrors (once) | `./step2a-setup-mirrors.sh` | ~15 min |
 | Install / rebuild proxvex | `./step2b-install-deployer.sh` | ~2 min |
-| Install CI infra | `./install-ci.sh --runner-host pve1 --worker-host ubuntupve --github-token <token>` | |
+| Install CI runner LXC | `./install-ci.sh --runner-host ubuntupve --github-token <token>` | |
 | Init template tests | `./script2a-template-tests.sh` | |
 | Clean test containers | `./clean-test-containers.sh` | ~5s |
 | Fresh proxvex on filled mirrors | `./step2b-install-deployer.sh` | ~2 min |
@@ -85,7 +85,7 @@ e2e/
 ├── step2a-setup-mirrors.sh      # Fill registry mirrors → snapshot 'mirrors-ready'
 ├── step2b-install-deployer.sh   # Install proxvex via docker build + skopeo + OCI archive
 │                                #   → snapshot 'deployer-installed'
-├── install-ci.sh                # Install CI infrastructure (runner + test-worker)
+├── install-ci.sh                # Install the GitHub Actions runner LXC on a Proxmox host
 ├── script2a-template-tests.sh   # Initialize nested VM for template tests
 ├── clean-test-containers.sh     # Remove test containers, keep deployer
 ├── applications/                # Application definitions for deployment tests
@@ -201,22 +201,46 @@ the local image instead (seconds, no nested-VM roundtrip).
 
 ### install-ci.sh
 
-Installs CI infrastructure on Proxmox hosts (runner + test-worker):
-- Creates a GitHub Actions runner LXC on the runner host (from OCI image)
-- Creates a CI test-worker LXC on the worker host (from OCI image)
-- Generates an SSH key pair for inter-container communication
-- Configures environment variables for `pvetest` integration
+Installs the GitHub Actions runner LXC on a Proxmox host from the
+`ghcr.io/proxvex/github-actions-runner:latest` OCI image
+(built by [runner-image-publish.yml](../.github/workflows/runner-image-publish.yml)).
+The runner image already contains `docker`, `skopeo`, `git`, `openssh-client`
+and `etherwake`; Node is installed per-workflow via `actions/setup-node@v4`
+so the version stays pinned in each workflow file.
+
+The script also appends the runner's SSH public key to the host's
+`/root/.ssh/authorized_keys` so the runner can SSH to the PVE host for `qm`
+commands against the nested VM.
 
 Required arguments:
-- `--runner-host <host>`: Proxmox host for GitHub runner (e.g., `pve1.cluster`)
-- `--worker-host <host>`: Proxmox host for test-worker (e.g., `ubuntupve`)
-- `--github-token <token>`: GitHub PAT with repository Administration read/write permission
+- `--runner-host <host>`: Proxmox host on which to install the runner LXC (e.g. `ubuntupve`)
+- `--github-token <token>`: GitHub PAT with Actions + Administration read/write permission
+  (classic PAT with `repo` scope works; fine-grained PAT must target the exact repository)
 
 Run `./install-ci.sh --help` for all options.
-Example:
+
+**Install runner for a fork (example: `volkmarnissen/proxvex`):**
+
 ```
-install-ci.sh --runner-host pve1.cluster --worker-host  ubuntupve --github-token github_pat_1******
+./install-ci.sh \
+  --runner-host ubuntupve \
+  --repo-url https://github.com/volkmarnissen/proxvex \
+  --runner-name ubuntupve-fork \
+  --labels "self-hosted,linux,x64,ubuntupve" \
+  --github-token github_pat_1******
 ```
+
+The `ubuntupve` label matches `runs-on: [self-hosted, linux, ubuntupve]` in
+`livetest-on-pr.yml`. GitHub → Repository Settings → Actions → Runners shows
+the runner as **Idle** after a few seconds.
+
+**Prerequisite**: the runner image on GHCR must be public (proxvex org → Packages →
+`github-actions-runner` → Visibility → Public). Without that, `skopeo copy`
+inside the script fails with 401.
+
+**Former test-worker LXC** (`ci-test-worker`): no longer installed. The
+current `livetest-on-pr.yml` workflow invokes `e2e/step2b-install-deployer.sh`
+directly from the runner — no pvetest worker-delegation hop needed.
 
 ### script2a-template-tests.sh
 

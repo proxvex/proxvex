@@ -1,54 +1,43 @@
 #!/bin/bash
-# install-ci.sh - Install CI infrastructure on Proxmox hosts
+# install-ci.sh - Install the GitHub Actions runner LXC on a Proxmox host
 #
-# Creates two LXC containers directly from OCI images:
-#   1. GitHub Actions runner on the runner host (e.g., pve1)
-#   2. CI test-worker on the worker host (e.g., ubuntupve)
+# Creates one LXC container directly from the github-actions-runner OCI image
+# (built by .github/workflows/runner-image-publish.yml). The container uses
+# DHCP on vmbr0 and is reachable by hostname.
 #
-# Both containers use DHCP on vmbr0 and are reachable by hostname.
-# An SSH key pair is auto-generated for inter-container communication.
+# An SSH key pair is auto-generated: the private key goes into the runner LXC,
+# the public key is appended to the Proxmox host's /root/.ssh/authorized_keys
+# so the runner can SSH to the host for qm commands against the nested VM.
+#
+# The livetest workflow invoked by the runner calls e2e/step2b-install-deployer.sh
+# directly (no pvetest worker-delegation). The former ci-test-worker LXC is no
+# longer created here — it was only needed in the pve1-split mode where the
+# runner sat on a different host than the test-worker.
 #
 # Prerequisites:
-#   - SSH root access to both Proxmox hosts (from this machine)
-#   - skopeo available on both hosts (Proxmox 8+ includes it, or: apt install skopeo)
+#   - SSH root access to the Proxmox host (from this machine)
+#   - skopeo available on the host (Proxmox 8+ includes it, or: apt install skopeo)
 #
 # Usage:
-#   ./install-ci.sh --runner-host pve1 --worker-host ubuntupve --github-token ghp_xxx
-#
-# The runner's pvetest CLI will be able to:
-#   - SSH to the test-worker by hostname (DHCP, vmbr0)
-#   - SSH to the worker-host for PVE management (snapshots, WOL)
-#   - SSH to the nested VM for install tests
+#   ./install-ci.sh --runner-host ubuntupve --github-token ghp_xxx
 
 set -euo pipefail
 
 # --- Defaults ---
 RUNNER_HOST=""
-WORKER_HOST=""
 GITHUB_TOKEN=""
 REPO_URL="https://github.com/proxvex/proxvex"
 RUNNER_NAME=""
-LABELS="self-hosted,linux,x64,pve1"
+LABELS="self-hosted,linux,x64"
 RUNNER_VMID=""
-WORKER_VMID=""
 STORAGE=""
 BRIDGE="vmbr0"
-RUNNER_MEMORY=512
-WORKER_MEMORY=2048
-RUNNER_DISK=4
-WORKER_DISK=4
+RUNNER_MEMORY=2048
+RUNNER_DISK=8
 RUNNER_HOSTNAME="gh-runner"
-WORKER_HOSTNAME="ci-test-worker"
 
-# Images (built by runner-image-publish.yml)
+# Image (built by runner-image-publish.yml)
 RUNNER_IMAGE="ghcr.io/proxvex/github-actions-runner:latest"
-WORKER_IMAGE="ghcr.io/proxvex/ci-test-worker:latest"
-
-# pvetest infrastructure defaults
-WOL_MAC=""
-DEPLOYER_PORT="2080"
-NESTED_SSH_PORT="2022"
-NESTED_VMID="9001"
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -70,44 +59,30 @@ header() {
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --runner-host)      RUNNER_HOST="$2"; shift 2 ;;
-        --worker-host)      WORKER_HOST="$2"; shift 2 ;;
         --github-token)     GITHUB_TOKEN="$2"; shift 2 ;;
         --repo-url)         REPO_URL="$2"; shift 2 ;;
         --runner-name)      RUNNER_NAME="$2"; shift 2 ;;
         --labels)           LABELS="$2"; shift 2 ;;
         --runner-vmid)      RUNNER_VMID="$2"; shift 2 ;;
-        --worker-vmid)      WORKER_VMID="$2"; shift 2 ;;
         --storage)          STORAGE="$2"; shift 2 ;;
         --bridge)           BRIDGE="$2"; shift 2 ;;
-        --wol-mac)          WOL_MAC="$2"; shift 2 ;;
-        --deployer-port)    DEPLOYER_PORT="$2"; shift 2 ;;
-        --nested-ssh-port)  NESTED_SSH_PORT="$2"; shift 2 ;;
-        --nested-vmid)      NESTED_VMID="$2"; shift 2 ;;
         --runner-hostname)  RUNNER_HOSTNAME="$2"; shift 2 ;;
-        --worker-hostname)  WORKER_HOSTNAME="$2"; shift 2 ;;
         --help|-h)
             cat <<'USAGE'
 Usage: install-ci.sh [options]
 
 Required:
-  --runner-host <host>       Proxmox host for GitHub runner (e.g., pve1)
-  --worker-host <host>       Proxmox host for test-worker (e.g., ubuntupve)
-  --github-token <token>     GitHub PAT with Actions read/write permission
-  --wol-mac <mac>            MAC address of worker-host for WOL
+  --runner-host <host>       Proxmox host for the runner (e.g., ubuntupve)
+  --github-token <token>     GitHub PAT with Actions + Administration read/write
 
 Optional:
-  --repo-url <url>           GitHub repo URL (default: proxvex/proxvex)
+  --repo-url <url>           GitHub repo URL (default: https://github.com/proxvex/proxvex)
   --runner-name <name>       Runner display name (default: <runner-host>-proxvex)
-  --labels <labels>          Runner labels (default: self-hosted,linux,x64,pve1)
+  --labels <labels>          Runner labels (default: self-hosted,linux,x64)
   --runner-vmid <id>         VMID for runner (default: auto)
-  --worker-vmid <id>         VMID for test-worker (default: auto)
   --storage <name>           Proxmox storage (default: auto-detect)
   --bridge <name>            Network bridge (default: vmbr0)
   --runner-hostname <name>   Runner LXC hostname (default: gh-runner)
-  --worker-hostname <name>   Worker LXC hostname (default: ci-test-worker)
-  --deployer-port <port>     Deployer API port on worker-host (default: 2080)
-  --nested-ssh-port <port>   Nested VM SSH port on worker-host (default: 2022)
-  --nested-vmid <id>         Nested VM ID (default: 9001)
 USAGE
             exit 0 ;;
         *) fail "Unknown argument: $1" ;;
@@ -116,9 +91,7 @@ done
 
 # Validate required args
 [ -z "$RUNNER_HOST" ] && fail "--runner-host is required"
-[ -z "$WORKER_HOST" ] && fail "--worker-host is required"
 [ -z "$GITHUB_TOKEN" ] && fail "--github-token is required"
-[ -z "$WOL_MAC" ] && fail "--wol-mac is required"
 [ -z "$RUNNER_NAME" ] && RUNNER_NAME="${RUNNER_HOST}-proxvex"
 
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10"
@@ -298,64 +271,35 @@ configure_lxc "$RUNNER_HOST" "$RUNNER_VMID" \
     "REPO_URL=$REPO_URL" \
     "ACCESS_TOKEN=$GITHUB_TOKEN" \
     "RUNNER_NAME=$RUNNER_NAME" \
-    "LABELS=$LABELS" \
-    "PVETEST_HOST=$WORKER_HOST" \
-    "PVETEST_WORKER_HOST=$WORKER_HOSTNAME" \
-    "PVETEST_WORKER_PORT=22" \
-    "PVETEST_WORKER_USER=root" \
-    "PVETEST_WOL_MAC=$WOL_MAC" \
-    "PVETEST_DEPLOYER_PORT=$DEPLOYER_PORT" \
-    "PVETEST_NESTED_SSH_PORT=$NESTED_SSH_PORT" \
-    "PVETEST_NESTED_VMID=$NESTED_VMID"
+    "LABELS=$LABELS"
 
 start_lxc "$RUNNER_HOST" "$RUNNER_VMID"
 sleep 2
 push_ssh_key "$RUNNER_HOST" "$RUNNER_VMID" "$SSH_PRIVATE_KEY" "/root/.ssh/id_ed25519"
 
 # ============================================================
-# Step 3: Install Test Worker on $WORKER_HOST
+# Step 3: Authorize runner SSH key on the Proxmox host
+# (so the runner can SSH to $RUNNER_HOST for qm commands against the nested VM)
 # ============================================================
-header "Step 3: Install Test Worker on $WORKER_HOST"
+header "Step 3: Authorize runner SSH key on $RUNNER_HOST"
 
-WORKER_TARBALL="ci-test-worker-latest.tar"
-download_oci_image "$WORKER_HOST" "$WORKER_IMAGE" "$WORKER_TARBALL"
-
-WORKER_STORAGE=$(detect_storage "$WORKER_HOST")
-info "Using storage: $WORKER_STORAGE"
-
-WORKER_VMID=$(create_lxc "$WORKER_HOST" "$WORKER_TARBALL" "$WORKER_VMID" \
-    "$WORKER_HOSTNAME" "$WORKER_MEMORY" "$WORKER_DISK" "alpine" "$WORKER_STORAGE")
-
-configure_lxc "$WORKER_HOST" "$WORKER_VMID" \
-    "SSH_PUBLIC_KEY=$SSH_PUBLIC_KEY"
-
-start_lxc "$WORKER_HOST" "$WORKER_VMID"
-sleep 2
-push_ssh_key "$WORKER_HOST" "$WORKER_VMID" "$SSH_PRIVATE_KEY" "/root/.ssh/id_ed25519"
-
-# ============================================================
-# Step 4: Add SSH public key to worker-host authorized_keys
-# (so the runner can SSH to ubuntupve for PVE management)
-# ============================================================
-header "Step 4: Authorize runner SSH key on $WORKER_HOST"
-
-info "Adding runner public key to $WORKER_HOST root authorized_keys..."
-ssh $SSH_OPTS "root@$WORKER_HOST" "
+info "Adding runner public key to $RUNNER_HOST root authorized_keys..."
+ssh $SSH_OPTS "root@$RUNNER_HOST" "
     mkdir -p /root/.ssh
     chmod 700 /root/.ssh
-    # Avoid duplicates
     if ! grep -qF '$SSH_PUBLIC_KEY' /root/.ssh/authorized_keys 2>/dev/null; then
         echo '$SSH_PUBLIC_KEY' >> /root/.ssh/authorized_keys
         chmod 600 /root/.ssh/authorized_keys
     fi
 "
-ok "Runner authorized on $WORKER_HOST"
+ok "Runner authorized on $RUNNER_HOST"
 
 echo ""
-info "NOTE: For install-test, also add this key to the nested VM's authorized_keys"
-info "(before creating the baseline snapshot):"
+info "NOTE: the runner also needs SSH to the nested VM for pct commands."
+info "e2e/step1-create-vm.sh already installs the dev SSH public key there;"
+info "if the runner needs access too, append its pubkey before taking 'baseline':"
 echo ""
-echo "  ssh -p $NESTED_SSH_PORT root@$WORKER_HOST \"mkdir -p /root/.ssh && echo '$SSH_PUBLIC_KEY' >> /root/.ssh/authorized_keys\""
+echo "  ssh -p <nested-ssh-port> root@$RUNNER_HOST \"mkdir -p /root/.ssh && echo '$SSH_PUBLIC_KEY' >> /root/.ssh/authorized_keys\""
 
 # ============================================================
 # Summary
@@ -367,20 +311,14 @@ echo "  Host:     $RUNNER_HOST"
 echo "  VMID:     $RUNNER_VMID"
 echo "  Hostname: $RUNNER_HOSTNAME"
 echo "  Image:    $RUNNER_IMAGE"
+echo "  Labels:   $LABELS"
 echo ""
-echo "Test Worker:"
-echo "  Host:     $WORKER_HOST"
-echo "  VMID:     $WORKER_VMID"
-echo "  Hostname: $WORKER_HOSTNAME"
-echo "  Image:    $WORKER_IMAGE"
-echo ""
-echo "Both containers use DHCP on $BRIDGE."
-echo "The runner connects to the test-worker at $WORKER_HOSTNAME:22."
+echo "Container uses DHCP on $BRIDGE. The runner SSHs to $RUNNER_HOST"
+echo "directly for qm commands (key was added to /root/.ssh/authorized_keys)."
 echo ""
 echo "Verify:"
 echo "  ssh root@$RUNNER_HOST 'pct status $RUNNER_VMID'"
-echo "  ssh root@$WORKER_HOST 'pct status $WORKER_VMID'"
+echo "  gh api /repos/${REPO_URL##*/}/actions/runners | jq '.runners[]|{name,status,labels:[.labels[].name]}'"
 echo ""
 echo "Logs:"
 echo "  ssh root@$RUNNER_HOST 'pct exec $RUNNER_VMID -- cat /var/log/lxc/*.log 2>/dev/null || pct console $RUNNER_VMID'"
-echo "  ssh root@$WORKER_HOST 'pct exec $WORKER_VMID -- cat /var/log/lxc/*.log 2>/dev/null || pct console $WORKER_VMID'"

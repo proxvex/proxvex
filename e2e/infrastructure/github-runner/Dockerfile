@@ -1,16 +1,16 @@
 FROM ghcr.io/actions/actions-runner:latest
 
-# Tools needed by e2e/step2b-install-deployer.sh when executed inside the
-# runner: docker (docker build), skopeo (docker-daemon -> oci-archive),
-# pnpm (backend build). Plus etherwake for WOL (existing use).
+# System tools needed by e2e/step2b-install-deployer.sh when executed inside
+# the runner: docker (docker build), skopeo (docker-daemon -> oci-archive).
+# Node itself is installed per-workflow via actions/setup-node@v4 so the
+# node version stays pinned in the workflow file, not in the image.
+# etherwake remains for the WOL flow on pve1.
 RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
         etherwake \
         docker.io \
         skopeo \
         ca-certificates \
-    && sudo rm -rf /var/lib/apt/lists/* \
-    && sudo corepack enable \
-    && sudo corepack prepare pnpm@latest --activate
+    && sudo rm -rf /var/lib/apt/lists/*
 
 COPY pvetest /usr/local/bin/pvetest
 RUN sudo chmod +x /usr/local/bin/pvetest
