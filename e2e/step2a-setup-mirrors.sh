@@ -155,7 +155,31 @@ success "Mirror image available"
 # Step 4: Start Docker Hub + ghcr.io mirrors (bound to 10.0.0.1 / 10.0.0.2)
 header "Starting registry mirrors"
 
-# ghcr.io mirror needs its own IP on vmbr1 (Docker Hub uses 10.0.0.1, the NAT gateway)
+# ghcr.io mirror needs its own IP on vmbr1 (Docker Hub uses 10.0.0.1, the NAT gateway).
+# Persist via a systemd oneshot unit so the IP survives VM reboots / snapshot
+# rollbacks (without it the ghcr-mirror container fails to re-bind :443/:80
+# after a reboot and every ghcr.io pull breaks with "no route to host").
+# Using systemd rather than /etc/network/interfaces.d/ because ifupdown2 on
+# Proxmox rejects colon-aliased interface names (vmbr1:ghcr).
+nested_ssh "cat > /etc/systemd/system/vmbr1-ghcr-alias.service <<'EOF'
+[Unit]
+Description=Secondary IP 10.0.0.2 on vmbr1 for ghcr.io pull-through mirror
+After=networking.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/ip addr add 10.0.0.2/24 dev vmbr1
+ExecStartPost=/bin/docker start ghcr-mirror
+ExecStop=/sbin/ip addr del 10.0.0.2/24 dev vmbr1
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable vmbr1-ghcr-alias.service
+"
 nested_ssh "ip addr show vmbr1 | grep -q '10.0.0.2/' || ip addr add 10.0.0.2/24 dev vmbr1"
 
 nested_ssh "docker ps -q -f name='^dockerhub-mirror$' | grep -q . || {

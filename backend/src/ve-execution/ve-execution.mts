@@ -272,11 +272,15 @@ export class VeExecution extends EventEmitter {
       throw new Error("lxc_config_parser_lib.py not found");
     }
 
-    // Replace template variables in script
-    const stackId = String(this.inputs["stack_id"] ?? this.outputs.get("stack_id") ?? this.defaults.get("stack_id") ?? "NOT_DEFINED");
+    // Replace template variables in script.
+    // Dependency lookups via `execute_on: "application:<id>"` span stacks
+    // (e.g. gitea in stack "default" calling into postgres which may live in
+    // a different stack), so do NOT filter by the current execution's
+    // stack_id — it would always miss. Leave stack_id empty so the script
+    // only filters by application_id + running status.
     const scriptWithAppId = scriptContent
       .replace(/\{\{\s*application_id\s*\}\}/g, appId)
-      .replace(/\{\{\s*stack_id\s*\}\}/g, stackId);
+      .replace(/\{\{\s*stack_id\s*\}\}/g, "NOT_DEFINED");
 
     const cmd: ICommand = {
       name: "Find Containers by App ID",

@@ -150,6 +150,7 @@ export function registerValidationRoutes(app: Application): void {
           knownPropertyIds,
           ...(body.stackId ? { stackId: body.stackId } : {}),
           availableStacks,
+          task: task as TaskType,
         });
 
         res.status(200).json(result);

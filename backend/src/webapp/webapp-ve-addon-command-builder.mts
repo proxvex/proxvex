@@ -297,7 +297,10 @@ export class WebAppVeAddonCommandBuilder {
   /**
    * Finds the insertion index for addon commands based on phase.
    * Uses command.category (set by TemplateProcessor) for reliable phase detection.
-   * pre_start: insert BEFORE the first "start" category command.
+   * pre_start: insert BEFORE the first "pre_start_finalize" or "start" command —
+   *   pre_start_finalize is reserved for framework cleanup (volume unmount) that
+   *   must remain the last pre-boot step, so addon pre_start commands have to
+   *   land ahead of it.
    * post_start: insert BEFORE the first "replace_ct" category command (if present).
    */
   private findAddonInsertionIndex(
@@ -306,7 +309,8 @@ export class WebAppVeAddonCommandBuilder {
   ): number {
     if (phase === "pre_start") {
       for (let i = 0; i < commands.length; i++) {
-        if (commands[i]?.category === "start") return i;
+        const cat = commands[i]?.category;
+        if (cat === "pre_start_finalize" || cat === "start") return i;
       }
     }
 

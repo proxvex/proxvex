@@ -190,7 +190,11 @@ export async function executeScenarios(
           logFail(errMsg);
           result.errors.push(errMsg);
           result.failed++;
-          break;
+          // Skip this scenario but keep running the rest of the --all plan.
+          // Aborting here (via `break`) hid many passable scenarios whenever
+          // a reconfigure/upgrade task's live dependency VM had already been
+          // torn down by a previous scenario's cleanup.
+          continue;
         }
         buildResult.params.push({ name: "previouse_vm_id", value: String(existingVm.vm_id) });
         logInfo(`Found existing VM ${existingVm.vm_id} for ${task} (previouse_vm_id)`);

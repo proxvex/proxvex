@@ -203,7 +203,13 @@ export interface IParameter {
   type: ParameterType;
   description?: string;
   multiline?: boolean;
-  required?: boolean;
+  /**
+   * `true` = required for every task. `false` / undefined = never required.
+   * Array of task names = required only for those tasks (e.g. `["installation", "upgrade"]`
+   * lets a parameter like `oci_image_tag` stay optional during reconfigure where
+   * it can be inferred from the existing container's notes).
+   */
+  required?: boolean | TaskType[];
   secure?: boolean;
   advanced?: boolean;
   upload?: boolean;

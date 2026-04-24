@@ -20,7 +20,8 @@
       "name": "Version",
       "type": "string",
       "advanced": true,
-      "description": "Auto-injected by backend: deployer version from package.json"
+      "required": ["installation", "upgrade"],
+      "description": "OCI image tag / version to deploy (e.g. '1.2.3', 'v4.12.3'). Explicit versions are required so registry-mirror caches stay deterministic and tests reproduce cleanly. Optional for reconfigure — the backend reuses the tag recorded on the existing container."
     }
   ],
   "commands": [
