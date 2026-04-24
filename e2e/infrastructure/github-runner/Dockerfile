@@ -1,9 +1,16 @@
 FROM ghcr.io/actions/actions-runner:latest
 
-# etherwake for WOL magic packets
-RUN sudo apt-get update && \
-    sudo apt-get install -y --no-install-recommends etherwake && \
-    sudo rm -rf /var/lib/apt/lists/*
+# Tools needed by e2e/step2b-install-deployer.sh when executed inside the
+# runner: docker (docker build), skopeo (docker-daemon -> oci-archive),
+# pnpm (backend build). Plus etherwake for WOL (existing use).
+RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        etherwake \
+        docker.io \
+        skopeo \
+        ca-certificates \
+    && sudo rm -rf /var/lib/apt/lists/* \
+    && sudo corepack enable \
+    && sudo corepack prepare pnpm@latest --activate
 
 COPY pvetest /usr/local/bin/pvetest
 RUN sudo chmod +x /usr/local/bin/pvetest

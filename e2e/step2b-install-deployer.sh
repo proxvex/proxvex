@@ -141,8 +141,11 @@ TARBALL_RAW=$(npm pack --pack-destination docker/ 2>&1 | grep -o 'proxvex-.*\.tg
 mv "docker/$TARBALL_RAW" docker/proxvex.tgz
 success "Packed: docker/proxvex.tgz"
 
-info "Building Docker image ${DOCKER_TAG}..."
-docker build -t "$DOCKER_TAG" -f docker/Dockerfile.npm-pack . >&2 \
+info "Building Docker image ${DOCKER_TAG} (linux/amd64)..."
+# Force linux/amd64: the Proxmox host is x86_64, but Apple-Silicon Macs would
+# otherwise produce arm64 binaries and the container fails to start with
+# "Exec format error" when LXC tries to run /usr/local/bin/entrypoint-wrapper.sh.
+docker build --platform linux/amd64 -t "$DOCKER_TAG" -f docker/Dockerfile.npm-pack . >&2 \
     || error "docker build failed"
 success "Docker image ${DOCKER_TAG} built"
 
