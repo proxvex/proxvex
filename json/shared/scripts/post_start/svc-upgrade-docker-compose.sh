@@ -78,11 +78,11 @@ $DC -f "$COMPOSE_FILE" down >&2 || true
 
 # Step 2: Pull new images
 echo "Pulling updated Docker images..." >&2
-$DC -f "$COMPOSE_FILE" pull >&2
+$DC -f "$COMPOSE_FILE" pull --quiet >&2
 
 # Step 3: Start services
 echo "Starting Docker Compose services (timeout: ${STARTUP_TIMEOUT}s)..." >&2
-$DC -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" >&2
+$DC -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
 RC=$?
 
 if [ $RC -ne 0 ]; then

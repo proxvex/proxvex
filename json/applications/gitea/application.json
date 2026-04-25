@@ -23,7 +23,7 @@
       "description": "One per line: key=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "data=var/lib/gitea\nconfig=etc/gitea"
+      "default": "data=var/lib/gitea,size=2G\nconfig=etc/gitea"
     },
     {
       "id": "envs",

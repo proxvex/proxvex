@@ -38,7 +38,7 @@
       "description": "One per line: name=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "config=/config\ndata=/data\nssl=/ssl"
+      "default": "config=/config\ndata=/data,size=64M\nssl=/ssl"
     },
     {
       "id": "http_port",

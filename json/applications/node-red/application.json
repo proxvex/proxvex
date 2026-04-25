@@ -23,7 +23,7 @@
       "description": "One per line: key=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "data=data\ncerts=certs"
+      "default": "data=data,size=256M\ncerts=certs"
     },
     {
       "id": "envs",

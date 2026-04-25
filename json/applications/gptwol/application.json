@@ -23,7 +23,7 @@
       "description": "One per line: key=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "appdata_db=app/db\nappdata_cron=etc/cron.d"
+      "default": "appdata_db=app/db,size=32M\nappdata_cron=etc/cron.d"
     },
     {
       "id": "envs",

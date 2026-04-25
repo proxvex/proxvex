@@ -45,8 +45,8 @@
       "id": "disk_size",
       "name": "Disk size",
       "type": "string",
-      "default": "4",
-      "description": "Disk size for the container in GB",
+      "default": "0.5",
+      "description": "Rootfs size for the container in GiB. Apps that bundle a large image (Node.js, JDK, full Debian base) should override this in their application.json. Default fits Alpine + small OCI images (~200 MiB used).",
       "advanced": true
     },
     {

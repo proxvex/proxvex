@@ -1,10 +1,18 @@
 {
   "task": "upgrade",
-  "depends_on": ["zitadel/default"],
-  "cli_timeout": 360,
+  "depends_on": [
+    "zitadel/default"
+  ],
+  "cli_timeout": 600,
   "wait_seconds": 90,
   "params": [
-    { "name": "target_versions", "value": "zitadel=v4.13.1,zitadel-login=v4.13.1,traefik=v3.6.13" },
-    { "name": "expected_versions", "value": "zitadel=v4.13.1,zitadel-login=v4.13.1,traefik=v3.6.13" }
+    {
+      "name": "target_versions",
+      "value": "zitadel=v4.13.1,zitadel-login=v4.13.1,traefik=v3.6.13"
+    },
+    {
+      "name": "expected_versions",
+      "value": "zitadel=v4.13.1,zitadel-login=v4.13.1,traefik=v3.6.13"
+    }
   ]
 }

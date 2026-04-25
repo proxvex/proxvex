@@ -10,6 +10,6 @@
     }
   ],
   "wait_seconds": 30,
-  "cli_timeout": 360,
+  "cli_timeout": 600,
   "description": "Install deployer without addons (base for reconfigure tests)"
 }

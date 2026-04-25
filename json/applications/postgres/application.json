@@ -23,7 +23,7 @@
       "description": "One per line: key=/container/path",
       "template": "150-conf-create-storage-volumes-for-lxc.json",
       "templatename": "Create Storage Volumes for LXC",
-      "default": "data=var/lib/postgresql/data\ninitdb=docker-entrypoint-initdb.d"
+      "default": "data=var/lib/postgresql/data,size=1G\ninitdb=docker-entrypoint-initdb.d"
     },
     {
       "id": "envs",

@@ -80,7 +80,7 @@ if [ -z "$VOLUME_STORAGE" ] || [ "$VOLUME_STORAGE" = "NOT_DEFINED" ]; then
 fi
 
 if [ -z "$VOLUME_SIZE" ] || [ "$VOLUME_SIZE" = "NOT_DEFINED" ]; then
-  VOLUME_SIZE="4G"
+  VOLUME_SIZE="4M"
 fi
 
 PCT_CONFIG=$(pct config "$VMID" 2>/dev/null || true)
@@ -226,11 +226,16 @@ while IFS= read -r line <&3; do
       ;;
   esac
 
+  # Per-volume size override: a `size=XXX` token in VOLUME_OPTS wins over
+  # the global VOLUME_SIZE. Format matches `pvesm alloc` (4M, 256M, 1G, 2.5G).
+  VOL_SIZE_OVERRIDE=$(printf '%s' "$VOLUME_OPTS" | tr ',' '\n' | grep -E '^size=' | head -1 | sed 's/^size=//')
+  EFFECTIVE_SIZE="${VOL_SIZE_OVERRIDE:-$VOLUME_SIZE}"
+
   # Reuse lookup: clean name (from previous destroy) -> conventional names
   VOLID=$(vol_get_existing "$VOLUME_STORAGE" "$VOL_SUFFIX" "$STORAGE_TYPE" "$PREV_VMID")
   if [ -z "$VOLID" ]; then
-    log "Creating managed volume $VOL_NAME for $VOLUME_KEY (size $VOLUME_SIZE)"
-    VOLID=$(vol_alloc "$VOLUME_STORAGE" "$VMID" "$VOL_NAME" "$VOLUME_SIZE" || true)
+    log "Creating managed volume $VOL_NAME for $VOLUME_KEY (size $EFFECTIVE_SIZE)"
+    VOLID=$(vol_alloc "$VOLUME_STORAGE" "$VMID" "$VOL_NAME" "$EFFECTIVE_SIZE" || true)
     if [ -z "$VOLID" ]; then
       fail "Failed to allocate volume $VOL_NAME"
     fi

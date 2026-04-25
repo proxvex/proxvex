@@ -101,10 +101,10 @@ fi
 # Run docker compose up -d --wait (waits for healthchecks to pass)
 echo "Starting Docker Compose services (timeout: ${STARTUP_TIMEOUT}s)..." >&2
 if command -v docker-compose >/dev/null 2>&1; then
-  docker-compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" >&2
+  docker-compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
   RC=$?
 elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" >&2
+  docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
   RC=$?
 else
   echo "Error: Neither 'docker-compose' nor 'docker compose' command found" >&2

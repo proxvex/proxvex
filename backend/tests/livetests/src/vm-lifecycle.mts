@@ -231,7 +231,13 @@ export function prepareVms(
         `  mnt="/var/lib/pve-vol-mounts/\${vid#*:}"; ` +
         `  mountpoint -q "$mnt" 2>/dev/null && { umount "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null; rmdir "$mnt" 2>/dev/null; }; ` +
         `done; ` +
-        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true; ` +
+        // Sweep orphan LVs from a crashed pct clone / pct destroy. When a
+        // reconfigure aborts mid-way, the cloned-and-renamed LV (e.g.
+        // vm-224-proxvex-config) survives in LVM but is no longer registered
+        // with any container, so the next reconfigure for the same VMID
+        // hits "Logical Volume already exists". Match the VMID prefix.
+        `command -v lvs >/dev/null 2>&1 && lvs --noheadings -o vg_name,lv_name 2>/dev/null | awk -v vmid=${p.vmId} '$2 ~ "^vm-"vmid"-" {print $1"/"$2}' | xargs -r -n1 lvremove -f >/dev/null 2>&1 || true`,
         30000);
     }
 

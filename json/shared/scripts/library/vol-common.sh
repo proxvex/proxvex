@@ -89,7 +89,13 @@ vol_alloc() {
           _vol_dev=$(pvesm path "$_vol_vid" 2>/dev/null || true)
           if [ -n "$_vol_dev" ] && [ -b "$_vol_dev" ] \
              && ! blkid "$_vol_dev" >/dev/null 2>&1; then
-            if ! mkfs.ext4 -q -F "$_vol_dev" >&2; then
+            # `lazy_itable_init=1,lazy_journal_init=1`: defer inode/journal
+            # init until first access. Without this, mkfs.ext4 on a 4 GiB LV
+            # in a nested VM costs 10-30s eagerly initializing the full inode
+            # table — and most tests have 2-3 volumes each, multiplying the
+            # cost. With lazy init mkfs returns in ms; the kernel finishes
+            # init opportunistically once the FS is mounted.
+            if ! mkfs.ext4 -q -F -E lazy_itable_init=1,lazy_journal_init=1 "$_vol_dev" >&2; then
               echo "vol_alloc: mkfs.ext4 on $_vol_dev failed" >&2
               return 1
             fi
@@ -430,23 +436,43 @@ vol_copy() {
       echo "${_vol_stor}:${_vol_new_name}"
       return 0
       ;;
-    lvm|lvmthin)
-      # LVM-thin (and LVM): use `pvesm alloc` to create a new LV of the same
-      # size, then dd the source's contents into it. The source LV may be
-      # mounted by a running container (typical upgrade path: deployer copies
-      # itself before replacing). dd of a live block device is not perfectly
-      # consistent, but it matches what `pct clone` does internally and is
-      # adequate for files written-once at install time (storagecontext.json,
-      # admin-client.pat, etc).
+    lvmthin)
+      # LVM-thin: `lvcreate --snapshot` creates an instant CoW clone in the
+      # same thin pool — orders of magnitude faster than dd. The snapshot is
+      # independent (writes don't propagate to source), exactly what we need
+      # for "duplicate this volume so the new container can mutate it".
+      _vol_vg=$(vol_get_lvm_vgname "$_vol_stor")
+      [ -z "$_vol_vg" ] && { echo "vol_copy: cannot find vgname for $_vol_stor" >&2; return 1; }
+      # Reject if destination already exists — caller is expected to handle
+      # the "already there" case (e.g. via vol_get_existing) before us.
+      if lvs --noheadings "$_vol_vg/$_vol_new_name" >/dev/null 2>&1; then
+        echo "vol_copy: destination $_vol_vg/$_vol_new_name already exists" >&2
+        return 1
+      fi
+      if ! lvcreate --type thin -s -n "$_vol_new_name" "$_vol_vg/$_vol_src_name" >&2; then
+        echo "vol_copy: lvcreate --snapshot $_vol_vg/$_vol_src_name -> $_vol_new_name failed" >&2
+        return 1
+      fi
+      # Activate the new thin LV (snapshots are inactive by default).
+      lvchange -ay "$_vol_vg/$_vol_new_name" >&2 2>&1 || true
+      # Drop the "skip activation" flag PVE adds to fresh thin volumes so the
+      # LV is actually accessible.
+      lvchange -kn -ay "$_vol_vg/$_vol_new_name" >&2 2>&1 || true
+      echo "${_vol_stor}:${_vol_new_name}"
+      return 0
+      ;;
+    lvm)
+      # Thick LVM: no thin snapshots — fall back to alloc + dd. Source may
+      # still be mounted by a running container; dd of a live block device
+      # is not perfectly consistent but matches what `pct clone` does
+      # internally and is adequate for write-once install artefacts.
       _vol_vg=$(vol_get_lvm_vgname "$_vol_stor")
       [ -z "$_vol_vg" ] && { echo "vol_copy: cannot find vgname for $_vol_stor" >&2; return 1; }
       _vol_src_dev="/dev/${_vol_vg}/${_vol_src_name}"
       [ -b "$_vol_src_dev" ] || { echo "vol_copy: source $_vol_src_dev is not a block device" >&2; return 1; }
       _vol_size_bytes=$(blockdev --getsize64 "$_vol_src_dev" 2>/dev/null)
       [ -z "$_vol_size_bytes" ] && { echo "vol_copy: cannot determine size of $_vol_src_dev" >&2; return 1; }
-      # pvesm alloc size: bare integer interpreted as kibibytes (regex \d+[MG]?).
       _vol_size_k=$(( (_vol_size_bytes + 1023) / 1024 ))
-      # Strip vmid from new name to derive caller's vmid (vm-VMID-suffix).
       _vol_caller_vmid=$(echo "$_vol_new_name" | sed -nE 's/^vm-([0-9]+)-.*/\1/p')
       [ -z "$_vol_caller_vmid" ] && _vol_caller_vmid=0
       _vol_new_volid=$(vol_alloc "$_vol_stor" "$_vol_caller_vmid" "$_vol_new_name" "$_vol_size_k") || {

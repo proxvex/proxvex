@@ -1,9 +1,14 @@
 {
   "task": "upgrade",
-  "depends_on": ["proxvex/default"],
+  "depends_on": [
+    "proxvex/default"
+  ],
   "wait_seconds": 30,
-  "cli_timeout": 360,
+  "cli_timeout": 600,
   "params": [
-    { "name": "oci_image_tag", "value": "latest" }
+    {
+      "name": "oci_image_tag",
+      "value": "latest"
+    }
   ]
 }

@@ -45,8 +45,8 @@
       "id": "volume_size",
       "name": "Volume Size",
       "type": "string",
-      "default": "4G",
-      "description": "Default size for each volume (e.g., 4G, 20G)"
+      "default": "4M",
+      "description": "Default size per managed mp volume (e.g., 4M, 256M, 1G, 2.5G). Most volumes hold KB of state (config, secrets, certs, bootstrap PATs); the default fits those. Per-volume override is supported by appending `,size=…` to a line in the `volumes` property: e.g. `data=/var/lib/gitea,size=2G`."
     },
     {
       "id": "volume_backup",
