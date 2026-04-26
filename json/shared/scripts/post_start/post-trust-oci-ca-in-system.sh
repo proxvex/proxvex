@@ -8,17 +8,6 @@
 
 set -eu
 
-DEPLOYER_URL="{{ deployer_base_url }}"
-VE_CONTEXT="{{ ve_context_key }}"
-
-[ "$DEPLOYER_URL" = "NOT_DEFINED" ] && DEPLOYER_URL=""
-[ "$VE_CONTEXT" = "NOT_DEFINED" ] && VE_CONTEXT=""
-
-if [ -z "$DEPLOYER_URL" ] || [ -z "$VE_CONTEXT" ]; then
-  echo "Warning: deployer_base_url or ve_context_key missing — skipping CA install" >&2
-  exit 0
-fi
-
 CA_DIR="/usr/local/share/ca-certificates"
 CA_FILE="${CA_DIR}/proxvex-ca.crt"
 # Renew if the existing cert expires in less than 30 days (2592000 s).
@@ -27,20 +16,29 @@ RENEW_SECONDS=2592000
 # Skip if existing cert is still valid for the grace period.
 if [ -s "$CA_FILE" ] && command -v openssl >/dev/null 2>&1 \
    && openssl x509 -in "$CA_FILE" -noout -checkend "$RENEW_SECONDS" >/dev/null 2>&1; then
-  echo "Deployer CA already installed and valid (>30d) — skipping download" >&2
+  echo "Deployer CA already installed and valid (>30d) — skipping" >&2
   exit 0
 fi
 
-# Ensure prerequisites: curl for download, openssl for expiry check,
-# ca-certificates for update-ca-certificates. pkg_install is a no-op for
-# already-installed packages on both apk and apt.
+# Ensure prerequisites: openssl for expiry check, ca-certificates for
+# update-ca-certificates. pkg_install is a no-op for already-installed
+# packages on both apk and apt.
 pkg_wait_for_network
-pkg_install ca-certificates openssl curl
+pkg_install ca-certificates openssl
 
-CA_URL="${DEPLOYER_URL}/api/${VE_CONTEXT}/ve/certificates/ca/download"
 mkdir -p "$CA_DIR"
-if ! curl -fsSL -k -o "$CA_FILE" "$CA_URL" 2>/dev/null; then
-  echo "Warning: could not download CA from $CA_URL" >&2
+
+# Prefer the CA already on the certs volume (written by addon-ssl's
+# 156-conf-generate-certificates with ssl.needs_ca_cert=true). Reading it
+# locally avoids having to reach the deployer over HTTP from inside the LXC,
+# which is brittle in test setups where the deployer hostname doesn't resolve
+# in the nested-VM network. Apps that link addon-oidc to a TLS-protected
+# zitadel always pair it with addon-ssl, so this path covers the real cases.
+if [ -s "/etc/ssl/addon/chain.pem" ]; then
+  cp "/etc/ssl/addon/chain.pem" "$CA_FILE"
+else
+  echo "Warning: /etc/ssl/addon/chain.pem not present — skipping CA trust install" >&2
+  echo "         (does the app declare 'ssl.needs_ca_cert: true' alongside addon-ssl?)" >&2
   exit 0
 fi
 

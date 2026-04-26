@@ -86,6 +86,10 @@
     {
       "id": "ssl_mode",
       "value": "native"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "value": "true"
     }
   ],
   "installation": {},
