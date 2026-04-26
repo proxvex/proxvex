@@ -5,12 +5,25 @@
 set -eu
 
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 UID_VALUE="{{ uid }}"
 GID_VALUE="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
 
-SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+# Volumes are named after the container's actual hostname. For reconfigure,
+# the new container keeps its previous hostname (volume names aren't
+# rewritten), but {{ hostname }} carries the test/scenario's intended
+# hostname which doesn't match the on-disk volume suffix. Use the running
+# container's hostname when available — falls back to the input value
+# otherwise (fresh-install path where pct config is already aligned).
+ACTUAL_HOST=""
+if [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
+  ACTUAL_HOST=$(pct config "$VM_ID" 2>/dev/null | awk '/^hostname:/ {print $2; exit}' || true)
+fi
+[ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
+
+SAFE_HOST=$(echo "$ACTUAL_HOST" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 CONF_DIR=$(resolve_host_volume "$SAFE_HOST" "conf")
 
 if [ ! -d "$CONF_DIR" ]; then

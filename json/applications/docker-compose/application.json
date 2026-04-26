@@ -59,7 +59,6 @@
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
-      "150-conf-create-storage-volumes-for-lxc.json",
       "185-host-resolve-dependency-hosts.json"
     ],
     "pre_start_finalize": [
@@ -97,7 +96,6 @@
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
-      "150-conf-create-storage-volumes-for-lxc.json",
       "185-host-resolve-dependency-hosts.json"
     ],
     "pre_start_finalize": [

@@ -1,10 +1,11 @@
 {
   "params": [
-    { "name": "acme_san", "value": "${ACME_SAN}" },
-    { "name": "acme_staging", "value": "true" }
+    { "name": "acme_san", "value": "test.example.invalid" },
+    { "name": "acme_staging", "value": "true" },
+    { "name": "CF_TOKEN", "value": "fake-test-token-not-real" }
   ],
   "selectedAddons": ["addon-acme"],
   "stackId": "acme",
   "wait_seconds": 120,
-  "description": "ACME addon without CF credentials - verifies hookscript and dispatcher setup"
+  "description": "ACME addon - verifies hookscript and dispatcher setup. With acme_staging=true and the fake CF_TOKEN, the test reaches Let's Encrypt staging but DNS challenge fails (expected); the test only verifies the wiring up to that point."
 }

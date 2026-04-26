@@ -272,15 +272,24 @@ export class VeExecution extends EventEmitter {
       throw new Error("lxc_config_parser_lib.py not found");
     }
 
-    // Replace template variables in script.
-    // Dependency lookups via `execute_on: "application:<id>"` span stacks
-    // (e.g. gitea in stack "default" calling into postgres which may live in
-    // a different stack), so do NOT filter by the current execution's
-    // stack_id — it would always miss. Leave stack_id empty so the script
-    // only filters by application_id + running status.
+    // Replace template variables in script. Pass all_stack_ids from the
+    // current execution so the lookup can disambiguate when multiple
+    // containers share an application_id but live in different stacks
+    // (e.g. postgres-default vs postgres-ssl during a `--all` test run).
+    // Stack-spanning lookups still work — the script falls back to no-filter
+    // when all_stack_ids is unset.
+    const allStackIdsRaw =
+      (this.inputs["all_stack_ids"] as string | undefined) ??
+      (this.defaults.get("all_stack_ids") as string | undefined) ??
+      "";
+    const stackIdRaw =
+      (this.inputs["stack_id"] as string | undefined) ??
+      (this.defaults.get("stack_id") as string | undefined) ??
+      "";
     const scriptWithAppId = scriptContent
       .replace(/\{\{\s*application_id\s*\}\}/g, appId)
-      .replace(/\{\{\s*stack_id\s*\}\}/g, "NOT_DEFINED");
+      .replace(/\{\{\s*stack_id\s*\}\}/g, stackIdRaw || "NOT_DEFINED")
+      .replace(/\{\{\s*all_stack_ids\s*\}\}/g, allStackIdsRaw || "NOT_DEFINED");
 
     const cmd: ICommand = {
       name: "Find Containers by App ID",

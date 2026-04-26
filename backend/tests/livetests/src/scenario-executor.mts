@@ -181,10 +181,26 @@ export async function executeScenarios(
 
       const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
 
-      // For upgrade/reconfigure: find existing VM
+      // For upgrade/reconfigure: find existing VM. Prefer a same-application
+      // dependency declared in `depends_on` (e.g. nginx/reconf-addons-on
+      // explicitly clones from nginx/default — without this, when multiple
+      // siblings exist, findExistingVm picked the lowest VMID and cloned the
+      // wrong container).
       let existingVm: { vm_id: number; addons?: string[] } | null = null;
       if (isReplaceCt) {
-        existingVm = await findExistingVm(apiUrl, veHost, scenario.application, config.pveHost, config.portPveSsh);
+        if (scenario.depends_on) {
+          for (const depId of scenario.depends_on) {
+            const depStep = planned.find((p) => p.scenario.id === depId);
+            if (depStep && depStep.scenario.application === scenario.application) {
+              existingVm = { vm_id: depStep.vmId };
+              logInfo(`Using depended-on VM ${depStep.vmId} for ${task} (from ${depId})`);
+              break;
+            }
+          }
+        }
+        if (!existingVm) {
+          existingVm = await findExistingVm(apiUrl, veHost, scenario.application, config.pveHost, config.portPveSsh);
+        }
         if (!existingVm) {
           const errMsg = `No existing VM found for ${scenario.application} — cannot ${task}`;
           logFail(errMsg);

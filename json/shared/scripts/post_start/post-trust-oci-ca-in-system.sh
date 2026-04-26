@@ -39,7 +39,7 @@ pkg_install ca-certificates openssl curl
 
 CA_URL="${DEPLOYER_URL}/api/${VE_CONTEXT}/ve/certificates/ca/download"
 mkdir -p "$CA_DIR"
-if ! curl -fsSL -k -o "$CA_FILE" "$CA_URL"; then
+if ! curl -fsSL -k -o "$CA_FILE" "$CA_URL" 2>/dev/null; then
   echo "Warning: could not download CA from $CA_URL" >&2
   exit 0
 fi

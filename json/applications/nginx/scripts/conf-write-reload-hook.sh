@@ -5,8 +5,19 @@
 set -eu
 
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 
-SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+# For reconfigure: volumes keep the previous container's hostname (set by
+# 150-conf-create-storage-volumes-for-lxc.sh), but {{ hostname }} carries the
+# scenario's intended new hostname. Look up the actual container hostname via
+# pct config so the lookup matches the on-disk volume suffix.
+ACTUAL_HOST=""
+if [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
+  ACTUAL_HOST=$(pct config "$VM_ID" 2>/dev/null | awk '/^hostname:/ {print $2; exit}' || true)
+fi
+[ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
+
+SAFE_HOST=$(echo "$ACTUAL_HOST" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
 
 if [ ! -d "$VOLUME_DIR" ]; then

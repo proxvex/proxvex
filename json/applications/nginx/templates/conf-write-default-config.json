@@ -17,6 +17,13 @@
       "description": "Container hostname"
     },
     {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "string",
+      "advanced": true,
+      "description": "VM ID — used to look up the running container's actual hostname (the one volumes are named after, which can differ from the input hostname during reconfigure)."
+    },
+    {
       "id": "uid",
       "name": "UID",
       "type": "string",

@@ -29,8 +29,22 @@ export function spawnAsync(
     let timeoutId: NodeJS.Timeout | undefined;
 
     if (options.input) {
-      proc.stdin?.write(options.input);
-      proc.stdin?.end();
+      // EPIPE can be thrown synchronously from write() when the child closed
+      // stdin before the call (race common in fast-exit tools). The exit code
+      // from `close` is the useful signal — swallow EPIPE here and let the
+      // close handler resolve the promise. Error-event listener handles the
+      // async case.
+      proc.stdin?.on("error", () => {});
+      try {
+        proc.stdin?.write(options.input);
+      } catch {
+        // EPIPE / ERR_STREAM_DESTROYED — child already closed stdin
+      }
+      try {
+        proc.stdin?.end();
+      } catch {
+        // Same as above
+      }
     }
 
     proc.stdout?.on("data", (d) => {

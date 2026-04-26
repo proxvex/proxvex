@@ -518,11 +518,14 @@ def main() -> None:
         image = image_with_tag
         tag = "latest"
 
-    # Normalize application_id (optional) - derive from image name if not provided
+    # Normalize application_id (optional) - derive from image name if not provided.
+    # The literal `{{ application_id }}` check that used to live here was broken:
+    # the variable resolver substitutes the placeholder inside the *comparison*
+    # string too, so it always matched and the override fired even when the
+    # caller did pass an application_id.
     if (
         not application_id
         or application_id == "NOT_DEFINED"
-        or application_id.strip() == "{{ application_id }}"
         or not application_id.strip()
     ):
         application_id = image.split('/')[-1]

@@ -50,11 +50,29 @@ def get_status(vmid: int) -> str | None:
 def main() -> None:
     app_id = "{{ application_id }}"
     stack_id_filter = "{{ stack_id }}"
+    all_stack_ids_raw = '{{ all_stack_ids }}'  # JSON list — single-quoted to survive embedded double quotes
     if not app_id or app_id == "NOT_DEFINED":
         print(json.dumps([{"id": "error", "value": "application_id parameter is required"}]))
         return
     if stack_id_filter == "NOT_DEFINED":
         stack_id_filter = ""
+
+    # Build the set of acceptable stack ids. The caller's all_stack_ids covers
+    # every stack the current execution participates in (e.g. for gitea/ssl:
+    # oidc_ssl, postgres_ssl, cloudflare_ssl). When set, accept any container
+    # whose stack_ids list contains at least one of these — that lets a gitea
+    # in oidc_ssl find its postgres in postgres_ssl while still excluding the
+    # postgres in postgres_default.
+    stack_ids_filter: set[str] = set()
+    if all_stack_ids_raw and all_stack_ids_raw != "NOT_DEFINED":
+        try:
+            parsed = json.loads(all_stack_ids_raw)
+            if isinstance(parsed, list):
+                stack_ids_filter = {s for s in parsed if isinstance(s, str) and s}
+        except (ValueError, TypeError):
+            pass
+    if stack_id_filter:
+        stack_ids_filter.add(stack_id_filter)
 
     base_dir = Path(os.environ.get("LXC_MANAGER_PVE_LXC_DIR", "/etc/pve/lxc"))
 
@@ -80,10 +98,12 @@ def main() -> None:
             config = parse_lxc_config(conf_text)
 
             if config.application_id == app_id:
-                # If stack_id filter is set, only match containers that declare
-                # this stack id in their stack_ids list.
-                if stack_id_filter:
-                    if stack_id_filter not in (config.stack_ids or []):
+                # If stack filter is set, accept containers that declare any of
+                # the requested stack ids in their stack_ids list. With no
+                # filter, fall back to all matches (legacy behaviour).
+                if stack_ids_filter:
+                    container_stacks = set(config.stack_ids or [])
+                    if not (container_stacks & stack_ids_filter):
                         continue
                 matching.append({
                     "vm_id": int(vmid_str),

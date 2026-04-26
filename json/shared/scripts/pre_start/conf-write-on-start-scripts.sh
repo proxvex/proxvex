@@ -48,7 +48,17 @@ is_set() {
   [ -n "$1" ] && [ "$1" != "NOT_DEFINED" ] && [ "$1" != "" ]
 }
 
-SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
+# For reconfigure: volumes keep the previous container's hostname (set by
+# 150-conf-create-storage-volumes-for-lxc.sh), but {{ hostname }} carries the
+# scenario's intended new hostname. Look up the actual container hostname via
+# pct config so the volume lookup matches the on-disk suffix.
+ACTUAL_HOST=""
+if [ -n "$VM_ID" ] && [ "$VM_ID" != "NOT_DEFINED" ]; then
+  ACTUAL_HOST=$(pct config "$VM_ID" 2>/dev/null | awk '/^hostname:/ {print $2; exit}' || true)
+fi
+[ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
+
+SAFE_HOST=$(pve_sanitize_name "$ACTUAL_HOST")
 VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
 
 if [ ! -d "$VOLUME_DIR" ]; then

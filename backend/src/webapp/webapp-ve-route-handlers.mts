@@ -241,27 +241,58 @@ export class WebAppVeRouteHandlers {
         allStackIds.unshift(body.stackId);
       }
 
-      // Add addon stacktypes to allStackIds so dependency resolution
-      // can find containers in addon stacks (e.g. addon-oidc → zitadel in oidc_default)
+      // Add addon stacktypes to allStackIds so dependency resolution can find
+      // containers in addon stacks. Only fill in stacktypes that aren't
+      // already covered by body.stackIds — and prefer the stack whose name
+      // suffix matches an existing stack id (e.g. for gitea/ssl with body
+      // stacks ["postgres_ssl", "gitea_ssl"], pick "oidc_ssl" rather than
+      // every oidc_*). Pulling in unrelated variants (oidc_default, oidc_upgrade)
+      // would make 185-host-resolve-dependency-hosts match the wrong container.
       const addonStackIds = body.selectedAddons ?? [];
       if (addonStackIds.length > 0) {
         try {
           const addonSvc = this.pm.getAddonService();
           const storageContext = this.pm
             .getContextManager();
+          // Stacktypes already represented in allStackIds.
+          const coveredStacktypes = new Set<string>();
+          // The "stack name" component is the part after the first underscore;
+          // e.g. "postgres_ssl" → "ssl". Use it to pick same-variant addon
+          // stacks instead of any existing one.
+          const preferredStackNames = new Set<string>();
+          for (const sid of allStackIds) {
+            const stack = storageContext.getStack(sid);
+            if (stack?.stacktype) {
+              const stTypes = Array.isArray(stack.stacktype)
+                ? stack.stacktype
+                : [stack.stacktype];
+              for (const st of stTypes) coveredStacktypes.add(st);
+            }
+            if (stack?.name) preferredStackNames.add(stack.name);
+            else {
+              const idx = sid.indexOf("_");
+              if (idx > 0) preferredStackNames.add(sid.slice(idx + 1));
+            }
+          }
           for (const addonId of addonStackIds) {
             try {
               const addon = addonSvc.getAddon(addonId);
               if (addon?.stacktype) {
                 const addonTypes = Array.isArray(addon.stacktype) ? addon.stacktype : [addon.stacktype];
                 for (const st of addonTypes) {
-                  // Find existing stacks of this type and add their IDs
+                  if (coveredStacktypes.has(st)) continue;
                   const stacks = storageContext.listStacks(st);
-                  for (const stack of stacks) {
+                  // Prefer same-variant; fall back to any if no match.
+                  const matching = stacks.filter((s) =>
+                    preferredStackNames.has(s.name),
+                  );
+                  const toAdd = matching.length > 0 ? matching : stacks;
+                  for (const stack of toAdd) {
                     if (!allStackIds.includes(stack.id)) {
                       allStackIds.push(stack.id);
                     }
                   }
+                  coveredStacktypes.add(st);
                 }
               }
             } catch { /* ignore */ }
@@ -275,6 +306,38 @@ export class WebAppVeRouteHandlers {
       }
       if (allStackIds.length > 0) {
         initialInputs.push({ id: "all_stack_ids", value: JSON.stringify(allStackIds) });
+      }
+
+      // Pre-inject addon property values (with prefix-stripping aliases) into
+      // initialInputs so `skip_if_all_missing` can see them during loadApplication.
+      // Without this, templates like 150-conf-create-storage-volumes-for-lxc
+      // skip when an app has no own `volumes` default — even though the selected
+      // addon will inject `addon_volumes` later via a properties command.
+      // Mirrors the aliasing in webapp-ve-addon-command-builder (ssl.X → X).
+      const selectedAddonsForInitial = body.selectedAddons ?? [];
+      if (selectedAddonsForInitial.length > 0) {
+        try {
+          const addonSvc = this.pm.getAddonService();
+          for (const addonId of selectedAddonsForInitial) {
+            const addon = addonSvc.getAddon(addonId);
+            for (const prop of addon?.properties ?? []) {
+              const propVal = (prop as { value?: unknown }).value;
+              if (propVal === undefined || propVal === null || propVal === "") continue;
+              const propStrVal = String(propVal);
+              const propId = String((prop as { id: string }).id);
+              if (!initialInputs.some((p) => p.id === propId)) {
+                initialInputs.push({ id: propId, value: propStrVal });
+              }
+              const dotIdx = propId.indexOf(".");
+              if (dotIdx > 0) {
+                const unprefixed = propId.slice(dotIdx + 1);
+                if (!initialInputs.some((p) => p.id === unprefixed)) {
+                  initialInputs.push({ id: unprefixed, value: propStrVal });
+                }
+              }
+            }
+          }
+        } catch { /* best-effort */ }
       }
 
       // Read application + addon dependencies for dependency-host-discovery
@@ -403,13 +466,23 @@ export class WebAppVeRouteHandlers {
 
       const defaults = this.parameterProcessor.buildDefaults(loaded.parameters);
 
+      // Make stack_id and all_stack_ids visible to the runtime variable
+      // resolver (initialInputs only feeds skip_if_all_missing). Scripts like
+      // 185-host-resolve-dependency-hosts and 191-write-docker-compose-notes
+      // read these via {{ stack_id }} / {{ all_stack_ids }} — without them
+      // here they resolve to NOT_DEFINED and the resolver falls back to the
+      // unfiltered scan, picking the wrong dependency container.
+      if (firstStackId && !defaults.has("stack_id")) {
+        defaults.set("stack_id", firstStackId);
+      }
+      if (allStackIds.length > 0 && !defaults.has("all_stack_ids")) {
+        defaults.set("all_stack_ids", JSON.stringify(allStackIds));
+      }
+
       // Load entries from all stacks (app + addon stacktypes)
       for (const sid of allStackIds) {
         const stack = storageContext.getStack(sid);
         if (stack) {
-          if (!defaults.has("stack_id")) {
-            defaults.set("stack_id", sid);
-          }
           if (stack.entries) {
             for (const entry of stack.entries) {
               defaults.set(entry.name, entry.value);
