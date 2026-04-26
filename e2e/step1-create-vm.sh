@@ -425,7 +425,8 @@ nested_ssh "
 # E2E Test NAT Network DHCP
 interface=vmbr1
 bind-interfaces
-dhcp-range=10.0.0.100,10.0.0.200,24h
+dhcp-range=10.0.0.50,10.0.0.99,2h
+dhcp-range=10.0.0.105,10.0.0.250,2h
 dhcp-option=option:router,10.0.0.1
 dhcp-option=option:dns-server,10.0.0.1,8.8.8.8
 local=/e2e.local/
@@ -460,7 +461,7 @@ fi
 RESOLVEOF
     chmod +x /etc/network/if-up.d/resolv-dnsmasq
 " || error "Failed to configure dnsmasq"
-success "DHCP server configured on vmbr1 (10.0.0.100-200, DNS: 10.0.0.1)"
+success "DHCP server configured on vmbr1 (10.0.0.50-99 + 105-250, DNS: 10.0.0.1; .100 reserved for deployer)"
 
 # Step 10d2: Static DNS entries + DNAT for public domain testing
 info "Setting up static DNS entries and DNAT for test containers..."
@@ -690,7 +691,7 @@ echo "Network Configuration:"
 echo "  - $VM_BRIDGE on $PVE_HOST: NAT network (${SUBNET}.0/24)"
 echo "  - vmbr0 in nested VM: External network"
 echo "  - vmbr1 in nested VM: NAT for containers (10.0.0.0/24)"
-echo "  - dnsmasq DHCP: 10.0.0.100-200 on vmbr1"
+echo "  - dnsmasq DHCP: 10.0.0.50-99 + 105-250 on vmbr1 (.100 reserved for deployer)"
 echo ""
 echo "Port Forwarding (offset: $PORT_OFFSET):"
 echo "  - $PVE_HOST:$PORT_PVE_SSH -> $NESTED_IP:22 (SSH)"

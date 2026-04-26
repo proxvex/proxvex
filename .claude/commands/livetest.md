@@ -1,39 +1,84 @@
-Run a live integration test against the active workspace instance (green or yellow).
+Run a live integration test against the active workspace instance (green or yellow), or against any instance via `--config`.
 
 ## Usage
 The user provides: `$ARGUMENTS`
-Format: `[--fresh] [--fix] [test-filter]` — e.g. `--fresh zitadel/default`, `--fix pgadmin`, `--fix --fresh gitea`, `--all`.
+Format: `[--fresh] [--fix] [--config <instance>] [test-filter]`
 
-## Instance auto-detection
+Examples:
+- `--fresh zitadel/default` — green/yellow auto-detected, local backend
+- `--fix pgadmin` — fix loop, local backend
+- `--config github-action --all` — full suite against the **nested-VM deployer** of the github-action instance, after step2b refresh
+- `--config green --all` — same but against the green nested-VM deployer (skips local backend)
 
-The livetest skill always runs against exactly one instance. Which one is derived from `DEPLOYER_PORT` — set by the VS Code workspace file per worktree:
-- `DEPLOYER_PORT=3201` → instance `green`  (worktree proxvex-green, nested VM 9000)
-- `DEPLOYER_PORT=3301` → instance `yellow` (worktree proxvex-yellow, nested VM 9002)
-- unset → treat as `green` (3201/9000)
+## Two modes
 
-At the start of the run, derive once and use consistently:
+The skill supports two execution modes:
+
+**Local-backend mode (default — no `--config`):**
+- Instance auto-detected from `DEPLOYER_PORT` (worktree-specific)
+- Backend runs **locally** in the dev terminal on `localhost:$DEPLOYER_PORT`
+- Talks to the nested VM only for `pct` operations
+- Fast iteration — no docker build, no nested-VM redeploy
+
+**Nested-deployer mode (`--config <instance>`):**
+- Instance taken from the `--config` value (must exist in `e2e/config.json`)
+- step2b runs first → docker build + skopeo + pct create on the nested VM, so the deployer LXC inside the nested VM has the current PR's code
+- live-test-runner connects to that nested-VM deployer via the PVE-host port-forward (`$PVE_HOST:$((ports.deployer + portOffset))`)
+- No local backend — closer to what the github-action workflow does, useful to verify install paths end-to-end
+- Slower (~2 min for step2b before tests start)
+
+## Instance derivation
 
 ```sh
+# Mode + instance
+CONFIG_INSTANCE=""             # populated from --config; empty means local-backend mode
 case "${DEPLOYER_PORT:-3201}" in
-  3301) INSTANCE=yellow ;;
-  *)    INSTANCE=green  ;;
+  3301) AUTO_INSTANCE=yellow ;;
+  *)    AUTO_INSTANCE=green  ;;
 esac
+INSTANCE="${CONFIG_INSTANCE:-$AUTO_INSTANCE}"
+
+# Per-instance values from config.json
 VMID=$(jq -r ".instances.${INSTANCE}.vmId" e2e/config.json)
 PORT_OFFSET=$(jq -r ".instances.${INSTANCE}.portOffset" e2e/config.json)
-DEPLOYER_PORT="${DEPLOYER_PORT:-$(jq -r ".instances.${INSTANCE}.deployerPort" e2e/config.json | sed 's/.*:-\([0-9]*\)}/\1/')}"
 PVE_SSH_PORT=$((1022 + PORT_OFFSET))
+
+# In local-backend mode: DEPLOYER_PORT is the env-set port on dev (3201/3301)
+# In nested-deployer mode: DEPLOYER_PORT is the host-side port-forward (1080 + offset)
+if [ -n "$CONFIG_INSTANCE" ]; then
+    PORTS_DEPLOYER=$(jq -r '.ports.deployer' e2e/config.json)
+    DEPLOYER_PORT=$((PORTS_DEPLOYER + PORT_OFFSET))
+else
+    DEPLOYER_PORT="${DEPLOYER_PORT:-$(jq -r ".instances.${INSTANCE}.deployerPort" e2e/config.json | sed 's/.*:-\([0-9]*\)}/\1/')}"
+fi
 ```
 
-Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SSH_PORT`, `$INSTANCE` where the old instructions had hardcoded `9000`, `3201`, `1022`, `dev`.
+Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SSH_PORT`, `$INSTANCE` where the old instructions had hardcoded values.
 
 ## Steps
 
-1. **Parse arguments**: Check if `--fresh` and/or `--fix` flags are present. Remove them from the test filter.
+1. **Parse arguments**: Check for `--fresh`, `--fix`, `--config <instance>`. Remove them from the test filter. Validate `--config` value exists in `e2e/config.json`'s `.instances` (else fail with clear error). Apply the instance-derivation block above.
 
 2. **Build if needed**: Only build if backend TypeScript was changed. For JSON/script-only changes, a deployer reload is sufficient.
    - Check if backend was edited: `test -f .claude/claude.backend-edited`
    - If yes: `cd backend && pnpm run build` (and remove marker: `rm -f .claude/claude.backend-edited`)
    - If no: skip build (JSON/script changes are picked up by deployer reload)
+
+2a. **If `--config $INSTANCE` was provided** (nested-deployer mode):
+   - Run step2b to refresh the deployer LXC inside the nested VM with the current PR's code:
+     ```
+     ./e2e/step2b-install-deployer.sh $INSTANCE
+     ```
+     This rolls back to `mirrors-ready`, runs `pnpm build` + `npm pack` + `docker build` + `skopeo copy oci-archive` + scp + `install-proxvex.sh --use-existing-image`, then snapshots `deployer-installed`. Takes ~2 minutes.
+   - **Skip step 4 + 5** (no local backend startup) and **patch `e2e/config.json`** so live-test-runner targets the nested-VM deployer:
+     ```sh
+     cp e2e/config.json /tmp/livetest-config.bak.$$
+     trap 'cp /tmp/livetest-config.bak.$$ e2e/config.json; rm -f /tmp/livetest-config.bak.$$' EXIT
+     jq --arg i "$INSTANCE" 'del(.instances[$i].deployerHost) | del(.instances[$i].deployerPort)' \
+        e2e/config.json > /tmp/livetest-config.new.$$ && mv /tmp/livetest-config.new.$$ e2e/config.json
+     ```
+     Removing `deployerHost`/`deployerPort` from the chosen instance makes live-test-runner fall back to `pveHost:ports.deployer + portOffset` — i.e. `$PVE_HOST:$DEPLOYER_PORT`, which is the host-side port-forward to the deployer LXC inside the nested VM. The trap restores the file on exit.
+   - Then jump straight to step 6.
 
 3. **If `--fresh`**:
    - Delete livetest data (wipe local context/secrets):
@@ -68,12 +113,12 @@ Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SS
    > on top of the existing mirrors, re-run step2b — step2a is idempotent (checks
    > versions.sh hash) and will no-op if nothing changed.
 
-4. **Check if deployer is already running** on port $DEPLOYER_PORT:
+4. **(local-backend mode only — skip if `--config` was set)** Check if deployer is already running on port $DEPLOYER_PORT:
    ```
    lsof -i :$DEPLOYER_PORT -sTCP:LISTEN
    ```
 
-5. **Start deployer in background** if not running (using livetest-specific context):
+5. **(local-backend mode only — skip if `--config` was set)** Start deployer in background if not running (using livetest-specific context):
    ```
    mkdir -p .livetest-data
    cd backend && DEPLOYER_PORT=$DEPLOYER_PORT node dist/proxvex.mjs \
@@ -88,10 +133,10 @@ Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SS
    If it doesn't respond, show the error and stop.
 
 6. **Run the livetest** (with flags removed from arguments):
-   ```
-   DEPLOYER_PORT=$DEPLOYER_PORT npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <test-filter>
-   ```
-   Use a 10 minute timeout. Show the full output to the user.
+   - Local-backend mode (default): `DEPLOYER_PORT=$DEPLOYER_PORT npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <test-filter>`
+   - Nested-deployer mode (`--config`): `npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <test-filter>` — no `DEPLOYER_PORT` env override; live-test-runner derives the URL from the patched config (`pveHost:ports.deployer + portOffset`).
+
+   Use a 10 minute timeout (15 in `--config` mode to allow for step2b). Show the full output to the user.
 
 7. **Report results** — summarize pass/fail status.
 
@@ -111,6 +156,8 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
 2. **Fix the issue** in the codebase (templates, scripts, backend code, application JSON)
 
 3. **Rebuild and/or restart**:
+
+   **Local-backend mode** (default):
    - If backend code changed: rebuild and restart deployer:
      ```
      cd backend && pnpm run build
@@ -125,6 +172,13 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
      ```
      curl -sk -X POST http://localhost:$DEPLOYER_PORT/api/reload
      ```
+
+   **Nested-deployer mode** (`--config`):
+   - The deployer LXC inside the nested VM doesn't reload from local code — it carries the OCI image we built at step2b time. So any backend or JSON/script change requires re-running step2b to rebuild the image and reinstall the LXC:
+     ```
+     ./e2e/step2b-install-deployer.sh $INSTANCE
+     ```
+   - Slower iteration than local-backend mode (~2 min per fix attempt). For tight loops on backend logic, prefer local-backend mode.
 
 4. **Re-run the livetest** (step 6) with the same filter
 
