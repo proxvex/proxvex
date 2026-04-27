@@ -10,18 +10,28 @@ import { execSync } from "node:child_process";
 /**
  * Execute an SSH command on the PVE host.
  * Throws on failure (non-zero exit code or timeout).
+ *
+ * If `stdin` is provided, it is piped to the remote command's standard input.
+ * This is used e.g. by the volume consistency check, which streams a
+ * concatenated script (libraries + check) to `sh -s` on the host.
  */
 export function nestedSshStrict(
   pveHost: string,
   port: number,
   command: string,
   timeoutMs = 15000,
+  stdin?: string,
 ): string {
   const result = execSync(
     `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ` +
     `-o BatchMode=yes -o ConnectTimeout=10 ` +
     `-p ${port} root@${pveHost} ${JSON.stringify(command)}`,
-    { timeout: timeoutMs, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+    {
+      timeout: timeoutMs,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+      ...(stdin !== undefined ? { input: stdin } : {}),
+    },
   );
   return result.trim();
 }

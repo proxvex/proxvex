@@ -1,101 +1,74 @@
 /**
- * Diagnostics collection for live integration tests.
- * Gathers container logs, configs, and docker state after test runs.
+ * Failure log collection for live integration tests.
+ *
+ * Called from the scenario executor on failure, BEFORE the pre-test snapshot
+ * rollback runs — so we capture the broken state, not the restored one.
+ * Produces compact summaries (error lines + tail) that get embedded into the
+ * per-scenario result JSON.
  */
 
-import { execSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { nestedSsh } from "./ssh-helpers.mjs";
-import { logWarn } from "./log-helpers.mjs";
-import type { TestResult } from "./livetest-types.mjs";
 
-export function collectDiagnostics(
-  results: TestResult[],
+export interface LogSummary {
+  name: string;
+  errors: string[];
+  last_lines: string[];
+}
+
+const MAX_ERRORS = 50;
+const MAX_LINE_CHARS = 500;
+
+function trim(line: string): string {
+  return line.length > MAX_LINE_CHARS
+    ? `${line.slice(0, MAX_LINE_CHARS)}...[truncated]`
+    : line;
+}
+
+function summarizeLog(name: string, content: string): LogSummary {
+  const lines = content.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  const errors = lines.filter((l) => /error/i.test(l)).slice(0, MAX_ERRORS).map(trim);
+  const last_lines = lines.slice(-10).map(trim);
+  return { name, errors, last_lines };
+}
+
+export function collectFailureLogs(
   pveHost: string,
   sshPort: number,
-  projectRoot: string,
-): string | null {
-  const allSteps = results.flatMap((r) => r.steps);
-  if (allSteps.length === 0) return null;
+  vmId: number,
+  hostname: string,
+  cliOutput: string | undefined,
+): LogSummary[] {
+  const logs: LogSummary[] = [];
 
-  const diagDir = mkdtempSync(path.join(tmpdir(), "livetest-diag-"));
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  if (cliOutput && cliOutput.trim()) {
+    logs.push(summarizeLog("cli-output", cliOutput));
+  }
 
-  for (const step of allSteps) {
-    const stepDir = path.join(diagDir, `${step.vmId}-${step.application}`);
-    mkdirSync(stepDir, { recursive: true });
+  const lxcLog = nestedSsh(
+    pveHost, sshPort,
+    `cat /var/log/lxc/${hostname}-${vmId}.log 2>/dev/null || true`,
+    10000,
+  );
+  if (lxcLog && lxcLog.trim()) {
+    logs.push(summarizeLog("lxc", lxcLog));
+  }
 
-    // Save CLI output
-    if (step.cliOutput) {
-      writeFileSync(path.join(stepDir, "cli-output.log"), step.cliOutput);
-    }
-
-    // Collect LXC config
-    const lxcConf = nestedSsh(pveHost, sshPort,
-      `cat /etc/pve/lxc/${step.vmId}.conf 2>/dev/null || echo '[not found]'`, 10000);
-    if (lxcConf) {
-      writeFileSync(path.join(stepDir, "lxc.conf"), lxcConf);
-    }
-
-    // Collect LXC log
-    const lxcLog = nestedSsh(pveHost, sshPort,
-      `cat /var/log/lxc/${step.hostname}-${step.vmId}.log 2>/dev/null || echo '[not found]'`, 10000);
-    if (lxcLog) {
-      writeFileSync(path.join(stepDir, "lxc.log"), lxcLog);
-    }
-
-    // Collect docker ps
-    const dockerPs = nestedSsh(pveHost, sshPort,
-      `pct exec ${step.vmId} -- docker ps -a 2>/dev/null || echo '[not available]'`, 10000);
-    if (dockerPs) {
-      writeFileSync(path.join(stepDir, "docker-ps.txt"), dockerPs);
-    }
-
-    // Collect docker compose file
-    const composeFile = nestedSsh(pveHost, sshPort,
-      `pct exec ${step.vmId} -- cat /opt/docker-compose.yml 2>/dev/null || ` +
-      `pct exec ${step.vmId} -- cat /opt/docker-compose.yaml 2>/dev/null || echo '[not found]'`, 10000);
-    if (composeFile) {
-      writeFileSync(path.join(stepDir, "docker-compose.yml"), composeFile);
-    }
-
-    // Collect docker logs (last 200 lines per container)
-    const containerNames = nestedSsh(pveHost, sshPort,
-      `pct exec ${step.vmId} -- docker ps -a --format '{{.Names}}' 2>/dev/null || true`, 10000);
-    if (containerNames) {
-      for (const name of containerNames.split("\n").filter(Boolean)) {
-        const logs = nestedSsh(pveHost, sshPort,
-          `pct exec ${step.vmId} -- docker logs --tail 200 ${name} 2>&1 || true`, 15000);
-        if (logs) {
-          writeFileSync(path.join(stepDir, `docker-${name}.log`), logs);
-        }
-      }
+  const containerNames = nestedSsh(
+    pveHost, sshPort,
+    `pct exec ${vmId} -- docker ps -a --format '{{.Names}}' 2>/dev/null || true`,
+    10000,
+  );
+  for (const name of containerNames.split("\n").map((n) => n.trim()).filter(Boolean)) {
+    const dockerLog = nestedSsh(
+      pveHost, sshPort,
+      `pct exec ${vmId} -- docker logs --tail 200 ${name} 2>&1 || true`,
+      15000,
+    );
+    if (dockerLog && dockerLog.trim()) {
+      logs.push(summarizeLog(`docker-${name}`, dockerLog));
     }
   }
 
-  // Save test summary
-  const summary = results.map((r) => ({
-    name: r.name,
-    passed: r.passed,
-    failed: r.failed,
-    errors: r.errors,
-    steps: r.steps.map((s) => ({ vmId: s.vmId, hostname: s.hostname, application: s.application, scenarioId: s.scenarioId })),
-  }));
-  writeFileSync(path.join(diagDir, "summary.json"), JSON.stringify(summary, null, 2));
-
-  // Create tar.gz
-  const archiveName = `livetest-diag-${timestamp}.tar.gz`;
-  const archivePath = path.join(projectRoot, archiveName);
-  try {
-    execSync(`tar -czf ${JSON.stringify(archivePath)} -C ${JSON.stringify(path.dirname(diagDir))} ${JSON.stringify(path.basename(diagDir))}`, {
-      timeout: 30000,
-    });
-    rmSync(diagDir, { recursive: true, force: true });
-    return archivePath;
-  } catch {
-    logWarn(`Failed to create diagnostic archive, files remain in ${diagDir}`);
-    return diagDir;
-  }
+  return logs;
 }

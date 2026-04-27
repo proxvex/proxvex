@@ -113,24 +113,13 @@ Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SS
    > on top of the existing mirrors, re-run step2b — step2a is idempotent (checks
    > versions.sh hash) and will no-op if nothing changed.
 
-4. **(local-backend mode only — skip if `--config` was set)** Check if deployer is already running on port $DEPLOYER_PORT:
+4. **(local-backend mode only — skip if `--config` was set)** Start the local backend in Spoke mode via the helper script. The script ensures the proxvex-LXC inside the nested VM (the Hub) is running, waits for its API, then starts the local backend with `HUB_URL` set so it pulls project settings from the Hub:
    ```
-   lsof -i :$DEPLOYER_PORT -sTCP:LISTEN
+   ./e2e/start-livetest-deployer.sh $INSTANCE
    ```
+   The script kills any deployer already on `$DEPLOYER_PORT`, so it is safe to re-run. On failure it prints the last log lines and exits non-zero — abort the livetest run.
 
-5. **(local-backend mode only — skip if `--config` was set)** Start deployer in background if not running (using livetest-specific context):
-   ```
-   mkdir -p .livetest-data
-   cd backend && DEPLOYER_PORT=$DEPLOYER_PORT node dist/proxvex.mjs \
-     --local ../livetest-local \
-     --storageContextFilePath ../.livetest-data/storagecontext.json \
-     --secretsFilePath ../.livetest-data/secret.txt &
-   ```
-   Wait 3 seconds, then verify it responds:
-   ```
-   curl -sk --connect-timeout 5 http://localhost:$DEPLOYER_PORT/api/applications | head -c 50
-   ```
-   If it doesn't respond, show the error and stop.
+5. **(reserved)** — historically this slot held the manual deployer-start; now folded into step 4.
 
 6. **Run the livetest** (with flags removed from arguments):
    - Local-backend mode (default): `DEPLOYER_PORT=$DEPLOYER_PORT npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <test-filter>`
@@ -160,13 +149,8 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
    **Local-backend mode** (default):
    - If backend code changed: rebuild and restart deployer:
      ```
-     cd backend && pnpm run build
-     kill $(lsof -ti :$DEPLOYER_PORT -sTCP:LISTEN) 2>/dev/null; sleep 2
-     mkdir -p ../.livetest-data
-     cd backend && DEPLOYER_PORT=$DEPLOYER_PORT node dist/proxvex.mjs \
-       --local ../livetest-local \
-       --storageContextFilePath ../.livetest-data/storagecontext.json \
-       --secretsFilePath ../.livetest-data/secret.txt &
+     cd backend && pnpm run build && cd ..
+     ./e2e/start-livetest-deployer.sh $INSTANCE
      ```
    - If only JSON/scripts changed: reload deployer (no build needed):
      ```

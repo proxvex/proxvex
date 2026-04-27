@@ -35,6 +35,7 @@ test-results/
 **/secret.txt
 **/storagecontext.json
 docker/proxvex.tgz
+docker/proxvex-*-local.oci.tar
 
 # Environment files with credentials (keep .env.template)
 **/.env
@@ -58,8 +59,7 @@ backend/tests/e2e/.nested-vm-ip
 
 # Generated test certificates
 e2e/certs/
-livetest-diag-*.tar.gz
-livetest-results-*/
+livetest-results/
 .livetest-data/
 oci*.tgz
 

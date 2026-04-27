@@ -104,8 +104,14 @@ export function registerValidationRoutes(app: Application): void {
             } catch { /* addon not found */ }
           }
         }
+        // Use the StackProvider — it transparently goes via RemoteStackProvider
+        // when this backend runs as a Spoke (HUB_URL set), so validation sees
+        // the same stacks as the public /api/stacks endpoint. Calling
+        // contextManager.listStacks() directly would only see the local
+        // in-memory storage, missing Hub-resident stacks in Spoke mode.
+        const stackProvider = pm.getStackProvider();
         const availableStacks = stacktypes.length > 0
-          ? stacktypes.flatMap((st) => contextManager.listStacks(st))
+          ? stacktypes.flatMap((st) => stackProvider.listStacks(st))
           : [];
 
         // Build application parameter/property ID set for addon requirements check

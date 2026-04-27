@@ -33,7 +33,6 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs
 import path from "node:path";
 import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-types.mjs";
 import { apiFetch, type AppMeta } from "./verifier.mjs";
-import { collectDiagnostics } from "./diagnostics.mjs";
 import { runCleanupSql, destroyStaleVms, ensureStacks } from "./stack-manager.mjs";
 import { rollbackToBaseline, restoreBestSnapshot, prepareVms } from "./vm-lifecycle.mjs";
 import { executeScenarios } from "./scenario-executor.mjs";
@@ -527,15 +526,12 @@ async function main() {
   const fixtureBaseDir = fixturesFlag
     ? path.join(projectRoot, "frontend/src/test-fixtures")
     : undefined;
-  const resultWriter = new TestResultWriter(projectRoot, config.instance);
-  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, allTests, appStackIdsMap, resultWriter, fixtureBaseDir);
+  const commandLine = process.argv.join(" ");
+  const resultWriter = new TestResultWriter(projectRoot, config.instance, testArg, commandLine);
+  logInfo(`Results: ${resultWriter.getOutputDir()}`);
+  if (failFastFlag) logInfo("--fail-fast enabled: aborting on first scenario failure");
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, allTests, appStackIdsMap, resultWriter, fixtureBaseDir, { failFast: failFastFlag });
   const allResults = [result];
-
-  // Collect diagnostics before cleanup (VMs still running)
-  const diagPath = collectDiagnostics(allResults, config.pveHost, config.portPveSsh, projectRoot);
-  if (diagPath) {
-    logOk(`Diagnostics saved: ${diagPath}`);
-  }
 
   // Cleanup
   cleanupVms(planned, config.pveHost, config.portPveSsh, keepVm);

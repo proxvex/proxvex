@@ -13,6 +13,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { PlannedScenario, ResolvedScenario } from "./livetest-types.mjs";
 import { logOk, logFail, logWarn, logInfo, logStep } from "./log-helpers.mjs";
+import { checkVolumeConsistency } from "./volume-consistency-check.mjs";
 
 /** Tasks that use create_ct + replace_ct (old container must stay running) */
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
@@ -40,7 +41,11 @@ export function rollbackToBaseline(
   const rollbackTarget = snapMgr.exists("deployer-installed") ? "deployer-installed" : "baseline";
   if (snapMgr.exists(rollbackTarget)) {
     logStep("Snapshot", `Rolling back to @${rollbackTarget} for --all run`);
-    snapMgr.rollback(rollbackTarget);
+    snapMgr.rollbackHostSnapshot(rollbackTarget);
+    checkVolumeConsistency(
+      config.pveHost, config.portPveSsh, projectRoot,
+      `baseline rollback to ${rollbackTarget}`,
+    );
     if (localContextPath) {
       for (const f of ["storagecontext.json", "secret.txt"]) {
         const fp = path.join(localContextPath, f);
@@ -84,47 +89,30 @@ export async function restoreBestSnapshot(
     config.pveHost, config.vmId, config.portPveSsh,
     (msg) => logInfo(msg), localContextPath,
   );
-  const depIds = depSteps.map((p) => p.scenario.id);
 
-  // Build vmId map: for each dep index, collect all VMIDs up to that point
-  // (a dependency snapshot covers all containers installed so far)
-  const vmIdMap = new Map<number, number[]>();
-  for (let i = 0; i < depSteps.length; i++) {
-    vmIdMap.set(i, depSteps.slice(0, i + 1).map((p) => p.vmId));
+  // Single-snapshot strategy: if dep-stacks-ready exists AND matches the
+  // current build hash, roll the whole nested VM back to it and skip all
+  // provider installations.
+  const SNAP_NAME = "dep-stacks-ready";
+  if (!snapMgr.exists(SNAP_NAME) || !snapMgr.matchesBuild(SNAP_NAME, buildHash)) {
+    return;
   }
 
-  const best = snapMgr.findBestSnapshot(depIds, buildHash, vmIdMap);
-  if (!best) return;
-
-  const bestVmIds = vmIdMap.get(best.index) ?? [];
-
   try {
-    logStep("Snapshot", `Restoring to @${best.name}`);
-    snapMgr.rollback(best.name, bestVmIds);
+    logStep("Snapshot", `Restoring to @${SNAP_NAME}`);
+    snapMgr.rollbackHostSnapshot(SNAP_NAME);
+    checkVolumeConsistency(
+      config.pveHost, config.portPveSsh, projectRoot,
+      `restore to ${SNAP_NAME}`,
+    );
 
-    // Stop ghost containers that are not dependencies in this run
-    const depVmIds = new Set(depSteps.map((p) => p.vmId));
-    try {
-      const pctList = nestedSsh(config.pveHost, config.portPveSsh,
-        `pct list 2>/dev/null | tail -n +2 | awk '{print $1}'`, 10000);
-      for (const line of pctList.split("\n")) {
-        const vmId = parseInt(line.trim(), 10);
-        if (!isNaN(vmId) && !depVmIds.has(vmId)) {
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `pct set ${vmId} --onboot 0 2>/dev/null; pct stop ${vmId} 2>/dev/null; true`, 15000);
-        }
-      }
-    } catch {
-      logInfo("Warning: ghost container cleanup failed (non-fatal)");
-    }
-
-    // Mark restored dependencies as skipped
-    for (let j = 0; j <= best.index; j++) {
-      depSteps[j]!.skipExecution = true;
+    // Mark all stack-provider steps as already-installed (the snapshot
+    // captured them all in one consistent state).
+    for (const dep of depSteps) {
+      dep.skipExecution = true;
     }
 
     // Reload deployer to pick up the restored context (stack passwords)
-    // Retry with context re-restore if first attempt fails
     let reloaded = false;
     for (let attempt = 0; attempt < 2 && !reloaded; attempt++) {
       if (attempt > 0) {
@@ -142,7 +130,7 @@ export async function restoreBestSnapshot(
       logInfo("Warning: deployer reload after snapshot restore failed — stacks may be stale");
     }
 
-    logOk(`Dependencies restored from VM snapshot @${best.name}`);
+    logOk(`Stack providers restored from @${SNAP_NAME}`);
   } catch (err) {
     logInfo(`VM snapshot restore failed, will install normally: ${err}`);
   }

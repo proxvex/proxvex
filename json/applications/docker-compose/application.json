@@ -123,7 +123,8 @@
       "920-host-check-lxc-log.json",
       "930-host-check-docker-logs.json",
       "940-host-check-file-exists.json",
-      "950-host-check-tls-connect.json"
+      "950-host-check-tls-connect.json",
+      "990-host-check-volume-consistency.json"
     ]
   }
 }

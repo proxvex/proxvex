@@ -10,6 +10,7 @@ import { SnapshotManager } from "./snapshot-manager.mjs";
 import { nestedSsh, waitForServices } from "./ssh-helpers.mjs";
 import { buildParams, partitionAfterFailure } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
+import { collectFailureLogs } from "./diagnostics.mjs";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -17,6 +18,7 @@ import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-t
 import { Verifier, apiFetch, buildDefaultVerify, type AppMeta } from "./verifier.mjs";
 import { logOk, logFail, logWarn, logInfo, logStep } from "./log-helpers.mjs";
 import { resolveVolumeStorage } from "./live-test-runner.mjs";
+import { checkVolumeConsistency } from "./volume-consistency-check.mjs";
 
 /** Tasks that use create_ct + replace_ct (old container must stay running) */
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
@@ -121,8 +123,9 @@ export async function executeScenarios(
     buildHash = buildInfo.dirty ? `${buildInfo.gitHash}-dirty` : buildInfo.gitHash;
   } catch { /* ignore */ }
 
-  // Snapshot manager for creating dep snapshots after successful installation
-  const allDepIds = new Set([...allTests.values()].flatMap((s) => s.depends_on ?? []));
+  // Snapshot manager for the single dep-stacks-ready snapshot.
+  // Provider/consumer distinction comes from `step.isDependency` set by the
+  // planner (planned[].isDependency = true if not in selectedIdSet).
   const isLocalDeployer = config.deployerUrl.includes("localhost");
   const localContextPath = isLocalDeployer
     ? path.join(projectRoot, ".livetest-data")
@@ -167,11 +170,15 @@ export async function executeScenarios(
         continue;
       }
 
-      // Build params
+      // Build params.
+      // Note: `bridge` is the *container* bridge inside the nested VM, which is
+      // always "vmbr1" (created by step1). config.bridge is the host-PVE-side
+      // bridge of the outer VM (vmbr1/2/3 depending on instance) and is NOT
+      // the same thing.
       const isReplaceCt = REPLACE_CT_TASKS.includes(task);
       const baseParams = [
         { name: "hostname", value: step.hostname },
-        { name: "bridge", value: config.bridge },
+        { name: "bridge", value: "vmbr1" },
         ...(!isReplaceCt ? [{ name: "vm_id", value: String(step.vmId) }] : []),
         ...(isReplaceCt ? [{ name: "vm_id_start", value: String(step.vmId) }] : []),
       ];
@@ -277,24 +284,8 @@ export async function executeScenarios(
         logInfo("Deployer reload not available (continuing)");
       }
 
-      // Collect VMIDs of all dependency containers installed so far
-      // (used for per-container snapshots)
-      const depVmIds = planned
-        .slice(0, i)
-        .filter((p) => allDepIds.has(p.scenario.id) && p.skipExecution)
-        .map((p) => p.vmId);
-
-      // Pre-test snapshot: save state before execution so we can rollback on failure
-      const preTestSnapName = snapMgr ? `pre-${scenario.id.replace("/", "-")}` : null;
-      const preTestVmIds = [...depVmIds, step.vmId];
-      if (snapMgr && preTestSnapName && !step.isDependency) {
-        try {
-          snapMgr.create(preTestSnapName, buildHash, preTestVmIds);
-          logInfo(`Pre-test snapshot @${preTestSnapName} created`);
-        } catch {
-          logInfo("Warning: pre-test snapshot failed (non-fatal)");
-        }
-      }
+      // No pre-test snapshot — failure rollback uses the single
+      // dep-stacks-ready host snapshot (created once after all providers).
 
       // Run CLI
       logInfo(`Running: ${scenario.application} ${task}...`);
@@ -313,14 +304,25 @@ export async function executeScenarios(
         const errMsg = `Scenario failed: ${scenario.id} (${task})`;
         logFail(errMsg);
 
-        // Rollback to pre-test snapshot to restore clean state
-        if (snapMgr && preTestSnapName) {
+        // Collect failure logs BEFORE rollback (VM still in broken state)
+        const failureLogs = collectFailureLogs(
+          config.pveHost, config.portPveSsh,
+          step.vmId, step.hostname, cliResult.output,
+        );
+
+        // Rollback to dep-stacks-ready (atomic whole-VM snapshot on host PVE)
+        // to restore consistent state across all stack-provider LXCs and the
+        // nested-VM host FS (storagecontext-backup, deployer-context, etc.).
+        // Skipped if no providers were planned (no dep-stacks-ready snapshot).
+        if (snapMgr && !step.isDependency && snapMgr.exists("dep-stacks-ready")) {
           try {
-            logInfo(`Rolling back to @${preTestSnapName} (restoring pre-test state)`);
-            snapMgr.rollback(preTestSnapName, preTestVmIds);
-            logOk("Pre-test state restored");
-          } catch {
-            logInfo("Warning: pre-test rollback failed");
+            snapMgr.rollbackHostSnapshot("dep-stacks-ready");
+            checkVolumeConsistency(
+              config.pveHost, config.portPveSsh, projectRoot,
+              `rollback to dep-stacks-ready`,
+            );
+          } catch (err) {
+            logInfo(`Warning: rollback to dep-stacks-ready failed: ${err}`);
           }
         }
 
@@ -340,7 +342,9 @@ export async function executeScenarios(
             stackName: step.stackName, addons: scenario.selectedAddons ?? [],
             startedAt: stepStartTime, finishedAt: new Date(),
             deployerVersion, deployerGitHash,
+            commandLine: resultWriter.getCommandLine(),
             dependencies: [], verifyResults: {}, errorMessage: errMsg,
+            logs: failureLogs,
           }));
         }
 
@@ -476,6 +480,7 @@ export async function executeScenarios(
           stackName: step.stackName, addons: scenario.selectedAddons ?? [],
           startedAt: stepStartTime, finishedAt: new Date(),
           deployerVersion, deployerGitHash,
+          commandLine: resultWriter.getCommandLine(),
           dependencies: depInfos,
           verifyResults: Object.fromEntries(
             Object.entries(finalVerify).map(([k, v]) => [k, !!v]),
@@ -483,23 +488,24 @@ export async function executeScenarios(
         }));
       }
 
-      // Clean up pre-test snapshot on success (no longer needed)
-      if (snapMgr && preTestSnapName && !step.isDependency) {
+      // Consumer-test success: destroy the consumer LXC. Provider LXCs stay
+      // alive for subsequent consumer tests. Test-level cleanup (e.g. dropping
+      // a database in postgres) is handled separately via test.json `cleanup`.
+      if (snapMgr && !step.isDependency && !step.skipExecution) {
         try {
-          snapMgr.deleteSnapshot(preTestSnapName, preTestVmIds);
+          nestedSsh(config.pveHost, config.portPveSsh,
+            `pct stop ${step.vmId} 2>/dev/null; pct destroy ${step.vmId} --force --purge 2>/dev/null; true`,
+            30000);
         } catch { /* ignore */ }
       }
 
-      // Create snapshot after dependency is installed
-      if (snapMgr && allDepIds.has(step.scenario.id) && !step.skipExecution) {
+      // After the LAST stack-provider step, create the single dep-stacks-ready
+      // snapshot on the host PVE. All subsequent consumer tests use this as
+      // their failure-rollback target.
+      if (snapMgr && step.isDependency && !step.skipExecution
+          && planned.slice(i + 1).every((p) => !p.isDependency)) {
         try {
-          const depSnapName = snapMgr.snapshotName(step.scenario.id);
-          // Snapshot all dependency containers installed up to and including this one
-          const depGroupVmIds = planned
-            .slice(0, i + 1)
-            .filter((p) => allDepIds.has(p.scenario.id))
-            .map((p) => p.vmId);
-          snapMgr.create(depSnapName, buildHash, depGroupVmIds);
+          snapMgr.createHostSnapshot("dep-stacks-ready", buildHash);
         } catch (err) {
           logInfo(`Snapshot creation failed (non-fatal): ${err}`);
         }

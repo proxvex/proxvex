@@ -320,16 +320,28 @@ export class ApplicationPersistenceHandler {
 
   /**
    * Resolve "file:filename" references in application properties.
-   * Reads the referenced file from the application directory and replaces
-   * the value with its base64-encoded content.
+   * Tries the application's own directory first, then walks the extends
+   * chain (passed via fallbackPaths) — that way a child application can
+   * inherit `file:`-default properties from its parent without copying
+   * the referenced file. Replaces resolved values with base64 content.
    */
-  private resolveFileReferences(app: IApplication, appPath: string): void {
+  private resolveFileReferences(
+    app: IApplication,
+    appPath: string,
+    fallbackPaths: string[] = [],
+  ): void {
     if (!app.properties) return;
     for (const prop of app.properties) {
       const val = prop.value ?? prop.default;
-      if (typeof val === "string" && val.startsWith("file:")) {
-        const filename = val.substring(5);
-        const filePath = path.join(appPath, filename);
+      if (typeof val !== "string" || !val.startsWith("file:")) continue;
+      const filename = val.substring(5);
+
+      // Try primary appPath first, then each fallback path in order
+      const candidates = [appPath, ...fallbackPaths];
+      let resolved = false;
+      let lastError: unknown = null;
+      for (const dir of candidates) {
+        const filePath = path.join(dir, filename);
         try {
           const content = fs.readFileSync(filePath);
           const base64 = content.toString("base64");
@@ -338,9 +350,17 @@ export class ApplicationPersistenceHandler {
           } else {
             prop.default = base64;
           }
-        } catch (e: any) {
-          this.logger.warn(`Failed to read file reference: ${filePath}: ${e.message}`);
+          resolved = true;
+          break;
+        } catch (e) {
+          lastError = e;
         }
+      }
+      if (!resolved) {
+        const msg = (lastError as { message?: string })?.message ?? String(lastError);
+        this.logger.warn(
+          `Failed to read file reference '${filename}' in any of [${candidates.join(", ")}]: ${msg}`,
+        );
       }
     }
   }
@@ -438,6 +458,14 @@ export class ApplicationPersistenceHandler {
         }
       }
 
+      // Second pass after extends-merge: properties inherited from parents may
+      // still contain unresolved "file:..."-strings whose referenced file lives
+      // in the parent's directory (not appPath). Walk the full extends chain.
+      const parentPaths = opts.applicationHierarchy.filter((p) => p !== appPath);
+      if (parentPaths.length > 0) {
+        this.resolveFileReferences(appData, appPath, parentPaths);
+      }
+
       this.resolveAppIcon(appData, appPath, opts);
 
       // NOTE: We intentionally skip processTemplates() here for performance
@@ -522,6 +550,14 @@ export class ApplicationPersistenceHandler {
         } catch (e: Error | any) {
           this.addErrorToOptions(opts, e);
         }
+      }
+
+      // Second pass after extends-merge: properties inherited from parents may
+      // still contain unresolved "file:..."-strings whose referenced file lives
+      // in the parent's directory (not appPath). Walk the full extends chain.
+      const parentPaths = opts.applicationHierarchy.filter((p) => p !== appPath);
+      if (parentPaths.length > 0) {
+        this.resolveFileReferences(appData, appPath, parentPaths);
       }
 
       this.resolveAppIcon(appData, appPath, opts);
