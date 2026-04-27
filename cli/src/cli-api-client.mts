@@ -172,12 +172,15 @@ export class CliApiClient {
       throw new NotFoundError(`Not found: ${method} ${path}`);
     }
     if (!response.ok) {
-      let detail = "";
+      // Read the body exactly once. fetch() lets you consume the body via
+      // .json() OR .text() but not both — calling .text() after a failed
+      // .json() throws "Body is unusable", which masks the real error.
+      const raw = await response.text();
+      let detail = raw;
       try {
-        const errBody = await response.json();
-        detail = formatErrorDetail(errBody);
+        detail = formatErrorDetail(JSON.parse(raw));
       } catch {
-        detail = await response.text();
+        // raw is already the textual fallback
       }
       throw new ApiError(
         `API error ${response.status} on ${method} ${path}: ${detail}`,
