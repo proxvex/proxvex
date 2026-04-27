@@ -11,6 +11,12 @@ import type {
 import type { ITemplate, ICommand, TaskType } from "../types.mjs";
 import type { ITemplateReference } from "../backend-types.mjs";
 
+export interface TemplateScriptUsage {
+  templateName: string;
+  category: string;
+  viaProperty: "script" | "library";
+}
+
 /**
  * Analyzes templates (skip status, conditional status, usage).
  */
@@ -140,9 +146,17 @@ export class TemplateAnalyzer {
   }
 
   /**
-   * Finds all applications that use a specific template (excluding skipped ones).
+   * Finds all applications that use a specific template.
+   * By default, applications where every command of the template is skipped are
+   * excluded. Pass `{ includeSkipped: true }` to over-include — useful when the
+   * skip status itself may have changed (e.g., reverse lookups for affected
+   * tests).
    */
-  async findApplicationsUsingTemplate(templateName: string): Promise<string[]> {
+  async findApplicationsUsingTemplate(
+    templateName: string,
+    options: { includeSkipped?: boolean } = {},
+  ): Promise<string[]> {
+    const includeSkipped = !!options.includeSkipped;
     const usingApplications: string[] = [];
 
     try {
@@ -222,42 +236,46 @@ export class TemplateAnalyzer {
 
             // If template is found, check if it's skipped
             if (templateFound) {
-              // Load application commands to check if template is skipped
-              try {
-                const templateProcessor = new TemplateProcessor(
-                  {
-                    jsonPath: this.configuredPathes.jsonPath,
-                    localPath: this.configuredPathes.localPath,
-                    schemaPath: this.configuredPathes.schemaPath,
-                  },
-                  storageContext,
-                  pm.getPersistence(),
-                );
+              if (includeSkipped) {
+                usingApplications.push(appName);
+              } else {
+                // Load application commands to check if template is skipped
+                try {
+                  const templateProcessor = new TemplateProcessor(
+                    {
+                      jsonPath: this.configuredPathes.jsonPath,
+                      localPath: this.configuredPathes.localPath,
+                      schemaPath: this.configuredPathes.schemaPath,
+                    },
+                    storageContext,
+                    pm.getPersistence(),
+                  );
 
-                const dummyVeContext: IVEContext = {
-                  host: "dummy",
-                  port: 22,
-                  getStorageContext: () => storageContext,
-                  getKey: () => "ve_dummy",
-                };
+                  const dummyVeContext: IVEContext = {
+                    host: "dummy",
+                    port: 22,
+                    getStorageContext: () => storageContext,
+                    getKey: () => "ve_dummy",
+                  };
 
-                const loaded = await templateProcessor.loadApplication(
-                  appName,
-                  "installation" as TaskType,
-                  dummyVeContext,
-                );
+                  const loaded = await templateProcessor.loadApplication(
+                    appName,
+                    "installation" as TaskType,
+                    dummyVeContext,
+                  );
 
-                const commands = loaded.commands || [];
+                  const commands = loaded.commands || [];
 
-                // Check if template is skipped using the same logic as in generateApplicationReadme
-                if (
-                  !this.isTemplateSkipped(normalizedTemplate, appName, commands, foundCategory)
-                ) {
+                  // Check if template is skipped using the same logic as in generateApplicationReadme
+                  if (
+                    !this.isTemplateSkipped(normalizedTemplate, appName, commands, foundCategory)
+                  ) {
+                    usingApplications.push(appName);
+                  }
+                } catch {
+                  // If loading fails, include the application anyway (better to show than hide)
                   usingApplications.push(appName);
                 }
-              } catch {
-                // If loading fails, include the application anyway (better to show than hide)
-                usingApplications.push(appName);
               }
             }
           }
@@ -271,6 +289,117 @@ export class TemplateAnalyzer {
 
     // Remove duplicates and sort
     return [...new Set(usingApplications)].sort();
+  }
+
+  /**
+   * Finds all templates whose commands reference a given script (either as
+   * `commands[].script` or `commands[].library`). Walks the preloaded
+   * template cache through the repositories — no direct filesystem access.
+   */
+  findTemplatesUsingScript(scriptName: string): TemplateScriptUsage[] {
+    const result: TemplateScriptUsage[] = [];
+    const repositories = PersistenceManager.getInstance().getRepositories();
+    const all = repositories.listAllTemplates();
+    for (const { ref, data } of all) {
+      const commands = Array.isArray(data.commands) ? data.commands : [];
+      let viaScript = false;
+      let viaLibrary = false;
+      for (const cmd of commands) {
+        if (!cmd) continue;
+        if (cmd.script === scriptName) viaScript = true;
+        // Schema allows library to be string or array; TS type is string-only.
+        const lib: unknown = (cmd as { library?: unknown }).library;
+        if (typeof lib === "string" && lib === scriptName) viaLibrary = true;
+        else if (Array.isArray(lib) && (lib as unknown[]).includes(scriptName)) viaLibrary = true;
+      }
+      if (viaScript) {
+        result.push({ templateName: ref.name, category: ref.category, viaProperty: "script" });
+      }
+      if (viaLibrary) {
+        result.push({ templateName: ref.name, category: ref.category, viaProperty: "library" });
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Finds all applications that use a given script transitively — i.e. apps
+   * that reference any template whose commands invoke this script (or include
+   * it as a library).
+   */
+  async findApplicationsUsingScript(scriptName: string): Promise<string[]> {
+    const templates = this.findTemplatesUsingScript(scriptName);
+    const apps = new Set<string>();
+    for (const { templateName } of templates) {
+      const using = await this.findApplicationsUsingTemplate(templateName, {
+        includeSkipped: true,
+      });
+      for (const a of using) apps.add(a);
+    }
+    return [...apps].sort();
+  }
+
+  /**
+   * Finds all addon IDs whose installation/reconfigure/disable/upgrade lists
+   * reference a given template. Addon templates are merged at runtime via
+   * mergeAddonTemplates(), so findApplicationsUsingTemplate alone misses them.
+   */
+  findAddonsUsingTemplate(templateName: string): string[] {
+    const normalized = TemplatePathResolver.normalizeTemplateName(templateName);
+    const addonService = PersistenceManager.getInstance().getAddonService();
+    const matchingIds: string[] = [];
+
+    for (const addon of addonService.getAllAddons()) {
+      if (this.addonReferencesTemplate(addon, normalized)) {
+        matchingIds.push(addon.id);
+      }
+    }
+
+    return [...new Set(matchingIds)].sort();
+  }
+
+  /**
+   * Finds all addon IDs whose templates use a given script (either as
+   * `commands[].script` or `commands[].library`).
+   */
+  findAddonsUsingScript(scriptName: string): string[] {
+    const templates = this.findTemplatesUsingScript(scriptName);
+    const addons = new Set<string>();
+    for (const { templateName } of templates) {
+      for (const addonId of this.findAddonsUsingTemplate(templateName)) {
+        addons.add(addonId);
+      }
+    }
+    return [...addons].sort();
+  }
+
+  /** True if any of the addon's template references resolves to `templateName` (normalized). */
+  private addonReferencesTemplate(addon: { installation?: unknown; reconfigure?: unknown; disable?: unknown; upgrade?: unknown }, normalizedTemplateName: string): boolean {
+    const phaseHosts: unknown[] = [
+      addon.installation,
+      addon.reconfigure,
+      addon.disable,
+    ];
+    for (const host of phaseHosts) {
+      if (!host || typeof host !== "object") continue;
+      for (const refList of Object.values(host as Record<string, unknown>)) {
+        if (this.listContainsTemplate(refList, normalizedTemplateName)) return true;
+      }
+    }
+    if (this.listContainsTemplate(addon.upgrade, normalizedTemplateName)) return true;
+    return false;
+  }
+
+  private listContainsTemplate(refList: unknown, normalizedTemplateName: string): boolean {
+    if (!Array.isArray(refList)) return false;
+    for (const entry of refList) {
+      const refName = typeof entry === "string" ? entry : (entry && typeof entry === "object" && "name" in entry ? (entry as { name: string }).name : undefined);
+      if (!refName) continue;
+      if (TemplatePathResolver.normalizeTemplateName(refName) === normalizedTemplateName) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

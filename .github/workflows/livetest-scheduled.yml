@@ -1,0 +1,133 @@
+name: Scheduled Livetest --all
+
+# Runs the full livetest suite (`--all`) on a schedule against the
+# `github-action` runner. PR-time runs are intentionally narrow (see
+# livetest-on-pr.yml); this workflow ensures full-coverage runs continue
+# to happen in main, so regressions in low-traffic apps still get caught.
+#
+# Skips itself when the only changes since the last successful run are
+# frontend/docs — there is no point burning the runner on a docs-only diff.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # nightly 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch — running --all"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Find the SHA of the last successful run of THIS workflow.
+          LAST_SHA=$(gh run list \
+            --workflow "${{ github.workflow }}" \
+            --status success \
+            --limit 1 \
+            --json headSha \
+            --jq '.[0].headSha' || true)
+
+          if [ -z "$LAST_SHA" ] || [ "$LAST_SHA" = "null" ]; then
+            echo "No prior successful run — running --all (safe default)"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch origin main
+          CHANGES=$(git diff --name-only "$LAST_SHA"..origin/main || true)
+
+          # If everything since LAST_SHA is frontend or docs-only, skip.
+          NON_FRONTEND=$(printf '%s\n' "$CHANGES" \
+            | grep -vE '^(frontend/|docs/|.*\.md$)' || true)
+
+          if [ -z "$NON_FRONTEND" ]; then
+            echo "Only frontend/docs changes since $LAST_SHA — skipping nightly run"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Non-frontend changes detected since $LAST_SHA — running --all"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  check-runner:
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.should_run == 'true'
+    environment: livetest
+    outputs:
+      runner_online: ${{ steps.probe.outputs.runner_online }}
+    steps:
+      - name: Probe self-hosted runner status
+        id: probe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          count=$(gh api "/repos/${{ github.repository }}/actions/runners" --paginate \
+            | jq '[.runners[]
+                   | select(.status == "online")
+                   | select(.labels[].name == "ubuntupve")] | length')
+          echo "Online ubuntupve runners: $count"
+          if [ "$count" -gt 0 ]; then
+            echo "runner_online=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "runner_online=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  livetest-all:
+    needs: [check-changes, check-runner]
+    if: needs.check-changes.outputs.should_run == 'true' && needs.check-runner.outputs.runner_online == 'true'
+    runs-on: [self-hosted, linux, ubuntupve]
+    environment: livetest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install deployer (step2b on mirrors-ready)
+        run: ./e2e/step2b-install-deployer.sh github-action
+
+      - name: Run livetests --all
+        run: |
+          npx tsx backend/tests/livetests/src/live-test-runner.mts github-action --all
+
+      - name: Upload diagnostic artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: livetest-scheduled-diagnostics-${{ github.run_id }}
+          path: |
+            /tmp/livetest-*.tar.gz
+            .livetest-data/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7

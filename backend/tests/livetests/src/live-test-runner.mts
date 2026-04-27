@@ -28,7 +28,8 @@
 import { nestedSsh, nestedSshStrict } from "./ssh-helpers.mjs";
 import { collectWithDeps, selectScenarios, planScenarios } from "./scenario-planner.mjs";
 import { TestResultWriter } from "./test-result-writer.mjs";
-import { existsSync, readFileSync } from "node:fs";
+import { renderResultsMarkdown } from "./result-summary.mjs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-types.mjs";
 import { apiFetch, type AppMeta } from "./verifier.mjs";
@@ -564,6 +565,25 @@ async function main() {
   console.log(`Tests Passed: ${totalPassed}`);
   console.log(`Tests Failed: ${totalFailed}`);
   console.log("");
+
+  // Markdown summary for $GITHUB_STEP_SUMMARY (or fallback file when running locally).
+  try {
+    const summaryMd = renderResultsMarkdown(allResults, planned);
+    const ghSummary = process.env.GITHUB_STEP_SUMMARY;
+    if (ghSummary) {
+      appendFileSync(ghSummary, summaryMd + "\n");
+    } else {
+      const localPath = path.join(projectRoot, ".livetest-data", "livetest-summary.md");
+      try {
+        writeFileSync(localPath, summaryMd, "utf-8");
+        logInfo(`Livetest summary written to ${localPath}`);
+      } catch {
+        // Local run without .livetest-data dir — non-fatal.
+      }
+    }
+  } catch (err: any) {
+    logWarn(`Failed to render livetest summary: ${err?.message ?? err}`);
+  }
 
   if (totalFailed > 0) {
     console.log(`${RED}FAILED${NC} - Some tests did not pass`);

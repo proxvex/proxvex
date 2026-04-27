@@ -1,7 +1,15 @@
-name: Affected Tests
+name: Affected Tests (advisory)
+
+# Advisory job: prints the affected-tests filter for the current PR. Uses the
+# same compute-affected-tests.mts CLI that livetest-on-pr.yml uses, so there's
+# a single source of truth.
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
 
 jobs:
   affected-tests:
@@ -11,63 +19,44 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get changed files
-        id: changed
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable pnpm via corepack
         run: |
-          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed.txt
-          echo "Changed files:"
-          cat /tmp/changed.txt
+          corepack enable
+          corepack prepare pnpm@latest --activate
 
-      - name: Determine affected tests
-        id: affected
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compute affected tests
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          LOG_LEVEL: error
         run: |
-          apps=""
-          run_all=false
+          set -e
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > /tmp/changed.txt
+          printf '%s' "$PR_BODY" > /tmp/body.md
 
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            case "$file" in
-              json/applications/oci-image/*|json/applications/docker-compose/*|json/applications/npm-nodejs/*)
-                run_all=true ;;
-              json/applications/*/tests/*|json/applications/*/templates/*|json/applications/*/scripts/*|json/applications/*/application.json)
-                app=$(echo "$file" | cut -d/ -f3)
-                apps="$apps $app" ;;
-              json/shared/*|json/addons/*|schemas/*)
-                run_all=true ;;
-              backend/src/*|backend/tests/livetests/*)
-                run_all=true ;;
-              e2e/*|livetest-local/*)
-                run_all=true ;;
-              install-proxvex.sh)
-                apps="$apps proxvex" ;;
-            esac
-          done < /tmp/changed.txt
+          npx tsx backend/tests/livetests/src/compute-affected-tests.mts \
+            --diff /tmp/changed.txt \
+            --pr-body /tmp/body.md \
+            --out /tmp/result.json \
+            --summary-out /tmp/compute-summary.md
 
-          if [ "$run_all" = "true" ]; then
-            test_filter='!/production/'
+          cat /tmp/compute-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+          SKIP=$(jq -r '.skip' /tmp/result.json)
+          FILTER=$(jq -r '.filter' /tmp/result.json)
+          if [ "$SKIP" = "true" ]; then
+            echo "::notice::No livetests would run for this PR"
           else
-            # Deduplicate and format as regex
-            unique=$(echo "$apps" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' '|')
-            unique="${unique%|}"
-            if [ -z "$unique" ]; then
-              echo "No test-relevant files changed"
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            test_filter="/^(${unique})\//"
+            echo "::notice::Livetest filter: $FILTER"
+            echo ""
+            echo "To run locally:"
+            echo "  npx tsx backend/tests/livetests/src/live-test-runner.mts <instance> '$FILTER'"
           fi
 
-          echo "test_filter=$test_filter" >> "$GITHUB_OUTPUT"
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-
-      - name: Print livetest command
-        if: steps.affected.outputs.skip != 'true'
-        run: |
-          echo "::notice::Affected test filter: ${{ steps.affected.outputs.test_filter }}"
-          echo ""
-          echo "To run locally:"
-          echo "  DEPLOYER_PORT=3201 npx tsx backend/tests/livetests/src/live-test-runner.mts dev '${{ steps.affected.outputs.test_filter }}'"
-
-      - name: No tests needed
-        if: steps.affected.outputs.skip == 'true'
-        run: echo "::notice::No test-relevant files changed — no livetests needed"
+          jq -r '.warnings[]?' /tmp/result.json | sed 's/^/::warning::/' || true
