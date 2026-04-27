@@ -20,6 +20,7 @@ on:
       - install-proxvex.sh
       - scripts/**
       - docker/**
+      - .github/workflows/livetest-on-pr.yml
   workflow_dispatch:
     inputs:
       test_filter:
@@ -68,8 +69,78 @@ jobs:
             echo "runner_online=false" >> "$GITHUB_OUTPUT"
           fi
 
-  livetest:
+  # Compute the affected-tests filter from the diff + PR body. In shadow-mode
+  # the output is informational only (rendered into the job summary). After a
+  # validation period this job's output will gate the `livetest` job (separate
+  # cutover PR).
+  compute-affected:
+    runs-on: ubuntu-latest
     needs: check-runner
+    if: needs.check-runner.outputs.runner_online == 'true' || github.event_name == 'workflow_dispatch'
+    outputs:
+      skip: ${{ steps.compute.outputs.skip }}
+      filter: ${{ steps.compute.outputs.filter }}
+      directive_used: ${{ steps.compute.outputs.directive_used }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Compute affected tests
+        id: compute
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          LOG_LEVEL: error
+        run: |
+          set -e
+          # workflow_dispatch with explicit filter bypasses compute.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.test_filter }}" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "filter=${{ inputs.test_filter }}" >> "$GITHUB_OUTPUT"
+            echo "directive_used=manual-dispatch" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Affected-Tests Compute (workflow_dispatch)";
+              echo "";
+              echo "**Filter:** \`${{ inputs.test_filter }}\`";
+              echo "**Skip:** false";
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > /tmp/changed.txt
+          printf '%s' "$PR_BODY" > /tmp/body.md
+
+          npx tsx backend/tests/livetests/src/compute-affected-tests.mts \
+            --diff /tmp/changed.txt \
+            --pr-body /tmp/body.md \
+            --out /tmp/result.json \
+            --summary-out /tmp/compute-summary.md
+
+          cat /tmp/compute-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+          jq -r '.reasons[]?'  /tmp/result.json | sed 's/^/::notice::compute: /' || true
+          jq -r '.warnings[]?' /tmp/result.json | sed 's/^/::warning::compute: /' || true
+
+          echo "skip=$(jq -r '.skip'   /tmp/result.json)"   >> "$GITHUB_OUTPUT"
+          echo "filter=$(jq -r '.filter' /tmp/result.json)" >> "$GITHUB_OUTPUT"
+          echo "directive_used=$(jq -r '.directiveUsed' /tmp/result.json)" >> "$GITHUB_OUTPUT"
+
+  livetest:
+    needs: [check-runner, compute-affected]
+    # SHADOW-MODE: still bound only to check-runner. Filter forced to --all.
+    # The compute-affected job runs in parallel and renders its decision into
+    # the job summary; nothing on the livetest job depends on its outputs yet.
+    # Cutover (later PR) will switch to:
+    #   if: needs.check-runner.outputs.runner_online == 'true' && needs.compute-affected.outputs.skip != 'true'
+    #   FILTER from needs.compute-affected.outputs.filter
     if: needs.check-runner.outputs.runner_online == 'true'
     runs-on: [self-hosted, linux, ubuntupve]
     environment: livetest

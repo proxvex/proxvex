@@ -105,12 +105,34 @@ export function partitionAfterFailure(
  * - "app" → all scenarios under app/*
  * - "app/scenario" → exact match
  * - "--all" → everything
+ * - "/regex/" or "!/regex/" → regex filter (include / negate)
+ * - "a, b, c" → comma-list, each entry processed independently and unioned
  * Returns selected scenario IDs (without deps — call collectWithDeps after).
  */
 export function selectScenarios(
   testArg: string,
   all: Map<string, ResolvedScenario>,
 ): string[] {
+  // Comma-list (top-level only — never split inside a regex literal). Each
+  // entry is processed by the single-arg logic; results are unioned in order
+  // of first appearance.
+  if (testArg.includes(",") && !isRegexLiteral(testArg)) {
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    for (const part of testArg.split(",").map((p) => p.trim()).filter(Boolean)) {
+      for (const id of selectScenarios(part, all)) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          ordered.push(id);
+        }
+      }
+    }
+    if (ordered.length === 0) {
+      throw new Error(`No test scenarios match comma-list: ${testArg}`);
+    }
+    return ordered;
+  }
+
   // --all: select all scenarios
   if (testArg === "--all") {
     return [...all.keys()];
@@ -148,6 +170,12 @@ export function selectScenarios(
     );
   }
   return matches;
+}
+
+function isRegexLiteral(s: string): boolean {
+  const trimmed = s.trim();
+  const stripped = trimmed.startsWith("!") ? trimmed.slice(1) : trimmed;
+  return stripped.startsWith("/") && stripped.endsWith("/");
 }
 
 /**

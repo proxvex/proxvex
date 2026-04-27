@@ -60,6 +60,12 @@ export interface ITemplateRepository {
     category: string,
   ): TemplateRef | null;
   getTemplate(ref: TemplateRef): ITemplate | null;
+  /**
+   * Lists all known templates (shared + per-application) along with their refs.
+   * Intended for read-only inspection (e.g., reverse lookups). Uses the
+   * preloaded template cache where available.
+   */
+  listAllTemplates(): Array<{ ref: TemplateRef; data: ITemplate }>;
 }
 
 export interface IResourceRepository {
@@ -193,6 +199,36 @@ export class InMemoryRepositories
     }
     const key = `${ref.applicationId}:${ref.name}`;
     return this.templates.get(key) ?? null;
+  }
+
+  listAllTemplates(): Array<{ ref: TemplateRef; data: ITemplate }> {
+    const result: Array<{ ref: TemplateRef; data: ITemplate }> = [];
+    for (const [key, data] of this.sharedTemplates) {
+      const colon = key.indexOf(":");
+      const category = colon >= 0 ? key.slice(0, colon) : "root";
+      const name = colon >= 0 ? key.slice(colon + 1) : key;
+      result.push({
+        ref: { name, scope: "shared", origin: this.origin, category },
+        data,
+      });
+    }
+    for (const [key, data] of this.templates) {
+      const colon = key.indexOf(":");
+      if (colon < 0) continue;
+      const applicationId = key.slice(0, colon);
+      const name = key.slice(colon + 1);
+      result.push({
+        ref: {
+          name,
+          scope: "application",
+          origin: this.origin,
+          applicationId,
+          category: "",
+        },
+        data,
+      });
+    }
+    return result;
   }
 
   getScript(ref: ScriptRef): string | null {
@@ -492,6 +528,36 @@ export class FileSystemRepositories
       this.scriptCache.set(cacheKey, content);
     }
     return content;
+  }
+
+  listAllTemplates(): Array<{ ref: TemplateRef; data: ITemplate }> {
+    if (!this.enableCache) {
+      this.preloadJsonResources();
+    }
+    const result: Array<{ ref: TemplateRef; data: ITemplate }> = [];
+    for (const [cacheKey, data] of this.templateCache) {
+      const parts = cacheKey.split(":");
+      if (parts.length !== 3) continue;
+      const [scope, scopeArg, name] = parts as [string, string, string];
+      if (scope === "shared") {
+        result.push({
+          ref: { name, scope: "shared", origin: "json", category: scopeArg },
+          data,
+        });
+      } else if (scope === "app") {
+        result.push({
+          ref: {
+            name,
+            scope: "application",
+            origin: "json",
+            applicationId: scopeArg,
+            category: "",
+          },
+          data,
+        });
+      }
+    }
+    return result;
   }
 
   resolveScriptPath(ref: ScriptRef): string | null {

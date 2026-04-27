@@ -147,6 +147,24 @@ describe("selectScenarios", () => {
       /Unknown test scenario/,
     );
   });
+
+  it("comma list combines entries (scenarios + apps)", () => {
+    const all = makeAll();
+    const result = selectScenarios("postgres/ssl, zitadel", all);
+    expect(result).toEqual(["postgres/ssl", "zitadel/default", "zitadel/ssl"]);
+  });
+
+  it("comma list deduplicates", () => {
+    const all = makeAll();
+    const result = selectScenarios("postgres, postgres/ssl", all);
+    expect(result).toEqual(["postgres/default", "postgres/ssl"]);
+  });
+
+  it("comma list trims whitespace", () => {
+    const all = makeAll();
+    const result = selectScenarios("  postgres/ssl  ,  zitadel/default  ", all);
+    expect(result).toEqual(["postgres/ssl", "zitadel/default"]);
+  });
 });
 
 describe("buildParams", () => {
