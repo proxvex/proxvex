@@ -497,10 +497,24 @@ async function main() {
   // Plan: assign VM IDs and stack names
   const planned = planScenarios(scenariosToRun, appStacktypes, allTests);
 
-  // Mark dependencies vs explicitly selected targets
+  // Mark dependencies vs explicitly selected targets.
+  //
+  // A scenario is treated as a dependency (provider) when EITHER it was only
+  // planned because something else depends on it, OR another planned scenario
+  // depends on it. The second case matters for `--all`: every scenario is
+  // technically "selected", but we still need provider apps (postgres, zitadel)
+  // to behave like dependencies so their LXCs aren't destroyed before later
+  // consumer tests run against them.
   const selectedIdSet = new Set(selectedIds);
+  const dependedOn = new Set<string>();
   for (const p of planned) {
-    p.isDependency = !selectedIdSet.has(p.scenario.id);
+    for (const depId of p.scenario.depends_on ?? []) {
+      if (depId !== p.scenario.id) dependedOn.add(depId);
+    }
+  }
+  for (const p of planned) {
+    p.isDependency =
+      !selectedIdSet.has(p.scenario.id) || dependedOn.has(p.scenario.id);
   }
 
   // Show plan
