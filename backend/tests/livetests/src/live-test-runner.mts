@@ -262,7 +262,8 @@ async function main() {
   const args = process.argv.slice(2);
   const fixturesFlag = args.includes("--fixtures");
   const queueFlag = args.includes("--queue");
-  const filteredArgs = args.filter(a => a !== "--fixtures" && a !== "--queue");
+  const failFastFlag = args.includes("--fail-fast");
+  const filteredArgs = args.filter(a => a !== "--fixtures" && a !== "--queue" && a !== "--fail-fast");
   const instance = filteredArgs[0] || undefined;
   const testArg = filteredArgs[1] || "--all";
 

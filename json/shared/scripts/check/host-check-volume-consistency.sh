@@ -13,8 +13,10 @@
 #   - pve-common.sh
 #   - vol-common.sh
 #
-# Output JSON (stdout):
-#   [{"id":"check_results","value":[{"check":"<name>","passed":<bool>,"detail":"..."}]}]
+# Output JSON (stdout) — conforms to schemas/outputs.schema.json:
+#   [{"id":"volume_consistency","value":[{"name":"<check>","value":<bool>,"description":"..."}]}]
+# Each array item must use {name, value} or {id, value}; `description` is the
+# only allowed extra property.
 
 GRACE_SECONDS=60
 
@@ -28,9 +30,9 @@ add_result() {
     [ "$results" != "[" ] && results="${results},"
     if [ -n "$detail" ]; then
         escaped=$(printf '%s' "$detail" | sed 's/"/\\"/g' | tr '\n' ' ')
-        results="${results}{\"check\":\"${check}\",\"passed\":${passed},\"detail\":\"${escaped}\"}"
+        results="${results}{\"name\":\"${check}\",\"value\":${passed},\"description\":\"${escaped}\"}"
     else
-        results="${results}{\"check\":\"${check}\",\"passed\":${passed}}"
+        results="${results}{\"name\":\"${check}\",\"value\":${passed}}"
     fi
 }
 
