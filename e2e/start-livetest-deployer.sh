@@ -34,8 +34,16 @@ CONFIG_FILE="$SCRIPT_DIR/config.json"
 # shellcheck source=config.sh
 source "$SCRIPT_DIR/config.sh"
 
-INSTANCE_ARG="${1:-}"
-[ -z "$INSTANCE_ARG" ] && { echo "Usage: $0 <instance>" >&2; exit 2; }
+INSTANCE_ARG=""
+REFRESH_HUB=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --refresh-hub) REFRESH_HUB=true; shift ;;
+    -*) echo "Unknown flag: $1" >&2; exit 2 ;;
+    *) [ -z "$INSTANCE_ARG" ] && INSTANCE_ARG="$1"; shift ;;
+  esac
+done
+[ -z "$INSTANCE_ARG" ] && { echo "Usage: $0 [--refresh-hub] <instance>" >&2; exit 2; }
 
 load_config "$INSTANCE_ARG"
 # After load_config the following are exported:
@@ -83,6 +91,44 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -p "$PORT_PVE_SSH" "root@$PVE_HOST" \
     "pct status $DEPLOYER_VMID 2>/dev/null | grep -q running || pct start $DEPLOYER_VMID" \
   || err "Failed to start proxvex-LXC $DEPLOYER_VMID inside nested VM"
+
+# 2b. (--refresh-hub) Push current workspace json/ + backend/dist into the
+#     Hub-LXC so the Hub-side templates and backend code match what the user
+#     has on disk. Without this, the Hub keeps the json/dist baked into the
+#     deployer-installed snapshot from step2b, which gets stale across
+#     livetest iterations.
+if [ "$REFRESH_HUB" = "true" ]; then
+  if [ ! -d "$PROJECT_ROOT/backend/dist" ]; then
+    err "backend/dist not found — run 'cd backend && pnpm run build' first"
+  fi
+  TMP_TAR="/tmp/proxvex-refresh-${E2E_INSTANCE}-$$.tar.gz"
+  REMOTE_TAR="/tmp/proxvex-refresh.tar.gz"
+  REMOTE_INSTALLER="/tmp/install-proxvex-${E2E_INSTANCE}.sh"
+  info "Refreshing Hub code from workspace ($PROJECT_ROOT/{json,backend/dist})"
+  # macOS bsdtar embeds AppleDouble resource forks (._*) into archives, which
+  # the Linux deployer then tries to load as JSON and crashes. Strip them and
+  # disable extended attributes so the tarball is portable.
+  COPYFILE_DISABLE=1 tar --exclude='._*' --exclude='.DS_Store' \
+    -czf "$TMP_TAR" -C "$PROJECT_ROOT" json backend/dist \
+    || err "tar failed for refresh tarball"
+
+  # Stage tarball + installer on the nested PVE host. install-proxvex.sh runs
+  # there because it drives `pct` against the Hub-LXC (which lives on the
+  # nested PVE host).
+  scp -o StrictHostKeyChecking=no -P "$PORT_PVE_SSH" \
+      "$TMP_TAR" "root@$PVE_HOST:$REMOTE_TAR" \
+    || err "scp of refresh tarball failed"
+  scp -o StrictHostKeyChecking=no -P "$PORT_PVE_SSH" \
+      "$PROJECT_ROOT/install-proxvex.sh" "root@$PVE_HOST:$REMOTE_INSTALLER" \
+    || err "scp of install-proxvex.sh failed"
+  rm -f "$TMP_TAR"
+
+  ssh -o StrictHostKeyChecking=no -p "$PORT_PVE_SSH" "root@$PVE_HOST" \
+      "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --update-from-tarball $REMOTE_TAR --vm-id $DEPLOYER_VMID && rm -f $REMOTE_TAR $REMOTE_INSTALLER" \
+    || err "install-proxvex.sh --update-from-tarball failed inside nested VM"
+
+  ok "Hub code refreshed; proxvex-LXC $DEPLOYER_VMID restarted"
+fi
 
 # 3. Wait for Hub API to respond (proxvex-LXC just booted)
 info "Waiting for Hub API at $HUB_URL"

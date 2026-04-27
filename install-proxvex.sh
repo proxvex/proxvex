@@ -244,6 +244,11 @@ domain_suffix=".local"
 # can read (e.g. /var/lib/vz/template/cache/proxvex-local.tar).
 use_existing_image=""
 
+# In-place code refresh of an already-running proxvex container without
+# rebuilding the OCI image. Tarball must contain `json/` and `backend/dist/`
+# at the top level. Skips all install steps. Path on the PVE host.
+update_from_tarball=""
+
 # Parse CLI flags
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -263,6 +268,7 @@ while [ "$#" -gt 0 ]; do
     --https) enable_https="true"; shift ;;
     --domain-suffix) domain_suffix="$2"; shift 2 ;;
     --use-existing-image) use_existing_image="$2"; shift 2 ;;
+    --update-from-tarball) update_from_tarball="$2"; shift 2 ;;
     --help|-h)
       cat >&2 <<USAGE
 Usage: $0 [options]
@@ -289,6 +295,13 @@ Options:
                         Skip the OCI registry pull and use a pre-built template
                         tarball at PATH on the PVE host (e.g. for local/offline
                         installs or e2e tests).
+  --update-from-tarball <PATH>
+                        In-place code refresh of an existing proxvex container.
+                        Skips all install steps. Tarball at PATH on the PVE host
+                        must contain \`json/\` + \`backend/dist/\` at the top
+                        level. Selects the container via --vm-id, or
+                        auto-detects by hostname=proxvex. Faster than rebuilding
+                        the OCI image; useful in livetest --fresh flows.
 
 Notes:
   - OCI image: ${OCI_IMAGE}
@@ -301,6 +314,67 @@ USAGE
       echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+# --update-from-tarball: in-place refresh of an existing proxvex container.
+# Skips every install step below and exits when the refresh is done.
+if [ -n "$update_from_tarball" ]; then
+  if [ ! -f "$update_from_tarball" ]; then
+    echo "Error: --update-from-tarball path does not exist: $update_from_tarball" >&2
+    exit 1
+  fi
+
+  # Locate the target container: explicit --vm-id wins; otherwise pick the one
+  # whose pct-config Hostname matches our default. Fail loudly on ambiguity.
+  target_vmid="$vm_id"
+  if [ -z "$target_vmid" ]; then
+    target_vmid=$(pct list 2>/dev/null \
+      | awk -v h="$hostname" 'NR>1 && $NF==h {print $1}' | head -n 1)
+  fi
+  if [ -z "$target_vmid" ]; then
+    echo "Error: could not find a proxvex container (hostname=$hostname). Pass --vm-id." >&2
+    exit 1
+  fi
+  if ! pct status "$target_vmid" >/dev/null 2>&1; then
+    echo "Error: container $target_vmid does not exist on this host." >&2
+    exit 1
+  fi
+
+  log "Refreshing code in container $target_vmid from $update_from_tarball"
+
+  # `pct push` requires the container to be running. Start it if it's not,
+  # and wait briefly for the rootfs to be mountable before pushing.
+  if ! pct status "$target_vmid" 2>/dev/null | grep -q running; then
+    pct start "$target_vmid" >/dev/null 2>&1 || true
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      pct status "$target_vmid" 2>/dev/null | grep -q running && break
+      sleep 1
+    done
+  fi
+
+  # Push tarball into the container, extract over the existing tree, restart.
+  # /usr/local/lib/node_modules/proxvex is the install root (see Dockerfile).
+  pct push "$target_vmid" "$update_from_tarball" /tmp/proxvex-update.tar.gz
+  pct exec "$target_vmid" -- sh -c '
+    set -e
+    cd /usr/local/lib/node_modules/proxvex
+    rm -rf json backend/dist
+    tar -xzf /tmp/proxvex-update.tar.gz
+    rm -f /tmp/proxvex-update.tar.gz
+  '
+
+  # Pick the existing container status to decide stop/start vs restart.
+  if pct status "$target_vmid" 2>/dev/null | grep -q running; then
+    pct restart "$target_vmid" >/dev/null 2>&1 \
+      || { pct stop "$target_vmid" >/dev/null 2>&1; pct start "$target_vmid"; }
+  else
+    pct start "$target_vmid"
+  fi
+
+  log "Update done — container $target_vmid restarted with refreshed code."
+  trap - EXIT
+  cleanup_log 2>/dev/null || true
+  exit 0
+fi
 
 # Detect ZFS pool and mountpoint for volumes
 detect_volume_base_path() {

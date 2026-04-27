@@ -23,21 +23,20 @@ export function hubIdFromUrl(hubUrl: string): string {
 }
 
 /**
- * Sync the Hub's repositories tarball into a Hub-specific workspace under
- * the Spoke's configured local path.
+ * Sync the Hub's *project state* (the `local/` tree) into a Hub-specific
+ * workspace under the Spoke's configured local path. Templates/scripts/
+ * applications stay in the Spoke's checked-out workspace and are NOT
+ * synced — see GET /api/hub/repositories.tar.gz for the rationale.
  *
  * Extracted layout:
- *   <localPath>/.hubs/<hub-id>/json/...
  *   <localPath>/.hubs/<hub-id>/local/...
  *
  * Auth uses the globally stored bearer token if present; otherwise the
  * request goes unauthenticated (Hub without OIDC accepts this).
  *
- * This function does NOT restart the deployer or re-init the
- * PersistenceManager. The caller is expected to restart the process with
- * `--local <returned.workspacePath>/local --jsonPath <returned.workspacePath>/json`
- * so the next boot picks up the synced artefacts. Live hot-swap is out of
- * scope for Phase A.
+ * The caller binds the resulting `local/` path via
+ * `pm.rebindRepositoriesRoot(jsonPath, <returned.workspacePath>/local)` —
+ * jsonPath stays whatever the Spoke was started with.
  */
 export async function syncFromHub(
   hubUrl: string,

@@ -657,8 +657,10 @@ export class WebAppVeRouteHandlers {
         }
       }
 
-      // Auto-generate certificate parameters for certtype params without user upload
-      const caProvider = new CertificateAuthorityService(contextManager);
+      // Auto-generate certificate parameters for certtype params without user upload.
+      // Hub mode → CertificateAuthorityService (signs locally with on-disk CA key).
+      // Spoke mode → RemoteCaProvider (delegates signing to Hub via /api/hub/ca/*).
+      const caProvider = this.pm.getCaProvider();
       this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, caProvider, veContextKey);
 
       // Start ProxmoxExecution

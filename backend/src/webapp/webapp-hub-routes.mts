@@ -161,48 +161,37 @@ export function registerHubRoutes(app: express.Application): void {
   // --- Full repositories tarball (for Spoke sync) ---
 
   /**
-   * GET /api/hub/repositories.tar.gz — Download the Hub's repositories as
-   * a gzip-compressed tar archive. Contains both `json/` (canonical templates,
-   * applications, addons, shared scripts, stacktypes, tags) and the local-path
-   * overrides (e.g. `local/shared`, `local/applications`).
+   * GET /api/hub/repositories.tar.gz — Download the Hub's *project state*
+   * (the `local/` tree) as a gzip-compressed tar archive.
+   *
+   * Only `local/` is shipped. Templates, scripts, addons and applications
+   * (the `json/` tree) live in the Spoke's checked-out workspace and are
+   * NOT served by the Hub — that way the Spoke always runs against the
+   * code revision the user has on disk, while still pulling project
+   * settings and secrets atomically from the Hub.
    *
    * Extracted layout at the Spoke:
-   *   <spoke-workspace>/
-   *     json/...
-   *     local/...
-   *
-   * The Spoke extracts this tarball into a per-Hub workspace directory and
-   * points FileSystemRepositories at that location so the rest of the
-   * deployer works against the Hub's canonical artefacts.
+   *   <spoke-workspace>/local/...
    */
   app.get(ApiUri.HubRepositoriesTarball, (_req, res) => {
     try {
       const pathes = pm.getPathes();
-      const jsonDir = pathes.jsonPath;
       const localDir = pathes.localPath;
-      if (!fs.existsSync(jsonDir)) {
-        res.status(404).json({ error: "No json/ directory on this Hub" });
+      if (!fs.existsSync(localDir)) {
+        res.status(404).json({ error: "No local/ directory on this Hub" });
         return;
       }
 
-      // Stage a temp directory with the canonical layout (json/ + local/)
-      // so the tarball has predictable top-level names regardless of where
-      // the source paths live on the Hub filesystem.
+      // Stage so the tarball has a predictable top-level name regardless of
+      // where the source path lives on the Hub filesystem.
       const stageRoot = fs.mkdtempSync(path.join("/tmp", "hub-repo-"));
       try {
-        const stageJson = path.join(stageRoot, "json");
-        const stageLocal = path.join(stageRoot, "local");
-        // symlinks keep the tar command cheap; tar -h dereferences them
-        fs.symlinkSync(jsonDir, stageJson);
-        if (fs.existsSync(localDir)) {
-          fs.symlinkSync(localDir, stageLocal);
-        }
+        fs.symlinkSync(localDir, path.join(stageRoot, "local"));
 
         res.setHeader("Content-Type", "application/gzip");
         res.setHeader("Content-Disposition", "attachment; filename=repositories.tar.gz");
-        const tarTargets = fs.existsSync(stageLocal) ? "json local" : "json";
         const tarData = execSync(
-          `tar -czhf - -C "${stageRoot}" ${tarTargets}`,
+          `tar -czhf - -C "${stageRoot}" local`,
           { maxBuffer: 200 * 1024 * 1024 },
         );
         res.send(tarData);

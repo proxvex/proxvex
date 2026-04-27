@@ -1,8 +1,8 @@
 {
   "execute_on": "ve",
-  "name": "Generate Certificates",
+  "name": "Write Certificates",
   "skip_if_all_missing": [
-    "ca_key_b64"
+    "server_cert_b64"
   ],
   "parameters": [
     {
@@ -12,26 +12,33 @@
       "description": "LXC container ID"
     },
     {
-      "id": "ca_key_b64",
-      "name": "CA Key",
+      "id": "server_key_b64",
+      "name": "Server Key",
       "type": "string",
       "internal": true,
       "secure": true,
-      "description": "Base64-encoded CA private key PEM"
+      "description": "Base64-encoded server private key PEM (signed by backend)"
+    },
+    {
+      "id": "server_cert_b64",
+      "name": "Server Cert",
+      "type": "string",
+      "internal": true,
+      "description": "Base64-encoded server certificate PEM (signed by backend)"
     },
     {
       "id": "ca_cert_b64",
       "name": "CA Cert",
       "type": "string",
       "internal": true,
-      "description": "Base64-encoded CA certificate PEM"
+      "description": "Base64-encoded CA public certificate PEM"
     },
     {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",
       "required": true,
-      "description": "Container hostname for certificate FQDN"
+      "description": "Container hostname (for cert directory naming)"
     },
     {
       "id": "domain_suffix",
@@ -39,7 +46,7 @@
       "type": "string",
       "default": ".local",
       "advanced": true,
-      "description": "FQDN = hostname + domain_suffix"
+      "description": "FQDN suffix (informational; signing already done in backend)"
     },
     {
       "id": "ssl.needs_server_cert",
@@ -47,7 +54,7 @@
       "type": "boolean",
       "default": "true",
       "advanced": true,
-      "description": "Generate server certificate (privkey.pem, cert.pem, fullchain.pem)"
+      "description": "Write server certificate files (privkey.pem, cert.pem, fullchain.pem)"
     },
     {
       "id": "ssl.needs_ca_cert",
@@ -55,7 +62,7 @@
       "type": "boolean",
       "default": "false",
       "advanced": true,
-      "description": "Write CA certificate (chain.pem)"
+      "description": "Write CA public certificate (chain.pem)"
     },
     {
       "id": "uid",
@@ -93,18 +100,11 @@
       "type": "string",
       "advanced": true,
       "description": "If set, use this path directly as cert directory instead of computing from shared_volpath"
-    },
-    {
-      "id": "ssl_additional_san",
-      "name": "Additional SANs",
-      "type": "string",
-      "advanced": true,
-      "description": "Extra SAN entries for the server certificate (e.g. DNS:registry-1.docker.io,DNS:index.docker.io)"
     }
   ],
   "commands": [
     {
-      "name": "Generate Certificates",
+      "name": "Write Certificates",
       "script": "conf-generate-certificates.sh",
       "library": ["pve-common.sh", "cert-common.sh"],
       "outputs": [
