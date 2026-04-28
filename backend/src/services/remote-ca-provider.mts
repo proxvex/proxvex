@@ -92,7 +92,7 @@ export class RemoteCaProvider implements ICaProvider {
 
   // --- CA lifecycle (delegated to Hub) ---
 
-  ensureCA(veContextKey: string): { key: string; cert: string } {
+  ensureCA(_veContextKey: string): { key: string; cert: string } {
     const cert = this.getCACertSync();
     if (!cert) throw new Error("Hub CA not available — is the Hub reachable?");
     return { key: "", cert };

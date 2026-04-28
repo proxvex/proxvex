@@ -45,13 +45,11 @@ print(json.dumps(services))
 function extractFunction(script: string, funcName: string): string {
   const lines = script.split("\n");
   let capture = false;
-  let indent = 0;
   const result: string[] = [];
 
   for (const line of lines) {
     if (line.startsWith(`def ${funcName}(`)) {
       capture = true;
-      indent = 0;
     }
     if (capture) {
       result.push(line);

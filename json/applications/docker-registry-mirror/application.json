@@ -1,54 +1,102 @@
 {
   "name": "Docker Registry Mirror",
-  "description": "Pull-through cache for Docker Hub. Caches images locally to avoid rate limits.",
-  "extends": "docker-compose",
+  "description": "Pull-through cache for Docker Hub. Caches images locally to avoid rate limits. Runs the distribution registry directly as the LXC's PID 1 (no docker daemon, no compose) — when the registry process exits, the LXC stops, so failures are visible in pct list and the deployer UI.",
+  "extends": "oci-image",
   "icon": "icon.svg",
   "parameters": [
     {
       "id": "hostname",
       "name": "Hostname",
-      "type": "string",
       "required": false,
-      "description": "Hostname for the Docker Compose container.",
-      "template": "application.json",
+      "type": "string",
+      "description": "Hostname for the LXC container",
+      "template": "100-conf-create-configure-lxc.json",
+      "templatename": "Create and Configure LXC",
       "default": "docker-registry-mirror"
     },
     {
-      "id": "DOCKERHUB_USERNAME",
+      "id": "volumes",
+      "name": "Volumes",
+      "type": "string",
+      "multiline": true,
+      "required": false,
+      "description": "One per line: key=/container/path[,size=NG]",
+      "template": "150-conf-create-storage-volumes-for-lxc.json",
+      "templatename": "Create Storage Volumes for LXC",
+      "default": "data=var/lib/registry,size=10G"
+    },
+    {
+      "id": "DOCKER_HUB_USERNAME",
       "name": "Docker Hub Username",
       "type": "string",
       "required": false,
-      "description": "Docker Hub username for authenticated pulls (higher rate limits). Leave empty for anonymous."
+      "description": "Docker Hub username for authenticated pull-through (200 pulls / 6h instead of 100). Leave empty for anonymous access. The matching password is stored in the dockermr stack."
     },
     {
-      "id": "DOCKERHUB_TOKEN",
-      "name": "Docker Hub Token",
+      "id": "envs",
+      "name": "Environment Variables",
       "type": "string",
-      "secure": true,
-      "required": false,
-      "description": "Docker Hub Personal Access Token (PAT) for authenticated pulls."
+      "advanced": true,
+      "multiline": true,
+      "default": "OTEL_TRACES_EXPORTER=none\nREGISTRY_HTTP_ADDR=0.0.0.0:443\nREGISTRY_HTTP_TLS_CERTIFICATE=/etc/ssl/addon/fullchain.pem\nREGISTRY_HTTP_TLS_KEY=/etc/ssl/addon/privkey.pem\nREGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io\nREGISTRY_PROXY_USERNAME={{ DOCKER_HUB_USERNAME }}\nREGISTRY_PROXY_PASSWORD={{ DOCKER_HUB_PASSWORD }}\nREGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/var/lib/registry",
+      "description": "Environment variables passed to the distribution registry (REGISTRY_*). Defaults wire SSL certs from addon-ssl, set the pull-through upstream to Docker Hub, and inject DOCKER_HUB_USERNAME (parameter) and DOCKER_HUB_PASSWORD (dockermr stack).",
+      "template": "107-conf-oci-lxc-configuration.json",
+      "templatename": "Configure LXC for OCI"
+    },
+    {
+      "id": "rootfs_storage",
+      "name": "Rootfs Storage",
+      "type": "enum",
+      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
+      "description": "Proxmox storage for the container rootfs",
+      "advanced": true,
+      "template": "100-conf-create-configure-lxc.json",
+      "templatename": "Create and Configure LXC"
+    },
+    {
+      "id": "volume_storage",
+      "name": "Volume Storage",
+      "type": "enum",
+      "required": true,
+      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
+      "description": "Proxmox storage ID for data volumes",
+      "template": "150-conf-create-storage-volumes-for-lxc.json",
+      "templatename": "Create Storage Volumes for LXC",
+      "default": "local-zfs"
     }
   ],
   "properties": [
     {
-      "id": "compose_file",
-      "default": "file:docker-registry-mirror.docker-compose.yml"
+      "id": "oci_image",
+      "value": "distribution/distribution:{{oci_image_tag}}"
     },
     {
-      "id": "ostype",
-      "value": "alpine"
+      "id": "wait_for_network",
+      "value": "true"
     },
     {
-      "id": "ssl_mode",
-      "value": "native"
+      "id": "uid",
+      "value": "0"
+    },
+    {
+      "id": "gid",
+      "value": "0"
+    },
+    {
+      "id": "username",
+      "value": "root"
     },
     {
       "id": "https_port",
       "value": "443"
     },
     {
+      "id": "ssl_mode",
+      "value": "native"
+    },
+    {
       "id": "ssl.addon_volumes",
-      "value": "certs=certs,0755,0:0\nproxvex=/etc/proxvex,0755,0:0"
+      "value": "certs=/etc/ssl/addon,0755,0:0\nproxvex=/etc/proxvex,0755,0:0"
     },
     {
       "id": "ssl.needs_server_cert",
@@ -61,21 +109,21 @@
     {
       "id": "ssl_additional_san",
       "value": "DNS:registry-1.docker.io,DNS:index.docker.io"
-    },
-    {
-      "id": "startup_order",
-      "value": "5"
-    },
-    {
-      "id": "startup_up",
-      "value": "10"
     }
   ],
-  "installation": {
-    "image": [
-      "005-host-trust-deployer-ca.json"
-    ]
-  },
+  "stacktype": ["dockermr"],
+  "stack_usage": [
+    {
+      "stacktype": "dockermr",
+      "vars": [
+        {
+          "name": "DOCKER_HUB_PASSWORD",
+          "replacement": "manual",
+          "description": "Substituted into REGISTRY_PROXY_PASSWORD via the envs parameter. Changing the stack secret requires re-deploying the mirror so the new value is written to lxc.environment."
+        }
+      ]
+    }
+  ],
   "check": {
     "check": [
       "check-registry-mirror.json"
@@ -85,6 +133,6 @@
   "required_addons": ["addon-ssl"],
   "tags": ["infrastructure"],
   "url": "https://docs.docker.com/registry/",
-  "documentation": "https://docs.docker.com/registry/recipes/mirror/",
+  "documentation": "https://distribution.github.io/distribution/recipes/mirror/",
   "source": "https://github.com/distribution/distribution"
 }

@@ -84,6 +84,18 @@ Options:
                         /api/reload so the deployer picks up template/script
                         changes without rebuilding the release. Useful for
                         iteration on template fixes with --retry.
+  --force-docker-registry-mirror
+                        In step 5, if a 'docker-registry-mirror' container
+                        already exists on the PVE host, destroy it before
+                        re-deploying. Without this flag the step is skipped
+                        with a warning to preserve cached images and avoid
+                        Docker Hub pull rate limits.
+  --force-nginx         In step 8, if an 'nginx' container already exists on
+                        the PVE host, destroy it before re-deploying. Without
+                        this flag the deploy is skipped with a warning to
+                        avoid hitting Let's Encrypt rate limits via acme.sh.
+                        setup-nginx.sh (vhost config) still runs — it is
+                        idempotent.
   -h, --help            Show this help and exit
 
 Without arguments, this help is shown and nothing is executed.
@@ -117,6 +129,8 @@ RUN=0
 RETRY=0
 BOOTSTRAP=0
 JSON_DEV_SYNC=0
+FORCE_DRM=0
+FORCE_NGINX=0
 SCOPE_FLAGS=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -132,6 +146,8 @@ while [ $# -gt 0 ]; do
     --retry=*) RETRY=1; START_STEP="${1#*=}"; END_STEP="${1#*=}"; RUN=1; SCOPE_FLAGS=$((SCOPE_FLAGS + 1)); shift ;;
     --bootstrap) BOOTSTRAP=1; RUN=1; shift ;;
     --json-dev-sync) JSON_DEV_SYNC=1; shift ;;
+    --force-docker-registry-mirror) FORCE_DRM=1; shift ;;
+    --force-nginx) FORCE_NGINX=1; shift ;;
     *) echo "Unknown argument: $1" >&2; echo "" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -183,6 +199,47 @@ pve_ssh() {
 
 router_ssh() {
   ssh -o StrictHostKeyChecking=no "root@${ROUTER_HOST}" "$@"
+}
+
+# Print VMID(s) of LXC containers with the given hostname on the PVE host.
+# Empty output = no container with that hostname exists.
+container_vmid_for_hostname() {
+  pve_ssh "pct list | awk -v h='$1' '\$NF==h{print \$1}'" 2>/dev/null || true
+}
+
+# If a container with $hostname exists and $force_flag != 1, print a boxed
+# warning and return 0 (caller should skip the deploy). If $force_flag == 1,
+# destroy the existing container(s) and return 1 (caller should deploy).
+# If no container exists, return 1 (caller should deploy).
+handle_existing_container() {
+  local step_num="$1"
+  local hostname="$2"
+  local force_flag="$3"
+  local force_flag_name="$4"
+  local rate_limit_hint="$5"
+  local existing
+  existing=$(container_vmid_for_hostname "$hostname")
+  if [ -z "$existing" ]; then
+    return 1
+  fi
+  if [ "$force_flag" -eq 1 ]; then
+    echo "  ${force_flag_name}: destroying existing container(s) [${existing}]..."
+    for vmid in $existing; do
+      pve_ssh "pct stop ${vmid} 2>/dev/null; pct destroy ${vmid} --purge --force" || {
+        echo "ERROR: failed to destroy VM ${vmid} (${hostname})" >&2
+        exit 1
+      }
+    done
+    return 1
+  fi
+  echo ""
+  echo "  ============================================================"
+  echo "  Container '${hostname}' already exists on ${PVE_HOST} (VMID: ${existing})."
+  echo "  Skipping step ${step_num} to avoid ${rate_limit_hint}."
+  echo "  Force redeploy with: $0 ${force_flag_name} --step ${step_num}"
+  echo "  ============================================================"
+  echo ""
+  return 0
 }
 
 # --- Handle --json-dev-sync: push local json/ into deployer + reload ---
@@ -404,7 +461,11 @@ fi
 # ================================================================
 if should_run 5; then
   banner 5 "Deploy docker-registry-mirror"
-  "$SCRIPT_DIR/deploy.sh" docker-registry-mirror
+  if ! handle_existing_container 5 "docker-registry-mirror" \
+        "$FORCE_DRM" "--force-docker-registry-mirror" \
+        "Docker Hub pull rate limits (cached images would be lost)"; then
+    "$SCRIPT_DIR/deploy.sh" docker-registry-mirror
+  fi
 fi
 
 # ================================================================
@@ -486,10 +547,15 @@ fi
 # ================================================================
 if should_run 8; then
   banner 8 "Deploy nginx + configure vhosts"
-  "$SCRIPT_DIR/deploy.sh" nginx
-  echo ""
-  echo "  Configuring nginx vhosts on PVE host..."
-  pve_ssh "sh production/setup-nginx.sh"
+  if ! handle_existing_container 8 "nginx" \
+        "$FORCE_NGINX" "--force-nginx" \
+        "Let's Encrypt rate limits via acme.sh"; then
+    "$SCRIPT_DIR/deploy.sh" nginx
+    echo ""
+    echo "  Configuring nginx vhosts on PVE host (idempotent)..."
+    pve_ssh "sh production/setup-nginx.sh"
+  fi
+
 fi
 
 # ================================================================

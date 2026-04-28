@@ -225,7 +225,7 @@ export class VeExecutionHostDiscovery {
     const lxcCommands: ICommand[] = templateCommands.map((cmd) => {
       if (cmd.properties !== undefined) {
         // Properties commands don't need execute_on, they're handled in VeExecution
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         const { execute_on: _execute_on, ...cmdWithoutExecuteOn } = cmd;
         return cmdWithoutExecuteOn;
       }

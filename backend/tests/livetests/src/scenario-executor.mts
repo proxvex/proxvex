@@ -14,7 +14,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-types.mjs";
-import { Verifier, apiFetch, buildDefaultVerify, type AppMeta } from "./verifier.mjs";
+import { Verifier, buildDefaultVerify, type AppMeta } from "./verifier.mjs";
 import { logOk, logFail, logWarn, logInfo, logStep } from "./log-helpers.mjs";
 import { resolveVolumeStorage } from "./live-test-runner.mjs";
 

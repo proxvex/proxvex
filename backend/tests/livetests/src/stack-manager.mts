@@ -123,7 +123,6 @@ export async function ensureStacks(
   try {
     const stResp = await fetch(`${apiUrl}/api/stacktypes`, { signal: AbortSignal.timeout(5000) });
     if (stResp.ok) {
-      const stData = await stResp.json() as { stacktypes: Array<{ name: string }> };
       // Build addon → stacktype map from scenario selectedAddons
       addonStacktypeCache = new Map();
       for (const p of planned) {

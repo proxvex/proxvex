@@ -31,11 +31,16 @@ USERNAME_MARKER_RE = re.compile(r"(?:proxvex):username\s+(.+?)\s*-->", re.IGNORE
 UID_MARKER_RE = re.compile(r"(?:proxvex):uid\s+(.+?)\s*-->", re.IGNORECASE)
 GID_MARKER_RE = re.compile(r"(?:proxvex):gid\s+(.+?)\s*-->", re.IGNORECASE)
 STACK_ID_MARKER_RE = re.compile(r"(?:proxvex):stack-id\s+(.+?)\s*-->", re.IGNORECASE)
+REPLACED_AT_MARKER_RE = re.compile(r"(?:proxvex):replaced-at\s+(.+?)\s*-->", re.IGNORECASE)
+REPLACED_BY_MARKER_RE = re.compile(r"(?:proxvex):replaced-by\s+(.+?)\s*-->", re.IGNORECASE)
 
 # --- Regex patterns for LXC config parsing ---
 
 # lxc.idmap: u 0 100000 65536
 IDMAP_RE = re.compile(r"^lxc\.idmap:\s*([ug])\s+(\d+)\s+(\d+)\s+(\d+)\s*$", re.MULTILINE)
+
+# lock: migrate
+LOCK_RE = re.compile(r"^lock:\s*(\S+)\s*$", re.MULTILINE)
 
 # mp0: /mnt/pve/storage/volumes/config,mp=/config
 MOUNTPOINT_RE = re.compile(r"^mp(\d+):\s*(.+?),mp=(.+?)(?:,(.*))?$", re.MULTILINE)
@@ -106,6 +111,11 @@ class LxcConfig:
     # oidc, cloudflare).
     stack_ids: List[str] = field(default_factory=list)
 
+    # Replacement markers (set when a container is replaced by a newer one).
+    replaced_at: Optional[str] = None  # ISO8601 UTC
+    replaced_by: Optional[str] = None  # VMID of the replacement
+    lock: Optional[str] = None         # current PVE lock state, if any
+
     # LXC config entries
     id_mappings: List[IdMapping] = field(default_factory=list)
     mount_points: List[MountPoint] = field(default_factory=list)
@@ -146,6 +156,12 @@ class LxcConfig:
             result["gid"] = self.gid
         if self.stack_ids:
             result["stack_ids"] = list(self.stack_ids)
+        if self.replaced_at:
+            result["replaced_at"] = self.replaced_at
+        if self.replaced_by:
+            result["replaced_by"] = self.replaced_by
+        if self.lock:
+            result["lock"] = self.lock
         if self.memory is not None:
             result["memory"] = self.memory
         if self.cores is not None:
@@ -324,6 +340,21 @@ def parse_lxc_config(conf_text: str) -> LxcConfig:
             if sid not in seen_stack_ids:
                 seen_stack_ids.add(sid)
                 config.stack_ids.append(sid)
+
+    # Parse replacement markers from notes.
+    config.replaced_at = (
+        _extract_from_patterns(decoded, [REPLACED_AT_MARKER_RE]) or
+        _extract_from_patterns(normalized, [REPLACED_AT_MARKER_RE])
+    )
+    config.replaced_by = (
+        _extract_from_patterns(decoded, [REPLACED_BY_MARKER_RE]) or
+        _extract_from_patterns(normalized, [REPLACED_BY_MARKER_RE])
+    )
+
+    # Parse lock state from raw config.
+    lock_match = LOCK_RE.search(normalized)
+    if lock_match:
+        config.lock = lock_match.group(1).strip() or None
 
     # Parse LXC config entries (from raw/normalized, not decoded)
     config.id_mappings = parse_id_mappings(normalized)

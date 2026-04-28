@@ -1,7 +1,6 @@
 import os from "os";
 import {
   TaskType,
-  ICommand,
   IPostVeConfigurationBody,
   IVeExecuteMessagesResponse,
   IJsonError,
@@ -21,7 +20,6 @@ import {
 } from "@src/backend-types.mjs";
 import { PersistenceManager } from "@src/persistence/persistence-manager.mjs";
 import { getErrorStatusCode, serializeError } from "./webapp-error-utils.mjs";
-import { buildInfo } from "./webapp-version-routes.mjs";
 import { VMInstallContext, type ContextManager } from "@src/context-manager.mjs";
 import { createLogger } from "@src/logger/index.mjs";
 import type { VeExecution } from "@src/ve-execution/ve-execution.mjs";

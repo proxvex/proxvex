@@ -1,0 +1,7 @@
+{
+  "name": "Docker Hub Mirror",
+  "description": "Docker Hub credentials for the registry mirror's pull-through cache. The password is stored centrally as a stack secret so multiple mirror instances (test + production) can share or swap accounts when an account hits its rate limit. The matching DOCKER_HUB_USERNAME is configured per mirror application instance.",
+  "variables": [
+    { "name": "DOCKER_HUB_PASSWORD", "external": true, "required": false }
+  ]
+}

@@ -87,7 +87,7 @@ describe.skipIf(!hostReachable)(
       expect(certCheck.stdout).toContain("fullchain.pem");
 
       // Run the on-start script manually to trigger nginx installation
-      const runResult = await stateManager.execOnHost(
+      await stateManager.execOnHost(
         `pct exec ${vmId} -- sh -c '/etc/lxc-oci-deployer/on_start.d/ssl-proxy.sh 2>&1; echo "EXIT_CODE=$?"'`,
         60000,
       );

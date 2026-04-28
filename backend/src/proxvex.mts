@@ -70,7 +70,6 @@ function parseArgs(): WebAppArgs {
 }
 
 async function fetchHubProject(hubUrl: string): Promise<string> {
-  const { mkdtempSync } = await import("node:fs");
   const { execSync } = await import("node:child_process");
   const { tmpdir } = await import("node:os");
 

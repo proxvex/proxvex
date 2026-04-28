@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, existsSync } from "fs";
+import { mkdirSync, readFileSync, copyFileSync, rmSync } from "fs";
 import path from "path";
 import os from "os";
 import { Context } from "@src/context.mjs";

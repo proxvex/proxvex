@@ -311,6 +311,9 @@ export enum ApiUri {
   // Maintenance endpoints
   LogRotation = "/api/maintenance/log-rotation",
   LogRotationCheck = "/api/maintenance/log-rotation/check",
+  ReplacedCleanup = "/api/maintenance/replaced-cleanup",
+  ReplacedCleanupRun = "/api/maintenance/replaced-cleanup/run",
+  ReplacedCleanupList = "/api/maintenance/replaced-cleanup/list",
 
   // Application overview
   ApplicationOverview = "/api/application-overview/:applicationId",
@@ -1058,5 +1061,14 @@ export interface ILogRotationStatus {
   next_check?: string | undefined;
   last_rotated_count?: number | undefined;
   last_deleted_count?: number | undefined;
+  last_error?: string | undefined;
+}
+
+export interface IReplacedCleanupStatus {
+  enabled: boolean;
+  grace_days: number;
+  last_check?: string | undefined;
+  next_check?: string | undefined;
+  last_destroyed?: string[] | undefined;
   last_error?: string | undefined;
 }

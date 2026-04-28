@@ -13,7 +13,7 @@
  * snapshot creation and restored after rollback.
  */
 import { execSync } from "node:child_process";
-import { existsSync, copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, copyFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 export interface SnapshotConfig {

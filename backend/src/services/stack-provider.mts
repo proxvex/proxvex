@@ -1,4 +1,4 @@
-import { IStack, IStacktypeEntry } from "../types.mjs";
+import { IStack } from "../types.mjs";
 
 /**
  * Stack provider interface.

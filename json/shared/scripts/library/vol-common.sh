@@ -122,6 +122,67 @@ vol_alloc() {
 
   _vol_err=$(cat "$_vol_errfile" 2>/dev/null || true)
   rm -f "$_vol_errfile"
+
+  # Self-heal: `pvesm alloc` against a busy ZFS pool sometimes times out mid-
+  # `zfs create`, leaving an orphan dataset behind that blocks the next attempt
+  # ("Logical Volume already exists" / "vol_mount: directory-backed volume
+  # resolved to non-directory"). Each retry: destroy any orphan dataset (so we
+  # don't carry corruption forward), then `pvesm alloc` again. Up to 3 retries
+  # with backoff, since a single retry isn't enough on a heavily-loaded pool —
+  # and we ALWAYS clean up the orphan on final failure so the next test run
+  # doesn't trip over it. Only triggers on the timeout signal — other errors
+  # (quota, permission, name collision with a different VMID) shouldn't be
+  # papered over.
+  if [ "$_vol_type" = "zfspool" ] && echo "$_vol_err" | grep -q "got timeout"; then
+    _vol_pool=$(vol_get_zfs_pool "$_vol_storage")
+    if [ -n "$_vol_pool" ]; then
+      _vol_dataset="${_vol_pool}/${_vol_name}"
+      _vol_attempt=1
+      _vol_max_attempts=3
+      while [ "$_vol_attempt" -le "$_vol_max_attempts" ]; do
+        if zfs list -H "$_vol_dataset" >/dev/null 2>&1; then
+          echo "vol_alloc: pvesm alloc timed out (attempt $_vol_attempt/$_vol_max_attempts); destroying orphan dataset $_vol_dataset and retrying" >&2
+          zfs destroy -fr "$_vol_dataset" 2>&1 >&2 || true
+        else
+          echo "vol_alloc: pvesm alloc timed out (attempt $_vol_attempt/$_vol_max_attempts); retrying" >&2
+        fi
+        # Backoff: 2s, 5s, 10s — give the pool time to recover under load
+        case "$_vol_attempt" in
+          1) sleep 2 ;;
+          2) sleep 5 ;;
+          *) sleep 10 ;;
+        esac
+        _vol_errfile2=$(mktemp)
+        _vol_raw=$(pvesm alloc "$_vol_storage" "$_vol_vmid" "$_vol_name" "$_vol_size" --format subvol 2>"$_vol_errfile2" || true)
+        if [ -n "$_vol_raw" ]; then
+          _vol_vid=$(vol_extract_volid "$_vol_raw")
+          if [ -n "$_vol_vid" ]; then
+            rm -f "$_vol_errfile2"
+            echo "$_vol_vid"
+            return 0
+          fi
+        fi
+        _vol_err2=$(cat "$_vol_errfile2" 2>/dev/null || true)
+        rm -f "$_vol_errfile2"
+        if ! echo "$_vol_err2" | grep -q "got timeout"; then
+          # Different error on retry — give up immediately, don't paper over.
+          echo "vol_alloc retry failed (type=$_vol_type): $_vol_err2" >&2
+          # Leave dataset intact for diagnosis (the error wasn't a timeout)
+          return 1
+        fi
+        _vol_attempt=$((_vol_attempt + 1))
+      done
+      # All retries timed out. Clean up any orphan dataset so future runs
+      # aren't poisoned, then fail.
+      if zfs list -H "$_vol_dataset" >/dev/null 2>&1; then
+        echo "vol_alloc: all $_vol_max_attempts retries timed out; cleaning up final orphan dataset $_vol_dataset" >&2
+        zfs destroy -fr "$_vol_dataset" 2>&1 >&2 || true
+      fi
+      echo "vol_alloc retry failed (type=$_vol_type) after $_vol_max_attempts attempts" >&2
+      return 1
+    fi
+  fi
+
   echo "vol_alloc failed (type=$_vol_type): $_vol_err" >&2
   return 1
 }

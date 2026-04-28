@@ -162,11 +162,9 @@ export class ContextManager extends Context implements IContext {
    * These are now in-memory only and should not be written to disk.
    */
   private purgeStaleEntries(): void {
-    let dirty = false;
     for (const key of this.keys()) {
       if (key.startsWith("vm_") || key.startsWith("vminstall_")) {
         this.remove(key);
-        dirty = true;
       }
     }
   }

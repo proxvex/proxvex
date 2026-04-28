@@ -1,5 +1,3 @@
-import https from "node:https";
-import http from "node:http";
 import { spawnSync } from "node:child_process";
 import { IStack } from "../types.mjs";
 import { IStackProvider } from "./stack-provider.mjs";

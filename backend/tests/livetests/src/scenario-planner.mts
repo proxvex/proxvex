@@ -11,7 +11,6 @@ import {
   VM_ID_START,
   type ResolvedScenario,
   type PlannedScenario,
-  type ParamEntry,
 } from "./livetest-types.mjs";
 
 /** Result of building params from a scenario params file */

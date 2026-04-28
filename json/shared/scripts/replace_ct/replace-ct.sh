@@ -13,6 +13,21 @@
 
 set -eu
 
+PROXVEX_REPLACED_LOCK="${PROXVEX_REPLACED_LOCK:-migrate}"
+
+mark_replaced() {
+  _vmid="$1"; _new="$2"
+  _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  _desc=$(pct config "$_vmid" 2>/dev/null | sed -n 's/^description: //p' | head -1)
+  _clean=$(printf '%s' "$_desc" | grep -v 'proxvex:replaced-' || true)
+  _new_desc=$(printf '%s\n<!-- proxvex:replaced-at %s -->\n<!-- proxvex:replaced-by %s -->' \
+    "$_clean" "$_now" "$_new")
+  pct set "$_vmid" --description "$_new_desc" >&2 2>/dev/null || true
+  pct set "$_vmid" --onboot 0 >&2 2>/dev/null || true
+  pct set "$_vmid" --lock "$PROXVEX_REPLACED_LOCK" >&2 2>/dev/null || true
+  echo "Marked $_vmid replaced-by $_new at $_now (lock=$PROXVEX_REPLACED_LOCK)" >&2
+}
+
 SOURCE_VMID="{{ previouse_vm_id }}"
 TARGET_VMID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
@@ -127,8 +142,11 @@ EOF
     log "Warning: could not resolve /config volume of new container $TARGET_VMID (volid=$NEW_CONFIG_VOLID, path=$CONFIG_PATH) — post-upgrade log marker skipped"
   fi
 
-  # Disable autostart on the old container (safety net)
-  pct set "$SOURCE_VMID" --onboot 0 >&2 2>/dev/null || true
+  # Mark the old deployer container as replaced (sets onboot=0 + lock + notes
+  # markers). The lock is briefly released inside the systemd-run block so
+  # `pct stop` can succeed, then re-applied so the container cannot be
+  # accidentally restarted during the cleanup grace window.
+  mark_replaced "$SOURCE_VMID" "$TARGET_VMID"
 
   # Schedule the switchover. TARGET is already running (start phase started
   # it), but its network is racing with SOURCE. Stop SOURCE, wait, restart
@@ -140,7 +158,7 @@ EOF
       --on-active="${DELAY_SECONDS}s" \
       --unit="${UNIT_NAME}" \
       --description="proxvex upgrade switchover ${SOURCE_VMID} -> ${TARGET_VMID}" \
-      /bin/sh -c "pct stop ${SOURCE_VMID}; sleep 2; pct restart ${TARGET_VMID}" >&2; then
+      /bin/sh -c "pct unlock ${SOURCE_VMID} 2>/dev/null || true; pct stop ${SOURCE_VMID}; pct set ${SOURCE_VMID} --lock ${PROXVEX_REPLACED_LOCK} 2>/dev/null || true; sleep 2; pct restart ${TARGET_VMID}" >&2; then
     fail "systemd-run failed — cannot schedule self-upgrade switchover"
   fi
 
@@ -149,23 +167,23 @@ EOF
   exit 0
 fi
 
-# ─── Step 4b: Regular stop + destroy (non-self upgrades) ─────────────────────
+# ─── Step 4b: Regular stop + mark for delayed cleanup (non-self upgrades) ────
 source_status=$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
-# Disable autostart first — if destroy fails, the container must not boot on reboot
-pct set "$SOURCE_VMID" --onboot 0 >&2 2>/dev/null || true
 if [ "$source_status" = "running" ]; then
   log "Stopping old container $SOURCE_VMID..."
   pct stop "$SOURCE_VMID" >&2 || log "Warning: failed to stop old container $SOURCE_VMID"
 fi
 
-# Unlink all managed volumes and rename to clean names before destroy.
-# This preserves data volumes across container lifecycles.
+# Unlink all managed volumes and rename to clean names. The new container
+# already owns these volumes; the old container keeps only its rootfs.
 vol_unlink_persistent "$SOURCE_VMID"
 
-log "Destroying old container $SOURCE_VMID..."
-pct destroy "$SOURCE_VMID" --force --purge >&2 || log "Warning: failed to destroy old container $SOURCE_VMID"
+# Mark + lock instead of immediate destroy. A periodic backend cleanup service
+# entsorgt the container after grace period. Activate-button rollback bleibt
+# during the grace window möglich.
+mark_replaced "$SOURCE_VMID" "$TARGET_VMID"
 
-log "Container replaced: $SOURCE_VMID → $TARGET_VMID"
+log "Container $SOURCE_VMID marked for delayed cleanup (replaced by $TARGET_VMID)"
 
 # ─── Output ──────────────────────────────────────────────────────────────────
 printf '[{"id":"redirect_url","value":"%s"}]' "$REDIRECT_URL"

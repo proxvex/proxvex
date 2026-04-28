@@ -31,13 +31,13 @@ import { TestResultWriter } from "./test-result-writer.mjs";
 import { renderResultsMarkdown } from "./result-summary.mjs";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-types.mjs";
+import type { ResolvedScenario, PlannedScenario } from "./livetest-types.mjs";
 import { apiFetch, type AppMeta } from "./verifier.mjs";
 import { collectDiagnostics } from "./diagnostics.mjs";
 import { runCleanupSql, destroyStaleVms, ensureStacks } from "./stack-manager.mjs";
 import { rollbackToBaseline, restoreBestSnapshot, prepareVms } from "./vm-lifecycle.mjs";
 import { executeScenarios } from "./scenario-executor.mjs";
-import { RED, GREEN, NC, logOk, logFail, logWarn, logInfo, logStep } from "./log-helpers.mjs";
+import { RED, GREEN, NC, logOk, logFail, logWarn, logInfo } from "./log-helpers.mjs";
 
 // Re-export types so existing imports from this module continue to work
 export type { TestScenario, ResolvedScenario, PlannedScenario, StepResult, TestResult, E2EConfig, ParamEntry } from "./livetest-types.mjs";
@@ -157,29 +157,6 @@ function loadConfig(instanceName?: string): {
     registryMirror,
     portForwarding,
   };
-}
-
-/** Tasks that use create_ct + replace_ct (old container must stay running) */
-const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
-
-/** Find an existing managed container by application_id or hostname prefix via the installations API */
-async function findExistingVm(
-  apiUrl: string,
-  veHost: string,
-  applicationId: string,
-  hostname?: string,
-): Promise<{ vm_id: number; addons?: string[] } | null> {
-  const veContextKey = `ve_${veHost}`;
-  const containers = await apiFetch<Array<{ vm_id: number; application_id?: string; hostname?: string; addons?: string[] }>>(
-    apiUrl,
-    `/api/${veContextKey}/installations`,
-  );
-  if (!containers) return null;
-  // Match by application_id first, then fallback to hostname prefix
-  return containers.find((c) => c.application_id === applicationId)
-    ?? (hostname ? containers.find((c) => c.hostname === hostname) : null)
-    ?? containers.find((c) => c.hostname?.startsWith(`${applicationId}-`))
-    ?? null;
 }
 
 /**
@@ -310,10 +287,8 @@ async function main() {
   // Ensure VE host SSH config exists on the deployer
   const veHost = config.veHost;
   const deploySshPort = config.veSshPort;
-  let veContextKey = "";
   const veConfigResp = await apiFetch<{ key: string }>(apiUrl, `/api/ssh/config/${encodeURIComponent(veHost)}`);
   if (veConfigResp?.key) {
-    veContextKey = veConfigResp.key;
     logOk(`VE host '${veHost}' already configured on deployer`);
   } else {
     logInfo(`VE host '${veHost}' not found on deployer, creating SSH config...`);
@@ -329,9 +304,6 @@ async function main() {
         throw new Error(`${resp.status}: ${(err as any).error}`);
       }
       logOk(`VE host '${veHost}' created (port ${deploySshPort}, set as current)`);
-      // Fetch the newly created key
-      const newConfig = await apiFetch<{ key: string }>(apiUrl, `/api/ssh/config/${encodeURIComponent(veHost)}`);
-      if (newConfig?.key) veContextKey = newConfig.key;
     } catch (err: any) {
       logFail(`Failed to create SSH config for '${veHost}': ${err.message}`);
       process.exit(1);
@@ -520,7 +492,7 @@ async function main() {
   // Stack management: cleanup SQL, stale VM detection, stack creation
   runCleanupSql(planned, config.pveHost, config.portPveSsh);
   await destroyStaleVms(planned, config.pveHost, config.portPveSsh, apiUrl, appStacktypes);
-  const { stackIdMap, appStackIdsMap } = await ensureStacks(planned, apiUrl, appStacktypes);
+  const { appStackIdsMap } = await ensureStacks(planned, apiUrl, appStacktypes);
 
   // Execute scenarios sequentially (topologically sorted)
   const keepVm = !!process.env.KEEP_VM;
