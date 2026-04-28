@@ -1,5 +1,6 @@
 import https from "node:https";
 import http from "node:http";
+import { spawnSync } from "node:child_process";
 import { ICaInfoResponse } from "../types.mjs";
 import { ICaProvider } from "./ca-provider.mjs";
 import { createLogger } from "../logger/index.mjs";
@@ -150,30 +151,66 @@ export class RemoteCaProvider implements ICaProvider {
 
   // --- Server certificates (signed by Hub) ---
 
-  generateSelfSignedCert(_veContextKey: string, _hostname?: string): { key: string; cert: string } {
-    throw new Error("Use Hub API POST /api/hub/ca/sign for certificate signing");
+  /** Cache of server certs keyed by hostname so each render only signs once. */
+  private serverCertCache = new Map<string, { key: string; cert: string }>();
+
+  generateSelfSignedCert(veContextKey: string, hostname?: string): { key: string; cert: string } {
+    return this.ensureServerCert(veContextKey, hostname);
   }
 
   ensureServerCert(_veContextKey: string, hostname?: string): { key: string; cert: string } {
-    const existing = this.getServerCert(hostname || "localhost");
-    if (existing) return existing;
-    throw new Error("Server cert not found — use Hub API to sign a new one");
+    const host = hostname || "localhost";
+    const cached = this.serverCertCache.get(host);
+    if (cached) return cached;
+
+    // Synchronous Hub call via spawnSync("curl"), analogous to RemoteStackProvider.
+    // ICaProvider is sync because it's called from sync template-resolution paths.
+    const url = `${this.hubUrl}/api/hub/ca/sign`;
+    const args: string[] = ["-s", "--max-time", "15"];
+    if (this.isHttps) args.push("-k");
+    args.push("-X", "POST");
+    const token = this.getBearerToken?.();
+    if (token) args.push("-H", `Authorization: Bearer ${token}`);
+    args.push("-H", "Content-Type: application/json");
+    args.push("-d", JSON.stringify({ hostname: host }));
+    args.push(url);
+
+    const result = spawnSync("curl", args, { encoding: "utf-8", timeout: 20000 });
+    if (result.error) {
+      throw new Error(`Hub /api/hub/ca/sign failed: ${result.error.message}`);
+    }
+    if (result.status !== 0) {
+      throw new Error(`Hub /api/hub/ca/sign curl failed (rc=${result.status}): ${result.stderr}`);
+    }
+    let parsed: { cert?: string; key?: string };
+    try {
+      parsed = JSON.parse(result.stdout);
+    } catch {
+      throw new Error(`Hub /api/hub/ca/sign returned non-JSON: ${result.stdout.slice(0, 200)}`);
+    }
+    if (!parsed.cert || !parsed.key) {
+      throw new Error(`Hub /api/hub/ca/sign returned empty cert/key for ${host}`);
+    }
+    const signed = { cert: parsed.cert, key: parsed.key };
+    this.serverCertCache.set(host, signed);
+    logger.info("Server cert signed by Hub", { hostname: host });
+    return signed;
   }
 
-  getServerCert(_hostname: string): { key: string; cert: string } | null {
-    return null;
+  getServerCert(hostname: string): { key: string; cert: string } | null {
+    return this.serverCertCache.get(hostname) ?? null;
   }
 
   hasServerCert(hostname: string): boolean {
-    return this.getServerCert(hostname) !== null;
+    return this.serverCertCache.has(hostname);
   }
 
-  setServerCert(_hostname: string, _key: string, _cert: string): void {
-    // Spoke doesn't store server certs in context
+  setServerCert(hostname: string, key: string, cert: string): void {
+    this.serverCertCache.set(hostname, { key, cert });
   }
 
-  getServerCertInfo(_hostname: string): ICaInfoResponse {
-    return { exists: false };
+  getServerCertInfo(hostname: string): ICaInfoResponse {
+    return { exists: this.hasServerCert(hostname) };
   }
 
   // --- Internal helpers ---
@@ -181,10 +218,37 @@ export class RemoteCaProvider implements ICaProvider {
   private cachedCaCert: string | null = null;
 
   private getCACertSync(): string | null {
-    // Public CA cert is fetched from the Hub. Because ICaProvider.getCA is sync
-    // but Hub calls are async, we return whatever was fetched previously (via
-    // the async warm-up path triggered during spoke-sync).
-    return this.cachedCaCert;
+    // Public CA cert is fetched from the Hub. ICaProvider.getCA is sync, so
+    // we use spawnSync("curl") just like ensureServerCert above. Cached after
+    // first successful fetch.
+    if (this.cachedCaCert) return this.cachedCaCert;
+
+    const url = `${this.hubUrl}/api/hub/ca/cert`;
+    const args: string[] = ["-s", "--max-time", "10"];
+    if (this.isHttps) args.push("-k");
+    const token = this.getBearerToken?.();
+    if (token) args.push("-H", `Authorization: Bearer ${token}`);
+    args.push(url);
+
+    const result = spawnSync("curl", args, { encoding: "utf-8", timeout: 15000 });
+    if (result.error || result.status !== 0) {
+      logger.warn("Hub /api/hub/ca/cert fetch failed", {
+        error: result.error?.message ?? `rc=${result.status}: ${result.stderr}`,
+      });
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(result.stdout) as { cert?: string };
+      if (parsed.cert) {
+        this.cachedCaCert = parsed.cert;
+        return this.cachedCaCert;
+      }
+    } catch {
+      logger.warn("Hub /api/hub/ca/cert returned non-JSON", {
+        body: result.stdout.slice(0, 200),
+      });
+    }
+    return null;
   }
 
   /**

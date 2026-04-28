@@ -59,7 +59,7 @@ export class WebAppVeRouteHandlers {
     exec: VeExecution,
     stackIds: string[],
     applicationId: string,
-    storageContext: ContextManager,
+    _storageContext: ContextManager,
   ): void {
     const provides: Array<{ name: string; value: string }> = [];
     for (const [key, value] of exec.outputs) {
@@ -73,7 +73,11 @@ export class WebAppVeRouteHandlers {
     if (provides.length === 0 || stackIds.length === 0) return;
 
     const firstStackId = stackIds[0]!;
-    const stack = storageContext.getStack(firstStackId);
+    // Use the StackProvider so Spoke deployers (HUB_URL set) read/write the
+    // stack on the Hub. Reading via storageContext directly would only see
+    // the local in-memory map and miss everything Hub-resident.
+    const stackProvider = this.pm.getStackProvider();
+    const stack = stackProvider.getStack(firstStackId);
     if (!stack) return;
 
     // Remove stale provides from this application (keys may have changed)
@@ -100,7 +104,8 @@ export class WebAppVeRouteHandlers {
 
     if (changed) {
       stack.provides = existingProvides;
-      storageContext.set(`stack_${stack.id}`, stack);
+      // Persist via StackProvider so Spoke pushes the update to the Hub.
+      stackProvider.addStack(stack);
       this.logger.info("Stack provides updated", { stack: firstStackId, provides: provides.map((p) => p.name) });
     }
   }
@@ -258,8 +263,9 @@ export class WebAppVeRouteHandlers {
           // e.g. "postgres_ssl" → "ssl". Use it to pick same-variant addon
           // stacks instead of any existing one.
           const preferredStackNames = new Set<string>();
+          const stackProviderForLookup = this.pm.getStackProvider();
           for (const sid of allStackIds) {
-            const stack = storageContext.getStack(sid);
+            const stack = stackProviderForLookup.getStack(sid);
             if (stack?.stacktype) {
               const stTypes = Array.isArray(stack.stacktype)
                 ? stack.stacktype
@@ -279,7 +285,7 @@ export class WebAppVeRouteHandlers {
                 const addonTypes = Array.isArray(addon.stacktype) ? addon.stacktype : [addon.stacktype];
                 for (const st of addonTypes) {
                   if (coveredStacktypes.has(st)) continue;
-                  const stacks = storageContext.listStacks(st);
+                  const stacks = stackProviderForLookup.listStacks(st);
                   // Prefer same-variant; fall back to any if no match.
                   const matching = stacks.filter((s) =>
                     preferredStackNames.has(s.name),
@@ -477,9 +483,14 @@ export class WebAppVeRouteHandlers {
         defaults.set("all_stack_ids", JSON.stringify(allStackIds));
       }
 
-      // Load entries from all stacks (app + addon stacktypes)
+      // Load entries from all stacks (app + addon stacktypes).
+      // Use the StackProvider so Spoke deployers (HUB_URL set) read stacks
+      // from the Hub. Without this, `{{ POSTGRES_PASSWORD }}` and similar
+      // stack variables resolve to NOT_DEFINED in Spoke mode because the
+      // local in-memory storageContext is empty.
+      const stackProviderForEntries = this.pm.getStackProvider();
       for (const sid of allStackIds) {
-        const stack = storageContext.getStack(sid);
+        const stack = stackProviderForEntries.getStack(sid);
         if (stack) {
           if (stack.entries) {
             for (const entry of stack.entries) {
@@ -502,7 +513,7 @@ export class WebAppVeRouteHandlers {
       {
         const secretPairs: string[] = [];
         for (const sid of allStackIds) {
-          const stack = storageContext.getStack(sid);
+          const stack = stackProviderForEntries.getStack(sid);
           if (stack?.entries) {
             for (const entry of stack.entries) {
               if (entry.value !== undefined && entry.value !== "") {
@@ -655,8 +666,10 @@ export class WebAppVeRouteHandlers {
         }
       }
 
-      // Auto-generate certificate parameters for certtype params without user upload
-      const caProvider = new CertificateAuthorityService(contextManager);
+      // Auto-generate certificate parameters for certtype params without user upload.
+      // Hub mode → CertificateAuthorityService (signs locally with on-disk CA key).
+      // Spoke mode → RemoteCaProvider (delegates signing to Hub via /api/hub/ca/*).
+      const caProvider = this.pm.getCaProvider();
       this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, caProvider, veContextKey);
 
       // Start ProxmoxExecution

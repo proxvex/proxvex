@@ -1,0 +1,13 @@
+{
+  "execute_on": "ve",
+  "name": "Check Volume Consistency",
+  "description": "Scans all active rootdir storages for orphan volumes (vmid gone, unmounted, dangling ZFS snapshots). Fails the deployment if inconsistencies are found.",
+  "commands": [
+    {
+      "name": "Check Volume Consistency",
+      "script": "host-check-volume-consistency.sh",
+      "library": ["pve-common.sh", "vol-common.sh"],
+      "outputs": ["volume_consistency"]
+    }
+  ]
+}

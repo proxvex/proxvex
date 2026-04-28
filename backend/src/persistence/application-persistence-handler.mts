@@ -320,16 +320,28 @@ export class ApplicationPersistenceHandler {
 
   /**
    * Resolve "file:filename" references in application properties.
-   * Reads the referenced file from the application directory and replaces
-   * the value with its base64-encoded content.
+   * Tries the application's own directory first, then walks the extends
+   * chain (passed via fallbackPaths) — that way a child application can
+   * inherit `file:`-default properties from its parent without copying
+   * the referenced file. Replaces resolved values with base64 content.
    */
-  private resolveFileReferences(app: IApplication, appPath: string): void {
+  private resolveFileReferences(
+    app: IApplication,
+    appPath: string,
+    fallbackPaths: string[] = [],
+  ): void {
     if (!app.properties) return;
     for (const prop of app.properties) {
       const val = prop.value ?? prop.default;
-      if (typeof val === "string" && val.startsWith("file:")) {
-        const filename = val.substring(5);
-        const filePath = path.join(appPath, filename);
+      if (typeof val !== "string" || !val.startsWith("file:")) continue;
+      const filename = val.substring(5);
+
+      // Try primary appPath first, then each fallback path in order
+      const candidates = [appPath, ...fallbackPaths];
+      let resolved = false;
+      let lastError: unknown = null;
+      for (const dir of candidates) {
+        const filePath = path.join(dir, filename);
         try {
           const content = fs.readFileSync(filePath);
           const base64 = content.toString("base64");
@@ -338,9 +350,17 @@ export class ApplicationPersistenceHandler {
           } else {
             prop.default = base64;
           }
-        } catch (e: any) {
-          this.logger.warn(`Failed to read file reference: ${filePath}: ${e.message}`);
+          resolved = true;
+          break;
+        } catch (e) {
+          lastError = e;
         }
+      }
+      if (!resolved) {
+        const msg = (lastError as { message?: string })?.message ?? String(lastError);
+        this.logger.warn(
+          `Failed to read file reference '${filename}' in any of [${candidates.join(", ")}]: ${msg}`,
+        );
       }
     }
   }
@@ -438,6 +458,14 @@ export class ApplicationPersistenceHandler {
         }
       }
 
+      // Second pass after extends-merge: properties inherited from parents may
+      // still contain unresolved "file:..."-strings whose referenced file lives
+      // in the parent's directory (not appPath). Walk the full extends chain.
+      const parentPaths = opts.applicationHierarchy.filter((p) => p !== appPath);
+      if (parentPaths.length > 0) {
+        this.resolveFileReferences(appData, appPath, parentPaths);
+      }
+
       this.resolveAppIcon(appData, appPath, opts);
 
       // NOTE: We intentionally skip processTemplates() here for performance
@@ -509,6 +537,25 @@ export class ApplicationPersistenceHandler {
             const inherited = parent.parameters.filter((p) => !childIds.has(p.id));
             appData.parameters = [...inherited, ...(appData.parameters ?? [])];
           }
+          // Cross-merge properties → parameters: when a child app overrides an
+          // inherited required parameter via a `properties` entry (e.g.
+          // zitadel sets compose_file's default via properties even though
+          // the parent docker-compose declared it as a required parameter),
+          // propagate the property's value/default onto the parameter so the
+          // required-check (which only looks at parameters) sees it.
+          for (const prop of appData.properties ?? []) {
+            const param = appData.parameters?.find((p) => p.id === prop.id);
+            if (!param) continue;
+            // Properties carry value (hardcoded) or default (fallback).
+            // Both should populate the parameter's default so the required-
+            // check sees a non-empty value. Don't overwrite an existing
+            // parameter default — explicit parameter-level overrides win.
+            const propValue = (prop as { value?: string; default?: string }).value
+              ?? (prop as { default?: string }).default;
+            if (propValue !== undefined && param.default === undefined) {
+              param.default = propValue;
+            }
+          }
           // Inherit stacktype, dependencies, description if not defined locally
           if (!appData.stacktype && parent.stacktype) {
             appData.stacktype = parent.stacktype;
@@ -522,6 +569,14 @@ export class ApplicationPersistenceHandler {
         } catch (e: Error | any) {
           this.addErrorToOptions(opts, e);
         }
+      }
+
+      // Second pass after extends-merge: properties inherited from parents may
+      // still contain unresolved "file:..."-strings whose referenced file lives
+      // in the parent's directory (not appPath). Walk the full extends chain.
+      const parentPaths = opts.applicationHierarchy.filter((p) => p !== appPath);
+      if (parentPaths.length > 0) {
+        this.resolveFileReferences(appData, appPath, parentPaths);
       }
 
       this.resolveAppIcon(appData, appPath, opts);

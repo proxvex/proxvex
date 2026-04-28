@@ -33,7 +33,6 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs
 import path from "node:path";
 import type { ResolvedScenario, PlannedScenario } from "./livetest-types.mjs";
 import { apiFetch, type AppMeta } from "./verifier.mjs";
-import { collectDiagnostics } from "./diagnostics.mjs";
 import { runCleanupSql, destroyStaleVms, ensureStacks } from "./stack-manager.mjs";
 import { rollbackToBaseline, restoreBestSnapshot, prepareVms } from "./vm-lifecycle.mjs";
 import { executeScenarios } from "./scenario-executor.mjs";
@@ -240,7 +239,8 @@ async function main() {
   const args = process.argv.slice(2);
   const fixturesFlag = args.includes("--fixtures");
   const queueFlag = args.includes("--queue");
-  const filteredArgs = args.filter(a => a !== "--fixtures" && a !== "--queue");
+  const failFastFlag = args.includes("--fail-fast");
+  const filteredArgs = args.filter(a => a !== "--fixtures" && a !== "--queue" && a !== "--fail-fast");
   const instance = filteredArgs[0] || undefined;
   const testArg = filteredArgs[1] || "--all";
 
@@ -469,10 +469,24 @@ async function main() {
   // Plan: assign VM IDs and stack names
   const planned = planScenarios(scenariosToRun, appStacktypes, allTests);
 
-  // Mark dependencies vs explicitly selected targets
+  // Mark dependencies vs explicitly selected targets.
+  //
+  // A scenario is treated as a dependency (provider) when EITHER it was only
+  // planned because something else depends on it, OR another planned scenario
+  // depends on it. The second case matters for `--all`: every scenario is
+  // technically "selected", but we still need provider apps (postgres, zitadel)
+  // to behave like dependencies so their LXCs aren't destroyed before later
+  // consumer tests run against them.
   const selectedIdSet = new Set(selectedIds);
+  const dependedOn = new Set<string>();
   for (const p of planned) {
-    p.isDependency = !selectedIdSet.has(p.scenario.id);
+    for (const depId of p.scenario.depends_on ?? []) {
+      if (depId !== p.scenario.id) dependedOn.add(depId);
+    }
+  }
+  for (const p of planned) {
+    p.isDependency =
+      !selectedIdSet.has(p.scenario.id) || dependedOn.has(p.scenario.id);
   }
 
   // Show plan
@@ -499,15 +513,12 @@ async function main() {
   const fixtureBaseDir = fixturesFlag
     ? path.join(projectRoot, "frontend/src/test-fixtures")
     : undefined;
-  const resultWriter = new TestResultWriter(projectRoot, config.instance);
-  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, allTests, appStackIdsMap, resultWriter, fixtureBaseDir);
+  const commandLine = process.argv.join(" ");
+  const resultWriter = new TestResultWriter(projectRoot, config.instance, testArg, commandLine);
+  logInfo(`Results: ${resultWriter.getOutputDir()}`);
+  if (failFastFlag) logInfo("--fail-fast enabled: aborting on first scenario failure");
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, allTests, appStackIdsMap, resultWriter, fixtureBaseDir, { failFast: failFastFlag });
   const allResults = [result];
-
-  // Collect diagnostics before cleanup (VMs still running)
-  const diagPath = collectDiagnostics(allResults, config.pveHost, config.portPveSsh, projectRoot);
-  if (diagPath) {
-    logOk(`Diagnostics saved: ${diagPath}`);
-  }
 
   // Cleanup
   cleanupVms(planned, config.pveHost, config.portPveSsh, keepVm);

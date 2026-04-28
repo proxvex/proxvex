@@ -282,15 +282,15 @@ export class PersistenceManager {
 
   /**
    * Replace the active repositories root with a different path pair (used
-   * by the Spoke after a fresh Hub-sync: <spoke-local>/.hubs/<hub-id>/
-   * contains a full repositories tree under json/ + local/). Any cached
-   * templates/scripts are dropped.
+   * by the Spoke after a fresh Hub-sync: only `localPath` is rebound to
+   * the synced workspace — `jsonPath` stays on the Spoke's checkout so the
+   * deployer always runs against the code revision the user has on disk.
+   * Any cached templates/scripts are dropped.
    */
-  rebindRepositoriesRoot(newJsonPath: string, newLocalPath: string): void {
+  rebindRepositoriesRoot(newLocalPath: string): void {
     const oldPathes = this.pathes;
     const newPathes: IConfiguredPathes = {
       ...oldPathes,
-      jsonPath: newJsonPath,
       localPath: newLocalPath,
     };
     this.pathes = newPathes;
@@ -310,7 +310,7 @@ export class PersistenceManager {
     reposWithPreload.preloadJsonResources?.();
     const logger = createLogger("persistence-manager");
     logger.info(
-      `Repositories root rebound: jsonPath=${newJsonPath}, localPath=${newLocalPath}`,
+      `Repositories root rebound: localPath=${newLocalPath} (jsonPath unchanged)`,
     );
   }
 

@@ -162,11 +162,19 @@ export function runCli(
 
       const resolvedVersions = extractVersions(messages);
 
+      // On failure, append captured stderr to output so diagnostics has at
+      // least one source even when the CLI never emitted JSON to stdout
+      // (e.g. early validation failure, args parse error, hub connect error).
+      let output = stdout;
+      if (exitCode !== 0 && stderr.trim()) {
+        output += `\n--- CLI STDERR (exitCode=${exitCode}) ---\n${stderr}`;
+      }
+
       resolve({
         messages,
         exitCode,
         vmId,
-        output: stdout,
+        output,
         resolvedVersions,
       });
     });

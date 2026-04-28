@@ -158,6 +158,43 @@ cert_generate_fullchain() {
 }
 
 # ============================================================================
+# cert_write_server()
+# Write a pre-signed server certificate (signed by the backend / Hub) to all
+# four target files: privkey.pem, cert.pem, chain.pem, fullchain.pem.
+# Does NOT touch any CA private key — it just decodes base64 inputs.
+# Arguments:
+#   $1 - server_key_b64:  Base64-encoded server private key PEM
+#   $2 - server_cert_b64: Base64-encoded server certificate PEM
+#   $3 - ca_cert_b64:     Base64-encoded CA public certificate PEM
+#   $4 - target_dir:      Directory to write certificate files
+# Returns: 0 on success, 1 on failure
+# ============================================================================
+cert_write_server() {
+  _srv_key_b64="$1"
+  _srv_cert_b64="$2"
+  _ca_cert_b64="$3"
+  _target_dir="$4"
+
+  if ! echo "$_srv_key_b64" | base64 -d > "$_target_dir/privkey.pem" 2>/dev/null; then
+    echo "cert_write_server: failed to decode server_key_b64" >&2
+    return 1
+  fi
+  if ! echo "$_srv_cert_b64" | base64 -d > "$_target_dir/cert.pem" 2>/dev/null; then
+    echo "cert_write_server: failed to decode server_cert_b64" >&2
+    return 1
+  fi
+  if ! echo "$_ca_cert_b64" | base64 -d > "$_target_dir/chain.pem" 2>/dev/null; then
+    echo "cert_write_server: failed to decode ca_cert_b64" >&2
+    return 1
+  fi
+  cat "$_target_dir/cert.pem" "$_target_dir/chain.pem" > "$_target_dir/fullchain.pem"
+  chmod 600 "$_target_dir/privkey.pem" 2>/dev/null || true
+  CERT_FILES_WRITTEN=$((CERT_FILES_WRITTEN + 4))
+  echo "Wrote pre-signed cert files in ${_target_dir} (privkey.pem, cert.pem, chain.pem, fullchain.pem)" >&2
+  return 0
+}
+
+# ============================================================================
 # cert_write_ca_pub()
 # Write CA public certificate only (chain.pem)
 # Arguments:

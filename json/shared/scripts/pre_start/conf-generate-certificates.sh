@@ -1,32 +1,35 @@
 #!/bin/sh
-# Generate Certificates
+# Write pre-signed TLS certificates to the certs managed volume.
 #
-# Generates TLS certificates for deployed containers.
-# Writes cert files to <shared_volpath>/volumes/<hostname>/certs/
-# (the directory is created by template 160 via addon_volumes).
+# The actual signing happens in the backend (CertificateAuthorityService in
+# Hub mode, or via Hub's POST /api/hub/ca/sign in Spoke mode). This script
+# only writes the already-signed files into the container's certs volume.
+# It MUST NOT have access to the CA private key.
+#
+# Writes to <shared_volpath>/volumes/<hostname>/certs/  (or cert_dir_override).
 #
 # Controlled by two flags:
-#   ssl.needs_server_cert (default true) - Generate server cert (privkey.pem, cert.pem, fullchain.pem)
+#   ssl.needs_server_cert (default true) - Write server cert (privkey.pem, cert.pem, fullchain.pem)
 #   ssl.needs_ca_cert (default false)    - Write CA certificate (chain.pem)
 #
 # Template variables:
-#   ca_key_b64     - Base64-encoded CA private key PEM
-#   ca_cert_b64    - Base64-encoded CA certificate PEM
-#   shared_volpath - Base path for volumes (output from template 160)
-#   hostname       - Container hostname
-#   domain_suffix  - FQDN suffix (default: .local)
-#   ssl.needs_server_cert - Generate server certificate
+#   server_key_b64  - Base64-encoded server private key PEM (from backend)
+#   server_cert_b64 - Base64-encoded server certificate PEM (from backend)
+#   ca_cert_b64     - Base64-encoded CA public certificate PEM (from backend)
+#   shared_volpath  - Base path for volumes (output from template 160)
+#   hostname        - Container hostname
+#   domain_suffix   - FQDN suffix (default: .local; informational only)
+#   ssl.needs_server_cert - Write server certificate
 #   ssl.needs_ca_cert     - Write CA certificate
-#   uid, gid       - File ownership
+#   uid, gid        - File ownership
 #   mapped_uid, mapped_gid - Host-mapped ownership
 
 # Library functions are prepended automatically:
-# - cert_generate_server(), cert_generate_fullchain()
-# - cert_write_ca_pub(), cert_write_ca()
-# - cert_check_validity(), cert_check_fqdn_match(), cert_output_result()
+# - cert_write_server(), cert_write_ca_pub(), cert_output_result()
 
 VM_ID="{{ vm_id }}"
-CA_KEY_B64="{{ ca_key_b64 }}"
+SERVER_KEY_B64="{{ server_key_b64 }}"
+SERVER_CERT_B64="{{ server_cert_b64 }}"
 CA_CERT_B64="{{ ca_cert_b64 }}"
 HOSTNAME="{{ hostname }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
@@ -37,16 +40,14 @@ GID_VAL="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
 CERT_DIR_OVERRIDE="{{ cert_dir_override }}"
-ADDITIONAL_SAN="{{ ssl_additional_san }}"
 
 [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
-[ "$ADDITIONAL_SAN" = "NOT_DEFINED" ] && ADDITIONAL_SAN=""
 [ "$NEEDS_SERVER_CERT" = "NOT_DEFINED" ] && NEEDS_SERVER_CERT="true"
 [ "$NEEDS_CA_CERT" = "NOT_DEFINED" ] && NEEDS_CA_CERT="false"
 
-# Compute FQDN
+# Compute FQDN (informational; signing already done in backend)
 FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
-echo "Generating certificates for FQDN: ${FQDN}" >&2
+echo "Writing certificates for FQDN: ${FQDN}" >&2
 
 # Calculate effective UID/GID (prefer mapped values, then read lxc.init.uid, then offset)
 EFFECTIVE_UID="${UID_VAL}"
@@ -90,22 +91,23 @@ mkdir -p "$CERT_DIR"
 
 GENERATED=false
 
-# Server certificate (default: true)
+# Server certificate (default: true) — write pre-signed key+cert from backend
 if [ "$NEEDS_SERVER_CERT" != "false" ]; then
-  CHECK_FILE="${CERT_DIR}/cert.pem"
-  if cert_check_validity "$CHECK_FILE" 30 && cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
-    echo "Server certificate still valid and FQDN matches, skipping" >&2
-  else
-    if [ -f "$CHECK_FILE" ] && ! cert_check_fqdn_match "$CHECK_FILE" "$FQDN"; then
-      echo "FQDN mismatch detected, regenerating server certificate for ${FQDN}" >&2
-    fi
-    cert_generate_server "$CA_KEY_B64" "$CA_CERT_B64" "$FQDN" "$CERT_DIR" "$HOSTNAME" "$ADDITIONAL_SAN"
-    GENERATED=true
+  if [ -z "$SERVER_KEY_B64" ] || [ "$SERVER_KEY_B64" = "NOT_DEFINED" ] \
+     || [ -z "$SERVER_CERT_B64" ] || [ "$SERVER_CERT_B64" = "NOT_DEFINED" ]; then
+    echo "Error: server_key_b64 / server_cert_b64 not provided by backend" >&2
+    exit 1
   fi
+  cert_write_server "$SERVER_KEY_B64" "$SERVER_CERT_B64" "$CA_CERT_B64" "$CERT_DIR"
+  GENERATED=true
 fi
 
-# CA certificate (default: false)
+# CA certificate (default: false) — write public CA cert from backend
 if [ "$NEEDS_CA_CERT" = "true" ]; then
+  if [ -z "$CA_CERT_B64" ] || [ "$CA_CERT_B64" = "NOT_DEFINED" ]; then
+    echo "Error: ca_cert_b64 not provided by backend" >&2
+    exit 1
+  fi
   cert_write_ca_pub "$CA_CERT_B64" "$CERT_DIR"
   GENERATED=true
 fi

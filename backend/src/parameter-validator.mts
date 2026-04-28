@@ -60,7 +60,15 @@ export class ParameterValidator {
         if (!condValue || condValue === "false" || condValue === "0") continue;
       }
 
-      const value = paramMap.get(def.id);
+      // Treat the parameter's own default as a fallback for required-checks.
+      // Without this, `default: "..."` overrides (used heavily in extends-style
+      // applications like zitadel for compose_file) would always fail the
+      // required-check because the CLI/frontend sends only explicit user
+      // input — defaults live on the parameter definition itself.
+      let value: unknown = paramMap.get(def.id);
+      if (value === undefined && def.default !== undefined && def.default !== "") {
+        value = def.default;
+      }
       if (value === undefined || value === "" || value === null) {
         errors.push({
           field: def.id,

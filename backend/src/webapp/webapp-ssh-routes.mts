@@ -184,16 +184,16 @@ export function registerSshRoutes(
           logger.info(
             `[ssh-routes] Spoke-sync done: ${result.workspacePath} (hub=${result.hubUrl})`,
           );
-          // Rebind repositories to the freshly synced Hub workspace.
+          // Rebind only localPath to the freshly synced Hub state.
+          // jsonPath stays on the Spoke's checkout (templates/scripts come
+          // from the user's working tree, not the Hub).
           const path = await import("node:path");
           const workspace = path.join(
             localPath,
             ".hubs",
             hubIdFromUrl(hubUrl.replace(/\/$/, "")),
           );
-          const hubJson = path.join(workspace, "json");
-          const hubLocal = path.join(workspace, "local");
-          pm.rebindRepositoriesRoot(hubJson, hubLocal);
+          pm.rebindRepositoriesRoot(path.join(workspace, "local"));
         } catch (err) {
           const { createLogger } = await import("../logger/index.mjs");
           createLogger("ssh-routes").warn(

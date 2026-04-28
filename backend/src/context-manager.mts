@@ -273,6 +273,18 @@ export class ContextManager extends Context implements IContext {
     return null;
   }
 
+  /**
+   * Lists stacks held in this ContextManager's local in-memory storage.
+   *
+   * IMPORTANT — for business logic prefer `pm.getStackProvider().listStacks()`.
+   * In Spoke mode (HUB_URL set) the authoritative stacks live on the Hub and
+   * `listStacks()` here returns only what was synced into local storage — a
+   * direct call may miss Hub-resident stacks and produce false "Unknown stack"
+   * errors during parameter validation.
+   *
+   * Used internally by `LocalStackProvider`; route/service code should go via
+   * the StackProvider instead.
+   */
   listStacks(stacktype?: string): IStack[] {
     const stacks: IStack[] = [];
     for (const key of this.keys().filter((k) => k.startsWith("stack_"))) {

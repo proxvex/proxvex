@@ -4,6 +4,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import type { LogSummary } from "./diagnostics.mjs";
 
 export interface TestResultDependency {
   scenario_id: string;
@@ -30,20 +31,33 @@ export interface TestResultData {
   finished_at: string;
   deployer_version: string;
   deployer_git_hash: string;
+  command_line: string;
   dependencies: TestResultDependency[];
   verify_results: Record<string, boolean>;
   error_message: string | null;
   skipped_reason: string | null;
+  logs?: LogSummary[];
+}
+
+const FILTER_MAX_LEN = 30;
+
+function sanitizeFilter(filterArg: string): string {
+  let slug = filterArg.replace(/^-+/, "").replace(/\//g, "-").replace(/[^A-Za-z0-9_-]/g, "_");
+  if (slug.length === 0) slug = "all";
+  return slug.slice(0, FILTER_MAX_LEN);
 }
 
 export class TestResultWriter {
   private outputDir: string;
   private runId: string;
+  private commandLine: string;
 
-  constructor(baseDir: string, instanceName: string) {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    this.runId = `${timestamp}-${instanceName}`;
-    this.outputDir = path.join(baseDir, `livetest-results-${this.runId}`);
+  constructor(baseDir: string, instanceName: string, filterArg: string, commandLine: string) {
+    const unix = Math.floor(Date.now() / 1000);
+    const filterSlug = sanitizeFilter(filterArg);
+    this.runId = `${unix}-${instanceName}-${filterSlug}`;
+    this.outputDir = path.join(baseDir, "livetest-results", this.runId);
+    this.commandLine = commandLine;
     mkdirSync(this.outputDir, { recursive: true });
   }
 
@@ -53,6 +67,10 @@ export class TestResultWriter {
 
   getOutputDir(): string {
     return this.outputDir;
+  }
+
+  getCommandLine(): string {
+    return this.commandLine;
   }
 
   write(data: TestResultData): void {
@@ -80,13 +98,15 @@ export class TestResultWriter {
     finishedAt: Date;
     deployerVersion: string;
     deployerGitHash: string;
+    commandLine: string;
     dependencies: TestResultDependency[];
     verifyResults: Record<string, boolean>;
     errorMessage?: string;
     skippedReason?: string;
+    logs?: LogSummary[];
   }): TestResultData {
     const variant = opts.scenarioId.split("/")[1] ?? "default";
-    return {
+    const result: TestResultData = {
       run_id: opts.runId,
       scenario_id: opts.scenarioId,
       application: opts.application,
@@ -102,10 +122,15 @@ export class TestResultWriter {
       finished_at: opts.finishedAt.toISOString(),
       deployer_version: opts.deployerVersion,
       deployer_git_hash: opts.deployerGitHash,
+      command_line: opts.commandLine,
       dependencies: opts.dependencies,
       verify_results: opts.verifyResults,
       error_message: opts.errorMessage ?? null,
       skipped_reason: opts.skippedReason ?? null,
     };
+    if (opts.logs && opts.logs.length > 0) {
+      result.logs = opts.logs;
+    }
+    return result;
   }
 }

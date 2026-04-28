@@ -86,7 +86,8 @@
       "900-host-check-container.json",
       "920-host-check-lxc-log.json",
       "940-host-check-file-exists.json",
-      "950-host-check-tls-connect.json"
+      "950-host-check-tls-connect.json",
+      "990-host-check-volume-consistency.json"
     ]
   }
 }

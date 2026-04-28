@@ -582,6 +582,122 @@ vol_copy() {
   esac
 }
 
+# --- Volume consistency / orphan classification helpers --------------------
+# These functions are used by host-check-volume-consistency.sh to scan
+# Proxmox storages for orphan volumes left behind by failed deployments,
+# crashed test runs, or kompromittierte snapshot rollbacks.
+
+# Echo names of all storages that are active and contain rootdir content.
+# Filters out disabled / inactive storages so pvesm list does not error.
+vol_list_active_storages() {
+  pvesm status -content rootdir 2>/dev/null \
+    | awk 'NR>1 && $3=="active" {print $1}'
+}
+
+# Extract the VMID prefix from a volume name. Empty if no vmid prefix.
+# Args: $1=volname (e.g. subvol-218-foo, vm-218-disk-0, subvol-foo)
+# Recognized patterns:
+#   subvol-<vmid>-<rest>
+#   vm-<vmid>-<rest>
+#   shared/subvol-<vmid>-<rest>   (dir storage after vol_unlink_persistent rename)
+#   shared/vm-<vmid>-<rest>
+vol_extract_vmid() {
+  echo "$1" | sed -nE 's|^(shared/)?(subvol|vm)-([0-9]+)-.*|\3|p'
+}
+
+# Extract the suffix part after the vmid prefix. Empty if no vmid prefix.
+# Args: $1=volname
+vol_extract_suffix() {
+  echo "$1" | sed -nE 's|^(shared/)?(subvol|vm)-([0-9]+)-(.*)$|\4|p'
+}
+
+# Echo newline-separated list of all active LXC container IDs.
+vol_get_active_lxc_ids() {
+  pct list 2>/dev/null | awk 'NR>1 {print $1}'
+}
+
+# Echo newline-separated list of all active QEMU VM IDs.
+vol_get_active_qemu_ids() {
+  qm list 2>/dev/null | awk 'NR>1 {print $1}'
+}
+
+# Check if a volume is referenced in a container's pct config (rootfs or mp*).
+# Args: $1=vmid, $2=volid (storage:volname)
+# Returns 0 if referenced, 1 otherwise.
+vol_volume_in_pct_config() {
+  _vol_vmid="$1"; _vol_id="$2"
+  pct config "$_vol_vmid" 2>/dev/null \
+    | grep -aE "^(rootfs|mp[0-9]+):" \
+    | grep -qF "$_vol_id"
+}
+
+# Classify a volume as one of:
+#   active             - referenced in a running LXC's pct config (OK)
+#   persistent_clean   - no vmid prefix; legitimate persistent volume (OK)
+#   orphan_vmid_gone   - vmid prefix exists but neither pct nor qm has the vmid
+#   orphan_unmounted   - vmid is an active LXC, but volume not in its config
+#   orphan_qemu_unknown- vmid belongs to a QEMU VM (not an LXC) — defensive: report but don't fail
+#   unknown            - could not determine
+# Args: $1=storage, $2=volid (storage:volname)
+vol_classify() {
+  _vol_storage="$1"; _vol_id="$2"
+  _vol_volname="${_vol_id#*:}"
+  _vol_vmid=$(vol_extract_vmid "$_vol_volname")
+
+  if [ -z "$_vol_vmid" ]; then
+    echo "persistent_clean"
+    return 0
+  fi
+
+  if vol_get_active_lxc_ids | grep -qx "$_vol_vmid"; then
+    if vol_volume_in_pct_config "$_vol_vmid" "$_vol_id"; then
+      echo "active"
+    else
+      echo "orphan_unmounted"
+    fi
+    return 0
+  fi
+
+  if vol_get_active_qemu_ids | grep -qx "$_vol_vmid"; then
+    echo "orphan_qemu_unknown"
+    return 0
+  fi
+
+  echo "orphan_vmid_gone"
+}
+
+# List ZFS snapshots whose parent dataset is not referenced in any pct config.
+# A snapshot like rpool/data/subvol-218-foo@dep-bar is orphan if either
+# (a) the parent dataset rpool/data/subvol-218-foo no longer exists, or
+# (b) the parent dataset exists but no LXC currently references it.
+# Args: $1=zfs_pool (e.g. rpool/data)
+# Prints orphan snapshot full names, one per line.
+vol_list_orphan_zfs_snapshots() {
+  _vol_pool="$1"
+  [ -z "$_vol_pool" ] && return 0
+
+  zfs list -H -o name -t snapshot 2>/dev/null \
+    | grep -E "^${_vol_pool}/" \
+    | while IFS= read -r _vol_snap; do
+        _vol_parent="${_vol_snap%@*}"
+        # (a) parent missing
+        if ! zfs list -H -o name "$_vol_parent" >/dev/null 2>&1; then
+          echo "$_vol_snap"
+          continue
+        fi
+        # (b) parent exists but not referenced by any active container
+        _vol_parent_name="${_vol_parent##*/}"
+        _vol_vmid=$(vol_extract_vmid "$_vol_parent_name")
+        # No vmid prefix: parent is a persistent volume — its snapshots are OK
+        [ -z "$_vol_vmid" ] && continue
+        # Vmid gone entirely
+        if ! vol_get_active_lxc_ids | grep -qx "$_vol_vmid" \
+           && ! vol_get_active_qemu_ids | grep -qx "$_vol_vmid"; then
+          echo "$_vol_snap"
+        fi
+      done
+}
+
 # Unlink managed volumes from a container's config and rename them to clean names.
 # This preserves volumes during pct destroy by:
 # 1. Removing the mp entry from .conf (so pct destroy won't delete the volume)
