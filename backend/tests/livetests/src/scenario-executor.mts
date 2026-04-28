@@ -469,7 +469,7 @@ export async function executeScenarios(
           return {
             scenario_id: depId, vm_id: depStep?.vmId ?? 0,
             status: "passed" as const, version,
-            snapshot_used: snapMgr?.snapshotName(depId) ?? null,
+            snapshot_used: snapMgr ? "dep-stacks-ready" : null,
             snapshot_date: null,
           };
         });

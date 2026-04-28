@@ -73,6 +73,17 @@ fi
 # --- Install curl and openssl if not present ---
 if ! command -v curl >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1; then
   echo "Installing curl and openssl..." >&2
+  # Wait for DNS — this script runs in the container's on_start hook right
+  # after boot, before the resolver has settled. Without this wait, the very
+  # first apk/apt operation hits "DNS: transient error" and the install fails.
+  for _i in 1 2 3 4 5 6 7 8 9 10; do
+    if getent hosts dl-cdn.alpinelinux.org >/dev/null 2>&1 \
+       || getent hosts deb.debian.org >/dev/null 2>&1 \
+       || nslookup dl-cdn.alpinelinux.org >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
   case "$OS_TYPE" in
     alpine)
       if [ -n "$ALPINE_MIRROR" ]; then
@@ -85,8 +96,14 @@ MIRROREOF
           echo "Set Alpine mirror: $ALPINE_MIRROR" >&2
         fi
       fi
-      apk update >&2
-      apk add --no-cache curl openssl >&2
+      # Retry apk on transient DNS / mirror errors.
+      _ok=0
+      for _try in 1 2 3 4 5; do
+        apk update >&2 && apk add --no-cache curl openssl >&2 && { _ok=1; break; }
+        echo "apk install attempt $_try failed, retrying..." >&2
+        sleep 3
+      done
+      [ "$_ok" -eq 1 ] || echo "apk install of curl/openssl failed after 5 attempts" >&2
       ;;
     debian|ubuntu)
       if [ -n "$DEBIAN_MIRROR" ]; then
