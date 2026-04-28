@@ -1,0 +1,41 @@
+{
+  "run_id": "2026-04-27T03-54-40-green",
+  "scenario_id": "gitea/ssl",
+  "application": "gitea",
+  "variant": "ssl",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 203,
+  "hostname": "gitea-ssl",
+  "stack_name": "ssl",
+  "addons": [
+    "addon-oidc",
+    "addon-ssl"
+  ],
+  "duration_seconds": 76,
+  "started_at": "2026-04-27T04:07:52.713Z",
+  "finished_at": "2026-04-27T04:09:08.867Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "postgres/ssl",
+      "vm_id": 219,
+      "status": "passed",
+      "version": "16-alpine",
+      "snapshot_used": "dep-postgres-ssl",
+      "snapshot_date": null
+    },
+    {
+      "scenario_id": "zitadel/ssl",
+      "vm_id": 227,
+      "status": "passed",
+      "version": "traefik:3.6, zitadel-login:4.12.3, zitadel:4.12.3",
+      "snapshot_used": "dep-zitadel-ssl",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

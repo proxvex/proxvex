@@ -3,58 +3,14 @@
   "description": "Node-RED is a flow-based programming tool for wiring together hardware devices, APIs and online services.",
   "extends": "oci-image",
   "icon": "icon.svg",
-  "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "node-red"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "data=data,size=256M\ncerts=certs"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "GID=1000\nNODERED_PORT=1880\nNODERED_VERSION=latest\nTZ=Europe/Berlin\nUID=1000",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    }
-  ],
   "supports": ["serial_tty"],
   "properties": [
-    {
-      "id": "oci_image",
-      "value": "nodered/node-red:{{oci_image_tag}}"
-    },
-    {
-      "id": "uid",
-      "value": "1000"
-    },
-    {
-      "id": "username",
-      "value": "root"
-    },
-    {
-      "id": "disk_size",
-      "value": "1.5"
-    }
+    { "id": "hostname", "default": "node-red" },
+    { "id": "volumes", "default": "data=data\ncerts=certs" },
+    { "id": "envs", "default": "GID=1000\nNODERED_PORT=1880\nNODERED_VERSION=latest\nTZ=Europe/Berlin\nUID=1000" },
+    { "id": "oci_image", "value": "nodered/node-red:{{oci_image_tag}}" },
+    { "id": "uid", "value": "1000" },
+    { "id": "username", "value": "root" }
   ],
   "installation": {
     "pre_start": [

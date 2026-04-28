@@ -2,6 +2,15 @@
   "execute_on": "ve",
   "name": "Check Container",
   "description": "Checks container is running and notes contain managed marker.",
+  "parameters": [
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname"
+    }
+  ],
   "commands": [
     {
       "name": "Check Container Status",

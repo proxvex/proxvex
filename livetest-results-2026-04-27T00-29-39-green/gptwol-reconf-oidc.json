@@ -1,0 +1,40 @@
+{
+  "run_id": "2026-04-27T00-29-39-green",
+  "scenario_id": "gptwol/reconf-oidc",
+  "application": "gptwol",
+  "variant": "reconf-oidc",
+  "task": "reconfigure",
+  "status": "passed",
+  "vm_id": 205,
+  "hostname": "gptwol-reconf-oidc",
+  "stack_name": "reconf-oidc",
+  "addons": [
+    "addon-oidc"
+  ],
+  "duration_seconds": 49,
+  "started_at": "2026-04-27T00:45:07.059Z",
+  "finished_at": "2026-04-27T00:45:55.985Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "gptwol/default",
+      "vm_id": 204,
+      "status": "passed",
+      "version": "",
+      "snapshot_used": "dep-gptwol-default",
+      "snapshot_date": null
+    },
+    {
+      "scenario_id": "zitadel/default",
+      "vm_id": 226,
+      "status": "passed",
+      "version": "traefik:3.6, zitadel-login:4.12.3, zitadel:4.12.3",
+      "snapshot_used": "dep-zitadel-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

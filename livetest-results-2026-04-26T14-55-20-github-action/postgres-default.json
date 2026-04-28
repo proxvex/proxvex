@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-04-26T14-55-20-github-action",
+  "scenario_id": "postgres/default",
+  "application": "postgres",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 218,
+  "hostname": "postgres-default",
+  "stack_name": "default",
+  "addons": [],
+  "duration_seconds": 95,
+  "started_at": "2026-04-26T14:57:48.417Z",
+  "finished_at": "2026-04-26T14:59:23.189Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

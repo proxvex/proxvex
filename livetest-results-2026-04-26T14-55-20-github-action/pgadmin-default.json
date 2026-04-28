@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-04-26T14-55-20-github-action",
+  "scenario_id": "pgadmin/default",
+  "application": "pgadmin",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 216,
+  "hostname": "pgadmin-default",
+  "stack_name": "default",
+  "addons": [],
+  "duration_seconds": 59,
+  "started_at": "2026-04-26T15:16:55.863Z",
+  "finished_at": "2026-04-26T15:17:55.073Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

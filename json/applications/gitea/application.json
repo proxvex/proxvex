@@ -3,94 +3,19 @@
   "description": "Git with a cup of tea! Painless self-hosted all-in-one software development service, including Git hosting, code review, team collaboration, package registry and CI/CD",
   "extends": "oci-image",
   "icon": "32px-Gitea_Logo.svg.png",
-  "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "gitea"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "data=var/lib/gitea,size=2G\nconfig=etc/gitea"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "GID=1000\nGITEA__security__INSTALL_LOCK=true\nGITEA_ADMIN_USERNAME=admin\nGITEA_ADMIN_PASSWORD={{ GITEA_ADMIN_PASSWORD }}\nGITEA_DB_NAME=gitea\nGITEA_DB_TYPE=postgres\nGITEA_DOMAIN=localhost\nGITEA_HTTP_PORT=3000\nGITEA_ROOT_URL=http://localhost:3000\nGITEA_SSH_PORT=2222\nGITEA_VERSION=latest\nGITEA__database__DB_TYPE=postgres\nGITEA__database__HOST={{ POSTGRES_HOST }}:5432\nGITEA__database__NAME=gitea\nGITEA__database__PASSWD={{ POSTGRES_PASSWORD }}\nGITEA__database__USER=postgres\nGITEA__server__DOMAIN=localhost\nGITEA__server__HTTP_PORT=3000\nGITEA__server__ROOT_URL=http://localhost:3000\nGITEA__server__SSH_DOMAIN=localhost\nGITEA__server__SSH_PORT=2222\nPOSTGRES_USER=postgres\nUID=1000\nUSER_GID=1000\nUSER_UID=1000",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    },
-    {
-      "id": "rootfs_storage",
-      "name": "Rootfs Storage",
-      "type": "enum",
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage for the container rootfs",
-      "advanced": true,
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC"
-    },
-    {
-      "id": "volume_storage",
-      "name": "Volume Storage",
-      "type": "enum",
-      "required": true,
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage ID for data volumes",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "local-zfs"
-    }
-  ],
   "properties": [
-    {
-      "id": "oci_image",
-      "value": "gitea/gitea:{{oci_image_tag}}"
-    },
-    {
-      "id": "wait_for_network",
-      "value": "true"
-    },
-    {
-      "id": "uid",
-      "value": "1000"
-    },
-    {
-      "id": "gid",
-      "value": "1000"
-    },
-    {
-      "id": "username",
-      "value": "git"
-    },
-    {
-      "id": "database_name",
-      "default": "gitea"
-    },
-    {
-      "id": "ssl_mode",
-      "value": "native"
-    },
-    {
-      "id": "ssl.needs_ca_cert",
-      "value": "true"
-    }
+    { "id": "hostname", "default": "gitea" },
+    { "id": "volumes", "default": "data=var/lib/gitea\nconfig=etc/gitea" },
+    { "id": "envs", "default": "GID=1000\nGITEA__security__INSTALL_LOCK=true\nGITEA_ADMIN_USERNAME=admin\nGITEA_ADMIN_PASSWORD={{ GITEA_ADMIN_PASSWORD }}\nGITEA_DB_NAME=gitea\nGITEA_DB_TYPE=postgres\nGITEA_DOMAIN=localhost\nGITEA_HTTP_PORT=3000\nGITEA_ROOT_URL=http://localhost:3000\nGITEA_SSH_PORT=2222\nGITEA_VERSION=latest\nGITEA__database__DB_TYPE=postgres\nGITEA__database__HOST={{ POSTGRES_HOST }}:5432\nGITEA__database__NAME=gitea\nGITEA__database__PASSWD={{ POSTGRES_PASSWORD }}\nGITEA__database__USER=postgres\nGITEA__server__DOMAIN=localhost\nGITEA__server__HTTP_PORT=3000\nGITEA__server__ROOT_URL=http://localhost:3000\nGITEA__server__SSH_DOMAIN=localhost\nGITEA__server__SSH_PORT=2222\nPOSTGRES_USER=postgres\nUID=1000\nUSER_GID=1000\nUSER_UID=1000" },
+    { "id": "rootfs_storage", "default": "local-zfs" },
+    { "id": "volume_storage", "default": "local-zfs", "required": true },
+    { "id": "oci_image", "value": "gitea/gitea:{{oci_image_tag}}" },
+    { "id": "wait_for_network", "value": "true" },
+    { "id": "uid", "value": "1000" },
+    { "id": "gid", "value": "1000" },
+    { "id": "username", "value": "git" },
+    { "id": "database_name", "default": "gitea" },
+    { "id": "ssl_mode", "value": "native" }
   ],
   "installation": {},
   "url": "https://github.com/go-gitea/gitea",
@@ -98,36 +23,22 @@
   "tags": [
     "development"
   ],
-  "supported_addons": [
-    "addon-oidc"
-  ],
+  "supported_addons": ["addon-oidc"],
   "oidc_roles": [
-    {
-      "key": "admin",
-      "display_name": "Administrator"
-    }
+    { "key": "admin", "display_name": "Administrator" }
   ],
-  "stacktype": [
-    "postgres",
-    "gitea"
-  ],
+  "stacktype": ["postgres", "gitea"],
   "stack_usage": [
     {
       "stacktype": "gitea",
       "vars": [
-        {
-          "name": "GITEA_ADMIN_PASSWORD",
-          "replacement": "manual"
-        }
+        { "name": "GITEA_ADMIN_PASSWORD", "replacement": "manual" }
       ]
     },
     {
       "stacktype": "postgres",
       "vars": [
-        {
-          "name": "POSTGRES_PASSWORD",
-          "replacement": "manual"
-        }
+        { "name": "POSTGRES_PASSWORD", "replacement": "manual" }
       ]
     }
   ]

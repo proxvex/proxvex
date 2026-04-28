@@ -41,7 +41,6 @@
       "type": "string",
       "required": false,
       "default": "",
-      "advanced": true,
       "description": "Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+domain_suffix."
     }
   ],

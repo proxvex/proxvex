@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-04-26T14-55-20-github-action",
+  "scenario_id": "nginx/default",
+  "application": "nginx",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 210,
+  "hostname": "nginx-default",
+  "stack_name": "default",
+  "addons": [
+    "addon-ssl"
+  ],
+  "duration_seconds": 71,
+  "started_at": "2026-04-26T15:14:30.281Z",
+  "finished_at": "2026-04-26T15:15:41.496Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

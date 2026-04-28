@@ -18,7 +18,10 @@ USERNAME_RAW = "{{ username }}"
 UID_RAW = "{{ uid }}"
 GID_RAW = "{{ gid }}"
 IS_DEPLOYER_RAW = "{{ is_deployer }}"
-ALL_STACK_IDS_RAW = '{{ all_stack_ids }}'  # JSON list — single-quoted to survive embedded double quotes
+# Single-quoted: all_stack_ids is a JSON array (e.g. `["postgres_default"]`)
+# whose embedded double quotes would break a double-quoted Python string
+# literal. Single quotes leave the inner " untouched.
+ALL_STACK_IDS_RAW = '{{ all_stack_ids }}'
 
 
 def build_notes(include_icon):

@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-04-27T01-23-15-green",
+  "scenario_id": "postgres/ssl",
+  "application": "postgres",
+  "variant": "ssl",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 219,
+  "hostname": "postgres-ssl",
+  "stack_name": "ssl",
+  "addons": [
+    "addon-ssl"
+  ],
+  "duration_seconds": 72,
+  "started_at": "2026-04-27T01:29:32.391Z",
+  "finished_at": "2026-04-27T01:30:44.578Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

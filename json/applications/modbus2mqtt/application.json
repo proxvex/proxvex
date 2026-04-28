@@ -3,128 +3,28 @@
   "description": "Bridge that exposes Modbus RTU/TCP devices over MQTT with Home Assistant auto-discovery. Runs as an LXC container on Proxmox with optional HTTPS and OIDC authentication.",
   "extends": "oci-image",
   "icon": "icon.png",
-  "tags": [
-    "automation",
-    "iot"
-  ],
-  "supported_addons": [
-    "addon-oidc",
-    "addon-ssl"
-  ],
+  "tags": ["automation", "iot"],
+  "supported_addons": ["addon-oidc", "addon-ssl"],
   "oidc_roles": [
-    {
-      "key": "admin",
-      "display_name": "Administrator",
-      "group": "modbus2mqtt"
-    }
-  ],
-  "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "modbus2mqtt"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: name=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "config=/config\ndata=/data,size=64M\nssl=/ssl"
-    },
-    {
-      "id": "http_port",
-      "name": "HTTP Port",
-      "type": "string",
-      "default": "3000",
-      "required": false,
-      "advanced": true,
-      "description": "HTTP listening port inside the container"
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "default": "3443",
-      "required": false,
-      "advanced": true,
-      "description": "HTTPS listening port (only active when addon-ssl is enabled)"
-    },
-    {
-      "id": "rootfs_storage",
-      "name": "Rootfs Storage",
-      "type": "enum",
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage for the container rootfs",
-      "advanced": true,
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC"
-    },
-    {
-      "id": "volume_storage",
-      "name": "Volume Storage",
-      "type": "enum",
-      "required": true,
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage ID for data volumes",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "local-zfs"
-    }
+    { "key": "admin", "display_name": "Administrator", "group": "modbus2mqtt" }
   ],
   "properties": [
-    {
-      "id": "oci_image",
-      "value": "ghcr.io/modbus2mqtt/modbus2mqtt:{{oci_image_tag}}"
-    },
-    {
-      "id": "wait_for_network",
-      "value": "true"
-    },
-    {
-      "id": "uid",
-      "value": "1000"
-    },
-    {
-      "id": "gid",
-      "value": "1000"
-    },
-    {
-      "id": "username",
-      "value": "node"
-    },
-    {
-      "id": "http_port",
-      "value": "{{http_port}}"
-    },
-    {
-      "id": "https_port",
-      "value": "{{https_port}}"
-    },
-    {
-      "id": "volume_backup",
-      "value": "true"
-    },
-    {
-      "id": "ssl_mode",
-      "value": "native"
-    },
-    {
-      "id": "oidc_callback_path",
-      "value": "/api/auth/callback"
-    },
-    {
-      "id": "oidc_required_role",
-      "value": "admin"
-    }
+    { "id": "hostname", "default": "modbus2mqtt" },
+    { "id": "volumes", "default": "config=/config\ndata=/data\nssl=/ssl" },
+    { "id": "envs", "default": "HTTP_PORT=3000\nHTTPS_PORT=3443" },
+    { "id": "rootfs_storage", "default": "local-zfs" },
+    { "id": "volume_storage", "default": "local-zfs", "required": true },
+    { "id": "oci_image", "value": "ghcr.io/modbus2mqtt/modbus2mqtt:{{oci_image_tag}}" },
+    { "id": "wait_for_network", "value": "true" },
+    { "id": "uid", "value": "1000" },
+    { "id": "gid", "value": "1000" },
+    { "id": "username", "value": "node" },
+    { "id": "http_port", "value": "3000" },
+    { "id": "https_port", "value": "3443" },
+    { "id": "volume_backup", "value": "true" },
+    { "id": "ssl_mode", "value": "native" },
+    { "id": "oidc_callback_path", "value": "/api/auth/callback" },
+    { "id": "oidc_required_role", "value": "admin" }
   ],
   "installation": {},
   "url": "https://github.com/modbus2mqtt/modbus2mqtt",

@@ -1,0 +1,30 @@
+{
+  "run_id": "2026-04-27T03-02-49-green",
+  "scenario_id": "proxvex/upgrade",
+  "application": "proxvex",
+  "variant": "upgrade",
+  "task": "upgrade",
+  "status": "passed",
+  "vm_id": 222,
+  "hostname": "proxvex-upgrade",
+  "stack_name": "upgrade",
+  "addons": [],
+  "duration_seconds": 93,
+  "started_at": "2026-04-27T03:43:17.448Z",
+  "finished_at": "2026-04-27T03:44:50.181Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "proxvex/default",
+      "vm_id": 222,
+      "status": "passed",
+      "version": "latest",
+      "snapshot_used": "dep-proxvex-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

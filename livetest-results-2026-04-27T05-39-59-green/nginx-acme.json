@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-04-27T05-39-59-green",
+  "scenario_id": "nginx/acme",
+  "application": "nginx",
+  "variant": "acme",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 209,
+  "hostname": "nginx-acme",
+  "stack_name": "acme",
+  "addons": [
+    "addon-acme"
+  ],
+  "duration_seconds": 174,
+  "started_at": "2026-04-27T06:04:01.266Z",
+  "finished_at": "2026-04-27T06:06:55.538Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

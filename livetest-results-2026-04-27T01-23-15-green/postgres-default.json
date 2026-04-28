@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-04-27T01-23-15-green",
+  "scenario_id": "postgres/default",
+  "application": "postgres",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 218,
+  "hostname": "postgres-default",
+  "stack_name": "default",
+  "addons": [],
+  "duration_seconds": 66,
+  "started_at": "2026-04-27T01:24:59.407Z",
+  "finished_at": "2026-04-27T01:26:05.405Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

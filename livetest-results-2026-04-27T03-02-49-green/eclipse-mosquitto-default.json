@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-04-27T03-02-49-green",
+  "scenario_id": "eclipse-mosquitto/default",
+  "application": "eclipse-mosquitto",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 200,
+  "hostname": "eclipse-mosquitto-default",
+  "stack_name": "default",
+  "addons": [
+    "addon-ssl"
+  ],
+  "duration_seconds": 39,
+  "started_at": "2026-04-27T03:02:49.652Z",
+  "finished_at": "2026-04-27T03:03:28.892Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

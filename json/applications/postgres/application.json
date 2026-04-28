@@ -3,73 +3,18 @@
   "description": "Postgres SQL Database open Source",
   "extends": "oci-image",
   "icon": "icon.svg",
-  "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "postgres"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "data=var/lib/postgresql/data,size=1G\ninitdb=docker-entrypoint-initdb.d"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "GID=70\nPGDATA=/var/lib/postgresql/data/pgdata\nPOSTGRES_DB=postgres\nPOSTGRES_PASSWORD={{ POSTGRES_PASSWORD }}\nPOSTGRES_PORT=5432\nPOSTGRES_USER=postgres\nPOSTGRES_VERSION=16-alpine\nUID=70",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    }
-  ],
   "properties": [
-    {
-      "id": "oci_image",
-      "value": "postgres:{{oci_image_tag}}"
-    },
-    {
-      "id": "uid",
-      "value": "70"
-    },
-    {
-      "id": "username",
-      "value": "postgres"
-    },
-    {
-      "id": "ssl_mode",
-      "value": "certs"
-    },
-    {
-      "id": "https_port",
-      "value": "5432"
-    },
-    {
-      "id": "ssl.addon_volumes",
-      "value": "certs=/certs,0700,70:70\nproxvex=/etc/proxvex,0755,0:0"
-    },
-    {
-      "id": "startup_order",
-      "value": "10"
-    },
-    {
-      "id": "startup_up",
-      "value": "15"
-    }
+    { "id": "hostname", "default": "postgres" },
+    { "id": "volumes", "default": "data=var/lib/postgresql/data\ninitdb=docker-entrypoint-initdb.d" },
+    { "id": "envs", "default": "GID=70\nPGDATA=/var/lib/postgresql/data/pgdata\nPOSTGRES_DB=postgres\nPOSTGRES_PASSWORD={{ POSTGRES_PASSWORD }}\nPOSTGRES_PORT=5432\nPOSTGRES_USER=postgres\nPOSTGRES_VERSION=16-alpine\nUID=70" },
+    { "id": "oci_image", "value": "postgres:{{oci_image_tag}}" },
+    { "id": "uid", "value": "70" },
+    { "id": "username", "value": "postgres" },
+    { "id": "ssl_mode", "value": "certs" },
+    { "id": "https_port", "value": "5432" },
+    { "id": "ssl.addon_volumes", "value": "certs=/certs,0700,70:70\nproxvex=/etc/proxvex,0755,0:0" },
+    { "id": "startup_order", "value": "10" },
+    { "id": "startup_up", "value": "15" }
   ],
   "installation": {},
   "check": {

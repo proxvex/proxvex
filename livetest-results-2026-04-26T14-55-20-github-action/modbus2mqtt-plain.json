@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-04-26T14-55-20-github-action",
+  "scenario_id": "modbus2mqtt/plain",
+  "application": "modbus2mqtt",
+  "variant": "plain",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 207,
+  "hostname": "modbus2mqtt-plain",
+  "stack_name": "plain",
+  "addons": [],
+  "duration_seconds": 257,
+  "started_at": "2026-04-26T15:06:46.133Z",
+  "finished_at": "2026-04-26T15:11:03.480Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

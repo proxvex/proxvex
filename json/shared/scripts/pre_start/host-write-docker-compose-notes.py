@@ -21,7 +21,10 @@ ICON_MIME_TYPE = "{{ icon_mime_type }}"
 USERNAME_RAW = "{{ username }}"
 UID_RAW = "{{ uid }}"
 GID_RAW = "{{ gid }}"
-ALL_STACK_IDS_RAW = '{{ all_stack_ids }}'  # JSON list — single-quoted to survive embedded double quotes
+# Single-quoted: all_stack_ids is a JSON array (e.g. `["postgres_default"]`)
+# whose embedded double quotes would break a double-quoted Python string
+# literal. Single quotes leave the inner " untouched.
+ALL_STACK_IDS_RAW = '{{ all_stack_ids }}'
 
 
 def build_notes(include_icon):

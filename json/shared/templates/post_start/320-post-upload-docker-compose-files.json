@@ -16,23 +16,22 @@
       "type": "string",
       "upload": true,
       "required": true,
-      "description": "Docker Compose YAML file (upload)"
+      "description": "Docker Compose YAML file (upload). Upload this file first to extract service information."
     },
     {
       "id": "env_file",
       "name": "Environment File (.env)",
       "type": "string",
       "upload": true,
-      "required": true,
-      "if": "env_file_has_markers",
-      "description": "Upload .env with actual values (template contains {{ markers }} that must be replaced)"
+      "required": false,
+      "description": "Environment variables file (.env) template (upload, optional). If it contains {{ markers }}, users must upload a real .env at deployment time."
     },
     {
       "id": "compose_project",
       "name": "Compose Project Name",
       "type": "string",
-      "required": true,
-      "description": "Project name for Docker Compose (directory name)"
+      "required": false,
+      "description": "Project name for Docker Compose (used for named volumes and directory). Defaults to hostname if not provided."
     },
     {
       "id": "stack_secret_names",

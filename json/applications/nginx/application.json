@@ -7,53 +7,13 @@
   "oidc_roles": [
     { "key": "admin", "display_name": "Administrator" }
   ],
-  "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "nginx"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "conf=/etc/nginx/conf.d"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "NGINX_VERSION=alpine",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    }
-  ],
   "properties": [
-    {
-      "id": "oci_image",
-      "value": "nginxinc/nginx-unprivileged:{{oci_image_tag}}"
-    },
-    {
-      "id": "uid",
-      "value": "101"
-    },
-    {
-      "id": "username",
-      "value": "root"
-    },
+    { "id": "hostname", "default": "nginx" },
+    { "id": "volumes", "default": "conf=/etc/nginx/conf.d" },
+    { "id": "envs", "default": "NGINX_VERSION=alpine" },
+    { "id": "oci_image", "value": "nginxinc/nginx-unprivileged:{{oci_image_tag}}" },
+    { "id": "uid", "value": "101" },
+    { "id": "username", "value": "root" },
     { "id": "http_port", "value": "8080" },
     { "id": "oidc_callback_path", "value": "/oauth2/callback" },
     { "id": "oidc_required_role", "value": "" }

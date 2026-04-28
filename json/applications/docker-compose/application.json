@@ -5,37 +5,6 @@
   "supports": ["docker"],
   "parameters": [
     {
-      "id": "compose_file",
-      "name": "Docker Compose File",
-      "type": "string",
-      "upload": true,
-      "required": true,
-      "description": "Docker Compose YAML file (upload). Upload this file first to extract service information."
-    },
-    {
-      "id": "env_file",
-      "name": "Environment File (.env)",
-      "type": "string",
-      "upload": true,
-      "required": false,
-      "description": "Environment variables file (.env) template (upload, optional). If it contains {{ markers }}, users must upload a real .env at deployment time."
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": false,
-      "description": "Hostname for the Docker Compose container. Required when creating an application from the docker-compose framework."
-    },
-    {
-      "id": "compose_project",
-      "name": "Compose Project Name",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "description": "Project name for Docker Compose (used for named volumes and directory). Defaults to hostname if not provided."
-    },
-    {
       "id": "ostype",
       "name": "OS Type",
       "type": "enum",

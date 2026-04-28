@@ -10,36 +10,29 @@
   ],
   "parameters": [
     {
-      "id": "http_port",
-      "name": "HTTP Port",
+      "id": "oci_image_tag",
+      "name": "Version",
       "type": "string",
-      "default": "3080",
-      "required": false,
-      "advanced": true
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "default": "3443",
-      "required": false,
-      "advanced": true
+      "required": true,
+      "description": "OCI image tag / version to deploy (e.g. 'latest', 'v1.2.3'). Default comes from versions.sh (OCI_oci_lxc_deployer_TAG)."
     }
   ],
   "properties": [
+    { "id": "envs", "default": "HTTP_PORT=3080\nHTTPS_PORT=3443" },
     { "id": "hostname", "value": "proxvex" },
     { "id": "oci_image", "value": "ghcr.io/proxvex/proxvex:{{oci_image_tag}}" },
     { "id": "uid", "value": "1001" },
     { "id": "gid", "value": "1001" },
     { "id": "username", "value": "lxc" },
-    { "id": "http_port", "value": "{{http_port}}" },
-    { "id": "https_port", "value": "{{https_port}}" },
+    { "id": "http_port", "value": "3080" },
+    { "id": "https_port", "value": "3443" },
     { "id": "volume_backup", "value": "true" },
     { "id": "volumes", "value": "config=/config\nsecure=/secure,0700" },
     { "id": "ssl_mode", "value": "native" },
     { "id": "oidc_callback_path", "value": "/api/auth/callback" },
     { "id": "oidc_required_role", "value": "admin" }
   ],
+  "installation": {},
   "check": {
     "check": [
       "check-oidc-endpoint.json"

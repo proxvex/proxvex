@@ -15,8 +15,7 @@
       "id": "compose_project",
       "name": "Compose Project Name",
       "type": "string",
-      "default": "",
-      "description": "Project name for Docker Compose (used for named volumes). Defaults to hostname if not provided."
+      "description": "Project name for Docker Compose (used for named volumes and directory). Defaults to hostname if not provided."
     },
     {
       "id": "volumes",

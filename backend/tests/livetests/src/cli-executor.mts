@@ -150,9 +150,9 @@ export function runCli(
 
     proc.stdout.on("data", (data: Buffer) => { stdout += data.toString(); });
     proc.stderr.on("data", (data: Buffer) => {
-      const chunk = data.toString();
-      stderr += chunk;
-      process.stderr.write(chunk);
+      const s = data.toString();
+      stderr += s;
+      process.stderr.write(s);
     });
 
     proc.on("close", (code) => {

@@ -1,0 +1,33 @@
+{
+  "run_id": "2026-04-27T03-54-40-green",
+  "scenario_id": "nginx/oidc-ssl",
+  "application": "nginx",
+  "variant": "oidc-ssl",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 211,
+  "hostname": "nginx-oidc-ssl",
+  "stack_name": "oidc-ssl",
+  "addons": [
+    "addon-oidc",
+    "addon-ssl"
+  ],
+  "duration_seconds": 45,
+  "started_at": "2026-04-27T04:20:03.953Z",
+  "finished_at": "2026-04-27T04:20:48.904Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "zitadel/default",
+      "vm_id": 226,
+      "status": "passed",
+      "version": "traefik:3.6, zitadel-login:4.12.3, zitadel:4.12.3",
+      "snapshot_used": "dep-zitadel-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

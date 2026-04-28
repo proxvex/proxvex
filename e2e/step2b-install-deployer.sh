@@ -120,7 +120,7 @@ for i in $(seq 1 60); do
     sleep 1
 done
 echo ""
-[ "$SSH_READY" = "true" ] || error "Cannot connect to $NESTED_IP via SSH after 60s"
+[ "$SSH_READY" = "true" ] || error "Cannot connect to nested VM via $PVE_HOST:$PORT_PVE_SSH after 60s"
 success "SSH connection verified"
 
 # Ensure the ghcr.io mirror's alias IP (10.0.0.2) is back after reboot and the

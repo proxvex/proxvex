@@ -48,7 +48,11 @@
               ]
             }
           },
-          "enumValuesTemplate": { "type": "string" }
+          "enumValuesTemplate": { "type": "string" },
+          "if": {
+            "type": "string",
+            "description": "ID of a boolean parameter. This parameter is only visible/evaluated when that boolean is true."
+          }
         },
         "required": ["id", "name", "type"]
       }
@@ -62,12 +66,17 @@
           "id": { "type": "string" },
           "value": { "type": ["string", "number", "boolean"] },
           "default": { "type": ["string", "number", "boolean"] },
-          "description": { "type": "string" }
+          "description": { "type": "string" },
+          "required": {
+            "type": "boolean",
+            "description": "Override the required-flag of the parameter with this id (defined in a template)."
+          }
         },
         "required": ["id"],
         "anyOf": [
           { "required": ["value"] },
-          { "required": ["default"] }
+          { "required": ["default"] },
+          { "required": ["required"] }
         ]
       }
     },

@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-04-26T14-55-20-github-action",
+  "scenario_id": "nginx/acme",
+  "application": "nginx",
+  "variant": "acme",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 209,
+  "hostname": "nginx-acme",
+  "stack_name": "acme",
+  "addons": [
+    "addon-acme"
+  ],
+  "duration_seconds": 207,
+  "started_at": "2026-04-26T15:11:03.481Z",
+  "finished_at": "2026-04-26T15:14:30.280Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

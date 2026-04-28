@@ -5,15 +5,6 @@
   "icon": "icon.png",
   "parameters": [
     {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": false,
-      "description": "Hostname for the Docker Compose container. Required when creating an application from the docker-compose framework.",
-      "template": "application.json",
-      "default": "zitadel"
-    },
-    {
       "id": "ZITADEL_EXTERNALDOMAIN",
       "name": "External Domain",
       "type": "string",
@@ -93,6 +84,7 @@
     }
   ],
   "properties": [
+    { "id": "hostname", "default": "zitadel" },
     {
       "id": "volumes",
       "default": "bootstrap=bootstrap,0750,1000:1001"

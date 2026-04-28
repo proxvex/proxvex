@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-04-28T08-34-11-green",
+  "scenario_id": "postgres/default",
+  "application": "postgres",
+  "variant": "default",
+  "task": "installation",
+  "status": "failed",
+  "vm_id": 218,
+  "hostname": "postgres-default",
+  "stack_name": "default",
+  "addons": [],
+  "duration_seconds": 68,
+  "started_at": "2026-04-28T08:34:11.174Z",
+  "finished_at": "2026-04-28T08:35:19.604Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": "Scenario failed: postgres/default (installation)",
+  "skipped_reason": null
+}

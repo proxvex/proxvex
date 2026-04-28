@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-04-27T03-02-49-green",
+  "scenario_id": "pgadmin/ssl",
+  "application": "pgadmin",
+  "variant": "ssl",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 217,
+  "hostname": "pgadmin-ssl",
+  "stack_name": "ssl",
+  "addons": [
+    "addon-ssl"
+  ],
+  "duration_seconds": 83,
+  "started_at": "2026-04-27T03:35:03.668Z",
+  "finished_at": "2026-04-27T03:36:26.932Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

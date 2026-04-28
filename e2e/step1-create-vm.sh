@@ -207,11 +207,22 @@ for keyfile in ~/.ssh/id_ed25519.pub ~/.ssh/id_rsa.pub; do
     fi
 done
 
+# Copy gh-runner LXC's SSH key (so the GitHub-Actions self-hosted runner in
+# CT 100 on ubuntupve can SSH into the nested VM via the port-forward).
+# CT-ID is configurable via GH_RUNNER_CTID, defaults to 100. Skipped silently
+# if the CT does not exist on this PVE host.
+GH_RUNNER_CTID="${GH_RUNNER_CTID:-100}"
+GH_RUNNER_PUBKEY=$(pve_ssh "pct status $GH_RUNNER_CTID >/dev/null 2>&1 && pct exec $GH_RUNNER_CTID -- sh -c 'cat /root/.ssh/id_ed25519.pub 2>/dev/null || cat /root/.ssh/id_rsa.pub 2>/dev/null || ssh-keygen -y -f /root/.ssh/id_ed25519 2>/dev/null || ssh-keygen -y -f /root/.ssh/id_rsa 2>/dev/null'" 2>/dev/null || true)
+
 # Combine all keys
 ALL_KEYS=""
 [ -n "$PVE_HOST_PUBKEY" ] && ALL_KEYS="$PVE_HOST_PUBKEY"
 if [ -n "$LOCAL_PUBKEY" ]; then
     [ -n "$ALL_KEYS" ] && ALL_KEYS="$ALL_KEYS"$'\n'"$LOCAL_PUBKEY" || ALL_KEYS="$LOCAL_PUBKEY"
+fi
+if [ -n "$GH_RUNNER_PUBKEY" ]; then
+    [ -n "$ALL_KEYS" ] && ALL_KEYS="$ALL_KEYS"$'\n'"$GH_RUNNER_PUBKEY" || ALL_KEYS="$GH_RUNNER_PUBKEY"
+    info "Including gh-runner CT $GH_RUNNER_CTID SSH key"
 fi
 
 if [ -n "$ALL_KEYS" ]; then

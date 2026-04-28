@@ -3,69 +3,17 @@
   "description": "Eclipse Mosquitto MQTT Broker",
   "extends": "oci-image",
   "icon": "icon.svg",
-  "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "eclipse-mosquitto"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "config=mosquitto/config"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "GID=1883\nMOSQUITTO_VERSION=2\nMQTTS_PORT=8883\nMQTT_PORT=1883\nMQTT_WS_PORT=9001\nUID=1883",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    }
-  ],
   "properties": [
-    {
-      "id": "oci_image",
-      "value": "eclipse-mosquitto:{{oci_image_tag}}"
-    },
-    {
-      "id": "uid",
-      "value": "1883"
-    },
-    {
-      "id": "username",
-      "value": "root"
-    },
-    {
-      "id": "ssl_mode",
-      "value": "certs"
-    },
-    {
-      "id": "ssl.addon_volumes",
-      "value": "certs=/mosquitto/config/certs,0700,1883:1883\nproxvex=/etc/proxvex,0755,0:0"
-    },
-    {
-      "id": "ssl.needs_server_cert",
-      "value": "true"
-    },
-    {
-      "id": "ssl.needs_ca_cert",
-      "value": "true"
-    }
+    { "id": "hostname", "default": "eclipse-mosquitto" },
+    { "id": "volumes", "default": "config=mosquitto/config" },
+    { "id": "envs", "default": "GID=1883\nMOSQUITTO_VERSION=2\nMQTTS_PORT=8883\nMQTT_PORT=1883\nMQTT_WS_PORT=9001\nUID=1883" },
+    { "id": "oci_image", "value": "eclipse-mosquitto:{{oci_image_tag}}" },
+    { "id": "uid", "value": "1883" },
+    { "id": "username", "value": "root" },
+    { "id": "ssl_mode", "value": "certs" },
+    { "id": "ssl.addon_volumes", "value": "certs=/mosquitto/config/certs,0700,1883:1883\nproxvex=/etc/proxvex,0755,0:0" },
+    { "id": "ssl.needs_server_cert", "value": "true" },
+    { "id": "ssl.needs_ca_cert", "value": "true" }
   ],
   "installation": {
     "pre_start": [

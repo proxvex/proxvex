@@ -150,6 +150,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref }}
 
       - name: Materialize e2e/config.json from secret
         env:

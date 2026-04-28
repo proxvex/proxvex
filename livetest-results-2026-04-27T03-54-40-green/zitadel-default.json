@@ -1,0 +1,30 @@
+{
+  "run_id": "2026-04-27T03-54-40-green",
+  "scenario_id": "zitadel/default",
+  "application": "zitadel",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 226,
+  "hostname": "zitadel-default",
+  "stack_name": "default",
+  "addons": [],
+  "duration_seconds": 208,
+  "started_at": "2026-04-27T03:57:32.393Z",
+  "finished_at": "2026-04-27T04:01:00.408Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "postgres/default",
+      "vm_id": 218,
+      "status": "passed",
+      "version": "16-alpine",
+      "snapshot_used": "dep-postgres-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

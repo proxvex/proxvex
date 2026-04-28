@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-04-27T04-50-17-green",
+  "scenario_id": "proxvex/plain",
+  "application": "proxvex",
+  "variant": "plain",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 223,
+  "hostname": "proxvex-plain",
+  "stack_name": "plain",
+  "addons": [],
+  "duration_seconds": 76,
+  "started_at": "2026-04-27T05:27:51.950Z",
+  "finished_at": "2026-04-27T05:29:07.492Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

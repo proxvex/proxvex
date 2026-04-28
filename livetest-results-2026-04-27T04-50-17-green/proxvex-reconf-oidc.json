@@ -1,0 +1,41 @@
+{
+  "run_id": "2026-04-27T04-50-17-green",
+  "scenario_id": "proxvex/reconf-oidc",
+  "application": "proxvex",
+  "variant": "reconf-oidc",
+  "task": "reconfigure",
+  "status": "passed",
+  "vm_id": 222,
+  "hostname": "proxvex-reconf-oidc",
+  "stack_name": "reconf-oidc",
+  "addons": [
+    "addon-ssl",
+    "addon-oidc"
+  ],
+  "duration_seconds": 102,
+  "started_at": "2026-04-27T05:29:22.089Z",
+  "finished_at": "2026-04-27T05:31:03.829Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "proxvex/plain",
+      "vm_id": 223,
+      "status": "passed",
+      "version": "latest",
+      "snapshot_used": "dep-proxvex-plain",
+      "snapshot_date": null
+    },
+    {
+      "scenario_id": "zitadel/default",
+      "vm_id": 226,
+      "status": "passed",
+      "version": "traefik:3.6, zitadel-login:4.12.3, zitadel:4.12.3",
+      "snapshot_used": "dep-zitadel-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

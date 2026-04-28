@@ -148,6 +148,8 @@ export interface IOutputObject {
       )[];
   /** Default value for the parameter. Unlike 'value', this will show the parameter as editable in the UI. */
   default?: string | number | boolean;
+  /** Override the required-flag of a parameter defined in a template. */
+  required?: boolean;
 }
 
 export interface ICommand {

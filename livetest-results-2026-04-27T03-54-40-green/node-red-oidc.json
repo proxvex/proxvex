@@ -1,0 +1,33 @@
+{
+  "run_id": "2026-04-27T03-54-40-green",
+  "scenario_id": "node-red/oidc",
+  "application": "node-red",
+  "variant": "oidc",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 215,
+  "hostname": "node-red-oidc",
+  "stack_name": "oidc",
+  "addons": [
+    "addon-ssl",
+    "addon-oidc"
+  ],
+  "duration_seconds": 122,
+  "started_at": "2026-04-27T04:24:30.596Z",
+  "finished_at": "2026-04-27T04:26:32.454Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "zitadel/default",
+      "vm_id": 226,
+      "status": "passed",
+      "version": "traefik:3.6, zitadel-login:4.12.3, zitadel:4.12.3",
+      "snapshot_used": "dep-zitadel-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

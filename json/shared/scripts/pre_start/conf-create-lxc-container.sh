@@ -1,5 +1,13 @@
 #!/bin/sh
 
+# Hostname is required. The UI pre-fills it with the application id, so this
+# branch should never trigger in practice — but if it does (e.g. backend bug
+# or direct API call without hostname), fail fast with a clear message rather
+# than letting `pct create` blow up later with a cryptic error.
+if [ -z "{{ hostname }}" ] || [ "{{ hostname }}" = "NOT_DEFINED" ]; then
+  echo "ERROR: parameter 'hostname' is required but was not provided" >&2
+  exit 1
+fi
 
 # Determine storage for LXC rootfs
 # 1. Use rootfs_storage parameter if provided

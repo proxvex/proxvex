@@ -199,13 +199,19 @@ export class TemplateProcessor extends EventEmitter {
           });
           propertiesWithValue.push({ id: prop.id, value: prop.value });
         }
-        if (prop.default !== undefined) {
-          // Property with default only - add to pendingPropertyDefaults
+        if (prop.default !== undefined || prop.required !== undefined) {
+          // Property with default or required override - add to pendingPropertyDefaults
           // so it gets applied after all parameters are collected
-          pendingPropertyDefaults.push({
+          const entry: { id: string; default?: string | number | boolean; required?: boolean } = {
             id: prop.id,
-            default: prop.default as string | number | boolean,
-          });
+          };
+          if (prop.default !== undefined) {
+            entry.default = prop.default as string | number | boolean;
+          }
+          if (prop.required !== undefined) {
+            entry.required = prop.required as boolean;
+          }
+          pendingPropertyDefaults.push(entry);
         }
       }
       // Add a properties command to set these values during execution

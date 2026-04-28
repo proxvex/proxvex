@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-04-27T05-39-59-green",
+  "scenario_id": "proxvex/upgrade",
+  "application": "proxvex",
+  "variant": "upgrade",
+  "task": "upgrade",
+  "status": "failed",
+  "vm_id": 225,
+  "hostname": "proxvex-upgrade",
+  "stack_name": "upgrade",
+  "addons": [],
+  "duration_seconds": 116,
+  "started_at": "2026-04-27T06:29:00.585Z",
+  "finished_at": "2026-04-27T06:30:56.209Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": "Scenario failed: proxvex/upgrade (upgrade)",
+  "skipped_reason": null
+}

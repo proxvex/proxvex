@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-04-27T03-02-49-green",
+  "scenario_id": "nginx/default",
+  "application": "nginx",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 210,
+  "hostname": "nginx-default",
+  "stack_name": "default",
+  "addons": [
+    "addon-ssl"
+  ],
+  "duration_seconds": 69,
+  "started_at": "2026-04-27T03:25:10.667Z",
+  "finished_at": "2026-04-27T03:26:20.040Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

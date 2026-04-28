@@ -5,7 +5,8 @@ import { IProcessedTemplate } from "./templateprocessor-types.mjs";
 
 export interface PropertyDefaultEntry {
   id: string;
-  default: string | number | boolean;
+  default?: string | number | boolean;
+  required?: boolean;
 }
 
 export interface OutputCollectionResult {
@@ -313,14 +314,21 @@ export class TemplateOutputProcessor {
    */
   applyPropertyDefaults(
     propertyDefaults: PropertyDefaultEntry[],
-    parameters: Array<{ id: string; default?: string | number | boolean }>,
+    parameters: Array<{
+      id: string;
+      default?: string | number | boolean;
+      required?: boolean;
+    }>,
   ): void {
     for (const propDefault of propertyDefaults) {
       const param = parameters.find((p) => p.id === propDefault.id);
       if (param) {
-        // Only set the default if parameter doesn't already have one
-        // (property default overrides parameter default)
-        param.default = propDefault.default;
+        if (propDefault.default !== undefined) {
+          param.default = propDefault.default;
+        }
+        if (propDefault.required !== undefined) {
+          param.required = propDefault.required;
+        }
       }
     }
   }

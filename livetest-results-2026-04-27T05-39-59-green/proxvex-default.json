@@ -1,0 +1,32 @@
+{
+  "run_id": "2026-04-27T05-39-59-green",
+  "scenario_id": "proxvex/default",
+  "application": "proxvex",
+  "variant": "default",
+  "task": "installation",
+  "status": "passed",
+  "vm_id": 222,
+  "hostname": "proxvex-default",
+  "stack_name": "default",
+  "addons": [
+    "addon-oidc"
+  ],
+  "duration_seconds": 130,
+  "started_at": "2026-04-27T06:21:53.921Z",
+  "finished_at": "2026-04-27T06:24:03.486Z",
+  "deployer_version": "0.5.29",
+  "deployer_git_hash": "a70f889",
+  "dependencies": [
+    {
+      "scenario_id": "zitadel/default",
+      "vm_id": 226,
+      "status": "passed",
+      "version": "traefik:3.6, zitadel-login:4.12.3, zitadel:4.12.3",
+      "snapshot_used": "dep-zitadel-default",
+      "snapshot_date": null
+    }
+  ],
+  "verify_results": {},
+  "error_message": null,
+  "skipped_reason": null
+}

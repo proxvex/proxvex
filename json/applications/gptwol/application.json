@@ -3,95 +3,25 @@
   "description": "A web application to manage Wake-on-LAN (WOL) for your devices. Monitor device status, schedule wake-up tasks via cron, and send WOL packets through a simple web interface.",
   "extends": "oci-image",
   "icon": "icon.png",
-  "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "gptwol"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "appdata_db=app/db,size=32M\nappdata_cron=etc/cron.d"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "TZ=Europe/Berlin",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    },
-    {
-      "id": "rootfs_storage",
-      "name": "Rootfs Storage",
-      "type": "enum",
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage for the container rootfs",
-      "advanced": true,
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC"
-    },
-    {
-      "id": "volume_storage",
-      "name": "Volume Storage",
-      "type": "enum",
-      "required": true,
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage ID for data volumes",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "local-zfs"
-    }
-  ],
   "properties": [
-    {
-      "id": "oci_image",
-      "value": "misterbabou/gptwol:{{oci_image_tag}}"
-    },
-    {
-      "id": "uid",
-      "value": "0"
-    },
-    {
-      "id": "username",
-      "value": "root"
-    },
-    {
-      "id": "http_port",
-      "value": "5000"
-    },
-    {
-      "id": "oidc_callback_path",
-      "value": "/oidc/callback"
-    }
+    { "id": "hostname", "default": "gptwol" },
+    { "id": "volumes", "default": "appdata_db=app/db\nappdata_cron=etc/cron.d" },
+    { "id": "envs", "default": "TZ=Europe/Berlin" },
+    { "id": "rootfs_storage", "default": "local-zfs" },
+    { "id": "volume_storage", "default": "local-zfs", "required": true },
+    { "id": "oci_image", "value": "misterbabou/gptwol:{{oci_image_tag}}" },
+    { "id": "uid", "value": "0" },
+    { "id": "username", "value": "root" },
+    { "id": "http_port", "value": "5000" },
+    { "id": "oidc_callback_path", "value": "/oidc/callback" }
   ],
   "installation": {},
   "tags": [
     "infrastructure"
   ],
-  "supported_addons": [
-    "addon-oidc"
-  ],
+  "supported_addons": ["addon-oidc"],
   "oidc_roles": [
-    {
-      "key": "admin",
-      "display_name": "Administrator"
-    }
+    { "key": "admin", "display_name": "Administrator" }
   ],
   "stacktype": "oidc"
 }

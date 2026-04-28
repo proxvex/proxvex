@@ -14,7 +14,7 @@
       "id": "compose_project",
       "name": "Compose Project Name",
       "type": "string",
-      "required": true,
+      "required": false,
       "description": "Project name for Docker Compose (directory name)"
     },
     {

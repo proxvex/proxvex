@@ -6,26 +6,27 @@
   "tags": ["api", "database"],
   "parameters": [
     {
-      "id": "hostname",
-      "name": "Hostname",
+      "id": "http_port",
+      "name": "HTTP Port",
       "type": "string",
+      "default": "3000",
       "required": false,
-      "description": "Hostname for the Docker Compose container.",
-      "template": "application.json",
-      "default": "postgrest"
+      "advanced": true,
+      "description": "Port number for PostgREST HTTP server (default: 3000)"
     },
     {
-      "id": "compose_file",
-      "name": "Docker Compose File",
+      "id": "https_port",
+      "name": "HTTPS Port",
       "type": "string",
-      "upload": true,
-      "required": true,
-      "description": "Docker Compose YAML file (upload).",
-      "template": "application.json",
-      "default": "c2VydmljZXM6CiAgcG9zdGdyZXN0OgogICAgaW1hZ2U6IHBvc3RncmVzdC9wb3N0Z3Jlc3Q6JHtQT1NUR1JFU1RfVkVSU0lPTjotbGF0ZXN0fQogICAgcmVzdGFydDogdW5sZXNzLXN0b3BwZWQKICAgIGVudmlyb25tZW50OgogICAgICBQR1JTVF9EQl9VUkk6ICJwb3N0Z3JlczovLyR7UE9TVEdSRVNfVVNFUjotcG9zdGdyZXN9Ont7IFBPU1RHUkVTX1BBU1NXT1JEIH19QHt7IFBPU1RHUkVTX0hPU1QgfX06JHtQT1NUR1JFU19QT1JUOi01NDMyfS8ke1BPU1RHUkVTX0RCOi1wb3N0Z3Jlc30iCiAgICAgIFBHUlNUX0RCX1NDSEVNQVM6ICR7UEdSU1RfU0NIRU1BUzotcHVibGljfQogICAgICBQR1JTVF9EQl9BTk9OX1JPTEU6ICR7UEdSU1RfQU5PTl9ST0xFOi1wb3N0Z3Jlc30KICAgICAgUEdSU1RfU0VSVkVSX1BPUlQ6IDMwMDAKICAgIHBvcnRzOgogICAgICAtICIzMDAwOjMwMDAiCg=="
+      "default": "3443",
+      "required": false,
+      "advanced": true,
+      "description": "Port number for HTTPS access (default: 3443)"
     }
   ],
   "properties": [
+    { "id": "hostname", "default": "postgrest" },
+    { "id": "compose_project", "value": "postgrest" },
     {
       "id": "compose_file",
       "value": "c2VydmljZXM6CiAgcG9zdGdyZXN0OgogICAgaW1hZ2U6IHBvc3RncmVzdC9wb3N0Z3Jlc3Q6JHtET0NLRVJfcG9zdGdyZXN0X1RBR30KICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZpcm9ubWVudDoKICAgICAgUEdSU1RfREJfVVJJOiAicG9zdGdyZXM6Ly8ke1BPU1RHUkVTX1VTRVI6LXBvc3RncmVzfTp7eyBQT1NUR1JFU19QQVNTV09SRCB9fUB7eyBQT1NUR1JFU19IT1NUIH19OiR7UE9TVEdSRVNfUE9SVDotNTQzMn0vJHtQT1NUR1JFU19EQjotcG9zdGdyZXN9IgogICAgICBQR1JTVF9EQl9TQ0hFTUFTOiAke1BHUlNUX1NDSEVNQVM6LXB1YmxpY30KICAgICAgUEdSU1RfREJfQU5PTl9ST0xFOiAke1BHUlNUX0FOT05fUk9MRTotcG9zdGdyZXN9CiAgICAgIFBHUlNUX1NFUlZFUl9QT1JUOiAzMDAwCiAgICBwb3J0czoKICAgICAgLSAiMzAwMDozMDAwIgo="
@@ -37,11 +38,7 @@
   "dependencies": [
     { "application": "postgres" }
   ],
-  "installation": {
-    "image": [
-      "postgrest-parameters.json"
-    ]
-  },
+  "installation": {},
   "stacktype": "postgres",
   "stack_usage": [
     {
