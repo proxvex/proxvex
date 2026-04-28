@@ -98,36 +98,40 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 #     deployer-installed snapshot from step2b, which gets stale across
 #     livetest iterations.
 if [ "$REFRESH_HUB" = "true" ]; then
-  if [ ! -d "$PROJECT_ROOT/backend/dist" ]; then
-    err "backend/dist not found — run 'cd backend && pnpm run build' first"
-  fi
-  TMP_TAR="/tmp/proxvex-refresh-${E2E_INSTANCE}-$$.tar.gz"
-  REMOTE_TAR="/tmp/proxvex-refresh.tar.gz"
-  REMOTE_INSTALLER="/tmp/install-proxvex-${E2E_INSTANCE}.sh"
-  info "Refreshing Hub code from workspace ($PROJECT_ROOT/{json,backend/dist})"
-  # macOS bsdtar embeds AppleDouble resource forks (._*) into archives, which
-  # the Linux deployer then tries to load as JSON and crashes. Strip them and
-  # disable extended attributes so the tarball is portable.
-  COPYFILE_DISABLE=1 tar --exclude='._*' --exclude='.DS_Store' \
-    -czf "$TMP_TAR" -C "$PROJECT_ROOT" json backend/dist \
-    || err "tar failed for refresh tarball"
+  command -v docker >/dev/null || err "docker not found on local host (required for build)"
+  command -v skopeo >/dev/null || err "skopeo not found on local host (install via brew/apt)"
+  command -v pnpm   >/dev/null || err "pnpm not found on local host"
 
-  # Stage tarball + installer on the nested PVE host. install-proxvex.sh runs
-  # there because it drives `pct` against the Hub-LXC (which lives on the
-  # nested PVE host).
+  info "Building proxvex Docker image (linux/amd64) for ${E2E_INSTANCE}"
+  ( cd "$PROJECT_ROOT" && pnpm run build >&2 ) || err "pnpm build failed"
+  rm -f "$PROJECT_ROOT/docker"/proxvex*.tgz
+  TARBALL_RAW=$(cd "$PROJECT_ROOT" && npm pack --pack-destination docker/ 2>&1 | grep -o 'proxvex-.*\.tgz' | tail -n1)
+  [ -n "$TARBALL_RAW" ] || err "npm pack did not produce a tarball"
+  mv "$PROJECT_ROOT/docker/$TARBALL_RAW" "$PROJECT_ROOT/docker/proxvex.tgz"
+  DOCKER_TAG="proxvex:local-${E2E_INSTANCE}"
+  ( cd "$PROJECT_ROOT" && docker build --platform linux/amd64 -t "$DOCKER_TAG" -f docker/Dockerfile.npm-pack . >&2 ) \
+    || err "docker build failed"
+  OCI_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-local.oci.tar"
+  rm -f "$OCI_TARBALL"
+  skopeo copy "docker-daemon:${DOCKER_TAG}" "oci-archive:${OCI_TARBALL}:latest" >&2 \
+    || err "skopeo copy failed"
+
+  REMOTE_TARBALL="/tmp/proxvex-${E2E_INSTANCE}-redeploy.oci.tar"
+  REMOTE_INSTALLER="/tmp/install-proxvex-${E2E_INSTANCE}.sh"
+  info "Uploading OCI tarball + installer to ${PVE_HOST}:${PORT_PVE_SSH}"
   scp -o StrictHostKeyChecking=no -P "$PORT_PVE_SSH" \
-      "$TMP_TAR" "root@$PVE_HOST:$REMOTE_TAR" \
-    || err "scp of refresh tarball failed"
+      "$OCI_TARBALL" "root@$PVE_HOST:$REMOTE_TARBALL" \
+    || err "scp of OCI tarball failed"
   scp -o StrictHostKeyChecking=no -P "$PORT_PVE_SSH" \
       "$PROJECT_ROOT/install-proxvex.sh" "root@$PVE_HOST:$REMOTE_INSTALLER" \
     || err "scp of install-proxvex.sh failed"
-  rm -f "$TMP_TAR"
 
+  info "Redeploying proxvex-LXC $DEPLOYER_VMID via install-proxvex.sh --tarball"
   ssh -o StrictHostKeyChecking=no -p "$PORT_PVE_SSH" "root@$PVE_HOST" \
-      "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --update-from-tarball $REMOTE_TAR --vm-id $DEPLOYER_VMID && rm -f $REMOTE_TAR $REMOTE_INSTALLER" \
-    || err "install-proxvex.sh --update-from-tarball failed inside nested VM"
+      "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --tarball $REMOTE_TARBALL --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL && rm -f $REMOTE_TARBALL $REMOTE_INSTALLER" \
+    || err "install-proxvex.sh --tarball failed inside nested VM"
 
-  ok "Hub code refreshed; proxvex-LXC $DEPLOYER_VMID restarted"
+  ok "Hub redeployed; proxvex-LXC $DEPLOYER_VMID running with fresh image"
 fi
 
 # 3. Wait for Hub API to respond (proxvex-LXC just booted)

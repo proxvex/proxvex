@@ -165,7 +165,9 @@ export interface ICommand {
   outputs?: ({ id: string; default?: boolean; optional?: boolean } | string)[]; // Expected outputs from this command/script
   description?: string;
   /** @internal execute_on is set internally from template.execute_on, not part of the schema */
-  execute_on?: "ve" | "lxc" | string | { where: string; uid?: boolean; gid?: boolean };
+  execute_on?: "ve" | "lxc" | "hook" | string | { where: string; uid?: boolean; gid?: boolean };
+  /** When execute_on is 'hook': also run the hook once immediately after deploy (default true). */
+  hook_trigger_now?: boolean;
   /** @internal category is set internally from the template's category for look-ahead skip logic */
   category?: string;
 }
@@ -229,7 +231,8 @@ export interface IParameterOverride {
 }
 
 export interface ITemplate {
-  execute_on?: "ve" | "lxc" | string | { where: string; uid?: boolean; gid?: boolean };
+  execute_on?: "ve" | "lxc" | "hook" | string | { where: string; uid?: boolean; gid?: boolean };
+  hook_trigger_now?: boolean;
   skip_if_all_missing?: string[];
   skip_if_property_set?: string;
   implements?: string;

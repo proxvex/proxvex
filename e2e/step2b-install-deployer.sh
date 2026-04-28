@@ -195,19 +195,17 @@ skopeo copy \
     || error "skopeo copy failed"
 success "OCI-archive: $(ls -l "$OCI_TARBALL" | awk '{print $5}') bytes"
 
-# Step 5: Upload tarball to the nested VM (via PVE host) into the Proxmox
-# template cache, where pct create expects it. Per-instance /tmp name on the
-# outer PVE host so parallel runs for other instances don't stomp each other.
-REMOTE_TEMPLATE_DIR="/var/lib/vz/template/cache"
-REMOTE_TEMPLATE="${REMOTE_TEMPLATE_DIR}/proxvex-${E2E_INSTANCE}-local.tar"
-info "Uploading $OCI_TARBALL → $NESTED_IP:$REMOTE_TEMPLATE ..."
+# Step 5: Upload tarball to the nested VM (via PVE host) into /tmp.
+# install-proxvex.sh --tarball will stage it into the Proxmox template cache.
+REMOTE_TARBALL="/tmp/${TMP_OCI_NAME}"
+info "Uploading $OCI_TARBALL → $NESTED_IP:$REMOTE_TARBALL ..."
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "$OCI_TARBALL" "root@$PVE_HOST:/tmp/${TMP_OCI_NAME}" \
     || error "scp to PVE host failed"
-pve_ssh "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/${TMP_OCI_NAME} root@$NESTED_IP:${REMOTE_TEMPLATE}" \
+pve_ssh "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/${TMP_OCI_NAME} root@$NESTED_IP:${REMOTE_TARBALL}" \
     || error "scp from PVE host to nested VM failed"
 pve_ssh "rm -f /tmp/${TMP_OCI_NAME}" || true
-success "Template uploaded to $REMOTE_TEMPLATE"
+success "Tarball uploaded to $REMOTE_TARBALL (install-proxvex.sh will stage to cache)"
 
 # Step 6: Copy local install-proxvex.sh + shared scripts to the nested VM
 # (install-proxvex.sh's LOCAL_SCRIPT_PATH bypasses GitHub so the local fix

@@ -3,6 +3,23 @@ import { VariableResolver } from "../variable-resolver.mjs";
 import { getNextMessageIndex } from "./ve-execution-constants.mjs";
 import { VeExecutionMessageEmitter } from "./ve-execution-message-emitter.mjs";
 
+/**
+ * Derive the on_start.d filename for a hook command. The dispatcher
+ * (`/etc/proxvex/on_start_container`) iterates `*.sh` in alphabetical order,
+ * so the leading sequence number from the source template (e.g. "342" from
+ * `342-post-install-acme-renew-on-start.json`) is preserved here to keep
+ * deterministic ordering across hooks. Falls back to a sanitized name when
+ * the command lacks the expected metadata.
+ */
+function deriveHookFileName(cmd: ICommand): string {
+  const tmpl = (cmd as { template?: string }).template ?? "";
+  const seqMatch = tmpl.match(/^(\d+)/);
+  const seq = seqMatch ? `${seqMatch[1]}-` : "";
+  const baseRaw = (cmd.script ?? cmd.name ?? "hook").replace(/\.sh$/i, "");
+  const base = baseRaw.replace(/[^A-Za-z0-9_.-]/g, "-");
+  return `${seq}${base}.sh`;
+}
+
 export interface CommandProcessorDependencies {
   outputs: Map<string, string | number | boolean>;
   inputs: Record<string, string | number | boolean>;
@@ -444,6 +461,41 @@ export class VeExecutionCommandProcessor {
         case "ve": {
           const execStrVe = this.deps.variableResolver.replaceVars(rawStr);
           return await this.deps.runOnVeHost(execStrVe, cmd);
+        }
+        case "hook": {
+          // Deploy the script as an on-start hook into /etc/proxvex/on_start.d/.
+          // Resolves template vars at deploy time (so hook-side logic can use
+          // baked-in values), writes the file via base64+pct, makes it
+          // executable, and—unless hook_trigger_now=false—runs it once now
+          // so first-deploy effects (e.g. cert issuance) happen immediately
+          // rather than waiting for the next container restart.
+          const hookContent = this.deps.variableResolver.replaceVars(rawStr);
+          const vm_id = this.getVmId();
+          if (!vm_id) {
+            const msg =
+              "vm_id is required for hook deployment but was not found in inputs or outputs.";
+            this.deps.messageEmitter.emitStandardMessage(cmd, msg, null, -1, -1);
+            throw new Error(msg);
+          }
+          const hookFile = deriveHookFileName(cmd);
+          const hookPath = `/etc/proxvex/on_start.d/${hookFile}`;
+          const b64 = Buffer.from(hookContent, "utf8").toString("base64");
+          // Heredoc-free deploy: base64-decode into target, chmod +x.
+          const deployScript =
+            `mkdir -p /etc/proxvex/on_start.d && ` +
+            `printf '%s' '${b64}' | base64 -d > '${hookPath}' && ` +
+            `chmod +x '${hookPath}' && ` +
+            `echo "Hook deployed: ${hookPath} ($(wc -c < '${hookPath}') bytes)" >&2`;
+          await this.deps.runOnLxc(vm_id, deployScript, cmd, execUid, execGid);
+
+          const triggerNow = cmd.hook_trigger_now !== false;
+          if (triggerNow) {
+            const u = execUid ?? 0;
+            const g = execGid ?? 0;
+            const triggerScript = `'${hookPath}' '${u}' '${g}'`;
+            await this.deps.runOnLxc(vm_id, triggerScript, cmd, execUid, execGid);
+          }
+          return undefined;
         }
         default: {
           if (/^host:.*/.test(target)) {

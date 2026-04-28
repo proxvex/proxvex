@@ -239,15 +239,20 @@ deployer_url=""
 enable_https=""
 domain_suffix=".local"
 
-# Bypass for local/offline installs: use an existing OCI template tarball
-# instead of pulling from the registry. Expected to be a path the PVE host
-# can read (e.g. /var/lib/vz/template/cache/proxvex-local.tar).
+# Internal: holds the cache path of the OCI tarball after --tarball staging.
+# Drives the offline install branch below; never set directly via CLI.
 use_existing_image=""
 
 # In-place code refresh of an already-running proxvex container without
 # rebuilding the OCI image. Tarball must contain `json/` and `backend/dist/`
 # at the top level. Skips all install steps. Path on the PVE host.
 update_from_tarball=""
+
+# Redeploy from a freshly built OCI tarball: copies the tarball into Proxmox's
+# template cache (/var/lib/vz/template/cache/), destroys any existing container
+# at --vm-id (with --force --purge), and proceeds with a normal install.
+# Avoids the live-patch flakiness of --update-from-tarball.
+tarball=""
 
 # Parse CLI flags
 while [ "$#" -gt 0 ]; do
@@ -267,8 +272,8 @@ while [ "$#" -gt 0 ]; do
     --deployer-url) deployer_url="$2"; shift 2 ;;
     --https) enable_https="true"; shift ;;
     --domain-suffix) domain_suffix="$2"; shift 2 ;;
-    --use-existing-image) use_existing_image="$2"; shift 2 ;;
     --update-from-tarball) update_from_tarball="$2"; shift 2 ;;
+    --tarball) tarball="$2"; shift 2 ;;
     --help|-h)
       cat >&2 <<USAGE
 Usage: $0 [options]
@@ -291,17 +296,21 @@ Options:
   --deployer-url <URL>  External URL for deployer (e.g., http://pve1:3080 for NAT setups)
   --https               Enable HTTPS (reconfigures with SSL addon after install)
   --domain-suffix <sfx> Domain suffix for SSL certificates (default: .local)
-  --use-existing-image <PATH>
-                        Skip the OCI registry pull and use a pre-built template
-                        tarball at PATH on the PVE host (e.g. for local/offline
-                        installs or e2e tests).
+  --tarball <PATH>      Install/redeploy from a pre-built OCI tarball at PATH.
+                        Copies the tarball into /var/lib/vz/template/cache/,
+                        destroys any existing container at --vm-id (with
+                        --force --purge), and creates a fresh container from
+                        the cached image. Use this for offline installs and
+                        for clean upgrades after \`docker build\` +
+                        \`skopeo copy oci-archive:...\`.
   --update-from-tarball <PATH>
                         In-place code refresh of an existing proxvex container.
                         Skips all install steps. Tarball at PATH on the PVE host
                         must contain \`json/\` + \`backend/dist/\` at the top
                         level. Selects the container via --vm-id, or
-                        auto-detects by hostname=proxvex. Faster than rebuilding
-                        the OCI image; useful in livetest --fresh flows.
+                        auto-detects by hostname=proxvex. Faster than
+                        rebuilding the OCI image, but live-patch — prefer
+                        --tarball for reliable redeploys.
 
 Notes:
   - OCI image: ${OCI_IMAGE}
@@ -314,6 +323,34 @@ USAGE
       echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+# --tarball: install/redeploy from a freshly built OCI tarball. Stage it
+# into the template cache, destroy any container at --vm-id (so pct create
+# can reuse the ID with the new image), and let the offline-install branch
+# below pick up the cached path.
+if [ -n "$tarball" ]; then
+  if [ ! -f "$tarball" ]; then
+    echo "Error: --tarball path does not exist: $tarball" >&2
+    exit 1
+  fi
+  cache_dir="/var/lib/vz/template/cache"
+  mkdir -p "$cache_dir"
+  cached_tarball="${cache_dir}/$(basename "$tarball")"
+  cp "$tarball" "$cached_tarball"
+  log "Staged tarball into ${cached_tarball}"
+
+  # Destroy an existing container at the target VMID so pct create won't
+  # collide. Mounted volumes referenced from /etc/pve/lxc/<vmid>.conf are
+  # released; --purge wipes the rootfs disk.
+  if [ -n "$vm_id" ] && pct status "$vm_id" >/dev/null 2>&1; then
+    log "Destroying existing container $vm_id before redeploy"
+    pct stop "$vm_id" >/dev/null 2>&1 || true
+    pct destroy "$vm_id" --force --purge >/dev/null 2>&1 || true
+  fi
+
+  # Hand the cached path to the regular install path.
+  use_existing_image="$cached_tarball"
+fi
 
 # --update-from-tarball: in-place refresh of an existing proxvex container.
 # Skips every install step below and exits when the refresh is done.
@@ -357,7 +394,7 @@ if [ -n "$update_from_tarball" ]; then
   pct exec "$target_vmid" -- sh -c '
     set -e
     cd /usr/local/lib/node_modules/proxvex
-    rm -rf json backend/dist
+    rm -rf json backend/dist schemas
     tar -xzf /tmp/proxvex-update.tar.gz
     rm -f /tmp/proxvex-update.tar.gz
   '
@@ -528,9 +565,9 @@ fi
 
 # 1) Obtain OCI image: either use a pre-built tarball or pull from the registry
 if [ -n "$use_existing_image" ]; then
-  step "Using existing OCI image ${use_existing_image}"
+  step "Using cached OCI image ${use_existing_image}"
   if [ ! -f "$use_existing_image" ] && [ ! -d "$use_existing_image" ]; then
-    log "Error: --use-existing-image path does not exist: $use_existing_image"
+    log "Error: cached OCI image not found at: $use_existing_image"
     exit 1
   fi
   template_path="$use_existing_image"

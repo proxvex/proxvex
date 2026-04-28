@@ -314,7 +314,13 @@ export async function executeScenarios(
         // to restore consistent state across all stack-provider LXCs and the
         // nested-VM host FS (storagecontext-backup, deployer-context, etc.).
         // Skipped if no providers were planned (no dep-stacks-ready snapshot).
-        if (snapMgr && !step.isDependency && snapMgr.exists("dep-stacks-ready")) {
+        // KEEP_VM also skips the rollback so the failed LXC stays available
+        // for inspection (rollback would destroy it atomically).
+        const keepForDebug = !!process.env.KEEP_VM;
+        if (keepForDebug) {
+          logInfo(`KEEP_VM set — skipping rollback to dep-stacks-ready (failed VM ${step.vmId} preserved for inspection)`);
+        }
+        if (snapMgr && !step.isDependency && !keepForDebug && snapMgr.exists("dep-stacks-ready")) {
           try {
             snapMgr.rollbackHostSnapshot("dep-stacks-ready");
             checkVolumeConsistency(

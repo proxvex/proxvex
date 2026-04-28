@@ -1,7 +1,7 @@
 {
-  "execute_on": "lxc",
+  "execute_on": "hook",
   "name": "Install ACME Cert Renewal",
-  "description": "Installs a drop-in script that handles ACME certificate issuance and renewal via acme.sh with Cloudflare DNS on each container start.",
+  "description": "Deploys an on-start hook that handles ACME certificate issuance and renewal via acme.sh with Cloudflare DNS. The hook lives in /etc/proxvex/on_start.d/ and runs on every container start (and once now via hook_trigger_now).",
   "skip_if_all_missing": ["CF_TOKEN"],
   "parameters": [
     {
@@ -65,8 +65,8 @@
   ],
   "commands": [
     {
-      "script": "post-install-acme-renew-on-start.sh",
-      "description": "Create and run ACME renewal on-start drop-in script"
+      "script": "acme-renew-hook.sh",
+      "description": "Deploy ACME renewal on-start hook (runs at deploy + every container start)"
     }
   ]
 }

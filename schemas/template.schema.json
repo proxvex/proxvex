@@ -8,6 +8,7 @@
       "anyOf": [
         { "const": "ve" },
         { "const": "lxc" },
+        { "const": "hook", "description": "Deploy the script as an on-start hook into the container's /etc/proxvex/on_start.d/. The hook is executed by the on_start_container dispatcher on every container start (and optionally once immediately, see hook_trigger_now)." },
         { "type": "string", "pattern": "^host:.*$" },
         { "type": "string", "pattern": "^application:.*$" },
         {
@@ -17,6 +18,7 @@
               "anyOf": [
                 { "const": "ve" },
                 { "const": "lxc" },
+                { "const": "hook" },
                 { "type": "string", "pattern": "^host:.*$" },
                 { "type": "string", "pattern": "^application:.*$" }
               ]
@@ -28,6 +30,10 @@
           "additionalProperties": false
         }
       ]
+    },
+    "hook_trigger_now": {
+      "type": "boolean",
+      "description": "When execute_on is 'hook': also trigger the deployed hook once immediately (default true). Set false if you only want it deployed for the next container restart."
     },
     "skip_if_all_missing": {
       "type": "array",

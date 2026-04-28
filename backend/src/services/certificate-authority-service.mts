@@ -235,7 +235,21 @@ export class CertificateAuthorityService implements ICaProvider {
       writeFileSync(caKeyPath, Buffer.from(ca.key, "base64"), "utf-8");
       writeFileSync(caCertPath, Buffer.from(ca.cert, "base64"), "utf-8");
 
-      // SAN extension config
+      // SAN extension config. Include both the FQDN ("zitadel-ssl.local")
+      // and the bare hostname ("zitadel-ssl"). Other containers on the same
+      // bridge connect via the bare hostname (Docker's default short name),
+      // so without this DNS entry Traefik / nginx etc. can't match the cert
+      // by SNI and fall back to a self-signed default cert. We also keep
+      // localhost + 127.0.0.1 for in-container probes.
+      const dnsEntries = [effectiveHostname];
+      const bareHost = effectiveHostname.includes(".")
+        ? effectiveHostname.split(".")[0]
+        : undefined;
+      if (bareHost && bareHost !== effectiveHostname && !dnsEntries.includes(bareHost)) {
+        dnsEntries.push(bareHost);
+      }
+      dnsEntries.push("localhost");
+
       const extContent = [
         "[v3_req]",
         "subjectAltName = @alt_names",
@@ -244,8 +258,7 @@ export class CertificateAuthorityService implements ICaProvider {
         "extendedKeyUsage = serverAuth",
         "",
         "[alt_names]",
-        `DNS.1 = ${effectiveHostname}`,
-        "DNS.2 = localhost",
+        ...dnsEntries.map((d, i) => `DNS.${i + 1} = ${d}`),
         "IP.1 = 127.0.0.1",
       ].join("\n");
       writeFileSync(extPath, extContent, "utf-8");

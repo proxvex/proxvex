@@ -495,6 +495,7 @@ export class TemplateProcessor extends EventEmitter {
           command: "exit 0",
           description,
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(tmplData.hook_trigger_now !== undefined && { hook_trigger_now: tmplData.hook_trigger_now }),
           ...(opts.templateCategory && { category: opts.templateCategory }),
         };
         opts.commands.push(skippedCommand);
@@ -635,6 +636,7 @@ export class TemplateProcessor extends EventEmitter {
             ? { scriptContent: scriptResolution.content }
             : {}),
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(tmplData.hook_trigger_now !== undefined && { hook_trigger_now: tmplData.hook_trigger_now }),
           ...(opts.templateCategory && { category: opts.templateCategory }),
         };
 
@@ -688,6 +690,7 @@ export class TemplateProcessor extends EventEmitter {
         const commandToAdd: ICommand = {
           ...cmd,
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(tmplData.hook_trigger_now !== undefined && { hook_trigger_now: tmplData.hook_trigger_now }),
           ...(opts.templateCategory && { category: opts.templateCategory }),
         };
         opts.commands.push(commandToAdd);
@@ -699,6 +702,7 @@ export class TemplateProcessor extends EventEmitter {
           ...cmd,
           name: cmd.name || tmplData.name || "unnamed-template",
           ...(tmplData.execute_on && { execute_on: tmplData.execute_on }),
+          ...(tmplData.hook_trigger_now !== undefined && { hook_trigger_now: tmplData.hook_trigger_now }),
           ...(opts.templateCategory && { category: opts.templateCategory }),
         };
         opts.commands.push(commandToAdd);

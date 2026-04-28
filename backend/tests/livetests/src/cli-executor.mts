@@ -142,6 +142,7 @@ export function runCli(
     }
 
     let stdout = "";
+    let stderr = "";
     const proc = spawn(cmd, args, {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: "0" },
@@ -149,7 +150,9 @@ export function runCli(
 
     proc.stdout.on("data", (data: Buffer) => { stdout += data.toString(); });
     proc.stderr.on("data", (data: Buffer) => {
-      process.stderr.write(data.toString());
+      const chunk = data.toString();
+      stderr += chunk;
+      process.stderr.write(chunk);
     });
 
     proc.on("close", (code) => {

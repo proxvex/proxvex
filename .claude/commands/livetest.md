@@ -113,10 +113,29 @@ Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SS
    > on top of the existing mirrors, re-run step2b — step2a is idempotent (checks
    > versions.sh hash) and will no-op if nothing changed.
 
-4. **(local-backend mode only — skip if `--config` was set)** Start the local backend in Spoke mode via the helper script. The script ensures the proxvex-LXC inside the nested VM (the Hub) is running, waits for its API, then starts the local backend with `HUB_URL` set so it pulls project settings from the Hub:
+4. **(local-backend mode only — skip if `--config` was set)** Start the local backend in Spoke mode via the helper script. The script ensures the proxvex-LXC inside the nested VM (the Hub) is running, waits for its API, then starts the local backend with `HUB_URL` set so it pulls project settings from the Hub.
+
+   **Always start the deployer this way — never `node dist/proxvex.mjs` directly.**
+
+   **Decide whether to pass `--refresh-hub`:** the Hub-LXC has its own baked-in copy of `backend/dist/`, `schemas/`, and `json/`. If your local change touches:
+   - `schemas/**` (template/output/application schema)
+   - `backend/src/types.mts` or anything that adds new template-validation fields (`execute_on` enum, parameter shapes, etc.)
+   - `backend/src/persistence/**`, `backend/src/templates/**`, `backend/src/ve-execution/**`
+
+   then the Hub schema must be refreshed or it will crash-loop on boot when validating templates. Use:
    ```
-   ./e2e/start-livetest-deployer.sh $INSTANCE
+   ./e2e/start-livetest-deployer.sh --refresh-hub $INSTANCE
    ```
+   `--refresh-hub` runs `pnpm build` + `npm pack` + `docker build` + `skopeo copy oci-archive` + scp + `install-proxvex.sh --tarball` (~2 min). It cleanly redeploys the Hub-LXC — preferred over the older `--update-from-tarball` live-patch flow.
+
+   For pure `json/` template/script edits (no schema change): plain `./e2e/start-livetest-deployer.sh $INSTANCE` is enough; the Spoke uses its local jsonPath.
+
+   **Recovery from Hub crash-loop** (`curl Hub/api/applications` times out but `qm status 9002` says running):
+   ```
+   ssh root@ubuntupve "qm stop $VMID; qm rollback $VMID deployer-installed; qm start $VMID"
+   ./e2e/start-livetest-deployer.sh --refresh-hub $INSTANCE
+   ```
+
    The script kills any deployer already on `$DEPLOYER_PORT`, so it is safe to re-run. On failure it prints the last log lines and exits non-zero — abort the livetest run.
 
 5. **(reserved)** — historically this slot held the manual deployer-start; now folded into step 4.
@@ -147,7 +166,12 @@ When `--fix` is set, time does not matter — the goal is to get all tests green
 3. **Rebuild and/or restart**:
 
    **Local-backend mode** (default):
-   - If backend code changed: rebuild and restart deployer:
+   - If schema/types/persistence/templates/ve-execution changed: rebuild + redeploy Hub:
+     ```
+     cd backend && pnpm run build && cd ..
+     ./e2e/start-livetest-deployer.sh --refresh-hub $INSTANCE
+     ```
+   - If only other backend code changed (no schema/validation impact): rebuild + restart Spoke:
      ```
      cd backend && pnpm run build && cd ..
      ./e2e/start-livetest-deployer.sh $INSTANCE

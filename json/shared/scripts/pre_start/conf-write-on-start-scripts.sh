@@ -142,6 +142,15 @@ if is_set "$CERT_DIR"; then
     exit 1
   fi
 
+  # The actual on_start.d/acme-renew.sh script is now deployed by template
+  # 342-post-install-acme-renew-on-start (execute_on: hook), so we no longer
+  # generate it inline here. We keep this branch only to (a) validate
+  # required vars early and (b) write a bootstrap placeholder certificate so
+  # nginx (and similar TLS-listening services) can start before the real LE
+  # cert is issued by the on_start hook.
+
+  __SKIP_INLINE_ACME=1
+  if false; then
   # Normalize "NOT_DEFINED" template sentinels to empty strings before baking
   # them into the generated script. Keeps the output file clean and prevents
   # downstream logic from doing literal-string comparisons.
@@ -374,6 +383,7 @@ ACMEEOF
   chown "$VOL_OWNER" "$ACME_SCRIPT" 2>/dev/null || true
   log "Wrote ACME renewal script: ${ACME_SCRIPT}"
   SCRIPTS_WRITTEN=$((SCRIPTS_WRITTEN + 1))
+  fi  # end of disabled inline-acme block (now handled by 342-template hook)
 
   # Bootstrap placeholder certificate. Lets the app (e.g. nginx with
   # listen ... ssl) start successfully before acme-renew.sh has issued
