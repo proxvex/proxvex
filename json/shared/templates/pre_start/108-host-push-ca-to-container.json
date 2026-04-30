@@ -1,7 +1,7 @@
 {
   "execute_on": "ve",
   "name": "Push CA into Container",
-  "description": "Pushes the deployer's CA certificate (from the PVE host's /usr/local/share/ca-certificates/proxvex-ca.crt) into the LXC container's system trust store. This way skopeo on the host and docker inside the container — via Docker's system-trust fallback — both trust the local registry mirror without per-app HTTP downloads. No-op when the host has no CA file.",
+  "description": "Writes the deployer's CA certificate (from the PVE host's /usr/local/share/ca-certificates/proxvex-ca.crt) into the LXC container's system trust store while the container is still stopped, by mounting its rootfs offline via vol_mount. Drops the file at /usr/local/share/ca-certificates/proxvex-ca.crt and splices it into /etc/ssl/certs/ca-certificates.crt so the cert is trusted from first boot without needing update-ca-certificates to run inside. Docker daemon picks it up via its system-trust fallback. No-op when the host has no CA file.",
   "parameters": [
     {
       "id": "vm_id",
@@ -15,6 +15,7 @@
     {
       "name": "Push CA to container",
       "script": "host-push-ca-to-container.sh",
+      "library": ["pve-common.sh", "vol-common.sh"],
       "outputs": ["ca_pushed"]
     }
   ]

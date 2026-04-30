@@ -112,10 +112,14 @@ if [ "$NEEDS_CA_CERT" = "true" ]; then
   GENERATED=true
 fi
 
-# Set ownership on cert directory
-if [ "$GENERATED" = "true" ] && [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ]; then
+# Ensure ownership on cert directory — always, not only when GENERATED=true.
+# An upgrade flow can skip cert regeneration (existing certs still valid) but
+# the volume gets cloned with whatever ownership the previous container had.
+# Without this unconditional chown, stale wrong owners (e.g. 100000:100000
+# from a buggy initial install) survive every upgrade.
+if [ -n "$EFFECTIVE_UID" ] && [ -n "$EFFECTIVE_GID" ] && [ -d "$CERT_DIR" ]; then
   chown -R "${EFFECTIVE_UID}:${EFFECTIVE_GID}" "$CERT_DIR" 2>/dev/null || true
-  echo "Set ownership of ${CERT_DIR} to ${EFFECTIVE_UID}:${EFFECTIVE_GID}" >&2
+  echo "Ensured ownership of ${CERT_DIR} is ${EFFECTIVE_UID}:${EFFECTIVE_GID}" >&2
 fi
 
 cert_output_result "certs_generated"
