@@ -129,12 +129,20 @@ export class WebAppVE {
         (req.session as any)?.accessToken                      // Browser: session cookie
         || req.headers.authorization?.replace("Bearer ", "");  // CLI: Bearer token
 
+      // Origin used to populate the log-viewer URL in container Notes when
+      // PROXVEX_URL/Hub URL aren't set. Honour reverse-proxy headers if
+      // Express trust-proxy is enabled.
+      const proto = req.protocol;
+      const host = req.get("host");
+      const requestOrigin = host ? `${proto}://${host}` : undefined;
+
       const result = await this.routeHandlers.handleVeConfiguration(
         application,
         task,
         veContextKey,
         req.body,
         userAccessToken,
+        requestOrigin,
       );
       if (result.success && result.restartKey) {
         // Set vmInstallKey in message group if it exists

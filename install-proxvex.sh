@@ -787,6 +787,19 @@ JSON
 chown "${mapped_uid}:${mapped_gid}" "${storagecontext_file}"
 log "storagecontext.json written at: ${storagecontext_file} (owner: ${mapped_uid}:${mapped_gid})"
 
+# Persist explicit deployer URL into the container's /config volume so the
+# running backend picks it up via loadProxvexEnv() at startup. Without this
+# the deployer would only know the URL when called via the same Origin.
+if [ -n "$deployer_url" ]; then
+  proxvex_env_file="${config_volume_path}/proxvex.env"
+  cat > "${proxvex_env_file}" <<EOF
+PROXVEX_URL=${deployer_url}
+EOF
+  chown "${mapped_uid}:${mapped_gid}" "${proxvex_env_file}"
+  chmod 640 "${proxvex_env_file}"
+  log "proxvex.env written with PROXVEX_URL=${deployer_url}"
+fi
+
 # 5.2) Write LXC notes/description
 step "Writing LXC notes"
 # For self-install, deployer_base_url points to this container
@@ -952,6 +965,49 @@ if ! pct status "${vm_id}" | grep -q "running"; then
   log "Warning: Container may not be fully ready"
 else
   log "Container is running"
+fi
+
+# 7) Install the deployer CA in the PVE host's system trust store so that
+#    skopeo and other host-side TLS clients can reach a deployer-CA-signed
+#    registry mirror. The cert is also pushed into every container created
+#    later via template 108-host-push-ca-to-container.json.
+step "Installing deployer CA in host trust store"
+ca_container_ip=""
+if [ -n "$static_ip" ]; then
+  ca_container_ip="${static_ip%/*}"
+else
+  sleep 2
+  ca_container_ip=$(pct exec "${vm_id}" -- sh -c "hostname -I 2>/dev/null" | awk '{print $1}' || echo "")
+fi
+if [ -z "$ca_container_ip" ]; then
+  log "Warning: could not determine container IP, skipping host CA install"
+else
+  ca_url="http://${ca_container_ip}:3080/api/ve_${proxmox_hostname}/ve/certificates/ca/download"
+  log "Waiting for deployer CA at ${ca_url}..."
+  ca_tmp=$(mktemp)
+  ca_ready=""
+  for i in $(seq 1 30); do
+    if curl -sf --max-time 3 -o "$ca_tmp" "$ca_url" 2>/dev/null && [ -s "$ca_tmp" ]; then
+      ca_ready=true
+      break
+    fi
+    sleep 2
+  done
+  if [ "$ca_ready" = "true" ]; then
+    ca_target=/usr/local/share/ca-certificates/proxvex-ca.crt
+    mkdir -p /usr/local/share/ca-certificates
+    if [ -f "$ca_target" ] && cmp -s "$ca_tmp" "$ca_target"; then
+      log "Host CA unchanged"
+      rm -f "$ca_tmp"
+    else
+      mv "$ca_tmp" "$ca_target"
+      update-ca-certificates >/dev/null 2>&1 || true
+      log "Host CA installed at ${ca_target}"
+    fi
+  else
+    rm -f "$ca_tmp"
+    log "Warning: deployer CA not reachable after 60s — skipping host CA install"
+  fi
 fi
 
 # 8) Application startup context

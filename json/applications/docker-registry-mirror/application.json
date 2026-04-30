@@ -33,11 +33,6 @@
     { "id": "startup_order", "value": "5" },
     { "id": "startup_up", "value": "10" }
   ],
-  "installation": {
-    "image": [
-      "005-host-trust-deployer-ca.json"
-    ]
-  },
   "check": {
     "check": [
       "check-registry-mirror.json"

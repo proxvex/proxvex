@@ -1,4 +1,3 @@
-import os from "os";
 import {
   TaskType,
   IPostVeConfigurationBody,
@@ -6,6 +5,7 @@ import {
   IJsonError,
   IParameter,
 } from "@src/types.mjs";
+import { resolveDeployerBaseUrl } from "./deployer-url-resolver.mjs";
 import { CertificateAuthorityService } from "@src/services/certificate-authority-service.mjs";
 import { WebAppVeMessageManager } from "./webapp-ve-message-manager.mjs";
 import { WebAppVeRestartManager } from "./webapp-ve-restart-manager.mjs";
@@ -179,6 +179,7 @@ export class WebAppVeRouteHandlers {
     veContextKey: string,
     body: IPostVeConfigurationBody,
     userAccessToken?: string,
+    requestOrigin?: string,
   ): Promise<{
     success: boolean;
     restartKey?: string;
@@ -587,12 +588,16 @@ export class WebAppVeRouteHandlers {
         }
       }
 
-      // Log viewer URL parameters for Notes links
-      // Priority: OCI_LXC_DEPLOYER_URL env var > auto-generated from hostname + port
+      // Log viewer URL embedded into LXC Notes. See deployer-url-resolver.mts
+      // for the fallback chain: PROXVEX_URL > Hub URL (Spoke mode) > request
+      // origin > os.hostname():port.
       const deployerPort = process.env.DEPLOYER_PORT || process.env.PORT || "3080";
-      const deployerUrl =
-        process.env.OCI_LXC_DEPLOYER_URL ||
-        `http://${os.hostname()}:${deployerPort}`;
+      const deployerUrl = resolveDeployerBaseUrl({
+        envOverride: process.env.PROXVEX_URL,
+        hubUrl: this.pm.getActiveHubUrl(),
+        requestOrigin,
+        deployerPort,
+      });
       defaults.set("deployer_base_url", deployerUrl);
       defaults.set("ve_context_key", veContextKey);
 

@@ -93,4 +93,30 @@ else
   echo "WARN: ${PVE_HOST} not visible in /api/sshconfigs after POST" >&2
 fi
 
+# Step 5: Install the deployer CA in the target PVE host's system trust store.
+#   Idempotent: only writes when the cert content changes.
+#   Once installed, all TLS clients on that host (skopeo, curl, …) trust the
+#   deployer CA. The cert is also pushed into each newly-created LXC container
+#   by template 108-host-push-ca-to-container so Docker daemons inside also
+#   pick it up via the system-trust fallback.
+echo "  Installing deployer CA on ${PVE_HOST}..."
+CA_TMP=$(mktemp)
+trap 'rm -f "$CA_TMP"' EXIT
+CA_DOWNLOAD_URL="${DEPLOYER_URL}/api/ve_${PVE_HOST}/ve/certificates/ca/download"
+if curl -fsSL -k --max-time 10 -o "$CA_TMP" "$CA_DOWNLOAD_URL" && [ -s "$CA_TMP" ]; then
+  CA_B64=$(base64 < "$CA_TMP" | tr -d '\n')
+  ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "root@${PVE_HOST}" \
+    "CA_TARGET=/usr/local/share/ca-certificates/proxvex-ca.crt; \
+     mkdir -p /usr/local/share/ca-certificates; \
+     CA_TMP=\$(mktemp); \
+     printf '%s' '${CA_B64}' | base64 -d > \"\$CA_TMP\"; \
+     if [ -f \"\$CA_TARGET\" ] && cmp -s \"\$CA_TMP\" \"\$CA_TARGET\"; then \
+       echo '  CA unchanged'; rm -f \"\$CA_TMP\"; \
+     else \
+       mv \"\$CA_TMP\" \"\$CA_TARGET\" && update-ca-certificates >/dev/null 2>&1 && echo '  CA installed'; \
+     fi" || echo "WARN: failed to install CA on ${PVE_HOST}" >&2
+else
+  echo "WARN: could not download CA from ${CA_DOWNLOAD_URL} — skipping CA install" >&2
+fi
+
 echo "  Done."
