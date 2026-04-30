@@ -1,9 +1,30 @@
 #!/bin/bash
+# Deploy one or more applications to a PVE host via the proxvex deployer.
+#
+# Usage:
+#   ./deploy.sh [--host <pve-host>] <app|file.json> [<app|file.json> ...]
+#   ./deploy.sh <app>                          # uses default host
+#   ./deploy.sh --host ubuntupve github-runner # explicit override
+#
+# Env:
+#   PVE_HOST       default target PVE host (default: pve1.cluster)
+#   DEPLOYER_HOST  default: proxvex
+#
+# The host is also passed to the proxvex CLI as `--ve <host>`, so the chosen
+# PVE host must be registered in the deployer's SSH config (see
+# setup-pve-host.sh).
+
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-PVE_HOST="pve1.cluster"
+PVE_HOST="${PVE_HOST:-pve1.cluster}"
 DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
+
+# Optional per-call host override
+if [ "$1" = "--host" ] || [ "$1" = "--ve" ]; then
+  PVE_HOST="$2"
+  shift 2
+fi
 
 # Auto-detect: HTTPS (port 3443) or HTTP (port 3080)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then

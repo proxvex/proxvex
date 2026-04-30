@@ -255,8 +255,6 @@ export class WebAppVeRouteHandlers {
       if (addonStackIds.length > 0) {
         try {
           const addonSvc = this.pm.getAddonService();
-          const storageContext = this.pm
-            .getContextManager();
           // Stacktypes already represented in allStackIds.
           const coveredStacktypes = new Set<string>();
           // The "stack name" component is the part after the first underscore;

@@ -36,6 +36,20 @@ for i in $(seq 1 15); do
     sleep 1
 done
 
+# Start docker daemon if installed (step2b runs `docker build` inside the
+# runner). The LXC has nesting=1 and bypasses systemd, so launch dockerd
+# directly. Skipped silently if dockerd is not in the image — the workflow
+# will then fail at the docker step with a clear error.
+if command -v dockerd >/dev/null 2>&1 && ! pgrep -x dockerd >/dev/null 2>&1; then
+    echo "Starting Docker daemon..."
+    nohup dockerd --host=unix:///var/run/docker.sock >/var/log/dockerd.log 2>&1 &
+    for i in $(seq 1 15); do
+        [ -S /var/run/docker.sock ] && { echo "Docker daemon ready"; break; }
+        sleep 1
+    done
+    [ -S /var/run/docker.sock ] || echo "WARN: Docker daemon failed to start; see /var/log/dockerd.log"
+fi
+
 if [ -z "$REPO_URL" ] || [ -z "$ACCESS_TOKEN" ]; then
     echo "ERROR: REPO_URL and ACCESS_TOKEN must be set" >&2
     exit 1
