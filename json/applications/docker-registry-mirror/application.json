@@ -26,6 +26,7 @@
     { "id": "ssl.needs_server_cert", "value": "true" },
     { "id": "ssl.needs_ca_cert", "value": "false" },
     { "id": "ssl_additional_san", "value": "DNS:registry-1.docker.io,DNS:index.docker.io" },
+    { "id": "wait_for_network", "value": "true" },
     { "id": "startup_order", "value": "5" },
     { "id": "startup_up", "value": "10" }
   ],
