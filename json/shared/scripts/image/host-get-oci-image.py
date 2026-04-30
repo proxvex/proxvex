@@ -290,7 +290,14 @@ def skopeo_copy(image_ref: str, output_path: str, username: Optional[str] = None
     except subprocess.TimeoutExpired:
         error(f"Timeout downloading image {image_ref}")
     except subprocess.CalledProcessError as e:
-        error(f"Failed to download image {image_ref}: {e}")
+        stderr = (e.stderr or '').strip()
+        stdout = (e.stdout or '').strip()
+        msg = f"Failed to download image {image_ref} (skopeo exit {e.returncode})"
+        if stderr:
+            msg += f"\n--- skopeo stderr ---\n{stderr}"
+        if stdout:
+            msg += f"\n--- skopeo stdout ---\n{stdout}"
+        error(msg)
 
 def import_to_proxmox(storage: str, tarball_path: str, image_name: str, tag: str) -> str:
     """
@@ -358,6 +365,48 @@ def _is_private_ip(ip: str) -> bool:
         return False
 
 
+_MIRROR_HOSTS_MARKER = "# proxvex: registry mirror"
+
+
+def is_mirror_image(image_ref: str) -> bool:
+    """True when the image we're about to download IS the registry mirror.
+
+    Triggers the chicken-and-egg bypass: redirecting Docker Hub through the
+    mirror only works once the mirror container exists. The very first install
+    has no mirror running yet, so we must hit docker.io directly.
+
+    Accepts forms like `distribution/distribution:3.0.0`,
+    `docker://distribution/distribution:3.0.0`,
+    `index.docker.io/distribution/distribution:3.0.0`.
+    """
+    ref = re.sub(r'^[^:]+://', '', image_ref)
+    parts = ref.split('/')
+    # Strip optional registry host prefix (anything that looks like a hostname)
+    if len(parts) >= 2 and ('.' in parts[0] or ':' in parts[0]):
+        ref = '/'.join(parts[1:])
+    name = ref.split(':', 1)[0]
+    return name == 'distribution/distribution'
+
+
+def remove_mirror_hosts_entries() -> None:
+    """Strip any /etc/hosts lines we previously wrote to redirect Docker Hub.
+
+    Used when downloading the mirror image itself: a leftover redirect from a
+    previous run would point skopeo at a dead/uninstalled IP.
+    """
+    hosts_path = "/etc/hosts"
+    try:
+        with open(hosts_path, "r") as f:
+            lines = f.readlines()
+        new_lines = [ln for ln in lines if _MIRROR_HOSTS_MARKER not in ln]
+        if len(new_lines) != len(lines):
+            with open(hosts_path, "w") as f:
+                f.writelines(new_lines)
+            log("Removed registry mirror /etc/hosts entries (mirror image bypass)")
+    except Exception as e:
+        log(f"Warning: Could not clean /etc/hosts: {e}")
+
+
 def ensure_registry_mirror_hosts() -> bool:
     """Detect whether a local registry mirror is reachable.
 
@@ -372,7 +421,7 @@ def ensure_registry_mirror_hosts() -> bool:
     """
     import socket
     hosts_path = "/etc/hosts"
-    marker = "# proxvex: registry mirror"
+    marker = _MIRROR_HOSTS_MARKER
     mirror_hosts = ["registry-1.docker.io", "index.docker.io"]
 
     # Path 1: registry hostnames already point to a private IP (mirror via DNS).
@@ -411,10 +460,8 @@ def main() -> None:
     if not check_skopeo():
         error("skopeo is required but not found. Please install it with: apt install skopeo")
 
-    # Ensure Docker Hub hostnames resolve to local mirror (if present)
-    # If mirror is active, disable TLS verification (mirror uses self-signed cert)
-    global _mirror_active
-    _mirror_active = ensure_registry_mirror_hosts()
+    # Mirror activation is deferred until we know which image is being pulled
+    # (see the is_mirror_image() bypass below the parse_image_ref call).
 
     # Get parameters from template variables
     oci_image = "{{ oci_image }}"
@@ -474,6 +521,18 @@ def main() -> None:
     # Parse and normalize image reference
     image_ref = parse_image_ref(oci_image)
     log(f"Image reference: {image_ref}")
+
+    # Activate the registry mirror — UNLESS we're downloading the mirror image
+    # itself (chicken-and-egg: redirecting registry-1.docker.io through the
+    # mirror only works once the mirror container exists). Also strip any
+    # leftover redirect entries so skopeo dials docker.io directly.
+    global _mirror_active
+    if is_mirror_image(image_ref):
+        log("Image is the registry mirror itself — bypassing mirror redirect")
+        remove_mirror_hosts_entries()
+        _mirror_active = False
+    else:
+        _mirror_active = ensure_registry_mirror_hosts()
 
     # Extract image name and tag for filename
     image_with_tag = image_ref.replace('docker://', '')

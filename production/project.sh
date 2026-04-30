@@ -9,16 +9,39 @@ set -e
 
 DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-proxvex}"
 
-# Auto-detect config volume path on PVE host
-_safe_host=$(echo "$DEPLOYER_HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-CONFIG_VOL=$(find /rpool/data/ -maxdepth 1 -name "*-${_safe_host}-config" -type d 2>/dev/null | head -1)
+# Find the *running* container with this hostname — name-only matching across
+# /rpool/data/ would match leftover subvols from previously-replaced containers
+# (silent data corruption: project params landed on the wrong volume).
+VMID=$(pct list 2>/dev/null \
+  | awk -v h="$DEPLOYER_HOSTNAME" 'NR>1 && $2=="running" && $NF==h {print $1; exit}')
 
-if [ -z "$CONFIG_VOL" ] || [ ! -d "$CONFIG_VOL" ]; then
-  echo "ERROR: Cannot find config volume for hostname '$DEPLOYER_HOSTNAME'"
-  echo "  Expected pattern: /rpool/data/*-${_safe_host}-config"
+if [ -z "$VMID" ]; then
+  echo "ERROR: No running container with hostname '$DEPLOYER_HOSTNAME' found"
   echo "  Set DEPLOYER_HOSTNAME to match the deployer container hostname."
   exit 1
 fi
+
+# Resolve the /config mountpoint volume directly from this VMID's pct config.
+CONFIG_VOLID=$(pct config "$VMID" 2>/dev/null \
+  | awk '/^mp[0-9]+:.*[ ,]mp=\/config([, ]|$)/ {
+      sub(/^mp[0-9]+:[[:space:]]+/, "");
+      split($0, a, ",");
+      print a[1];
+      exit
+    }')
+
+if [ -z "$CONFIG_VOLID" ]; then
+  echo "ERROR: VMID $VMID has no mountpoint at /config"
+  exit 1
+fi
+
+CONFIG_VOL=$(pvesm path "$CONFIG_VOLID" 2>/dev/null || true)
+if [ -z "$CONFIG_VOL" ] || [ ! -d "$CONFIG_VOL" ]; then
+  echo "ERROR: Could not resolve config volume path (volid=$CONFIG_VOLID, path=$CONFIG_VOL)"
+  exit 1
+fi
+
+echo "Using config volume of running VMID $VMID: $CONFIG_VOL"
 
 SHARED_VOL="${CONFIG_VOL}/shared/templates"
 
