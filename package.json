@@ -1,6 +1,6 @@
 {
   "name": "proxvex",
-  "version": "0.5.34",
+  "version": "0.5.36",
   "description": "Packaged web UI and backend for Proxvex",
   "type": "module",
   "draft": true,
