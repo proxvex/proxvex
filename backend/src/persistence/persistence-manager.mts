@@ -282,25 +282,21 @@ export class PersistenceManager {
 
   /**
    * Replace the active repositories root with a different path pair (used
-   * by the Spoke after a fresh Hub-sync: only `localPath` is rebound to
-   * the synced workspace — `jsonPath` stays on the Spoke's checkout so the
-   * deployer always runs against the code revision the user has on disk.
-   * Any cached templates/scripts are dropped.
+   * by the Spoke after a fresh Hub-sync: only `localPath` is rebound to the
+   * synced workspace — `jsonPath` stays on the Spoke's checkout so the
+   * deployer always runs against the code revision the user has on disk).
+   *
+   * The pathes object is mutated in place so every handler that captured a
+   * reference at construction time (FileSystemPersistence,
+   * TemplatePersistenceHandler, ApplicationPersistenceHandler, …) picks up
+   * the new localPath without needing to be rebuilt. Without this,
+   * `resolveTemplatePath` keeps reading the spoke's pre-sync localPath and
+   * Hub-overrides under `local/shared/templates/` are never found.
    */
   rebindRepositoriesRoot(newLocalPath: string): void {
-    const oldPathes = this.pathes;
-    const newPathes: IConfiguredPathes = {
-      ...oldPathes,
-      localPath: newLocalPath,
-    };
-    this.pathes = newPathes;
-    // JsonValidator + FilesystemPersistence are bound to the old pathes.
-    // For a v1 swap we just rebuild Repositories; the services below still
-    // reference the existing persistence, which keeps reading from the old
-    // paths. That's intentional for now — persistence is the Hub's, the
-    // repositories cache on the Spoke is what actually differs.
+    this.pathes.localPath = newLocalPath;
     this.repositories = new FileSystemRepositories(
-      newPathes,
+      this.pathes,
       this.persistence,
       true,
     );
