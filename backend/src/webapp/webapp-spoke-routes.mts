@@ -35,7 +35,7 @@ export function registerSpokeRoutes(app: Application): void {
         });
         return;
       }
-      const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
+      const localPath = PersistenceManager.getInstance().getPathes().localPath;
       const result = await syncFromHub(hubUrl, localPath);
       res.json({
         ok: true,
@@ -57,7 +57,7 @@ export function registerSpokeRoutes(app: Application): void {
       res.json({ active: false });
       return;
     }
-    const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
+    const localPath = PersistenceManager.getInstance().getPathes().localPath;
     const hubId = hubIdFromUrl(hubUrl.replace(/\/$/, ""));
     const workspacePath = path.join(localPath, ".hubs", hubId);
     if (!fs.existsSync(workspacePath)) {

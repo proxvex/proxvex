@@ -69,50 +69,67 @@ function parseArgs(): WebAppArgs {
   return args;
 }
 
-async function fetchHubProject(hubUrl: string): Promise<string> {
-  const { execSync } = await import("node:child_process");
-  const { tmpdir } = await import("node:os");
-
-  const hostname = new URL(hubUrl).hostname;
-  const hubDir = path.join(tmpdir(), `proxvex-${hostname}`);
-
-  // Clean and recreate
-  execSync(`rm -rf "${hubDir}" && mkdir -p "${hubDir}"`);
-
-  // Fetch project tar.gz from Hub and extract
-  const projectUrl = `${hubUrl.replace(/\/$/, "")}/api/hub/project`;
-  logger.info("Fetching project settings from Hub", { url: projectUrl });
-
-  try {
-    execSync(
-      `curl -sf --max-time 30 "${projectUrl}" | tar -xzf - -C "${hubDir}"`,
-      { stdio: "pipe" },
-    );
-    logger.info("Hub project settings loaded", { hubDir });
-    return hubDir;
-  } catch (err: any) {
-    throw new Error(`Failed to fetch project from Hub at ${projectUrl}: ${err.message}`);
-  }
-}
-
 async function startWebApp(
   localPath: string,
   storageContextPath: string,
   secretFilePath: string,
 ) {
-  // Fetch project settings from Hub if HUB_URL is set
+  // Spoke startup-sync: if a Hub is configured (via storagecontext SSH entry
+  // marked isHub=true, or HUB_URL env), pull the latest project tarball into
+  // <localPath>/.hubs/<hub-id>/ and bind <workspacePath>/local as `hubPath`.
+  // Search precedence in resolveTemplatePath / resolveScriptPath then becomes
+  // localPath → hubPath → jsonPath, i.e. project state from the Hub overrides
+  // the on-disk json/ tree but the spoke's own local/ wins over both.
+  //
+  // Two-phase init: PM is initialized once without hubPath so we can read the
+  // active Hub URL from storagecontext, then re-initialized with hubPath
+  // pointing at the synced workspace. If the Hub is unreachable, we keep the
+  // previous workspace on disk (syncFromHub does an atomic swap) and proceed.
+  PersistenceManager.initialize(localPath, storageContextPath, secretFilePath);
   let hubPath: string | undefined;
-  const hubUrl = process.env.HUB_URL;
+  let hubUrl: string | undefined;
+  try {
+    hubUrl = PersistenceManager.getInstance().getActiveHubUrl();
+  } catch {
+    /* storagecontext unreadable — skip */
+  }
+  if (!hubUrl) hubUrl = process.env.HUB_URL;
+
   if (hubUrl) {
+    const { syncFromHub, hubIdFromUrl } = await import(
+      "./services/spoke-sync-service.mjs"
+    );
+    const expectedWorkspace = path.join(
+      localPath,
+      ".hubs",
+      hubIdFromUrl(hubUrl.replace(/\/$/, "")),
+    );
     try {
-      hubPath = await fetchHubProject(hubUrl);
+      const result = await syncFromHub(hubUrl, localPath);
+      hubPath = path.join(result.workspacePath, "local");
+      logger.info(`Spoke startup-sync done: ${hubPath}`);
     } catch (err: any) {
-      logger.error("Hub project fetch failed — cannot start as Spoke", { error: err.message });
-      process.exit(1);
+      logger.warn(
+        `Spoke startup-sync failed (${err.message}) — falling back to last synced workspace if present`,
+      );
+      const fallback = path.join(expectedWorkspace, "local");
+      if (existsSync(fallback)) {
+        hubPath = fallback;
+        logger.info(`Using stale Hub workspace: ${hubPath}`);
+      }
     }
   }
 
-  PersistenceManager.initialize(localPath, storageContextPath, secretFilePath, true, undefined, undefined, undefined, hubPath);
+  PersistenceManager.initialize(
+    localPath,
+    storageContextPath,
+    secretFilePath,
+    true,
+    undefined,
+    undefined,
+    undefined,
+    hubPath,
+  );
   const pm = PersistenceManager.getInstance();
 
   // If this instance was just started as the target of a deployer self-upgrade,

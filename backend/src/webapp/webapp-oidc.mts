@@ -398,9 +398,10 @@ export function registerOidcRoutes(
         const { PersistenceManager } = await import(
           "../persistence/persistence-manager.mjs"
         );
-        const hubUrl = PersistenceManager.getInstance().getActiveHubUrl();
+        const pmInstance = PersistenceManager.getInstance();
+        const hubUrl = pmInstance.getActiveHubUrl();
         if (hubUrl) {
-          const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
+          const localPath = pmInstance.getPathes().localPath;
           syncFromHub(hubUrl, localPath)
             .then((r) =>
               logger.info(
