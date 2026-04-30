@@ -89,7 +89,7 @@
       "description": "GID mapping on the host for unprivileged containers"
     },
     {
-      "id": "previouse_vm_id",
+      "id": "previous_vm_id",
       "name": "Previous VM ID",
       "type": "string",
       "default": "",

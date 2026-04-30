@@ -38,7 +38,7 @@ from typing import Dict, List, Tuple
 # Prepended libraries:
 #   - parse_lxc_config(conf_text) -> LxcConfig
 #   - is_managed_container(conf_text) -> bool
-#   - resolve_host_volume(hostname, volume_key) -> str
+#   - resolve_host_volume(hostname, volume_key, vm_id) -> str
 
 LXC_ENV_RE = re.compile(r"^lxc\.environment:\s*([^=\s]+)=(.*)$", re.MULTILINE)
 # Matches shell-style KEY=VALUE or export KEY=VALUE, with optional single/double
@@ -70,7 +70,7 @@ def parse_lxc_env(conf_text: str) -> Dict[str, str]:
     return env
 
 
-def read_on_start_env(hostname: str) -> Dict[str, str]:
+def read_on_start_env(hostname: str, vm_id: int) -> Dict[str, str]:
     """Flatten all KEY=VALUE assignments from every shell script under
     the host's proxvex/on_start.d/ directory. Silent best-effort.
 
@@ -78,7 +78,7 @@ def read_on_start_env(hostname: str) -> Dict[str, str]:
     `on-start-env` and contain lines like `CF_API_TOKEN="xxx"`.
     """
     try:
-        vol = resolve_host_volume(hostname, "proxvex")  # noqa: F821
+        vol = resolve_host_volume(hostname, "proxvex", vm_id)  # noqa: F821
     except Exception as e:
         sys.stderr.write(
             f"[stack-restore-scan] read_on_start_env({hostname}): "
@@ -230,7 +230,7 @@ def read_compose_env(hostname: str, vm_id: int) -> Dict[str, str]:
     """
     # Source 1: proxvex managed volume
     try:
-        vol = resolve_host_volume(hostname, "proxvex")  # noqa: F821
+        vol = resolve_host_volume(hostname, "proxvex", vm_id)  # noqa: F821
         compose_root = Path(vol) / "docker-compose"
         if compose_root.is_dir():
             result = _scan_compose_dir(compose_root, hostname, "proxvex-vol")
@@ -390,7 +390,7 @@ def main() -> None:
                 sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: found '{var}' in lxc.environment ({_mask(env[var])})\n")
                 continue
             if not on_start_loaded:
-                on_start_env = read_on_start_env(hostname)
+                on_start_env = read_on_start_env(hostname, vm_id)
                 on_start_loaded = True
                 sys.stderr.write(f"[stack-restore-scan] vm {vm_id}: on_start.d keys = {sorted(on_start_env.keys())}\n")
             if var in on_start_env:

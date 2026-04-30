@@ -130,7 +130,7 @@ export function registerValidationRoutes(app: Application): void {
             for (const p of addon?.properties ?? []) knownPropertyIds.add(p.id);
           }
         }
-        for (const id of ["application_id", "vm_id", "previouse_vm_id", "ve_context_key", "deployer_base_url"]) {
+        for (const id of ["application_id", "vm_id", "previous_vm_id", "ve_context_key", "deployer_base_url"]) {
           knownPropertyIds.add(id);
         }
 
@@ -143,8 +143,8 @@ export function registerValidationRoutes(app: Application): void {
           }
         };
         injectIfMissing("application_id", application);
-        // For in-place upgrade/reconfigure: vm_id = previouse_vm_id
-        const prevVm = params.find(p => p.name === "previouse_vm_id");
+        // For in-place upgrade/reconfigure: vm_id = previous_vm_id
+        const prevVm = params.find(p => p.name === "previous_vm_id");
         if (prevVm) injectIfMissing("vm_id", prevVm.value);
 
         const result = validator.validate({

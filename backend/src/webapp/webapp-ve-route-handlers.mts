@@ -403,9 +403,9 @@ export class WebAppVeRouteHandlers {
         }
       }
 
-      // For in-place upgrade/reconfigure without create_ct: vm_id = previouse_vm_id
-      if (!initialInputs.some(p => p.id === "vm_id") && initialInputs.some(p => p.id === "previouse_vm_id")) {
-        const prev = initialInputs.find(p => p.id === "previouse_vm_id");
+      // For in-place upgrade/reconfigure without create_ct: vm_id = previous_vm_id
+      if (!initialInputs.some(p => p.id === "vm_id") && initialInputs.some(p => p.id === "previous_vm_id")) {
+        const prev = initialInputs.find(p => p.id === "previous_vm_id");
         if (prev) {
           initialInputs.push({ id: "vm_id", value: prev.value });
         }
@@ -579,9 +579,9 @@ export class WebAppVeRouteHandlers {
       defaults.set("task", task);
       defaults.set("task_type", task);
 
-      // For in-place upgrade/reconfigure: vm_id = previouse_vm_id if not explicitly set
+      // For in-place upgrade/reconfigure: vm_id = previous_vm_id if not explicitly set
       if (!defaults.has("vm_id")) {
-        const prevParam = paramsToUse.find(p => p.name === "previouse_vm_id");
+        const prevParam = paramsToUse.find(p => p.name === "previous_vm_id");
         if (prevParam && prevParam.value !== undefined && prevParam.value !== "") {
           defaults.set("vm_id", String(prevParam.value));
         }

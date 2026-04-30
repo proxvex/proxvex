@@ -59,7 +59,7 @@ fi
 [ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
 
 SAFE_HOST=$(pve_sanitize_name "$ACTUAL_HOST")
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID")
 
 if [ ! -d "$VOLUME_DIR" ]; then
   log "Warning: Volume directory $VOLUME_DIR does not exist, skipping"
@@ -389,7 +389,7 @@ ACMEEOF
   # listen ... ssl) start successfully before acme-renew.sh has issued
   # the real LE cert via the on_start hook. Only written if no cert is
   # present yet, so genuine certs from previous runs are never overwritten.
-  CERT_DIR_HOST=$(resolve_host_volume "$SAFE_HOST" "certs" 2>/dev/null || echo "")
+  CERT_DIR_HOST=$(resolve_host_volume "$SAFE_HOST" "certs" "$VM_ID" 2>/dev/null || echo "")
   if [ -n "$CERT_DIR_HOST" ] && [ -d "$CERT_DIR_HOST" ] && [ ! -f "$CERT_DIR_HOST/privkey.pem" ]; then
     log "Writing bootstrap placeholder certificate to $CERT_DIR_HOST"
     if openssl req -x509 -newkey rsa:2048 -nodes -days 1 \

@@ -27,6 +27,8 @@
 ZITADEL_HOST="{{ ZITADEL_HOST }}"
 ZITADEL_PROTO_INPUT="{{ ZITADEL_PROTO }}"
 ZITADEL_PORT_INPUT="{{ ZITADEL_PORT }}"
+# Resolve Zitadel's VMID for cross-container volume lookups.
+ZITADEL_VMID=$(find_vmid_by_hostname "$ZITADEL_HOST") || ZITADEL_VMID=""
 HOSTNAME="{{ hostname }}"
 DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_ISSUER_URL_INPUT="{{ oidc_issuer_url }}"
@@ -70,7 +72,7 @@ else
 fi
 
 # --- Read admin PAT from bootstrap volume ---
-PAT_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap")/admin-client.pat"
+PAT_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap" "$ZITADEL_VMID")/admin-client.pat"
 
 if [ ! -f "$PAT_FILE" ]; then
   echo "ERROR: Admin PAT file not found at ${PAT_FILE}" >&2

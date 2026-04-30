@@ -4,13 +4,13 @@ Provides volume path resolution for managed volumes.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 
 
 def _find_pvesm() -> str:
     """Locate pvesm binary. PATH may be minimal under SSH-non-interactive."""
-    import shutil
     found = shutil.which("pvesm")
     if found:
         return found
@@ -20,127 +20,177 @@ def _find_pvesm() -> str:
     return "pvesm"  # last-ditch: let subprocess raise FileNotFoundError
 
 
-def resolve_host_volume(hostname: str, volume_key: str) -> str:
+def _find_pct() -> str:
+    """Locate pct binary."""
+    found = shutil.which("pct")
+    if found:
+        return found
+    for candidate in ("/usr/sbin/pct", "/sbin/pct", "/usr/bin/pct"):
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return "pct"
+
+
+def find_vmid_by_hostname(hostname: str) -> str | None:
+    """Look up the first VMID that matches <hostname> in `pct list`.
+
+    Useful for cross-container scripts (e.g. an OIDC client that needs to
+    write into the Zitadel container's volume) that have a hostname but no
+    vmid in their template variables. Prefers running containers; falls
+    back to the first match. Returns None if nothing matches.
+    """
+    if not hostname:
+        return None
+    pct = _find_pct()
+    try:
+        result = subprocess.run(
+            [pct, "list"], capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    running = None
+    first = None
+    for line in result.stdout.splitlines()[1:]:  # skip header
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        # pct list: VMID Status [Lock] Name — name is the last token.
+        name = parts[-1]
+        status = parts[1]
+        if name != hostname:
+            continue
+        if first is None:
+            first = parts[0]
+        if status == "running" and running is None:
+            running = parts[0]
+            break
+    return running or first
+
+
+def _attached_volids(vmid: str) -> list[str]:
+    """Return the list of volume IDs attached to <vmid> per pct config.
+
+    pct config output looks like:
+        rootfs: local-zfs:subvol-507-disk-0,size=1G
+        mp0: local-zfs:subvol-507-proxvex-config,mp=/config,...
+    We extract the first comma-separated token after the colon (the volid).
+    """
+    pct = _find_pct()
+    try:
+        result = subprocess.run(
+            [pct, "config", str(vmid)],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception as e:
+        sys.stderr.write(
+            f"[resolve_host_volume] pct config {vmid} failed: {e}\n"
+        )
+        return []
+    if result.returncode != 0:
+        sys.stderr.write(
+            f"[resolve_host_volume] pct config {vmid} exit={result.returncode}: "
+            f"{result.stderr.strip()[:200]}\n"
+        )
+        return []
+
+    volids = []
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        head, _, rest = line.partition(":")
+        if not (head == "rootfs" or (head.startswith("mp") and head[2:].isdigit())):
+            continue
+        rest = rest.strip()
+        volid = rest.split(",", 1)[0].strip()
+        if volid:
+            volids.append(volid)
+    return volids
+
+
+def resolve_host_volume(hostname: str, volume_key: str, vm_id) -> str:
     """Resolve host-side path for a container volume.
 
-    Resolution order:
-    1. Dedicated managed volume: subvol-*-<hostname>-<key> (OCI-image apps)
-    2. App managed volume subdirectory: subvol-*-<hostname>-app/<key> (docker-compose apps)
+    vm_id is REQUIRED. The lookup is restricted to volumes attached to that
+    container's pct config. This prevents picking up orphaned volumes from
+    previously destroyed or stopped containers that share the same hostname
+    — adopting such a volume is silent data corruption.
+
+    Resolution order within the attached set:
+    1. Dedicated managed volume: <hostname>-<volume_key> (OCI-image apps)
+    2. App managed volume subdirectory: <hostname>-app/<volume_key> (docker-compose apps)
     """
-    pvesm = _find_pvesm()
-
-    # Storages to search: VOLUME_STORAGE if set (explicit override), otherwise
-    # every rootdir-content storage known to pvesm. Scanning all handles mixed
-    # setups (e.g. LVM-thin on github-action CI) without the caller needing to
-    # know which storage holds a given volume.
-    env_storage = os.environ.get("VOLUME_STORAGE")
-    if env_storage:
-        storages = [env_storage]
-    else:
-        try:
-            result = subprocess.run(
-                [pvesm, "status", "--content", "rootdir"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.returncode == 0:
-                storages = [line.split()[0] for line in result.stdout.splitlines()[1:] if line.strip()]
-            else:
-                storages = ["local-zfs"]
-        except Exception:
-            storages = ["local-zfs"]
-
-    # Stable mount root used by vol_mount (vol-common.sh) for block-based
-    # storages that don't naturally appear as a directory via pvesm path.
-    # Keep in sync with VOL_MOUNT_ROOT in vol-common.sh.
-    vol_mount_root = "/var/lib/pve-vol-mounts"
-
-    def _pvesm_find(suffix: str):
-        # Scan every storage in `storages` for a volid ending in suffix.
-        all_lines = []
-        for storage in storages:
-            try:
-                result = subprocess.run(
-                    [pvesm, "list", storage, "--content", "rootdir"],
-                    capture_output=True, text=True, timeout=5,
-                )
-            except FileNotFoundError as e:
-                sys.stderr.write(f"[resolve_host_volume] pvesm not executable at '{pvesm}': {e}\n")
-                return None
-            except subprocess.TimeoutExpired:
-                sys.stderr.write(f"[resolve_host_volume] '{pvesm} list {storage}' timed out\n")
-                continue
-            if result.returncode != 0:
-                sys.stderr.write(
-                    f"[resolve_host_volume] '{pvesm} list {storage}' exit={result.returncode}: "
-                    f"{result.stderr.strip()[:200]}\n"
-                )
-                continue
-            all_lines.extend(result.stdout.splitlines())
-
-        sample = [ln for ln in all_lines[:5]]
-        sys.stderr.write(
-            f"[resolve_host_volume] pvesm list output ({len(all_lines)} lines) over {storages}, sample: {sample!r}\n"
+    if not hostname or not volume_key or vm_id in (None, ""):
+        raise RuntimeError(
+            f"resolve_host_volume requires hostname, volume_key, vm_id "
+            f"(got hostname={hostname!r} volume_key={volume_key!r} vm_id={vm_id!r})"
         )
 
-        match_count = 0
-        for line in all_lines:
-            # pvesm list returns multi-column output:
-            #   VolID                                    Format  Type    Size  VMID
-            #   local-zfs:subvol-506-nginx-proxvex  subvol  rootdir  ...  506
-            # Match against the first column (the volid), NOT the raw line.
-            parts = line.split()
-            if not parts:
-                continue
-            volid = parts[0]
-            if volid.endswith(suffix):
-                match_count += 1
-                # Prefer a vol_mount'ed path under VOL_MOUNT_ROOT if it exists
-                # (LVM/LVM-thin case — pvesm path would return a block device).
-                volname = volid.split(":", 1)[1] if ":" in volid else volid
-                mounted_path = os.path.join(vol_mount_root, volname)
-                if os.path.isdir(mounted_path) and os.path.ismount(mounted_path):
-                    return mounted_path
-                try:
-                    path_result = subprocess.run(
-                        [pvesm, "path", volid],
-                        capture_output=True, text=True, timeout=5,
-                    )
-                except Exception as e:
-                    sys.stderr.write(f"[resolve_host_volume] '{pvesm} path {volid}' failed: {e}\n")
-                    continue
-                if path_result.returncode != 0:
-                    sys.stderr.write(
-                        f"[resolve_host_volume] '{pvesm} path {volid}' exit={path_result.returncode}: "
-                        f"{path_result.stderr.strip()[:200]}\n"
-                    )
-                    continue
-                path = path_result.stdout.strip()
-                if path and os.path.isdir(path):
-                    return path
-                sys.stderr.write(
-                    f"[resolve_host_volume] '{pvesm} path {volid}' returned '{path}' — not a directory\n"
-                )
-        if match_count == 0:
-            sys.stderr.write(
-                f"[resolve_host_volume] no volume matched suffix '{suffix}' in '{pvesm} list {storage}' output\n"
+    pvesm = _find_pvesm()
+    vol_mount_root = "/var/lib/pve-vol-mounts"  # keep in sync with vol-common.sh
+
+    attached = _attached_volids(str(vm_id))
+    if not attached:
+        raise RuntimeError(
+            f"resolve_host_volume: vmid {vm_id} has no attached volumes "
+            f"(does the container exist?)"
+        )
+
+    def _resolve_path(volid: str) -> str | None:
+        """Resolve a volid to a host-side directory."""
+        vname = volid.split(":", 1)[1] if ":" in volid else volid
+
+        mounted_path = os.path.join(vol_mount_root, vname)
+        if os.path.isdir(mounted_path) and os.path.ismount(mounted_path):
+            return mounted_path
+
+        try:
+            path_result = subprocess.run(
+                [pvesm, "path", volid],
+                capture_output=True, text=True, timeout=5,
             )
+        except Exception as e:
+            sys.stderr.write(f"[resolve_host_volume] '{pvesm} path {volid}' failed: {e}\n")
+            return None
+        if path_result.returncode != 0:
+            sys.stderr.write(
+                f"[resolve_host_volume] '{pvesm} path {volid}' exit={path_result.returncode}: "
+                f"{path_result.stderr.strip()[:200]}\n"
+            )
+            return None
+        path = path_result.stdout.strip()
+        if path and os.path.isdir(path):
+            return path
+        sys.stderr.write(
+            f"[resolve_host_volume] '{pvesm} path {volid}' returned '{path}' — not a directory\n"
+        )
         return None
 
     # 1. Dedicated managed volume
-    path = _pvesm_find(f"{hostname}-{volume_key}")
-    if path:
-        return path
+    suffix = f"{hostname}-{volume_key}"
+    for volid in attached:
+        if volid.endswith(suffix):
+            path = _resolve_path(volid)
+            if path:
+                return path
 
     # 2. App managed volume with subdirectory
-    app_path = _pvesm_find(f"{hostname}-app")
-    if app_path:
-        for variant in [volume_key, volume_key.replace("-", "_"), volume_key.replace("_", "-")]:
-            subdir = os.path.join(app_path, variant)
-            if os.path.isdir(subdir):
-                return subdir
-        sys.stderr.write(
-            f"[resolve_host_volume] found {hostname}-app at {app_path}, "
-            f"but no '{volume_key}' subdir (tried variants)\n"
-        )
+    app_suffix = f"{hostname}-app"
+    for volid in attached:
+        if volid.endswith(app_suffix):
+            app_path = _resolve_path(volid)
+            if not app_path:
+                continue
+            for variant in [volume_key, volume_key.replace("-", "_"), volume_key.replace("_", "-")]:
+                subdir = os.path.join(app_path, variant)
+                if os.path.isdir(subdir):
+                    return subdir
+            sys.stderr.write(
+                f"[resolve_host_volume] found {hostname}-app at {app_path}, "
+                f"but no '{volume_key}' subdir (tried variants)\n"
+            )
 
-    raise RuntimeError(f"resolve_host_volume failed for {hostname}/{volume_key}")
+    raise RuntimeError(
+        f"resolve_host_volume failed for {hostname}/{volume_key} (vmid {vm_id})"
+    )

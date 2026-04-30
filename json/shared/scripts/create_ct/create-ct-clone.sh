@@ -8,16 +8,16 @@
 # 4) Output target VMID, source VMID, and installed addons.
 #
 # Inputs (templated):
-#   - previouse_vm_id (required)
+#   - previous_vm_id (required)
 #   - vm_id (optional target id)
 #   - vm_id_start (optional start index for auto-assigned IDs)
 #
 # Output:
-#   - JSON to stdout with vm_id, previouse_vm_id, installed_addons
+#   - JSON to stdout with vm_id, previous_vm_id, installed_addons
 
 set -eu
 
-SOURCE_VMID="{{ previouse_vm_id }}"
+SOURCE_VMID="{{ previous_vm_id }}"
 TARGET_VMID_INPUT="{{ vm_id }}"
 
 CONFIG_DIR="/etc/pve/lxc"
@@ -27,7 +27,7 @@ log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
 
 if [ -z "$SOURCE_VMID" ] || [ "$SOURCE_VMID" = "NOT_DEFINED" ]; then
-  fail "previouse_vm_id is required"
+  fail "previous_vm_id is required"
 fi
 
 if [ ! -f "$SOURCE_CONF" ]; then
@@ -191,5 +191,5 @@ VOLUME_STORAGE="$ROOTFS_STORAGE"
 INSTALLED_ADDONS=$(extract_addons "$SOURCE_DESC$SOURCE_CONF_TEXT")
 log "Clone prepared: source=$SOURCE_VMID target=$TARGET_VMID volume_storage=$VOLUME_STORAGE addons=$INSTALLED_ADDONS"
 
-printf '[{"id":"vm_id","value":"%s"},{"id":"previouse_vm_id","value":"%s"},{"id":"installed_addons","value":"%s"},{"id":"volume_storage","value":"%s"}]' \
+printf '[{"id":"vm_id","value":"%s"},{"id":"previous_vm_id","value":"%s"},{"id":"installed_addons","value":"%s"},{"id":"volume_storage","value":"%s"}]' \
   "$TARGET_VMID" "$SOURCE_VMID" "$INSTALLED_ADDONS" "$VOLUME_STORAGE"

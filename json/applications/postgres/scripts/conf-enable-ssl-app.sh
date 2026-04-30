@@ -10,6 +10,7 @@
 set -eu
 
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 UID_VAL="{{ uid }}"
 GID_VAL="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
@@ -24,9 +25,9 @@ EFFECTIVE_GID="$GID_VAL"
 # Sanitize hostname for volume path
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
-CERTS_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
-PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data")/pgdata/postgresql.conf"
-INITDB_DIR=$(resolve_host_volume "$SAFE_HOST" "initdb")
+CERTS_DIR=$(resolve_host_volume "$SAFE_HOST" "certs" "$VM_ID")
+PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data" "$VM_ID")/pgdata/postgresql.conf"
+INITDB_DIR=$(resolve_host_volume "$SAFE_HOST" "initdb" "$VM_ID")
 
 SSL_START="# proxvex SSL start"
 SSL_END="# proxvex SSL end"

@@ -484,15 +484,17 @@ resolve_shared_volume_path() {
   return 1
 }
 
-# Set default volume paths if not provided
+# Set default volume paths if not provided. Don't probe via
+# resolve_host_volume — at this point the new container doesn't exist yet,
+# and matching by hostname alone would adopt orphan volumes from previously
+# destroyed containers (silent data corruption). Use the deterministic
+# synthetic path; the user can override via --config-volume / --secure-volume.
 volume_base=$(detect_volume_base_path)
 if [ -z "$config_volume_path" ]; then
-  config_volume_path=$(resolve_host_volume "$hostname" "config" 2>/dev/null) || \
-    config_volume_path="${volume_base}/${hostname}/config"
+  config_volume_path="${volume_base}/${hostname}/config"
 fi
 if [ -z "$secure_volume_path" ]; then
-  secure_volume_path=$(resolve_host_volume "$hostname" "secure" 2>/dev/null) || \
-    secure_volume_path="${volume_base}/${hostname}/secure"
+  secure_volume_path="${volume_base}/${hostname}/secure"
 fi
 
 # Get Proxmox hostname for VE context (use FQDN)
@@ -744,8 +746,8 @@ fi
 # attached mp, so resolve_host_volume returns a real directory for both ZFS
 # (native mountpoint) and LVM/LVM-thin (mounted under /var/lib/pve-vol-mounts).
 _safe_host=$(echo "$hostname" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-config_volume_path=$(resolve_host_volume "$_safe_host" "config")
-secure_volume_path=$(resolve_host_volume "$_safe_host" "secure")
+config_volume_path=$(resolve_host_volume "$_safe_host" "config" "$vm_id")
+secure_volume_path=$(resolve_host_volume "$_safe_host" "secure" "$vm_id")
 
 log "Config volume: ${config_volume_path}"
 log "Secure volume: ${secure_volume_path}"
@@ -1055,7 +1057,7 @@ if [ "$enable_https" = "true" ]; then
         fi
 
         # Enable SSL addon on the existing container
-        params_json="{\"application\":\"proxvex\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"previouse_vm_id\",\"value\":${vm_id}},{\"name\":\"vm_id_start\",\"value\":${vm_id_start:-${vm_id}}}],\"selectedAddons\":[\"addon-ssl\"]}"
+        params_json="{\"application\":\"proxvex\",\"task\":\"reconfigure\",\"params\":[{\"name\":\"previous_vm_id\",\"value\":${vm_id}},{\"name\":\"vm_id_start\",\"value\":${vm_id_start:-${vm_id}}}],\"selectedAddons\":[\"addon-ssl\"]}"
 
         pct exec "${vm_id}" -- sh -c "printf '%s' '${params_json}' > /tmp/ssl-params.json"
 

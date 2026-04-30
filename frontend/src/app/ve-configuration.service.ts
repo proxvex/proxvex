@@ -167,12 +167,12 @@ export class VeConfigurationService {
     return this.get<IContainerVersionsResponse>(url);
   }
 
-  postVeUpgrade(application: string, body: { previouse_vm_id: number; oci_image: string; application_id?: string; application_name?: string; version?: string; addons?: string[]; target_versions?: string }): Observable<IVeConfigurationResponse> {
+  postVeUpgrade(application: string, body: { previous_vm_id: number; oci_image: string; application_id?: string; application_name?: string; version?: string; addons?: string[]; target_versions?: string }): Observable<IVeConfigurationResponse> {
     const params: VeConfigurationParam[] = [];
     const add = (name: string, value: string | number | boolean | undefined) => {
       if (value !== undefined && value !== null) params.push({ name, value });
     };
-    add('previouse_vm_id', body.previouse_vm_id);
+    add('previous_vm_id', body.previous_vm_id);
     add('oci_image', body.oci_image);
     add('application_id', body.application_id);
     add('application_name', body.application_name);

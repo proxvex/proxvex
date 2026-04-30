@@ -166,7 +166,7 @@ Beim Process-Monitor-Zeitraffer jedes Mal den gleichen visuellen Effekt verwende
      "application": "proxvex",
      "task": "reconfigure",
      "params": [
-       { "name": "previouse_vm_id", "value": 100 }
+       { "name": "previous_vm_id", "value": 100 }
      ],
      "selectedAddons": ["addon-ssl", "addon-oidc"],
      "stackId": "production"

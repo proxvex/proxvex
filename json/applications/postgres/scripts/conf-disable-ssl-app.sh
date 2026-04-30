@@ -7,11 +7,12 @@
 set -eu
 
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 
 # Sanitize hostname for volume path
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
-PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data")/pgdata/postgresql.conf"
+PG_CONF="$(resolve_host_volume "$SAFE_HOST" "data" "$VM_ID")/pgdata/postgresql.conf"
 
 SSL_START="# proxvex SSL start"
 SSL_END="# proxvex SSL end"

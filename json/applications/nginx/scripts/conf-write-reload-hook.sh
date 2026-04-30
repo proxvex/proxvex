@@ -18,7 +18,7 @@ fi
 [ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
 
 SAFE_HOST=$(echo "$ACTUAL_HOST" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID")
 
 if [ ! -d "$VOLUME_DIR" ]; then
   echo "Volume directory not found: $VOLUME_DIR" >&2
