@@ -1,0 +1,62 @@
+{
+  "name": "GitHub Actions Runner",
+  "description": "Self-hosted GitHub Actions runner. Registers itself with the configured repo on container start and pre-runs Docker-in-LXC for workflows that build images (e.g. step2b-install-deployer.sh).",
+  "extends": "oci-image",
+  "icon": "icon.svg",
+  "tags": ["ci", "devops", "infrastructure"],
+  "parameters": [
+    {
+      "id": "REPO_URL",
+      "name": "GitHub Repository URL",
+      "type": "string",
+      "required": true,
+      "default": "https://github.com/proxvex/proxvex",
+      "description": "Full URL of the GitHub repository the runner registers against (e.g. https://github.com/proxvex/proxvex)."
+    },
+    {
+      "id": "ACCESS_TOKEN",
+      "name": "GitHub PAT",
+      "type": "string",
+      "secure": true,
+      "required": true,
+      "description": "Fine-grained PAT with 'Administration: Read and write' on the repository. The runner uses it once at boot to fetch a registration token; not stored on GitHub."
+    },
+    {
+      "id": "RUNNER_NAME",
+      "name": "Runner Name",
+      "type": "string",
+      "required": false,
+      "default": "proxvex-runner",
+      "description": "Display name shown in GitHub Settings → Actions → Runners."
+    },
+    {
+      "id": "LABELS",
+      "name": "Runner Labels",
+      "type": "string",
+      "required": false,
+      "default": "self-hosted,linux,x64,ubuntupve",
+      "advanced": true,
+      "description": "Comma-separated labels used in workflow `runs-on:` selectors."
+    }
+  ],
+  "properties": [
+    { "id": "hostname", "default": "gh-runner" },
+    { "id": "oci_image", "value": "ghcr.io/proxvex/github-actions-runner:{{oci_image_tag}}" },
+    { "id": "memory", "default": 8192 },
+    { "id": "disk_size", "default": "16" },
+    { "id": "uid", "value": "0" },
+    { "id": "gid", "value": "0" },
+    { "id": "username", "value": "root" },
+    { "id": "wait_for_network", "value": "true" },
+    { "id": "envs", "default": "REPO_URL={{ REPO_URL }}\nACCESS_TOKEN={{ ACCESS_TOKEN }}\nRUNNER_NAME={{ RUNNER_NAME }}\nLABELS={{ LABELS }}\nRUNNER_ALLOW_RUNASROOT=1\nRUNNER_SECRETS_DIR=/var/lib/gh-runner-secrets" },
+    { "id": "volumes", "default": "secrets=/var/lib/gh-runner-secrets,0700" }
+  ],
+  "installation": {
+    "pre_start": [
+      "101-conf-configure-lxc-for-docker.json"
+    ]
+  },
+  "url": "https://github.com/proxvex/proxvex",
+  "documentation": "https://github.com/proxvex/proxvex/tree/main/json/applications/github-runner",
+  "source": "https://github.com/proxvex/proxvex/tree/main/e2e/infrastructure/github-runner"
+}

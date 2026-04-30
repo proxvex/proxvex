@@ -23,8 +23,35 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # --- Production Configuration ---
 export DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 export DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-$DEPLOYER_HOST}"
-export PVE_HOST="${PVE_HOST:-pve1.cluster}"
+export PVE_HOST="${PVE_HOST:-pve1.cluster}"   # default for apps without explicit override
 ROUTER_HOST="${ROUTER_HOST:-router-kg}"
+
+# --- App → Host mapping ----------------------------------------------------
+# Move an application to another PVE host by changing its entry below.
+# Apps not listed go to $PVE_HOST (the default). The deploy step looks up
+# the target via host_for_app(); the SSH-config + authorized_keys handshake
+# is established for every host referenced here, before any deploy runs.
+declare -A APP_HOST=(
+  # [docker-registry-mirror]=pve1.cluster   # default
+  # [postgres]=pve1.cluster                 # default
+  # [nginx]=pve1.cluster                    # default
+  # [zitadel]=pve1.cluster                  # default
+  # [gitea]=pve1.cluster                    # default
+  # [eclipse-mosquitto]=pve1.cluster        # default
+  [github-runner]=ubuntupve
+)
+
+host_for_app() {
+  echo "${APP_HOST[$1]:-$PVE_HOST}"
+}
+
+# All distinct hosts currently in use (default + every override).
+unique_hosts() {
+  {
+    echo "$PVE_HOST"
+    for h in "${APP_HOST[@]}"; do echo "$h"; done
+  } | awk '!seen[$0]++'
+}
 
 # Installer defaults (used by --bootstrap step 0)
 DEPLOYER_VMID_START="${DEPLOYER_VMID_START:-500}"
@@ -54,6 +81,7 @@ print_steps() {
     11  Reconfigure deployer with OIDC
     12  Deploy gitea
     13  Deploy eclipse-mosquitto
+    14  Deploy github-runner (target: $(host_for_app github-runner))
 STEPS
 }
 
@@ -195,6 +223,12 @@ should_run() {
 
 pve_ssh() {
   ssh -o StrictHostKeyChecking=no "root@${PVE_HOST}" "$@"
+}
+
+# Run a command on a specific PVE host (for apps deployed to non-default hosts).
+pve_ssh_at() {
+  local host="$1"; shift
+  ssh -o StrictHostKeyChecking=no "root@${host}" "$@"
 }
 
 router_ssh() {
@@ -439,13 +473,26 @@ if should_run 2; then
 fi
 
 # ================================================================
-# Step 3: Copy production files to PVE host
+# Step 3: Register all PVE hosts + copy production files
 # ================================================================
 if should_run 3; then
-  banner 3 "Copy production files to PVE host"
-  pve_ssh "mkdir -p production"
-  scp -o StrictHostKeyChecking=no "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/*.json "$SCRIPT_DIR"/*.html "root@${PVE_HOST}:production/"
-  echo "  Files copied to root@${PVE_HOST}:production/"
+  banner 3 "Register PVE hosts + copy production files"
+
+  for host in $(unique_hosts); do
+    echo ""
+    echo "  --- Host: ${host} ---"
+
+    # Register host with deployer (idempotent: skips key/registration if present).
+    DEPLOYER_HOST="$DEPLOYER_HOST" "$SCRIPT_DIR/setup-pve-host.sh" "$host"
+
+    # Copy production scripts so the deployer-side setup helpers (project-v1.sh,
+    # setup-nginx.sh, etc.) are available wherever they may be invoked.
+    pve_ssh_at "$host" "mkdir -p production"
+    scp -o StrictHostKeyChecking=no \
+      "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/*.json "$SCRIPT_DIR"/*.html \
+      "root@${host}:production/"
+    echo "  Files copied to root@${host}:production/"
+  done
 fi
 
 # ================================================================
@@ -464,7 +511,7 @@ if should_run 5; then
   if ! handle_existing_container 5 "docker-registry-mirror" \
         "$FORCE_DRM" "--force-docker-registry-mirror" \
         "Docker Hub pull rate limits (cached images would be lost)"; then
-    "$SCRIPT_DIR/deploy.sh" docker-registry-mirror
+    "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app docker-registry-mirror)" docker-registry-mirror
   fi
 fi
 
@@ -539,7 +586,7 @@ fi
 # ================================================================
 if should_run 7; then
   banner 7 "Deploy postgres"
-  "$SCRIPT_DIR/deploy.sh" postgres
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app postgres)" postgres
 fi
 
 # ================================================================
@@ -550,10 +597,10 @@ if should_run 8; then
   if ! handle_existing_container 8 "nginx" \
         "$FORCE_NGINX" "--force-nginx" \
         "Let's Encrypt rate limits via acme.sh"; then
-    "$SCRIPT_DIR/deploy.sh" nginx
+    "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app nginx)" nginx
     echo ""
     echo "  Configuring nginx vhosts on PVE host (idempotent)..."
-    pve_ssh "sh production/setup-nginx.sh"
+    pve_ssh_at "$(host_for_app nginx)" "sh production/setup-nginx.sh"
   fi
 
 fi
@@ -573,7 +620,7 @@ fi
 # ================================================================
 if should_run 10; then
   banner 10 "Deploy zitadel"
-  "$SCRIPT_DIR/deploy.sh" zitadel.json
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app zitadel)" zitadel.json
 fi
 
 # ================================================================
@@ -590,7 +637,7 @@ fi
 # ================================================================
 if should_run 12; then
   banner 12 "Deploy gitea"
-  "$SCRIPT_DIR/deploy.sh" gitea.json
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app gitea)" gitea.json
 fi
 
 # ================================================================
@@ -598,7 +645,32 @@ fi
 # ================================================================
 if should_run 13; then
   banner 13 "Deploy eclipse-mosquitto"
-  "$SCRIPT_DIR/deploy.sh" eclipse-mosquitto
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app eclipse-mosquitto)" eclipse-mosquitto
+fi
+
+# ================================================================
+# Step 14: Deploy github-runner (default target: ubuntupve, see APP_HOST)
+# ================================================================
+if should_run 14; then
+  banner 14 "Deploy github-runner ($(host_for_app github-runner))"
+  if [ ! -f "$SCRIPT_DIR/github-runner.json" ]; then
+    echo "  WARN: $SCRIPT_DIR/github-runner.json not found — skipping."
+    echo "        Create it with REPO_URL/ACCESS_TOKEN/RUNNER_NAME/LABELS, e.g.:"
+    cat <<'EX'
+        {
+          "application": "github-runner",
+          "params": [
+            { "name": "REPO_URL", "value": "https://github.com/proxvex/proxvex" },
+            { "name": "ACCESS_TOKEN", "value": "<fine-grained PAT>" },
+            { "name": "RUNNER_NAME", "value": "proxvex-runner" },
+            { "name": "LABELS", "value": "self-hosted,linux,x64,ubuntupve" },
+            { "name": "oci_image_tag", "value": "latest" }
+          ]
+        }
+EX
+  else
+    "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app github-runner)" github-runner.json
+  fi
 fi
 
 # ================================================================

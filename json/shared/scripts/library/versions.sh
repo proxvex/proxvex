@@ -18,6 +18,7 @@ DOCKER_postgrest_TAG="${DOCKER_postgrest_TAG:-v14.10}"        # postgrest/postgr
 
 # --- OCI Image Apps ---
 OCI_proxvex_TAG="${OCI_proxvex_TAG:-latest}"                 # ghcr.io/proxvex/proxvex
+OCI_github_runner_TAG="${OCI_github_runner_TAG:-latest}"     # ghcr.io/proxvex/github-actions-runner
 OCI_gptwol_TAG="${OCI_gptwol_TAG:-7.1.5}"                    # misterbabou/gptwol
 OCI_node_red_TAG="${OCI_node_red_TAG:-4.1.8}"                # nodered/node-red
 OCI_modbus2mqtt_TAG="${OCI_modbus2mqtt_TAG:-0.6.0}"           # ghcr.io/modbus2mqtt/modbus2mqtt
