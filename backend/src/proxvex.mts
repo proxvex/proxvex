@@ -153,7 +153,8 @@ async function startWebApp(
   const contextManager = pm.getContextManager();
 
   // Ensure global CA exists so that skopeo / registry mirror trust works
-  // from the very first deployment (template 005-host-trust-deployer-ca).
+  // from the very first deployment. The cert is then distributed to PVE
+  // hosts (setup-pve-host.sh) and into containers (template 108).
   {
     const { CertificateAuthorityService } = await import("./services/certificate-authority-service.mjs");
     const caService = new CertificateAuthorityService(contextManager);
@@ -268,7 +269,38 @@ async function startWebApp(
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
+function loadProxvexEnv(filePath: string): void {
+  if (!existsSync(filePath)) return;
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    for (const rawLine of content.split("\n")) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq < 1) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (key && process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+    logger.info("Loaded environment overrides", { file: filePath });
+  } catch (err: any) {
+    logger.warn("Failed to load env file (non-fatal)", {
+      file: filePath,
+      error: err?.message,
+    });
+  }
+}
+
 async function main() {
+  loadProxvexEnv("/config/proxvex.env");
   const argv = process.argv.slice(2);
 
   if (argv.includes("--help") || argv.includes("-h")) {

@@ -28,7 +28,8 @@
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
-      "185-host-resolve-dependency-hosts.json"
+      "185-host-resolve-dependency-hosts.json",
+      "108-host-push-ca-to-container.json"
     ],
     "pre_start_finalize": [
       "100-conf-unmount-volumes.json"
@@ -39,7 +40,6 @@
     "post_start": [
       "305-post-set-pkg-mirror.json",
       "307-post-install-docker-rootless.json",
-      "309-post-trust-registry-ca-in-docker.json",
       "320-post-upload-docker-compose-files.json",
       "330-svc-start-docker-compose.json",
       "335-post-update-version-from-docker.json",
@@ -65,7 +65,8 @@
       "101-conf-configure-lxc-for-docker.json",
       { "name": "310-post-extract-volumes-from-compose.json", "category": "post_start" },
       "121-conf-mount-zfs-pool-on-host.json",
-      "185-host-resolve-dependency-hosts.json"
+      "185-host-resolve-dependency-hosts.json",
+      "108-host-push-ca-to-container.json"
     ],
     "pre_start_finalize": [
       "100-conf-unmount-volumes.json"

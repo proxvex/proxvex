@@ -10,9 +10,6 @@ DOCKER_traefik_TAG="${DOCKER_traefik_TAG:-v3.6}"              # traefik
 DOCKER_zitadel_TAG="${DOCKER_zitadel_TAG:-v4.12.3}"           # ghcr.io/zitadel/zitadel
 DOCKER_zitadel_login_TAG="${DOCKER_zitadel_login_TAG:-v4.12.3}" # ghcr.io/zitadel/zitadel-login
 
-# --- Docker Registry Mirror ---
-DOCKER_distribution_TAG="${DOCKER_distribution_TAG:-3.0.0}"   # distribution/distribution
-
 # --- PostgREST ---
 DOCKER_postgrest_TAG="${DOCKER_postgrest_TAG:-v14.10}"        # postgrest/postgrest
 
@@ -29,8 +26,9 @@ OCI_pgadmin_TAG="${OCI_pgadmin_TAG:-9.14}"                    # dpage/pgadmin4
 OCI_nginx_TAG="${OCI_nginx_TAG:-1-alpine}"                    # nginxinc/nginx-unprivileged
 OCI_mariadb_TAG="${OCI_mariadb_TAG:-11}"                      # mariadb
 OCI_phpmyadmin_TAG="${OCI_phpmyadmin_TAG:-5.2.3}"             # phpmyadmin
+OCI_docker_registry_mirror_TAG="${OCI_docker_registry_mirror_TAG:-3.0.0}" # distribution/distribution
 
 # Export all tags so docker-compose subprocesses can resolve ${DOCKER_*_TAG} references
-export DOCKER_traefik_TAG DOCKER_zitadel_TAG DOCKER_zitadel_login_TAG DOCKER_distribution_TAG DOCKER_postgrest_TAG
+export DOCKER_traefik_TAG DOCKER_zitadel_TAG DOCKER_zitadel_login_TAG DOCKER_postgrest_TAG
 export OCI_proxvex_TAG OCI_gptwol_TAG OCI_node_red_TAG OCI_modbus2mqtt_TAG OCI_eclipse_mosquitto_TAG OCI_gitea_TAG
-export OCI_postgres_TAG OCI_pgadmin_TAG OCI_nginx_TAG OCI_mariadb_TAG OCI_phpmyadmin_TAG
+export OCI_postgres_TAG OCI_pgadmin_TAG OCI_nginx_TAG OCI_mariadb_TAG OCI_phpmyadmin_TAG OCI_docker_registry_mirror_TAG

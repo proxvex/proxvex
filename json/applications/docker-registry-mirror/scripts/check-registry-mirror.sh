@@ -4,17 +4,12 @@
 # Runs on the PVE host (execute_on: ve) and:
 # 1. Checks docker-registry-mirror is reachable
 # 2. Adds /etc/hosts entries for registry-1.docker.io + index.docker.io
-# 3. Verifies deployer CA is installed (by 005-host-trust-deployer-ca)
+# 3. Verifies deployer CA is installed in the host trust store
+#    (placed there by setup-pve-host.sh / install-proxvex.sh)
 # 4. Tests skopeo inspect through the mirror
 
-DEPLOYER_URL="{{ deployer_base_url }}"
-VE_CONTEXT="{{ ve_context_key }}"
 MIRROR_HOST="{{ hostname }}"
-
-# Allow standalone usage via positional args
-[ "$DEPLOYER_URL" = "NOT_DEFINED" ] || [ -z "$DEPLOYER_URL" ] && DEPLOYER_URL="${1:-}"
-[ "$VE_CONTEXT" = "NOT_DEFINED" ] || [ -z "$VE_CONTEXT" ] && VE_CONTEXT="${2:-}"
-[ "$MIRROR_HOST" = "NOT_DEFINED" ] || [ -z "$MIRROR_HOST" ] && MIRROR_HOST="docker-registry-mirror"
+[ "$MIRROR_HOST" = "NOT_DEFINED" ] || [ -z "$MIRROR_HOST" ] && MIRROR_HOST="${1:-docker-registry-mirror}"
 
 ERRORS=""
 add_error() { ERRORS="${ERRORS}${ERRORS:+\n}$1"; }
@@ -42,7 +37,8 @@ if [ -n "$MIRROR_IP" ] && ! grep -q "$MARKER" /etc/hosts 2>/dev/null; then
   echo "Added /etc/hosts: ${MIRROR_IP} -> registry-1.docker.io, index.docker.io" >&2
 fi
 
-# 3. Verify CA certificate is installed (installed by 005-host-trust-deployer-ca)
+# 3. Verify CA certificate is installed in the host trust store. This is
+#    set up once per PVE host during deployer install/host registration.
 CA_CERT="/usr/local/share/ca-certificates/proxvex-ca.crt"
 if [ ! -f "$CA_CERT" ]; then
   add_error "CA: Deployer CA certificate not installed at ${CA_CERT}"

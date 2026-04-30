@@ -123,23 +123,6 @@ describe("host-extract-volumes-from-compose.py", () => {
     });
   });
 
-  it("docker-registry-mirror exposes /data and /certs as absolute mounts", () => {
-    const r = runExtractor({
-      composePath: path.join(
-        REPO_ROOT,
-        "json/applications/docker-registry-mirror/docker-registry-mirror.docker-compose.yml",
-      ),
-      hostname: "docker-registry-mirror",
-    });
-    expect(r.status).toBe(0);
-    expect(r.volumes).toEqual({
-      data: "var/lib/registry",
-      certs: "certs",
-      compose: "opt/docker-compose",
-      docker: "var/lib/docker",
-    });
-  });
-
   it("zitadel deduplicates the shared /bootstrap mount across api + login", () => {
     const r = runExtractor({
       composePath: path.join(

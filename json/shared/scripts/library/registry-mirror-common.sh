@@ -3,14 +3,16 @@
 # Functions:
 #   mirror_detect          - Detect local registry mirror, sets MIRROR_IP
 #   mirror_setup_hosts     - Add /etc/hosts entries for Docker Hub → mirror
-#   mirror_trust_ca        - Install CA cert from deployer (production)
 #   mirror_trust_insecure  - Set insecure-registries in daemon.json (dev/test)
+#
+# For production HTTPS mirrors no per-call CA install is needed: the deployer
+# CA is already in the container's system trust store (pushed by template
+# 108-host-push-ca-to-container) and Docker daemon falls back to it.
 #
 # Usage:
 #   mirror_detect || exit 0
 #   mirror_setup_hosts
-#   mirror_trust_ca "$DEPLOYER_URL" "$VE_CONTEXT"   # OR
-#   mirror_trust_insecure
+#   mirror_trust_insecure   # only for HTTP-only mirrors
 
 MIRROR_HOST="docker-registry-mirror"
 MIRROR_IP=""
@@ -50,32 +52,6 @@ mirror_setup_hosts() {
   if grep -q "$MIRROR_MARKER" /etc/hosts 2>/dev/null; then return; fi
   echo "${MIRROR_IP} ${MIRROR_REGISTRIES}  ${MIRROR_MARKER}" >> /etc/hosts
   echo "Added /etc/hosts: ${MIRROR_IP} -> ${MIRROR_REGISTRIES}" >&2
-}
-
-# Install CA cert from deployer for Docker trust (production mode)
-# Args: $1 = deployer_url, $2 = ve_context
-mirror_trust_ca() {
-  _deployer_url="$1"
-  _ve_context="$2"
-  if [ -z "$_deployer_url" ] || [ -z "$_ve_context" ]; then
-    echo "Warning: No deployer URL for CA download" >&2
-    return
-  fi
-
-  if ! command -v curl > /dev/null 2>&1; then
-    apk add --no-cache curl >&2 2>&1 || apt-get install -y -qq curl >&2 2>&1
-  fi
-
-  _ca_url="${_deployer_url}/api/${_ve_context}/ve/certificates/ca/download"
-  for _reg in $MIRROR_REGISTRIES; do
-    _cert_dir="/etc/docker/certs.d/${_reg}"
-    mkdir -p "$_cert_dir"
-    if curl -fsSL -k -o "${_cert_dir}/ca.crt" "$_ca_url" 2>/dev/null; then
-      echo "CA certificate installed at ${_cert_dir}/ca.crt" >&2
-    else
-      echo "Warning: Could not download CA from ${_ca_url}" >&2
-    fi
-  done
 }
 
 # Set insecure-registries in Docker daemon.json (dev/test mode)

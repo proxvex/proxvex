@@ -25,21 +25,25 @@ export function registerHubRoutes(app: express.Application): void {
 
   /**
    * POST /api/hub/ca/sign — Sign a CSR with the local CA.
-   * Body: { csr: string (PEM), hostname: string }
-   * Response: { cert: string (PEM base64) }
+   * Body: { hostname: string, extraSans?: string[] }
+   * Response: { cert: string, key: string } (both base64 PEM)
    */
   app.post(ApiUri.HubCaSign, express.json(), (req, res) => {
     try {
-      const { hostname } = req.body;
+      const { hostname, extraSans } = req.body;
       if (!hostname) {
         res.status(400).json({ error: "Missing hostname" });
+        return;
+      }
+      if (extraSans !== undefined && !Array.isArray(extraSans)) {
+        res.status(400).json({ error: "extraSans must be an array of strings" });
         return;
       }
       const caProvider = pm.getCaProvider();
       // Use the default VE context key for CA operations
       const veContextKey = "ca_global";
-      const result = caProvider.generateSelfSignedCert(veContextKey, hostname);
-      logger.info("CA signed certificate for spoke", { hostname });
+      const result = caProvider.generateSelfSignedCert(veContextKey, hostname, extraSans);
+      logger.info("CA signed certificate for spoke", { hostname, extraSans: extraSans ?? [] });
       res.json({ cert: result.cert, key: result.key });
     } catch (err: any) {
       sendErrorResponse(res, err);
