@@ -50,28 +50,41 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.PAT_PUSH_MAIN }}
-      - name: Resolve version
+      - name: Validate and set version
         id: setver
         run: |
           set -euo pipefail
           input_version="${{ inputs.version }}"
-          if [ -z "$input_version" ]; then
-            # No version given — read from package.json
-            resolved="$(node -p "require('./package.json').version")"
-          elif echo "$input_version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
-            # Explicit semver (e.g. from Release Please) — update package.json and manifest
-            npm version "$input_version" --no-git-tag-version --allow-same-version
-            echo "{\".\": \"$input_version\"}" > .release-please-manifest.json
-            resolved="$input_version"
-          else
-            # Bump keyword (patch|minor|major) — use npm version
-            git config --global user.email "noreply@github.com"
-            git config --global user.name "Workflow User"^
-            resolved="$(npm version "$input_version" | sed -e 's/^v//g')"
-            git push --follow-tags
+
+          # 1. Strict semver format — no bump keywords, no partial versions
+          if ! echo "$input_version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must be exact semver X.Y.Z, got: '$input_version'"
+            exit 1
           fi
-          echo "resolved_version=$resolved" >> $GITHUB_OUTPUT
-          echo "Using version: $resolved"
+
+          # 2. Show reference + reject duplicate tags before any state change
+          git fetch --tags --prune --force
+          highest="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -1 | sed 's/^v//')"
+          echo "Highest existing v-tag: ${highest:-<none>}"
+          echo "Requested version:      $input_version"
+          if git rev-parse -q --verify "refs/tags/v$input_version" >/dev/null; then
+            echo "::error::Tag v$input_version already exists. Pick a higher version."
+            exit 1
+          fi
+
+          # 3. Bump package.json + release-please manifest, commit, push.
+          #    The [skip version-check] marker keeps preserve-version-on-push.yml
+          #    from reverting this commit.
+          git config --global user.email "noreply@github.com"
+          git config --global user.name  "Workflow User"
+          npm version "$input_version" --no-git-tag-version --allow-same-version
+          printf '{".": "%s"}\n' "$input_version" > .release-please-manifest.json
+          git add package.json .release-please-manifest.json
+          git commit -m "$input_version [skip version-check]"
+          git push
+
+          echo "resolved_version=$input_version" >> $GITHUB_OUTPUT
+          echo "Using version: $input_version"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
