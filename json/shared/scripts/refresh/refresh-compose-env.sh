@@ -18,7 +18,7 @@ NEW_VALUE="{{ new_value }}"
 log() { echo "$@" >&2; }
 
 SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID")
 COMPOSE_DIR="${VOLUME_DIR}/docker-compose/${COMPOSE_PROJECT}"
 COMPOSE_FILE=""
 

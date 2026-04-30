@@ -24,7 +24,7 @@ fi
 [ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
 
 SAFE_HOST=$(echo "$ACTUAL_HOST" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-CONF_DIR=$(resolve_host_volume "$SAFE_HOST" "conf")
+CONF_DIR=$(resolve_host_volume "$SAFE_HOST" "conf" "$VM_ID")
 
 if [ ! -d "$CONF_DIR" ]; then
   echo "Volume directory not found: $CONF_DIR" >&2

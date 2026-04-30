@@ -11,6 +11,7 @@ upload_pre_start_file \
   "{{ uid }}" \
   "{{ gid }}" \
   "{{ mapped_uid }}" \
-  "{{ mapped_gid }}"
+  "{{ mapped_gid }}" \
+  "{{ vm_id }}"
 
 upload_output_result "upload_mosquitto_configuration_uploaded"

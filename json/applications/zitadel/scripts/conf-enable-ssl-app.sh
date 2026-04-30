@@ -12,6 +12,7 @@
 set -eu
 
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 COMPOSE_B64="{{ compose_file }}"
 HTTPS_PORT="{{ https_port }}"
 [ -z "$HTTPS_PORT" ] || [ "$HTTPS_PORT" = "NOT_DEFINED" ] && HTTPS_PORT="1443"
@@ -65,7 +66,7 @@ COMPOSE_SSL_B64=$(base64 < "$TMPFILE" | tr -d '\n')
 
 # Fix cert permissions for non-root Traefik user
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
+CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs" "$VM_ID")
 
 if [ -d "$CERT_DIR" ]; then
   chmod 0755 "$CERT_DIR" 2>/dev/null || true

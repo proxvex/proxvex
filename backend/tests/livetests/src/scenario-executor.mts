@@ -235,8 +235,8 @@ export async function executeScenarios(
           // torn down by a previous scenario's cleanup.
           continue;
         }
-        buildResult.params.push({ name: "previouse_vm_id", value: String(existingVm.vm_id) });
-        logInfo(`Found existing VM ${existingVm.vm_id} for ${task} (previouse_vm_id)`);
+        buildResult.params.push({ name: "previous_vm_id", value: String(existingVm.vm_id) });
+        logInfo(`Found existing VM ${existingVm.vm_id} for ${task} (previous_vm_id)`);
       }
 
       resolveVolumeStorage(config.pveHost, config.portPveSsh, buildResult.params);

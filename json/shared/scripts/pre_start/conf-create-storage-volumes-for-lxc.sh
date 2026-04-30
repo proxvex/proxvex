@@ -19,7 +19,7 @@ set -eu
 
 VMID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
-PREV_VMID="{{ previouse_vm_id }}"
+PREV_VMID="{{ previous_vm_id }}"
 VOLUMES="{{ volumes }}"
 ADDON_VOLUMES="{{ addon_volumes }}"
 VOLUME_STORAGE="{{ volume_storage }}"

@@ -314,7 +314,7 @@ vol_unmount_all() {
 }
 
 # Find an existing volume by name suffix.
-# Preference order: previouse_vm_id's volume -> any existing volume with suffix.
+# Preference order: previous_vm_id's volume -> any existing volume with suffix.
 # Args: $1=storage, $2=suffix, $3=storage_type, $4=prev_vmid(optional)
 vol_get_existing() {
   _vol_stor="$1"; _vol_suffix="$2"; _vol_type="$3"; _vol_prev="$4"

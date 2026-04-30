@@ -20,6 +20,7 @@
 ADDON_CONTENT="{{ addon_content }}"
 ADDON_PATH="{{ addon_path }}"
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 UID_VAL="{{ uid }}"
 GID_VAL="{{ gid }}"
 MAPPED_UID="{{ mapped_uid }}"
@@ -34,7 +35,8 @@ upload_pre_start_file \
   "$UID_VAL" \
   "$GID_VAL" \
   "$MAPPED_UID" \
-  "$MAPPED_GID"
+  "$MAPPED_GID" \
+  "$VM_ID"
 
 # Output result
 upload_output_result "addon_file_uploaded"

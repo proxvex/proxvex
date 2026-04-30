@@ -16,19 +16,19 @@
 # etc. — and the upgraded container appears "half-initialized".
 #
 # Requires:
-#   - previouse_vm_id: Old container ID whose config to read
+#   - previous_vm_id: Old container ID whose config to read
 #   - vm_id: New container ID to apply settings to
 
 set -eu
 
-OLD_VMID="{{ previouse_vm_id }}"
+OLD_VMID="{{ previous_vm_id }}"
 NEW_VMID="{{ vm_id }}"
 
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
 
 if [ -z "$OLD_VMID" ] || [ "$OLD_VMID" = "NOT_DEFINED" ]; then
-  log "No previouse_vm_id — skipping settings restore"
+  log "No previous_vm_id — skipping settings restore"
   exit 0
 fi
 if [ -z "$NEW_VMID" ] || [ "$NEW_VMID" = "NOT_DEFINED" ]; then

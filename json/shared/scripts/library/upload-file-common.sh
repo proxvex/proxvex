@@ -56,6 +56,7 @@ upload_sanitize_name() {
 #   $6 - gid: Group ID for file ownership (default: 0)
 #   $7 - mapped_uid: Mapped UID on host (optional)
 #   $8 - mapped_gid: Mapped GID on host (optional)
+#   $9 - vm_id: VMID for resolve_host_volume (required)
 # Returns: 0 on success, 1 if skipped or error
 # ============================================================================
 upload_pre_start_file() {
@@ -67,6 +68,12 @@ upload_pre_start_file() {
   _gid="${6:-0}"
   _mapped_uid="${7:-}"
   _mapped_gid="${8:-}"
+  _vm_id="${9:-}"
+
+  if [ -z "$_vm_id" ]; then
+    echo "vm_id not provided to upload_pre_start_file for $_label" >&2
+    return 1
+  fi
 
   # Validate content and destination
   if ! upload_is_defined "$_content" || ! upload_is_defined "$_destination"; then
@@ -105,7 +112,7 @@ upload_pre_start_file() {
 
       # Compute target directory
       _safe_key=$(upload_sanitize_name "$_volume_key")
-      _target_dir=$(resolve_host_volume "$_safe_host" "$_safe_key")
+      _target_dir=$(resolve_host_volume "$_safe_host" "$_safe_key" "$_vm_id")
       _target_path="${_target_dir}/${_filename}"
 
       # Verify directory exists (should have been created by template 150)

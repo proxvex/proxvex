@@ -69,7 +69,7 @@ cat > "$PARAMS_FILE" <<EOF
   "application": "proxvex",
   "task": "reconfigure",
   "params": [
-    { "name": "previouse_vm_id", "value": ${DEPLOYER_VMID} }
+    { "name": "previous_vm_id", "value": ${DEPLOYER_VMID} }
   ],
   "selectedAddons": ["addon-oidc", "addon-ssl"],
   "stackId": "oidc_production"

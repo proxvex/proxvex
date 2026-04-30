@@ -33,9 +33,13 @@ echo "$CERT_RENEW_REQUESTS" | while IFS= read -r HOSTNAME; do
 
   FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
   SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-  CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
+  TARGET_VMID=$(find_vmid_by_hostname "$HOSTNAME") || {
+    echo "Warning: container '$HOSTNAME' not found in pct list, skipping renewal" >&2
+    continue
+  }
+  CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs" "$TARGET_VMID")
 
-  echo "Renewing: ${HOSTNAME} -> ${CERT_DIR}" >&2
+  echo "Renewing: ${HOSTNAME} (vmid $TARGET_VMID) -> ${CERT_DIR}" >&2
 
   if [ ! -d "$CERT_DIR" ]; then
     echo "Warning: Cert directory '${CERT_DIR}' not found, creating" >&2

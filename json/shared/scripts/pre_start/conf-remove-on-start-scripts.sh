@@ -11,11 +11,12 @@
 set -eu
 
 HOSTNAME="{{ hostname }}"
+VM_ID="{{ vm_id }}"
 
 log() { echo "$@" >&2; }
 
 SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID")
 
 if [ ! -d "$VOLUME_DIR" ]; then
   log "Volume directory $VOLUME_DIR does not exist, nothing to remove"

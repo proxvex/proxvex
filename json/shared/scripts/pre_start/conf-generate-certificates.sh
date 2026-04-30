@@ -85,7 +85,7 @@ if [ -n "$CERT_DIR_OVERRIDE" ] && [ "$CERT_DIR_OVERRIDE" != "NOT_DEFINED" ]; the
   CERT_DIR="$CERT_DIR_OVERRIDE"
   echo "Using cert_dir_override: ${CERT_DIR}" >&2
 else
-  CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs")
+  CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs" "$VM_ID")
 fi
 mkdir -p "$CERT_DIR"
 

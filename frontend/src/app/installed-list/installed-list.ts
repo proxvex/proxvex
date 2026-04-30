@@ -61,7 +61,7 @@ export class InstalledList implements OnInit {
 
       const application = installation.application_id || 'proxvex';
       this.svc.postVeUpgrade(application, {
-        previouse_vm_id: installation.vm_id,
+        previous_vm_id: installation.vm_id,
         oci_image: installation.oci_image,
         application_id: installation.application_id,
         application_name: installation.application_name,
@@ -91,7 +91,7 @@ export class InstalledList implements OnInit {
       // Host entries (e.g. Proxmox) have no vm_id
       ...(installation.is_host
         ? { is_host: 'true', hostname: installation.hostname }
-        : { previouse_vm_id: installation.vm_id }),
+        : { previous_vm_id: installation.vm_id }),
     };
 
     // Filter out undefined values

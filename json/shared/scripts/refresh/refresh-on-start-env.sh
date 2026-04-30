@@ -18,7 +18,7 @@ NEW_VALUE="{{ new_value }}"
 log() { echo "$@" >&2; }
 
 SAFE_HOST=$(pve_sanitize_name "$HOSTNAME")
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex")
+VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID")
 TARGET_FILE="${VOLUME_DIR}/on_start.d/${SCRIPT}"
 
 if [ ! -f "$TARGET_FILE" ]; then
