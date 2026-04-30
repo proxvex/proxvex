@@ -4,7 +4,9 @@ Reproduzierbares Setup für proxvex, postgres, nginx, zitadel, gitea, eclipse-mo
 
 ## Quick Start
 
-Der gesamte Ablauf wird durch [`setup-production.sh`](setup-production.sh) orchestriert. Voraussetzung: SSH-Zugang als root auf den Router (`router-kg`) und auf den Ziel-PVE-Host(s) ohne Passwort, und ein bereits installierter Deployer (oder `--bootstrap` für Fresh-Setup).
+Der gesamte Ablauf wird durch [`setup-production.sh`](setup-production.sh) orchestriert. **Wo ausführen:** auf einem Control-Host (typischerweise dein Mac/Laptop), **nicht** auf einem PVE-Host selbst — das Skript ist ein Orchestrator, der per SSH auf `router-kg` und die Ziel-PVE-Host(s) zugreift. Auf pve1 ausgeführt würde er `ssh root@pve1.cluster` aufrufen und an der Self-Loop scheitern.
+
+Voraussetzung: SSH-Zugang als root auf den Router (`router-kg`) und auf alle Ziel-PVE-Host(s) ohne Passwort. Bei Fresh-Setup zusätzlich `--bootstrap`, sonst muss ein Deployer bereits laufen.
 
 ```bash
 # Hilfe und Step-Liste anzeigen

@@ -498,7 +498,12 @@ if should_run 3; then
     echo "  --- Host: ${host} ---"
 
     # Register host with deployer (idempotent: skips key/registration if present).
-    DEPLOYER_HOST="$DEPLOYER_HOST" "$SCRIPT_DIR/setup-pve-host.sh" "$host"
+    # Pass DEPLOYER_PVE_HOST so setup-pve-host.sh can `ssh root@<pve> pct exec`
+    # to read the deployer's pubkey when this script runs from a control
+    # machine without direct SSH access to the deployer LXC.
+    DEPLOYER_HOST="$DEPLOYER_HOST" \
+    DEPLOYER_PVE_HOST="$PVE_HOST" \
+      "$SCRIPT_DIR/setup-pve-host.sh" "$host"
 
     # Copy production scripts so the deployer-side setup helpers (project-v1.sh,
     # setup-nginx.sh, etc.) are available wherever they may be invoked.
