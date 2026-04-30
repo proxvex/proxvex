@@ -278,9 +278,10 @@ nested_ssh "
     # ran with hostname 'proxvex'.
     echo 'host-record=proxvex,$DEPLOYER_IP'
     # 'docker-registry-mirror' is what registry-mirror-common.sh's mirror_detect
-    # looks for. Point it at 10.0.0.1 (the dockerhub-mirror) so the trust-CA
-    # post_start script enters its mirror branch and configures Docker.
-    echo 'host-record=docker-registry-mirror,10.0.0.1'
+    # looks for. Point it at the PRODUCTION mirror (192.168.4.45) — its TLS
+    # cert is signed by the proxvex CA, which step2a placed in the nested-VM
+    # trust store and template 108 forwards into every test LXC.
+    echo 'host-record=docker-registry-mirror,192.168.4.45'
   } > \$cfg
   # Full restart — SIGHUP/reload doesn't always pick up new files under
   # /etc/dnsmasq.d/ on this Proxmox install.

@@ -189,16 +189,31 @@ Creates a nested Proxmox VM from the custom ISO:
 
 ### step2a-setup-mirrors.sh
 
-Rolls back to `baseline` and fills the Docker Hub + ghcr.io pull-through
-caches on the nested VM:
+Rolls back to `baseline` and prepares the nested VM for tests:
 - Installs Docker inside the nested VM
-- Starts two `distribution/distribution:3.0.0` mirrors bound to 10.0.0.1 / 10.0.0.2
+- Pushes the proxvex CA from the PVE host into the nested-VM trust store, so
+  TLS to the production Docker Hub mirror at `192.168.4.45` validates
+- Starts the local `ghcr.io` pull-through mirror (`distribution/distribution:3.0.0`)
+  on `10.0.0.2` (no Docker Hub mirror — that comes from production)
+- Wires dnsmasq so LXC containers resolve `registry-1.docker.io`/`index.docker.io`
+  to `192.168.4.45` and `ghcr.io` to `10.0.0.2`
 - Pre-pulls all images referenced by `json/shared/scripts/library/versions.sh`
-- Wires dnsmasq so LXC containers resolve registry hostnames to the mirrors
-- Creates the `mirrors-ready` snapshot
+  through the mirrors (Docker Hub via the production cache, ghcr.io via the
+  local cache)
+- Creates the `mirrors-ready` snapshot, tagged with a schema version that
+  forces a rebuild when the topology changes
 
-Run once per environment; step2b requires `mirrors-ready` and aborts if missing
-(re-filling mirrors on every run hits Docker Hub rate limits).
+Run once per environment; step2b requires `mirrors-ready` and aborts if missing.
+
+**Prerequisites:**
+- `production/setup-pve-host.sh <PVE_HOST>` must have run on the PVE host
+  hosting the nested VM (places `/usr/local/share/ca-certificates/proxvex-ca.crt`
+  for step2a to copy).
+- `production/setup-production.sh --step 5` must have completed so the
+  `docker-registry-mirror` LXC at `192.168.4.45` is up and reachable. The
+  first cold pull through the production mirror will populate its cache from
+  Docker Hub once — every subsequent pull (any instance) is a hit, which is
+  the whole point.
 
 ### step2b-install-deployer.sh
 
