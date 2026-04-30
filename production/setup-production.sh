@@ -27,29 +27,44 @@ export PVE_HOST="${PVE_HOST:-pve1.cluster}"   # default for apps without explici
 ROUTER_HOST="${ROUTER_HOST:-router-kg}"
 
 # --- App → Host mapping ----------------------------------------------------
-# Move an application to another PVE host by changing its entry below.
+# Move an application to another PVE host by adding an entry below.
 # Apps not listed go to $PVE_HOST (the default). The deploy step looks up
 # the target via host_for_app(); the SSH-config + authorized_keys handshake
 # is established for every host referenced here, before any deploy runs.
-declare -A APP_HOST=(
-  # [docker-registry-mirror]=pve1.cluster   # default
-  # [postgres]=pve1.cluster                 # default
-  # [nginx]=pve1.cluster                    # default
-  # [zitadel]=pve1.cluster                  # default
-  # [gitea]=pve1.cluster                    # default
-  # [eclipse-mosquitto]=pve1.cluster        # default
-  [github-runner]=ubuntupve
-)
+#
+# Format: one "<app>=<host>" per line. Implemented as a plain string list
+# rather than an associative array so the script also runs under macOS bash
+# 3.2 (no `declare -A`).
+APP_HOST_MAP="
+github-runner=ubuntupve
+"
 
 host_for_app() {
-  echo "${APP_HOST[$1]:-$PVE_HOST}"
+  local app="$1" line app_name app_host
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    app_name="${line%%=*}"
+    app_host="${line#*=}"
+    if [ "$app_name" = "$app" ]; then
+      echo "$app_host"
+      return 0
+    fi
+  done <<EOF
+$APP_HOST_MAP
+EOF
+  echo "$PVE_HOST"
 }
 
 # All distinct hosts currently in use (default + every override).
 unique_hosts() {
   {
     echo "$PVE_HOST"
-    for h in "${APP_HOST[@]}"; do echo "$h"; done
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      echo "${line#*=}"
+    done <<EOF
+$APP_HOST_MAP
+EOF
   } | awk '!seen[$0]++'
 }
 

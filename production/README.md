@@ -1,53 +1,85 @@
 # Production Deployment
 
-Reproduzierbares Setup für proxvex, postgres, nginx, zitadel und gitea auf `pve1.cluster`.
+Reproduzierbares Setup für proxvex, postgres, nginx, zitadel, gitea, eclipse-mosquitto, docker-registry-mirror und github-runner auf einem PVE-Cluster (`pve1.cluster` als default, weitere Nodes per Override).
+
+## Quick Start
+
+Der gesamte Ablauf wird durch [`setup-production.sh`](setup-production.sh) orchestriert. Voraussetzung: SSH-Zugang als root auf den Router (`router-kg`) und auf den Ziel-PVE-Host(s) ohne Passwort, und ein bereits installierter Deployer (oder `--bootstrap` für Fresh-Setup).
+
+```bash
+# Hilfe und Step-Liste anzeigen
+./production/setup-production.sh --help
+
+# Fresh setup von Null: tabula rasa + Deployer installieren + alle Steps
+./production/setup-production.sh --bootstrap
+
+# Alle Steps von 1 bis Ende ausführen
+./production/setup-production.sh --all
+
+# Einzelnen Step gezielt wiederholen (nur stateless: 5/8/13)
+./production/setup-production.sh --retry 5 --force-docker-registry-mirror
+
+# Nur ab Step N
+./production/setup-production.sh --from-step 7
+```
+
+Steps in der aktuellen Reihenfolge (siehe `--help` für die kanonische Liste):
+
+| #  | Step                                       | Hinweis                                          |
+|----|--------------------------------------------|--------------------------------------------------|
+| 1  | DNS + NAT auf OpenWrt-Router               | siehe [`dns.sh`](dns.sh)                          |
+| 2  | Verify deployer is reachable               | erwartet HTTPS:3443 oder HTTP:3080                |
+| 3  | Register PVE-Hosts + Production-Dateien kopieren | per [`setup-pve-host.sh`](setup-pve-host.sh)      |
+| 4  | Project defaults v1 (ohne OIDC-Issuer)     | [`project-v1.sh`](project-v1.sh)                  |
+| 5  | Deploy `docker-registry-mirror`            | Pull-through Cache, vermeidet Hub-Rate-Limits     |
+| 6  | ACME + Production-Stack (Cloudflare)       | braucht `CF_TOKEN`, `SMTP_PASSWORD`               |
+| 7  | Deploy `postgres`                          |                                                  |
+| 8  | Deploy `nginx` + vhosts                    | + [`setup-nginx.sh`](setup-nginx.sh) (idempotent) |
+| 9  | Project defaults v2 (mit OIDC-Issuer)      | [`project.sh`](project.sh)                        |
+| 10 | Deploy `zitadel`                           | erzeugt automatisch Deployer-OIDC-Credentials     |
+| 11 | Reconfigure Deployer mit OIDC              | [`setup-deployer-oidc.sh`](setup-deployer-oidc.sh) |
+| 12 | Deploy `gitea`                             |                                                  |
+| 13 | Deploy `eclipse-mosquitto`                 |                                                  |
+| 14 | Deploy `github-runner`                     | default target: `ubuntupve`                       |
 
 ## VM-Zuordnung
 
-VMs werden per `vm_id_start` ab einem Startwert automatisch vergeben (nächste freie ID).
+VMs werden per `vm_id_start` ab einem Startwert automatisch vergeben (nächste freie ID). Die App↔Host-Zuordnung steuerst du in [`setup-production.sh`](setup-production.sh) über die `APP_HOST`-Map (am Kopf der Datei). Apps ohne Eintrag laufen auf `$PVE_HOST` (default `pve1.cluster`).
 
-| App              | vm_id_start | Node      | IP             | Hostname            |
-|------------------|-------------|-----------|----------------|---------------------|
-| proxvex | 500         | pve1      | DHCP           | proxvex    |
-| postgres         | 500         | pve1      | DHCP           | postgres            |
-| zitadel          | 500         | pve1      | DHCP           | zitadel             |
-| gitea            | 600         | ubuntupve | DHCP           | gitea               |
-| nginx            | 500         | pve1      | 192.168.4.41   | nginx               |
-| eclipse-mosquitto| 500         | pve1      | 192.168.4.44   | eclipse-mosquitto   |
+| App                     | vm_id_start | Node       | IP             | Hostname                 |
+|-------------------------|-------------|------------|----------------|--------------------------|
+| proxvex                 | 500         | pve1       | 192.168.4.51   | proxvex                  |
+| docker-registry-mirror  | 500         | pve1       | 192.168.4.45   | docker-registry-mirror   |
+| postgres                | 500         | pve1       | DHCP           | postgres                 |
+| zitadel                 | 500         | pve1       | DHCP           | zitadel                  |
+| nginx                   | 500         | pve1       | 192.168.4.41   | nginx                    |
+| eclipse-mosquitto       | 500         | pve1       | 192.168.4.44   | eclipse-mosquitto        |
+| gitea                   | 500         | pve1       | DHCP           | gitea                    |
+| github-runner           | 600         | ubuntupve  | DHCP           | github-runner            |
 
-**IP-Strategie:** Interne Apps (deployer, postgres, zitadel, gitea) nutzen DHCP — dnsmasq auf dem Router löst Hostnamen automatisch auf. Externe Apps (nginx, mosquitto) brauchen statische IPs, weil sie NAT-Ziele sind oder von Clients außerhalb des Subnetzes erreichbar sein müssen.
+**IP-Strategie:** Interne Apps (postgres, zitadel, gitea, github-runner) nutzen DHCP — dnsmasq auf dem Router löst Hostnamen automatisch auf. Externe Apps (nginx, mosquitto) und Mirror-/Deployer-Hosts (proxvex, docker-registry-mirror) brauchen statische IPs, weil sie NAT-Ziele oder DNS-Aliase sind, die zur Setup-Zeit erreichbar sein müssen — der `docker-registry-mirror`-Eintrag in [`dns.sh`](dns.sh) wird vom Pull-Through-Code ausgewertet.
 
-## Step-by-Step Anleitung
+## Voraussetzungen
 
-### 0. Proxmox-Cluster einrichten (einmalig)
+### Proxmox-Cluster (einmalig, falls Multi-Node)
 
-Voraussetzung: SSH-Verbindung zwischen den Nodes funktioniert ohne Passwort.
+SSH zwischen allen Nodes ohne Passwort, dann Cluster bilden:
 
 ```bash
-# SSH-Keys austauschen (von jedem Node zu jedem anderen)
 ssh-copy-id root@pve1
 ssh-copy-id root@pve2
 ssh-copy-id root@ubuntupve
-```
 
-Cluster erstellen und Nodes joinen:
-
-```bash
 # Auf pve1:
 pvecm create production
 
-# Auf pve2:
+# Auf weiteren Nodes:
 pvecm add <pve1-IP>
 
-# Auf ubuntupve:
-pvecm add <pve1-IP>
-
-# Status prüfen:
 pvecm status
-pvecm nodes
 ```
 
-VMID-Bereiche pro Node:
+VMID-Bereiche pro Node (in `setup-production.sh` per `APP_HOST`-Map konfiguriert):
 
 | Node      | vm_id_start | Bereich |
 |-----------|-------------|---------|
@@ -55,149 +87,35 @@ VMID-Bereiche pro Node:
 | ubuntupve | 600         | 600–699 |
 | pve2      | 700         | 700–799 |
 
-### 1. Production-Dateien auf PVE-Host kopieren
+### Cloudflare API Token (für Step 6)
+
+Ein Token mit Permission `Zone:DNS:Edit` für alle relevanten Domains erstellen ([Dashboard](https://dash.cloudflare.com/profile/api-tokens)). Keine Zone-ID nötig — `acme.sh` (`dns_cf`) löst die Zone anhand des Domainnamens auf, ein Token deckt beliebig viele Domains ab.
+
+Übergabe: `CF_TOKEN=xxx ./production/setup-production.sh --step 6` (oder interaktiver Prompt, wenn nicht gesetzt). Wenn der `cloudflare_production`-Stack bereits im Deployer existiert, wird der Prompt übersprungen.
+
+### SMTP-Passwort (für Step 6)
+
+Zitadel verschickt Verifikations-Mails über SMTP. Das Passwort kommt analog zum CF_TOKEN per `SMTP_PASSWORD=xxx ./production/setup-production.sh --step 6` oder interaktivem Prompt; bereits gespeicherte Werte im `oidc_production`-Stack werden wiederverwendet.
+
+## Single-Step-Operations
+
+Während der Master-Lauf alles in einem Aufwasch macht, gibt es ein paar Eingriffe, die du gezielt brauchst:
 
 ```bash
-scp -r production root@pve1.cluster:
+# Mirror-Container neu deployen (state-frei, Cache geht verloren!)
+./production/setup-production.sh --retry 5 --force-docker-registry-mirror
+
+# Nginx neu deployen ohne ACME-Rate-Limit-Risiko
+./production/setup-production.sh --retry 8 --force-nginx
+
+# Nur die Nginx-vhost-Config nachziehen, Container behalten
+./production/setup-production.sh --step 8     # ohne --force, vhosts werden idempotent neu geschrieben
+
+# Lokale json/-Änderungen in den laufenden Deployer pushen + reload
+./production/setup-production.sh --json-dev-sync --step <N>
 ```
 
-Danach liegen alle Scripts und JSON-Configs unter `~/production/` auf dem PVE-Host.
-
-### 1b. DNS und NAT auf OpenWrt Router (einmalig)
-
-**DNS-Strategie:**
-- **Interne Apps** (deployer, postgres, zitadel, gitea) nutzen DHCP — dnsmasq löst Hostnamen automatisch auf, keine manuellen Einträge nötig
-- **Externe Apps** (nginx, mosquitto) haben statische IPs und brauchen manuelle DNS-Einträge
-- **Alle öffentlichen Domains** (`*.ohnewarum.de`) zeigen auf die Router-IP eines anderen Segments (192.168.1.1) — NAT leitet von dort an nginx:1443 weiter. Da Source (192.168.4.x) und Destination (192.168.1.1) in unterschiedlichen Segmenten liegen, funktioniert das ohne Hairpin-NAT-Probleme.
-
-**NAT-Regeln:**
-- `:443 → nginx:1443` — für alle HTTPS-Domains (ohnewarum.de, auth, git, nebenkosten)
-- `:8883 → mosquitto:8883` — für MQTTS (nur LAN, kein WAN-Port-Forward)
-
-```bash
-scp production/dns.sh root@router:
-ssh root@router sh dns.sh
-```
-
-
-### 2. proxvex installieren (auf PVE-Host)
-
-Das Install-Script wird **mit `--https`** ausgeführt. Self-signed Zertifikate werden automatisch generiert.
-
-```bash
-# Auf pve1.cluster:
-curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh | sh -s -- \
-  --hostname proxvex \
-  --vm-id-start 500 \
-  --static-ip 192.168.4.51/24 \
-  --gateway 192.168.4.1 \
-  --nameserver 192.168.4.1 
-```
-
-Ab sofort läuft der Deployer auf HTTPS (Port 3443). `deploy.sh` erkennt das automatisch.
-
-### 2b. Projekt-Defaults setzen
-
-Das Script kopiert ein Projekt-Template ins Deployer-Volume. Es setzt projektweite Defaults (vm_id_start, OIDC-Issuer, Mirrors), die für alle zukünftigen Installationen gelten:
-
-```bash
-# Basis-Defaults (vm_id_start, Mirrors — ohne OIDC-Issuer):
-./production/project-v1.sh
-
-# Später (nach Nginx-Setup): mit oidc_issuer_url für öffentliches OIDC:
-./production/project.sh
-```
-
-Ein Beispiel mit Werten liegt unter `examples/shared/templates/create_ct/050-set-project-parameters.json`.
-
-### 3. Production-Stack und CA einrichten
-
-Das Script erstellt den Production-Stack mit Cloudflare-Credentials (für Nginx ACME-Wildcard) und setzt die Domain-Suffix.
-
-Voraussetzungen:
-- Cloudflare API Token mit Permission `Zone:DNS:Edit` für alle relevanten Domains ([Dashboard](https://dash.cloudflare.com/profile/api-tokens))
-- Keine Zone ID nötig — `acme.sh` (`dns_cf`) löst die Zone automatisch auf
-
-```bash
-CF_TOKEN=xxx ./production/setup-acme.sh
-```
-
-Das Script:
-- Setzt die Domain-Suffix
-- Erstellt den Production-Stack mit `cloudflare` Stacktype + CF_TOKEN
-
-Die globale CA wird automatisch beim Install-Script generiert (`--https`).
-
-### 4. Nginx deployen (mit ACME-Wildcard + Homepage)
-
-Nginx bekommt das einzige ACME-Zertifikat (Wildcard `*.ohnewarum.de`) plus die CA für Backend-Verifikation (`addon-ssl` mit `ssl.needs_ca_cert`).
-
-```bash
-./production/deploy.sh nginx
-```
-
-Danach Virtual Hosts und Homepage einrichten:
-
-```bash
-# Auf pve1.cluster:
-./production/setup-nginx.sh
-```
-
-Das Script:
-- Schreibt pro Site eine nginx-Config nach `conf.d/` (ohnewarum, nebenkosten, auth, git)
-- Kopiert die Homepage in den Container
-- Setzt Ownership (uid 101 für nginx-unprivileged)
-- Konfiguriert `proxy_ssl_trusted_certificate` für self-signed Backends
-- Reload nginx
-
-**Zwischenergebnis:** Öffentlicher Zugang funktioniert — `https://ohnewarum.de` zeigt die Homepage.
-
-### 5. Postgres und Zitadel deployen
-
-Zitadel wird als OIDC-Provider benötigt, bevor die anderen Apps mit OIDC konfiguriert werden können.
-
-```bash
-./production/deploy.sh zitadel      # deployt postgres + zitadel (mit addon-ssl)
-```
-
-### 6. Zitadel Service User anlegen
-
-Service User für CLI-Authentifizierung einrichten.
-Das PAT wird automatisch aus dem laufenden Zitadel-Container gelesen.
-
-```bash
-./production/setup-zitadel-service-user.sh
-```
-
-Das Script erstellt:
-- Machine User `deployer-cli` in Zitadel
-- Projekt `proxvex` mit Rolle `admin`
-- Client Credentials (client_id + client_secret)
-- Datei `production/.env` mit den Credentials
-
-### 7. proxvex auf OIDC umstellen
-
-Reconfiguriert den Deployer mit `addon-oidc`. Das Addon erstellt automatisch einen OIDC-Client in Zitadel und konfiguriert die Umgebungsvariablen.
-
-```bash
-./production/setup-deployer-oidc.sh
-```
-
-Das Script reconfiguriert den Deployer mit `addon-ssl` + `addon-oidc` (beide aktiv).
-
-### 8. Restliche Apps mit OIDC deployen
-
-Sobald `production/.env` existiert und OIDC am Backend aktiv ist, werden alle weiteren Apps mit OIDC-Authentifizierung und self-signed Zertifikaten deployed:
-
-```bash
-./production/deploy.sh gitea        # gitea mit addon-oidc + addon-ssl
-```
-
-Oder alle auf einmal (bereits installierte werden übersprungen):
-
-```bash
-./production/deploy.sh all
-```
+`--retry` ist nur für stateless, dependency-freie Steps (5/8/13) zugelassen — alles andere lehnt das Skript ab, weil ein blindes Destroy-and-Redeploy Daten oder Folgeschritte zerstören würde.
 
 
 ## Zertifikatsstrategie
@@ -403,18 +321,21 @@ VMs werden in umgekehrter Dependency-Reihenfolge zerstört. Postgres-Datenbanken
 
 ## Dateien
 
-| Datei                            | Zweck                                      |
-|----------------------------------|--------------------------------------------|
-| `deploy.sh`                      | Deploy via oci-lxc-cli in Dep-Reihenfolge  |
-| `destroy.sh`                     | Destroy VMs + Postgres DB cleanup          |
-| `project-v1.sh`                  | Basis-Defaults (vm_id_start, Mirrors)          |
-| `project.sh`                     | Volle Defaults (+ oidc_issuer_url)             |
-| `dns.sh`                         | DNS-Einträge + NAT auf OpenWrt              |
-| `setup-acme.sh`                  | Production-Stack: Cloudflare + Domain-Suffix |
-| `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten  |
-| `setup-deployer-ssl.sh`          | Deployer auf HTTPS umstellen (addon-ssl)   |
-| `setup-deployer-oidc.sh`         | Deployer OIDC via addon-oidc aktivieren    |
-| `ohnewarum_startseite.html`      | Homepage für nginx                         |
-| `setup-zitadel-service-user.sh`  | Zitadel Service User + Client Credentials  |
-| `*.json`                         | CLI-Parameter pro App (addon-ssl)          |
-| `.env`                           | OIDC Credentials (git-ignored)             |
+| Datei                            | Zweck                                                  |
+|----------------------------------|--------------------------------------------------------|
+| `setup-production.sh`            | Master-Orchestrator (Steps 1..14, `--bootstrap`, `--retry`, `--json-dev-sync`) |
+| `setup-pve-host.sh`              | Per-Host: SSH-Config registrieren, Production-Files kopieren, Trust-CA  |
+| `dns.sh`                         | DNS-Einträge + NAT auf OpenWrt                          |
+| `project-v1.sh`                  | Project-Defaults v1 (vm_id_start, Mirrors)              |
+| `project.sh`                     | Project-Defaults v2 (+ oidc_issuer_url, nach Nginx-Setup) |
+| `setup-acme.sh`                  | Production-Stack: Cloudflare + Domain-Suffix + OIDC-Stack |
+| `setup-nginx.sh`                 | Nginx Virtual Hosts + Homepage einrichten              |
+| `setup-deployer-oidc.sh`         | Deployer auf OIDC umstellen (Step 11)                   |
+| `upload-nginx-content.sh`        | Statische HTML-Inhalte ins Nginx-Volume kopieren        |
+| `deploy.sh`                      | Wrapper für einzelne App-Deployments via Deployer-API   |
+| `destroy.sh`                     | App-spezifischer Destroy + Postgres-DB-Cleanup          |
+| `destroy-all.sh`                 | Tabula rasa: alle Apps + Volumes + Stacks destroyen     |
+| `create-proxmox-iso.sh`          | Custom Proxmox-ISO bauen (selten gebraucht)             |
+| `docker-registry-mirror.json`, `nginx.json`, `postgres.json`, `zitadel.json`, `gitea.json`, `eclipse-mosquitto.json` | CLI-Parameter pro App (addon-Liste, Properties)         |
+| `github-runner.json`             | Optional, von Step 14 erwartet — Template im Skript     |
+| `.env`                           | OIDC Credentials (git-ignored, von Step 11 gefüllt)     |
