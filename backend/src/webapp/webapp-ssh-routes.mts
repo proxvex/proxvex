@@ -179,7 +179,7 @@ export function registerSshRoutes(
           );
           const { createLogger } = await import("../logger/index.mjs");
           const logger = createLogger("ssh-routes");
-          const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
+          const localPath = pm.getPathes().localPath;
           const result = await syncFromHub(hubUrl, localPath);
           logger.info(
             `[ssh-routes] Spoke-sync done: ${result.workspacePath} (hub=${result.hubUrl})`,

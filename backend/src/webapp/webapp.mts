@@ -208,30 +208,10 @@ export class VEWebApp {
     );
     registerSpokeRoutes(this.app);
 
-    // If in Spoke mode and OIDC is OFF, trigger a bootstrap sync now.
-    // For OIDC-enabled Spokes the sync is triggered from the OIDC callback
-    // handler once we have a bearer token.
-    if (process.env.HUB_URL && !oidcConfig) {
-      const { syncFromHub } = await import(
-        "../services/spoke-sync-service.mjs"
-      );
-      const { createLogger: mkLogger } = await import(
-        "../logger/index.mjs"
-      );
-      const mainLogger = mkLogger("main");
-      const localPath = process.env.LXC_MANAGER_LOCAL_PATH || process.cwd();
-      syncFromHub(process.env.HUB_URL, localPath)
-        .then((r) =>
-          mainLogger.info(
-            `[main] Spoke bootstrap-sync done: ${r.workspacePath}`,
-          ),
-        )
-        .catch((err) =>
-          mainLogger.warn(
-            `[main] Spoke bootstrap-sync failed: ${err.message}`,
-          ),
-        );
-    }
+    // Spoke bootstrap-sync now happens before PersistenceManager.initialize()
+    // in proxvex.mts, so the synced Hub workspace is bound as `hubPath` from
+    // the start. The OIDC callback path still triggers a fresh sync when the
+    // bearer token becomes available — see webapp-oidc.mts.
 
     // Start periodic timers if enabled
     this.startAutoRenewalIfEnabled();

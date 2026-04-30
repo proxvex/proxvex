@@ -333,18 +333,33 @@ export class FileSystemRepositories
 
   preloadJsonResources(): void {
     if (!this.enableCache) return;
-    const jsonRoot = this.pathes.jsonPath;
+    // Preload bases in reverse search order (json → hub → local). Each later
+    // layer overwrites cache entries from earlier ones, so cache lookups
+    // honour the same precedence as resolveScriptPath / resolveTemplatePath
+    // (local → hub → json). Without this, getScript()/getTemplate() return
+    // the json-baked version on cache hit and Hub/local overrides are
+    // effectively ignored.
+    const bases = [
+      this.pathes.jsonPath,
+      this.pathes.hubPath,
+      this.pathes.localPath,
+    ].filter(Boolean) as string[];
+    for (const base of bases) {
+      this.preloadResourcesFromBase(base);
+    }
+  }
+
+  private preloadResourcesFromBase(base: string): void {
+    if (!fs.existsSync(base)) return;
 
     // Shared templates
-    const sharedTemplatesDir = path.join(jsonRoot, "shared", "templates");
-    this.preloadTemplatesFromDir(sharedTemplatesDir, "shared");
+    this.preloadTemplatesFromDir(path.join(base, "shared", "templates"), "shared");
 
     // Shared scripts
-    const sharedScriptsDir = path.join(jsonRoot, "shared", "scripts");
-    this.preloadScriptsFromDir(sharedScriptsDir, "shared");
+    this.preloadScriptsFromDir(path.join(base, "shared", "scripts"), "shared");
 
     // Applications
-    const appsDir = path.join(jsonRoot, "applications");
+    const appsDir = path.join(base, "applications");
     if (fs.existsSync(appsDir)) {
       const appEntries = fs.readdirSync(appsDir, { withFileTypes: true });
       for (const entry of appEntries) {
@@ -352,11 +367,8 @@ export class FileSystemRepositories
         const appId = entry.name;
         const appBase = path.join(appsDir, appId);
 
-        const appTemplatesDir = path.join(appBase, "templates");
-        this.preloadTemplatesFromDir(appTemplatesDir, "application", appId);
-
-        const appScriptsDir = path.join(appBase, "scripts");
-        this.preloadScriptsFromDir(appScriptsDir, "application", appId);
+        this.preloadTemplatesFromDir(path.join(appBase, "templates"), "application", appId);
+        this.preloadScriptsFromDir(path.join(appBase, "scripts"), "application", appId);
       }
     }
   }
@@ -521,13 +533,19 @@ export class FileSystemRepositories
     const scriptPath = this.resolveScriptPath(ref);
     if (!scriptPath || !fs.existsSync(scriptPath)) return null;
     const content = fs.readFileSync(scriptPath, "utf-8");
-    if (
-      this.enableCache &&
-      scriptPath.startsWith(this.pathes.jsonPath + path.sep)
-    ) {
+    if (this.enableCache && this.isManagedBasePath(scriptPath)) {
       this.scriptCache.set(cacheKey, content);
     }
     return content;
+  }
+
+  private isManagedBasePath(p: string): boolean {
+    const bases = [
+      this.pathes.localPath,
+      this.pathes.hubPath,
+      this.pathes.jsonPath,
+    ].filter(Boolean) as string[];
+    return bases.some((b) => p.startsWith(b + path.sep));
   }
 
   listAllTemplates(): Array<{ ref: TemplateRef; data: ITemplate }> {
