@@ -319,6 +319,8 @@ export enum ApiUri {
   ReplacedCleanup = "/api/maintenance/replaced-cleanup",
   ReplacedCleanupRun = "/api/maintenance/replaced-cleanup/run",
   ReplacedCleanupList = "/api/maintenance/replaced-cleanup/list",
+  LockedCleanupList = "/api/maintenance/locked-containers/list",
+  LockedCleanupDestroy = "/api/maintenance/locked-containers/destroy-all",
 
   // Application overview
   ApplicationOverview = "/api/application-overview/:applicationId",
@@ -1076,4 +1078,18 @@ export interface IReplacedCleanupStatus {
   next_check?: string | undefined;
   last_destroyed?: string[] | undefined;
   last_error?: string | undefined;
+}
+
+export interface ILockedContainer {
+  vm_id: number;
+  hostname?: string;
+  lock: string;
+  replaced_at?: string;
+  replaced_by?: string;
+  ve_host: string;
+}
+
+export interface ILockedCleanupResult {
+  destroyed: string[];
+  failed: { vmid: number; ve_host: string; error: string }[];
 }
