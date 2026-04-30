@@ -4,8 +4,8 @@ on:
   workflow_call:
     inputs:
       version:
-        description: 'Version: patch|minor|major or explicit (e.g. 1.2.3). If omitted, read from package.json.'
-        required: false
+        description: 'Explicit semver, e.g. 0.5.32. Must not match an existing v-tag.'
+        required: true
         type: string
       skip_github_release:
         description: 'Skip GitHub Release creation (used when Release Please already created it).'
@@ -22,8 +22,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version: patch|minor|major or explicit (e.g. 1.2.3). If omitted, read from package.json.'
-        required: false
+        description: 'Explicit semver, e.g. 0.5.32. Must not match an existing v-tag.'
+        required: true
         type: string
 
 permissions:
