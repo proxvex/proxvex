@@ -15,7 +15,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { FormsModule } from '@angular/forms';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
-import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewalStatus, ILogRotationStatus } from '../../shared/types';
+import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewalStatus, ILogRotationStatus, IReplacedCleanupStatus, ILockedContainer } from '../../shared/types';
 
 @Component({
   selector: 'app-certificate-management-dialog',
@@ -373,6 +373,87 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                 </button>
               </mat-card-actions>
             </mat-card>
+
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Replaced Container Cleanup</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <p class="hint-text">Periodically destroy LXC containers that were replaced by an upgrade and have been idle longer than the grace period (default: 2 days). Only proxvex-managed containers with the <code>proxvex:replaced-by</code> marker are touched.</p>
+                <div class="auto-renewal-row">
+                  <mat-slide-toggle
+                    [checked]="replacedCleanupEnabled()"
+                    [disabled]="spokeStatus()?.active"
+                    (change)="toggleReplacedCleanup($event.checked)"
+                    [matTooltip]="spokeStatus()?.active ? 'Replaced-container cleanup is managed on the Hub in Spoke mode.' : ''">
+                    Enable automatic cleanup (every 6 h)
+                  </mat-slide-toggle>
+                  <span class="auto-renewal-info">
+                    @if (replacedCleanupStatus()?.last_check) {
+                      <span class="hint-text">Last check: {{ replacedCleanupStatus()?.last_check | date:'medium' }}</span>
+                    }
+                    @if (replacedCleanupStatus()?.last_destroyed && replacedCleanupStatus()?.last_destroyed!.length > 0) {
+                      <span class="hint-text">Last destroyed: {{ replacedCleanupStatus()?.last_destroyed!.join(', ') }}</span>
+                    }
+                    @if (replacedCleanupStatus()?.last_error) {
+                      <span class="hint-text warn">{{ replacedCleanupStatus()?.last_error }}</span>
+                    }
+                  </span>
+                </div>
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button (click)="triggerReplacedCleanup()"
+                  [disabled]="runningReplacedCleanup() || spokeStatus()?.active"
+                  [matTooltip]="spokeStatus()?.active ? 'Replaced-container cleanup is managed on the Hub in Spoke mode.' : ''">
+                  @if (runningReplacedCleanup()) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                  } @else {
+                    <ng-container><mat-icon>cleaning_services</mat-icon> Run Now</ng-container>
+                  }
+                </button>
+              </mat-card-actions>
+            </mat-card>
+
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Locked Containers</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <p class="hint-text">Containers stuck in any PVE lock state (e.g. <code>replaced</code> from a failed upgrade). Destroying ignores the grace period — only proxvex-managed containers are touched.</p>
+                @if (loadingLocked()) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                } @else if (lockedContainers().length === 0) {
+                  <p class="hint-text">No locked containers found.</p>
+                } @else {
+                  <ul class="locked-list">
+                    @for (c of lockedContainers(); track c.vm_id + '@' + c.ve_host) {
+                      <li>
+                        <strong>{{ c.vm_id }}@{{ c.ve_host }}</strong>
+                        @if (c.hostname) { ({{ c.hostname }}) }
+                        — lock: <code>{{ c.lock }}</code>
+                        @if (c.replaced_at) {
+                          <span class="hint-text">replaced {{ c.replaced_at | date:'medium' }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button color="warn" (click)="destroyAllLocked()"
+                  [disabled]="destroyingLocked() || lockedContainers().length === 0 || spokeStatus()?.active"
+                  [matTooltip]="spokeStatus()?.active ? 'Cleanup is managed on the Hub in Spoke mode.' : ''">
+                  @if (destroyingLocked()) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                  } @else {
+                    <ng-container><mat-icon>delete_forever</mat-icon> Destroy All Locked</ng-container>
+                  }
+                </button>
+                <button mat-button (click)="loadLockedContainers()" [disabled]="loadingLocked()">
+                  <mat-icon>refresh</mat-icon> Refresh
+                </button>
+              </mat-card-actions>
+            </mat-card>
           </div>
         </mat-tab>
       </mat-tab-group>
@@ -599,6 +680,14 @@ export class CertificateManagementDialog implements OnInit {
   logRotationEnabled = signal(false);
   runningLogRotation = signal(false);
 
+  replacedCleanupStatus = signal<IReplacedCleanupStatus | null>(null);
+  replacedCleanupEnabled = signal(false);
+  runningReplacedCleanup = signal(false);
+
+  lockedContainers = signal<ILockedContainer[]>([]);
+  loadingLocked = signal(false);
+  destroyingLocked = signal(false);
+
   generateHostname = signal('');
   generatingCert = signal(false);
 
@@ -655,6 +744,8 @@ export class CertificateManagementDialog implements OnInit {
     this.loadCertificates();
     this.loadAutoRenewalStatus();
     this.loadLogRotationStatus();
+    this.loadReplacedCleanupStatus();
+    this.loadLockedContainers();
     this.loadSpokeStatus();
   }
 
@@ -761,6 +852,83 @@ export class CertificateManagementDialog implements OnInit {
       error: (err) => {
         this.errorHandler.handleError('Log rotation failed', err);
         this.runningLogRotation.set(false);
+      }
+    });
+  }
+
+  private loadReplacedCleanupStatus(): void {
+    this.configService.getReplacedCleanupStatus().subscribe({
+      next: (status) => {
+        this.replacedCleanupStatus.set(status);
+        this.replacedCleanupEnabled.set(status.enabled);
+      },
+      error: () => { /* ignore if not available */ }
+    });
+  }
+
+  toggleReplacedCleanup(enabled: boolean): void {
+    this.configService.setReplacedCleanupConfig({ enabled }).subscribe({
+      next: (status) => {
+        this.replacedCleanupStatus.set(status);
+        this.replacedCleanupEnabled.set(status.enabled);
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Failed to toggle replaced-container cleanup', err);
+        this.replacedCleanupEnabled.set(!enabled);
+      }
+    });
+  }
+
+  triggerReplacedCleanup(): void {
+    this.runningReplacedCleanup.set(true);
+    this.configService.triggerReplacedCleanupRun().subscribe({
+      next: (status) => {
+        this.replacedCleanupStatus.set(status);
+        this.runningReplacedCleanup.set(false);
+        this.loadLockedContainers();
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Replaced-container cleanup failed', err);
+        this.runningReplacedCleanup.set(false);
+      }
+    });
+  }
+
+  loadLockedContainers(): void {
+    this.loadingLocked.set(true);
+    this.configService.listLockedContainers().subscribe({
+      next: (list) => {
+        this.lockedContainers.set(list);
+        this.loadingLocked.set(false);
+      },
+      error: () => { this.loadingLocked.set(false); /* ignore if not available */ }
+    });
+  }
+
+  destroyAllLocked(): void {
+    const count = this.lockedContainers().length;
+    if (count === 0) return;
+    const ok = window.confirm(
+      `Destroy ${count} locked container(s)? This unlocks and pct destroy --force --purge each one. There is no grace period. Continue?`,
+    );
+    if (!ok) return;
+
+    this.destroyingLocked.set(true);
+    this.configService.destroyAllLockedContainers().subscribe({
+      next: (result) => {
+        this.destroyingLocked.set(false);
+        this.loadLockedContainers();
+        if (result.failed.length > 0) {
+          const lines = result.failed.map((f) => `${f.vmid}@${f.ve_host}: ${f.error}`);
+          this.errorHandler.handleError(
+            `Destroyed ${result.destroyed.length}, ${result.failed.length} failed`,
+            new Error(lines.join('\n')),
+          );
+        }
+      },
+      error: (err) => {
+        this.errorHandler.handleError('Destroy locked containers failed', err);
+        this.destroyingLocked.set(false);
       }
     });
   }

@@ -107,4 +107,29 @@ export function registerMaintenanceRoutes(
       sendErrorResponse(res, err);
     }
   });
+
+  // GET /api/maintenance/locked-containers/list - List all locked containers (no destroy)
+  app.get(ApiUri.LockedCleanupList, async (_req, res) => {
+    try {
+      const result = await replacedCleanupService!.listLocked();
+      res.status(200).json(result);
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // POST /api/maintenance/locked-containers/destroy-all - Destroy every locked
+  // proxvex-managed container immediately, no grace period.
+  app.post(
+    ApiUri.LockedCleanupDestroy,
+    express.json(),
+    async (_req, res) => {
+      try {
+        const result = await replacedCleanupService!.destroyAllLocked();
+        res.status(200).json(result);
+      } catch (err: any) {
+        sendErrorResponse(res, err);
+      }
+    },
+  );
 }

@@ -2,7 +2,12 @@ import { ContextManager } from "../context-manager.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { VeExecution } from "../ve-execution/ve-execution.mjs";
 import { determineExecutionMode } from "../ve-execution/ve-execution-constants.mjs";
-import { ICommand, IReplacedCleanupStatus } from "../types.mjs";
+import {
+  ICommand,
+  ILockedCleanupResult,
+  ILockedContainer,
+  IReplacedCleanupStatus,
+} from "../types.mjs";
 import { createLogger } from "../logger/index.mjs";
 
 const logger = createLogger("replaced-cleanup");
@@ -229,6 +234,123 @@ export class ReplacedContainerCleanupService {
     } finally {
       this.running = false;
     }
+  }
+
+  /**
+   * List all currently-locked, proxvex-managed containers across every VE
+   * context. Unlike `listAll`, this is independent of the replaced-by marker
+   * and grace period — it surfaces everything that's stuck in any lock state
+   * (typically `replaced` from a failed upgrade, but also `migrate`,
+   * `backup`, etc.). Read-only; no destroy.
+   */
+  async listLocked(): Promise<ILockedContainer[]> {
+    const out: ILockedContainer[] = [];
+    for (const veKey of this.getVeContextKeys()) {
+      const veContext = this.contextManager.getVEContextByKey(veKey);
+      const veHost = veContext?.host || veKey.replace(/^ve_/, "");
+      try {
+        const containers = await this.listLockedForContext(veKey);
+        for (const c of containers) {
+          out.push({
+            vm_id: c.vm_id,
+            ...(c.hostname !== undefined ? { hostname: c.hostname } : {}),
+            lock: c.lock || "",
+            ...(c.replaced_at !== undefined ? { replaced_at: c.replaced_at } : {}),
+            ...(c.replaced_by !== undefined ? { replaced_by: c.replaced_by } : {}),
+            ve_host: veHost,
+          });
+        }
+      } catch (err: any) {
+        logger.warn(`Listing locked containers failed for ${veHost}`, {
+          error: err?.message,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Destroy every currently-locked, proxvex-managed container, immediately
+   * and without grace-period check. Used to clean up debris from failed
+   * upgrades. Calls the same `host-destroy-replaced-container.sh` script as
+   * the time-based cleanup (it does pct unlock + stop + destroy --force
+   * --purge).
+   */
+  async destroyAllLocked(): Promise<ILockedCleanupResult> {
+    const destroyed: string[] = [];
+    const failed: ILockedCleanupResult["failed"] = [];
+    const locked = await this.listLocked();
+    for (const c of locked) {
+      const veKey = `ve_${c.ve_host}`;
+      try {
+        await this.destroyForContext(veKey, c.vm_id);
+        destroyed.push(`${c.vm_id}@${c.ve_host}`);
+      } catch (err: any) {
+        const errorMsg = err?.message || String(err);
+        logger.warn(
+          `Destroy of locked container ${c.vm_id}@${c.ve_host} failed`,
+          { error: errorMsg },
+        );
+        failed.push({
+          vmid: c.vm_id,
+          ve_host: c.ve_host,
+          error: errorMsg,
+        });
+      }
+    }
+    if (destroyed.length > 0) {
+      logger.info(
+        `Locked-container cleanup destroyed ${destroyed.length}: ${destroyed.join(", ")}`,
+      );
+    }
+    return { destroyed, failed };
+  }
+
+  private async listLockedForContext(
+    veContextKey: string,
+  ): Promise<ReplacedContainer[]> {
+    const veContext = this.contextManager.getVEContextByKey(veContextKey);
+    if (!veContext) throw new Error(`VE context not found: ${veContextKey}`);
+
+    const pm = PersistenceManager.getInstance();
+    const repositories = pm.getRepositories();
+    const scriptContent = repositories.getScript({
+      name: "host-list-locked-containers.py",
+      scope: "shared",
+      category: "list",
+    });
+    const libraryContent = repositories.getScript({
+      name: "lxc_config_parser_lib.py",
+      scope: "shared",
+      category: "library",
+    });
+    if (!scriptContent || !libraryContent) {
+      throw new Error("host-list-locked-containers scripts not found");
+    }
+
+    const cmd: ICommand = {
+      name: "List Locked Containers",
+      execute_on: "ve",
+      script: "host-list-locked-containers.py",
+      scriptContent,
+      libraryContent,
+      outputs: ["locked_containers"],
+    };
+
+    const ve = new VeExecution(
+      [cmd],
+      [],
+      veContext,
+      new Map(),
+      undefined,
+      determineExecutionMode(),
+    );
+    await ve.run(null);
+
+    const raw = ve.outputs.get("locked_containers");
+    if (typeof raw !== "string" || raw.trim().length === 0) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ReplacedContainer[]) : [];
   }
 
   private async listReplacedForContext(
