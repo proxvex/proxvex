@@ -20,6 +20,26 @@ interface StoredServerCert {
   cert: string;   // Base64 PEM
   hostname: string;
   created: string;
+  /** Sorted, normalized list of extra SANs the cert was signed with. */
+  extraSans?: string[];
+}
+
+/**
+ * Normalize an extra-SAN list to a sorted, deduped, lowercase array.
+ * Accepts either the parsed array form or the raw `ssl_additional_san` string
+ * (`DNS:foo.example,DNS:bar.example`). Empty entries and the `DNS:` prefix
+ * are stripped so callers can pass either format.
+ */
+export function normalizeExtraSans(input: string | string[] | undefined | null): string[] {
+  if (!input) return [];
+  const raw = Array.isArray(input) ? input : input.split(",");
+  const cleaned = raw
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map((s) => (s.toLowerCase().startsWith("dns:") ? s.slice(4) : s))
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0);
+  return Array.from(new Set(cleaned)).sort();
 }
 
 /**
@@ -175,15 +195,23 @@ export class CertificateAuthorityService implements ICaProvider {
     return this.getServerCert(hostName) !== null;
   }
 
-  setServerCert(hostName: string, key: string, cert: string): void {
+  setServerCert(hostName: string, key: string, cert: string, extraSans?: string[]): void {
     const stored: StoredServerCert = {
       key,
       cert,
       hostname: hostName,
       created: new Date().toISOString(),
+      extraSans: normalizeExtraSans(extraSans),
     };
     this.contextManager.set(this.serverCertKey(hostName), stored);
     logger.info("Server certificate stored", { hostname: hostName });
+  }
+
+  /** Read the stored cert plus the SAN list it was signed with. */
+  private getStoredServerCert(hostName: string): StoredServerCert | null {
+    const stored = this.contextManager.get<StoredServerCert>(this.serverCertKey(hostName));
+    if (!stored || !stored.key || !stored.cert) return null;
+    return stored;
   }
 
   getServerCertInfo(hostName: string): ICaInfoResponse {
@@ -217,10 +245,16 @@ export class CertificateAuthorityService implements ICaProvider {
   /**
    * Generate a CA-signed server certificate and store it in StorageContext.
    * Cert validity: 825 days, RSA 2048-bit, includes SAN for the hostname.
+   *
+   * `extraSans` adds extra DNS names to the SAN extension. Used by apps that
+   * are reached via a redirected hostname (e.g. docker-registry-mirror is
+   * accessed as `registry-1.docker.io` via `/etc/hosts` rewriting, so the
+   * cert must validate for that name too).
    */
-  generateSelfSignedCert(veContextKey: string, hostName?: string): { key: string; cert: string } {
+  generateSelfSignedCert(veContextKey: string, hostName?: string, extraSans?: string[]): { key: string; cert: string } {
     const effectiveHostname = hostName || hostname();
     const ca = this.ensureCA(veContextKey);
+    const sans = normalizeExtraSans(extraSans);
 
     const tmpDir = mkdtempSync(path.join(tmpdir(), "srv-cert-gen-"));
     try {
@@ -240,7 +274,8 @@ export class CertificateAuthorityService implements ICaProvider {
       // bridge connect via the bare hostname (Docker's default short name),
       // so without this DNS entry Traefik / nginx etc. can't match the cert
       // by SNI and fall back to a self-signed default cert. We also keep
-      // localhost + 127.0.0.1 for in-container probes.
+      // localhost + 127.0.0.1 for in-container probes. `extraSans` adds
+      // app-declared aliases (e.g. registry-1.docker.io for the mirror).
       const dnsEntries = [effectiveHostname];
       const bareHost = effectiveHostname.includes(".")
         ? effectiveHostname.split(".")[0]
@@ -249,6 +284,9 @@ export class CertificateAuthorityService implements ICaProvider {
         dnsEntries.push(bareHost);
       }
       dnsEntries.push("localhost");
+      for (const s of sans) {
+        if (!dnsEntries.includes(s)) dnsEntries.push(s);
+      }
 
       const extContent = [
         "[v3_req]",
@@ -283,8 +321,12 @@ export class CertificateAuthorityService implements ICaProvider {
       const keyB64 = Buffer.from(keyPem).toString("base64");
       const certB64 = Buffer.from(certPem).toString("base64");
 
-      this.setServerCert(effectiveHostname, keyB64, certB64);
-      logger.info("Server certificate generated (CA-signed) and stored", { hostname: effectiveHostname, veContextKey });
+      this.setServerCert(effectiveHostname, keyB64, certB64, sans);
+      logger.info("Server certificate generated (CA-signed) and stored", {
+        hostname: effectiveHostname,
+        veContextKey,
+        extraSans: sans,
+      });
 
       return { key: keyB64, cert: certB64 };
     } finally {
@@ -294,12 +336,26 @@ export class CertificateAuthorityService implements ICaProvider {
 
   /**
    * Ensure server cert exists for hostname: return existing or generate new one.
+   * If `extraSans` differs from the SAN list the stored cert was signed with,
+   * the cert is regenerated so app-declared aliases (e.g. registry-1.docker.io)
+   * stay in sync with `ssl_additional_san` changes.
    */
-  ensureServerCert(veContextKey: string, hostName?: string): { key: string; cert: string } {
+  ensureServerCert(veContextKey: string, hostName?: string, extraSans?: string[]): { key: string; cert: string } {
     const effectiveHostname = hostName || hostname();
-    const existing = this.getServerCert(effectiveHostname);
-    if (existing) return existing;
-    return this.generateSelfSignedCert(veContextKey, effectiveHostname);
+    const wanted = normalizeExtraSans(extraSans);
+    const stored = this.getStoredServerCert(effectiveHostname);
+    if (stored) {
+      const have = normalizeExtraSans(stored.extraSans);
+      if (have.length === wanted.length && have.every((v, i) => v === wanted[i])) {
+        return { key: stored.key, cert: stored.cert };
+      }
+      logger.info("Regenerating server cert: SAN list changed", {
+        hostname: effectiveHostname,
+        had: have,
+        wants: wanted,
+      });
+    }
+    return this.generateSelfSignedCert(veContextKey, effectiveHostname, wanted);
   }
 
   /**

@@ -1,10 +1,32 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { execSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import {
   createTestEnvironment,
   type TestEnvironment,
 } from "../helper/test-environment.mts";
-import { CertificateAuthorityService } from "@src/services/certificate-authority-service.mjs";
+import {
+  CertificateAuthorityService,
+  normalizeExtraSans,
+} from "@src/services/certificate-authority-service.mjs";
 import type { ContextManager } from "@src/context-manager.mjs";
+
+/** Read the SAN extension from a base64-encoded PEM cert. */
+function readSanExtension(certB64: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "ca-test-san-"));
+  try {
+    const certPath = path.join(dir, "cert.pem");
+    writeFileSync(certPath, Buffer.from(certB64, "base64"), "utf-8");
+    return execSync(
+      `openssl x509 -in "${certPath}" -noout -ext subjectAltName`,
+      { encoding: "utf-8" },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 describe("CertificateAuthorityService", () => {
   let env: TestEnvironment;
@@ -227,4 +249,70 @@ describe("CertificateAuthorityService", () => {
     });
   });
 
+  describe("ssl_additional_san support", () => {
+    it("normalizeExtraSans() handles strings, DNS: prefix, dedup and sort", () => {
+      expect(normalizeExtraSans(undefined)).toEqual([]);
+      expect(normalizeExtraSans("")).toEqual([]);
+      expect(normalizeExtraSans("DNS:foo.example.com,DNS:bar.example.com"))
+        .toEqual(["bar.example.com", "foo.example.com"]);
+      // Bare names + duplicates + mixed case
+      expect(normalizeExtraSans("Foo.Example.com,foo.example.com,bar.example.com"))
+        .toEqual(["bar.example.com", "foo.example.com"]);
+      // Array form
+      expect(normalizeExtraSans(["DNS:a.test", "b.test"])).toEqual(["a.test", "b.test"]);
+    });
+
+    it("includes extraSans in the issued cert", () => {
+      const cert = service.generateSelfSignedCert(
+        veContextKey,
+        "registry.host",
+        ["registry-1.docker.io", "index.docker.io"],
+      );
+      const san = readSanExtension(cert.cert);
+      expect(san).toContain("registry.host");
+      expect(san).toContain("registry-1.docker.io");
+      expect(san).toContain("index.docker.io");
+      // Default SANs still present
+      expect(san).toContain("localhost");
+    });
+
+    it("ensureServerCert regenerates when extraSans change", () => {
+      const first = service.ensureServerCert(veContextKey, "san-host", ["a.example"]);
+      const sanFirst = readSanExtension(first.cert);
+      expect(sanFirst).toContain("a.example");
+
+      const second = service.ensureServerCert(veContextKey, "san-host", [
+        "a.example",
+        "b.example",
+      ]);
+      expect(second.cert).not.toBe(first.cert);
+      const sanSecond = readSanExtension(second.cert);
+      expect(sanSecond).toContain("a.example");
+      expect(sanSecond).toContain("b.example");
+    });
+
+    it("ensureServerCert returns cached cert when extraSans match (any order)", () => {
+      const first = service.ensureServerCert(veContextKey, "stable-host", [
+        "DNS:b.example",
+        "DNS:a.example",
+      ]);
+      const second = service.ensureServerCert(veContextKey, "stable-host", [
+        "a.example",
+        "b.example",
+      ]);
+      expect(second.cert).toBe(first.cert);
+    });
+
+    it("DNS: prefix is accepted and stripped (matches application.json format)", () => {
+      const cert = service.generateSelfSignedCert(
+        veContextKey,
+        "prefix-host",
+        ["DNS:registry-1.docker.io", "DNS:index.docker.io"],
+      );
+      const san = readSanExtension(cert.cert);
+      // Bare names without `DNS:` literally appearing inside the SAN entries.
+      expect(san).toContain("registry-1.docker.io");
+      expect(san).not.toMatch(/DNS:DNS:/);
+    });
+  });
 });

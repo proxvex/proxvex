@@ -24,10 +24,10 @@ export interface ICaProvider {
   setSharedVolpath(veContextKey: string, path: string): void;
 
   // Server certificates
-  generateSelfSignedCert(veContextKey: string, hostname?: string): { key: string; cert: string };
-  ensureServerCert(veContextKey: string, hostname?: string): { key: string; cert: string };
+  generateSelfSignedCert(veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string };
+  ensureServerCert(veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string };
   getServerCert(hostname: string): { key: string; cert: string } | null;
   hasServerCert(hostname: string): boolean;
-  setServerCert(hostname: string, key: string, cert: string): void;
+  setServerCert(hostname: string, key: string, cert: string, extraSans?: string[]): void;
   getServerCertInfo(hostname: string): ICaInfoResponse;
 }

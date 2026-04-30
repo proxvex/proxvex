@@ -22,6 +22,7 @@ export class WebAppVeCertificateInjector {
     loadedParameters: IParameter[],
     caProvider: ICaProvider,
     veContextKey: string,
+    applicationProperties?: Array<{ id: string; value?: unknown; default?: unknown }>,
   ): void {
     // Detect SSL addon via certtype marker on ssl.mode parameter
     const sslParam = loadedParameters.find((p) => p.certtype === "server");
@@ -47,9 +48,26 @@ export class WebAppVeCertificateInjector {
       return;
     }
 
+    // Extra SANs declared by the app (e.g. docker-registry-mirror sets
+    // `DNS:registry-1.docker.io,DNS:index.docker.io` so the cert validates
+    // when clients reach the mirror via /etc/hosts redirect). Application
+    // properties hold the canonical value; processedParams (user input) wins
+    // if explicitly overridden. Accepts the OpenSSL-style `DNS:` prefix or
+    // bare names; the cert service normalizes.
+    const sanFromParams = processedParams.find((p) => p.id === "ssl_additional_san")?.value;
+    const sanFromProps = applicationProperties?.find((p) => p.id === "ssl_additional_san");
+    const sanRaw = (typeof sanFromParams === "string" && sanFromParams.length > 0)
+      ? sanFromParams
+      : (typeof sanFromProps?.value === "string" && sanFromProps.value.length > 0
+          ? (sanFromProps.value as string)
+          : (typeof sanFromProps?.default === "string" && (sanFromProps.default as string).length > 0
+              ? (sanFromProps.default as string)
+              : ""));
+    const extraSans = sanRaw.length > 0 ? sanRaw.split(",") : undefined;
+
     // Server cert + key — signed by the CA (locally in Hub mode, via Hub API
     // in Spoke mode — both implemented inside ICaProvider.ensureServerCert).
-    const server = caProvider.ensureServerCert(veContextKey, fqdn);
+    const server = caProvider.ensureServerCert(veContextKey, fqdn, extraSans);
 
     processedParams.push({ id: "server_key_b64", value: server.key });
     processedParams.push({ id: "server_cert_b64", value: server.cert });

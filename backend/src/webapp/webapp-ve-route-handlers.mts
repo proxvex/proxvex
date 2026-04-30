@@ -673,7 +673,13 @@ export class WebAppVeRouteHandlers {
       // Hub mode → CertificateAuthorityService (signs locally with on-disk CA key).
       // Spoke mode → RemoteCaProvider (delegates signing to Hub via /api/hub/ca/*).
       const caProvider = this.pm.getCaProvider();
-      this.certificateInjector.injectCertificateRequests(processedParams, allCertParameters, caProvider, veContextKey);
+      this.certificateInjector.injectCertificateRequests(
+        processedParams,
+        allCertParameters,
+        caProvider,
+        veContextKey,
+        loaded.application?.properties as Array<{ id: string; value?: unknown; default?: unknown }> | undefined,
+      );
 
       // Start ProxmoxExecution
       const inputs = processedParams.map((p) => ({

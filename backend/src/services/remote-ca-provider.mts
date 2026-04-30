@@ -3,6 +3,7 @@ import http from "node:http";
 import { spawnSync } from "node:child_process";
 import { ICaInfoResponse } from "../types.mjs";
 import { ICaProvider } from "./ca-provider.mjs";
+import { normalizeExtraSans as normalizeSans } from "./certificate-authority-service.mjs";
 import { createLogger } from "../logger/index.mjs";
 
 const logger = createLogger("remote-ca-provider");
@@ -151,16 +152,22 @@ export class RemoteCaProvider implements ICaProvider {
 
   // --- Server certificates (signed by Hub) ---
 
-  /** Cache of server certs keyed by hostname so each render only signs once. */
+  /** Cache of server certs keyed by hostname+SAN-set so SAN changes invalidate. */
   private serverCertCache = new Map<string, { key: string; cert: string }>();
 
-  generateSelfSignedCert(veContextKey: string, hostname?: string): { key: string; cert: string } {
-    return this.ensureServerCert(veContextKey, hostname);
+  private cacheKey(hostname: string, sans: string[]): string {
+    return sans.length === 0 ? hostname : `${hostname}|${sans.join(",")}`;
   }
 
-  ensureServerCert(_veContextKey: string, hostname?: string): { key: string; cert: string } {
+  generateSelfSignedCert(veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string } {
+    return this.ensureServerCert(veContextKey, hostname, extraSans);
+  }
+
+  ensureServerCert(_veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string } {
     const host = hostname || "localhost";
-    const cached = this.serverCertCache.get(host);
+    const sans = normalizeSans(extraSans);
+    const key = this.cacheKey(host, sans);
+    const cached = this.serverCertCache.get(key);
     if (cached) return cached;
 
     // Synchronous Hub call via spawnSync("curl"), analogous to RemoteStackProvider.
@@ -172,7 +179,9 @@ export class RemoteCaProvider implements ICaProvider {
     const token = this.getBearerToken?.();
     if (token) args.push("-H", `Authorization: Bearer ${token}`);
     args.push("-H", "Content-Type: application/json");
-    args.push("-d", JSON.stringify({ hostname: host }));
+    const body: { hostname: string; extraSans?: string[] } = { hostname: host };
+    if (sans.length > 0) body.extraSans = sans;
+    args.push("-d", JSON.stringify(body));
     args.push(url);
 
     const result = spawnSync("curl", args, { encoding: "utf-8", timeout: 20000 });
@@ -192,21 +201,21 @@ export class RemoteCaProvider implements ICaProvider {
       throw new Error(`Hub /api/hub/ca/sign returned empty cert/key for ${host}`);
     }
     const signed = { cert: parsed.cert, key: parsed.key };
-    this.serverCertCache.set(host, signed);
-    logger.info("Server cert signed by Hub", { hostname: host });
+    this.serverCertCache.set(key, signed);
+    logger.info("Server cert signed by Hub", { hostname: host, extraSans: sans });
     return signed;
   }
 
   getServerCert(hostname: string): { key: string; cert: string } | null {
-    return this.serverCertCache.get(hostname) ?? null;
+    return this.serverCertCache.get(this.cacheKey(hostname, [])) ?? null;
   }
 
   hasServerCert(hostname: string): boolean {
-    return this.serverCertCache.has(hostname);
+    return this.serverCertCache.has(this.cacheKey(hostname, []));
   }
 
-  setServerCert(hostname: string, key: string, cert: string): void {
-    this.serverCertCache.set(hostname, { key, cert });
+  setServerCert(hostname: string, key: string, cert: string, extraSans?: string[]): void {
+    this.serverCertCache.set(this.cacheKey(hostname, normalizeSans(extraSans)), { key, cert });
   }
 
   getServerCertInfo(hostname: string): ICaInfoResponse {
