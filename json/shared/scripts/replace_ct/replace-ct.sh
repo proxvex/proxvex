@@ -18,7 +18,24 @@ PROXVEX_REPLACED_LOCK="${PROXVEX_REPLACED_LOCK:-migrate}"
 mark_replaced() {
   _vmid="$1"; _new="$2"
   _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  _desc=$(pct config "$_vmid" 2>/dev/null | sed -n 's/^description: //p' | head -1)
+  # `pct config` emits the description as a single URL-encoded line. Without
+  # decoding here, appending plain markers below and feeding the result back
+  # to `pct set --description` causes Proxmox to encode the value a SECOND
+  # time — every %3A becomes %253A, every %0A becomes %250A, and the next
+  # is_managed_container() pass no longer matches `proxvex:managed`.
+  _desc_enc=$(pct config "$_vmid" 2>/dev/null | sed -n 's/^description: //p' | head -1)
+  _desc=$(python3 -c "import sys; from urllib.parse import unquote
+s = sys.argv[1]
+# Iterative decode handles already-double-encoded descriptions left behind
+# by earlier versions of this script.
+for _ in range(4):
+    n = unquote(s)
+    if n == s:
+        break
+    s = n
+print(s, end='')" "$_desc_enc" 2>/dev/null || printf '%s' "$_desc_enc")
+  # Strip any prior replaced-* markers; description is now in plain form so
+  # grep matches by line correctly.
   _clean=$(printf '%s' "$_desc" | grep -v 'proxvex:replaced-' || true)
   _new_desc=$(printf '%s\n<!-- proxvex:replaced-at %s -->\n<!-- proxvex:replaced-by %s -->' \
     "$_clean" "$_now" "$_new")

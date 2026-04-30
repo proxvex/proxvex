@@ -223,8 +223,20 @@ def _normalize_config_text(conf_text: str) -> str:
 
 
 def _decode_config_text(conf_text: str) -> str:
-    """URL-decode config text (for description field)."""
-    return unquote(conf_text)
+    """URL-decode config text (for description field).
+
+    Iterative — earlier versions of replace-ct.sh::mark_replaced caused the
+    description to be encoded twice (every %3A becomes %253A, etc.), so a
+    single unquote() doesn't reach `proxvex:managed`. We decode until the
+    string is stable; capped at 4 passes to bound runtime if pathological
+    input contains literal `%25` chains.
+    """
+    for _ in range(4):
+        nxt = unquote(conf_text)
+        if nxt == conf_text:
+            return conf_text
+        conf_text = nxt
+    return conf_text
 
 
 def parse_id_mappings(conf_text: str) -> List[IdMapping]:
