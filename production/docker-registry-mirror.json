@@ -7,7 +7,8 @@
     { "name": "static_gw", "value": "192.168.4.1" },
     { "name": "nameserver4", "value": "192.168.4.1" },
     { "name": "oci_image_tag", "value": "3.0.0" },
-    { "name": "DOCKER_HUB_USERNAME", "value": "" }
+    { "name": "DOCKER_HUB_USERNAME", "value": "" },
+    { "name": "volumes", "value": "data=/var/lib/registry,size=50G" }
   ],
   "selectedAddons": ["addon-ssl"]
 }

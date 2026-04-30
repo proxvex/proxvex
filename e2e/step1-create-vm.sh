@@ -116,7 +116,7 @@ pve_ssh "qm create $TEST_VMID \
     --efidisk0 $VM_STORAGE:1,efitype=4m,pre-enrolled-keys=0 \
     --net0 virtio,bridge=$VM_BRIDGE \
     --scsihw virtio-scsi-pci \
-    --scsi0 $VM_STORAGE:$VM_DISK_SIZE \
+    --scsi0 $VM_STORAGE:$VM_DISK_SIZE,cache=writeback,iothread=1,discard=on \
     --cdrom local:iso/$ISO_NAME \
     --ostype l26 \
     --onboot 1"
@@ -228,6 +228,7 @@ fi
 if [ -n "$ALL_KEYS" ]; then
     # Pipe keys directly to nested VM via port forwarding
     echo "$ALL_KEYS" | nested_ssh "
+        set -e
         # Try PVE standard location first
         if [ -d /etc/pve/priv ] || mkdir -p /etc/pve/priv 2>/dev/null; then
             cat >> /etc/pve/priv/authorized_keys
@@ -314,8 +315,25 @@ fi
 # Step 10: Configure free Proxmox repositories and update system
 header "Configuring Free Repositories & System Update"
 
+# Drain any in-flight apt-daily / unattended-upgrades that might still hold
+# the apt lock from the unattended Debian install. Without this, every later
+# apt-get call risks "Could not get lock /var/lib/apt/lists/lock" — see
+# step1's Step 10d (dnsmasq install) which is the most common victim.
+info "Waiting for any background apt activity to settle..."
+nested_ssh '
+    for i in $(seq 1 120); do
+        # apt-daily / unattended-upgrades / cloud-init pkg sub-processes
+        if ! pgrep -f "apt-get|dpkg|unattended-upgrade|apt.systemd.daily" >/dev/null; then
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "Warning: apt activity still running after 120s — proceeding anyway" >&2
+' || error "Could not wait for apt to settle"
+
 info "Configuring no-subscription repository and disabling enterprise repos..."
 nested_ssh "
+    set -e
     # Determine Debian codename (trixie for PVE 9.x, bookworm for PVE 8.x)
     CODENAME=\$(. /etc/os-release && echo \$VERSION_CODENAME)
     [ -z \"\$CODENAME\" ] && CODENAME=bookworm
@@ -368,11 +386,34 @@ SCRIPTEOF
 chmod +x /usr/local/bin/pct-cleanup"
 success "Helper scripts installed (pct-cleanup)"
 
+# Step 10a: Tune the nested rpool for throughput. The whole nested VM is
+# disposable — step1 can rebuild it any time — so we trade crash-safety for
+# speed. `sync=disabled` flips fsync into a no-op, which roughly doubles
+# write throughput against the QEMU-virtio-scsi disk. `atime=off` avoids
+# write-on-read amplification. lz4 is a near-free CPU/IO trade-off for
+# layer pulls. The host-side scsi0 already runs cache=writeback,iothread=1
+# so we also benefit from host-page-cache batching.
+info "Tuning nested rpool ZFS settings..."
+nested_ssh "
+    set -e
+    zfs set sync=disabled rpool 2>/dev/null || true
+    zfs set atime=off rpool 2>/dev/null || true
+    if [ \"\$(zfs get -H -o value compression rpool)\" = 'off' ]; then
+        zfs set compression=lz4 rpool
+    fi
+    # 1 GiB write coalescing buffer (default ~256 MiB) — survives reboots
+    # via /etc/modprobe.d only matters for module reload; for now apply
+    # at runtime, step1 reruns happen rarely.
+    echo 1073741824 > /sys/module/zfs/parameters/zfs_dirty_data_max 2>/dev/null || true
+"
+success "rpool tuned (sync=disabled, atime=off, lz4)"
+
 # Step 10b: Configure kernel modules for Docker-in-LXC
 header "Configuring Kernel Modules for Docker-in-LXC"
 
 info "Loading and persisting kernel modules..."
 nested_ssh "
+    set -e
     # Try to load modules immediately (may fail in nested VMs - that is OK)
     modprobe overlay 2>/dev/null || true
     modprobe ip_tables 2>/dev/null || true
@@ -426,11 +467,16 @@ EOF
     success "vmbr1 created with NAT (10.0.0.0/24)"
 fi
 
-# Step 10d: Install and configure dnsmasq for DHCP on vmbr1
+# Step 10d: Install and configure dnsmasq for DHCP on vmbr1.
+# `set -e` matters here: without it, a failed `apt-get install dnsmasq`
+# would silently let the remaining lines run, then the block would exit
+# with the success code of the LAST command (chmod) — step1 declares
+# itself complete while dnsmasq is missing, and step2a fails late.
 info "Setting up DHCP server (dnsmasq) on vmbr1..."
 nested_ssh "
-    DEBIAN_FRONTEND=noninteractive apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsmasq
+    set -e
+    DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y -qq dnsmasq
 
     cat > /etc/dnsmasq.d/e2e-nat.conf << DNSEOF
 # E2E Test NAT Network DHCP

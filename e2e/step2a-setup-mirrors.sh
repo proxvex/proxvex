@@ -164,10 +164,52 @@ echo ""
 [ "$SSH_READY" = "true" ] || error "Cannot connect to nested VM via $PVE_HOST:$PORT_PVE_SSH after 60s"
 success "SSH connection verified"
 
-# Step 3: Install Docker on the nested VM (runtime for the mirror containers)
+# Step 2.5: Pre-flight — check that step1 actually finished. step1 installs
+# dnsmasq + writes /etc/dnsmasq.d/e2e-nat.conf in its Step 10d. If those are
+# missing, the dnsmasq-redirect block below would silently produce a half-
+# broken VM. Fail fast with a clear hint instead.
+header "Verifying step1 prerequisites"
+missing=$(nested_ssh '
+    out=""
+    systemctl list-unit-files dnsmasq.service 2>/dev/null | grep -q "^dnsmasq.service" || out="$out dnsmasq.service"
+    [ -d /etc/dnsmasq.d ] || out="$out /etc/dnsmasq.d"
+    [ -f /etc/dnsmasq.d/e2e-nat.conf ] || out="$out /etc/dnsmasq.d/e2e-nat.conf"
+    printf "%s" "$out" | sed "s/^ //"
+') || error "Pre-flight check failed (could not query nested VM)."
+if [ -n "$missing" ]; then
+    error "step1 did not finish provisioning the nested VM — missing: $missing
+    Run ./e2e/step1-create-vm.sh $E2E_INSTANCE first (or re-run if it aborted partway)."
+fi
+success "step1 prerequisites OK (dnsmasq installed + e2e-nat.conf present)"
+
+# Step 3: Install Docker on the nested VM (runtime for the mirror containers).
+# Repoint apt to a European Debian mirror first — same sed as step1, but
+# idempotent and applied here too so VMs created before the step1 fix (or
+# from older snapshots) don't suffer through the slow default deb.debian.org
+# during `apt-get install docker.io`. No-op when already pointing at
+# mirror.23m.com.
 header "Installing Docker on nested VM"
+nested_ssh '
+    if [ -f /etc/apt/sources.list.d/debian.sources ] && \
+       grep -q "URIs:[[:space:]]*http://deb.debian.org/debian" /etc/apt/sources.list.d/debian.sources; then
+        sed -i "s|URIs: http://deb.debian.org/debian|URIs: http://mirror.23m.com/debian|g" /etc/apt/sources.list.d/debian.sources
+        echo "  Switched debian.sources -> mirror.23m.com" >&2
+    fi
+    if [ -s /etc/apt/sources.list ] && grep -q "deb.debian.org" /etc/apt/sources.list; then
+        sed -i "s|deb.debian.org|mirror.23m.com|g" /etc/apt/sources.list
+        echo "  Switched sources.list -> mirror.23m.com" >&2
+    fi
+'
 nested_ssh "command -v docker >/dev/null 2>&1 || {
-    apt-get update -qq && apt-get install -y -qq docker.io >&2
+    set -e
+    # Drain background apt-daily / unattended-upgrades that may still hold
+    # the lock — fail loud after 120s rather than collide silently.
+    for i in \$(seq 1 120); do
+        pgrep -f 'apt-get|dpkg|unattended-upgrade|apt.systemd.daily' >/dev/null || break
+        sleep 1
+    done
+    DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 update -qq >&2
+    DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y -qq docker.io >&2
 }"
 success "Docker available on nested VM"
 
@@ -262,17 +304,37 @@ nested_ssh "
 "
 success "Obsolete local dockerhub-mirror cleaned up (using production mirror at $PROD_MIRROR_IP)"
 
-nested_ssh "docker ps -q -f name='^ghcr-mirror$' | grep -q . || {
-    docker rm -f ghcr-mirror 2>/dev/null || true
-    docker run -d --name ghcr-mirror --restart unless-stopped \
-        --dns 8.8.8.8 --dns 8.8.4.4 \
-        -p 10.0.0.2:443:5000 \
-        -p 10.0.0.2:80:5000 \
-        -v ghcr-mirror-data:/var/lib/registry \
-        -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
-        distribution/distribution:3.0.0 >&2
-}"
-success "ghcr.io mirror running on 10.0.0.2:80+443"
+# IPv6 is disabled inside this container's net namespace via --sysctl.
+# Without it, distribution v3 (Go's net.Dialer) tries to upstream-fetch from
+# ghcr.io over IPv6 first and burns a 30s timeout per layer before falling
+# back to IPv4. With it disabled, Go cannot create an IPv6 socket, so it
+# goes straight to IPv4. See memory entry "IPv6 Docker Pull Performance".
+# If a stale container without the sysctl is running, force-recreate it.
+nested_ssh "
+    set -e
+    needs_recreate=0
+    if docker ps -q -f name='^ghcr-mirror\$' | grep -q .; then
+        if ! docker inspect ghcr-mirror --format '{{range .HostConfig.Sysctls}}{{.}} {{end}}' 2>/dev/null \
+             | grep -q 'disable_ipv6=1'; then
+            needs_recreate=1
+        fi
+    else
+        needs_recreate=1
+    fi
+    if [ \"\$needs_recreate\" = '1' ]; then
+        docker rm -f ghcr-mirror 2>/dev/null || true
+        docker run -d --name ghcr-mirror --restart unless-stopped \
+            --dns 8.8.8.8 --dns 8.8.4.4 \
+            --sysctl net.ipv6.conf.all.disable_ipv6=1 \
+            --sysctl net.ipv6.conf.default.disable_ipv6=1 \
+            -p 10.0.0.2:443:5000 \
+            -p 10.0.0.2:80:5000 \
+            -v ghcr-mirror-data:/var/lib/registry \
+            -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
+            distribution/distribution:3.0.0 >&2
+    fi
+"
+success "ghcr.io mirror running on 10.0.0.2:80+443 (IPv6 disabled in container)"
 
 # Docker daemon config:
 # - No 'registry-mirrors' entry: dnsmasq (set up below) redirects
