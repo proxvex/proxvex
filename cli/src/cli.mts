@@ -157,9 +157,19 @@ export class RemoteCli {
         );
         const configKeys = ["bridge", "memory", "cores", "rootfs_storage",
                             "disk_size", "hostname", "static_ip", "static_gw"];
+        // Param-id → container-config key map for fields whose names differ
+        // between the parameter definition and the container-config payload.
+        // `version` comes from the `<!-- proxvex:version X -->` notes marker
+        // parsed by lxc_config_parser_lib.py — without this mapping, reconfigure
+        // tasks fail validation with "oci_image_tag: Required parameter
+        // 'Version' is missing or empty" because the install-time injector in
+        // webapp-ve-route-handlers.mts doesn't run for the validation step.
+        const aliasMap: Record<string, string> = { oci_image_tag: "version" };
         for (const def of parameterDefs) {
-          if (configKeys.includes(def.id) && containerConfig[def.id] != null) {
-            def.default = containerConfig[def.id];
+          const containerKey = aliasMap[def.id] ?? def.id;
+          const useAlias = aliasMap[def.id] !== undefined;
+          if ((configKeys.includes(def.id) || useAlias) && containerConfig[containerKey] != null) {
+            def.default = containerConfig[containerKey];
           }
         }
         if (!this.options.quiet) {

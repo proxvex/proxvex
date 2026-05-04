@@ -51,6 +51,12 @@ async function findExistingVm(
         const conf = nestedSsh(pveHost, sshPort,
           `pct config ${vmId} 2>/dev/null | head -40`, 5000);
         if (!conf.includes("proxvex") || !conf.includes("managed")) continue;
+        // Skip containers that replace-ct.sh has retired. They keep the same
+        // hostname + application-id as their replacement, but carry a
+        // `<!-- proxvex:replaced-by N -->` notes marker plus `lock=migrate`.
+        // Picking them as previous_vm_id for the next reconfigure breaks
+        // pct snapshot ("CT is locked (migrate)").
+        if (/proxvex(%3A|:)replaced-by/.test(conf)) continue;
         const appMatch = conf.match(/application-id\s+(\S+)/);
         const appId = appMatch?.[1]?.replace(/%20/g, " ");
         if (appId !== applicationId) continue;
