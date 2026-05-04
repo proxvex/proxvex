@@ -109,7 +109,7 @@ export class VeExecutionSshExecutor {
         "-o",
         "ControlPersist=60", // keep master connection alive
         "-o",
-        "ControlPath=/tmp/proxvex-ssh-%r@%h:%p", // shared control socket
+        `ControlPath=/tmp/proxvex-ssh-pipe-${process.pid}-%r@%h:%p`, // shared control socket; service+PID prefix avoids master/slave races against ve-logs-service
         "-o",
         "ServerAliveInterval=30", // send keepalive every 30s
         "-o",

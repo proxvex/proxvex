@@ -103,7 +103,7 @@ export class VeLogsService {
       "-o",
       "ControlPersist=60",
       "-o",
-      "ControlPath=/tmp/proxvex-ssh-%r@%h:%p",
+      `ControlPath=/tmp/proxvex-ssh-logs-${process.pid}-%r@%h:%p`,
       "-T",
       "-q",
       "-p",
