@@ -170,9 +170,17 @@ export class RemoteCli {
       }
     }
 
-    // 6c. Fill in defaults for missing parameters
+    // 6c. Fill in defaults for missing parameters.
+    // Empty-string defaults are skipped: the backend may auto-inject these
+    // (e.g. deployer_base_url, ve_context_key) into its defaults map, and
+    // sending "" as an input would shadow that — VariableResolver treats
+    // any defined input (including "") as winning over defaults.
     for (const def of parameterDefs) {
-      if (def.default !== undefined && !paramsInput.params.some((p) => p.name === def.id)) {
+      if (
+        def.default !== undefined &&
+        def.default !== "" &&
+        !paramsInput.params.some((p) => p.name === def.id)
+      ) {
         paramsInput.params.push({ name: def.id, value: def.default });
       }
     }
