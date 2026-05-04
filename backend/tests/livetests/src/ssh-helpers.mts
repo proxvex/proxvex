@@ -87,3 +87,42 @@ export async function waitForServices(
   }
   log.warn(`Docker services not fully ready after ${maxWait}s`);
 }
+
+/**
+ * Poll `pct status` over `maxWait` seconds and return early if the LXC
+ * container leaves the `running` state (crashed, stopped, or vanished).
+ *
+ * The install-pipeline check `900-host-check-container.json` only samples
+ * once near the end of the install — it cannot catch crashes that happen
+ * *after* the installer has exited (e.g. postgres PANIC during initdb when
+ * the data volume is too small). This polling fills the gap during the
+ * test runner's `wait_seconds` window.
+ *
+ * Returns `{ ok: true }` when the container stayed `running` for the full
+ * window, or `{ ok: false, status }` on the first non-running observation.
+ * Transient SSH errors are swallowed (treated as "still running").
+ */
+export async function waitForContainerStable(
+  pveHost: string,
+  sshPort: number,
+  vmId: number,
+  maxWait: number,
+  pollInterval: number = 5,
+): Promise<{ ok: true } | { ok: false; status: string }> {
+  const deadline = Date.now() + maxWait * 1000;
+  while (true) {
+    let status = "";
+    try {
+      status = nestedSsh(pveHost, sshPort,
+        `pct status ${vmId} 2>/dev/null || echo "missing"`, 10000).trim();
+      if (status && !status.includes("running")) {
+        return { ok: false, status };
+      }
+    } catch {
+      // Transient SSH error — assume still running, try again next tick
+    }
+    if (Date.now() >= deadline) return { ok: true };
+    const remainingMs = deadline - Date.now();
+    await new Promise((r) => setTimeout(r, Math.min(pollInterval * 1000, remainingMs)));
+  }
+}

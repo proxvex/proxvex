@@ -1,6 +1,6 @@
 #!/bin/sh
 # Check container status after installation.
-# Checks: container is running, notes contain managed marker.
+# Checks: container stays running over a stability window, notes contain managed marker.
 #
 # Template variables:
 #   vm_id - Container VM ID
@@ -8,9 +8,19 @@
 #
 # Outputs JSON array with check results.
 # Exit 1 on fatal check failure (default), exit 0 if all checks pass.
+#
+# The container_running check polls `pct status` over a stability window
+# (~10 s, 3 samples * 5 s) instead of sampling once. A single sample can
+# pass while the application inside the container is still in early startup
+# (e.g. postgres initdb) and PANICs a few seconds later — we need to fail
+# the install pipeline in that case rather than report success.
 
 VM_ID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
+
+# Stability window for container_running check: 3 samples * 5 s ≈ 10 s.
+STABLE_SAMPLES=3
+STABLE_SLEEP=5
 
 results="[]"
 all_passed=true
@@ -29,14 +39,25 @@ add_result() {
     fi
 }
 
-# --- Check 1: Container is running ---
-status_output=$(pct status "$VM_ID" 2>/dev/null)
-if echo "$status_output" | grep -q "running"; then
+# --- Check 1: Container stays running across a stability window ---
+i=1
+final_status=""
+while [ $i -le $STABLE_SAMPLES ]; do
+    final_status=$(pct status "$VM_ID" 2>/dev/null)
+    if ! echo "$final_status" | grep -q "running"; then
+        break
+    fi
+    if [ $i -lt $STABLE_SAMPLES ]; then
+        sleep "$STABLE_SLEEP"
+    fi
+    i=$((i + 1))
+done
+if echo "$final_status" | grep -q "running"; then
     add_result "container_running" "true"
-    echo "CHECK: container_running PASSED (VM $VM_ID is running)" >&2
+    echo "CHECK: container_running PASSED (VM $VM_ID stayed running across $STABLE_SAMPLES samples)" >&2
 else
-    add_result "container_running" "false" "status: ${status_output}"
-    echo "CHECK: container_running FAILED (VM $VM_ID status: ${status_output})" >&2
+    add_result "container_running" "false" "status: ${final_status} (sample ${i}/${STABLE_SAMPLES})"
+    echo "CHECK: container_running FAILED (VM $VM_ID went to '${final_status}' on sample ${i}/${STABLE_SAMPLES})" >&2
     all_passed=false
 fi
 
