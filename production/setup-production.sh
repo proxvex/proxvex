@@ -595,6 +595,27 @@ if should_run 6; then
     fi
   fi
 
+  # Validate a freshly provided CF_TOKEN before storing it. The stored token
+  # cannot be validated from here (it's encrypted in the deployer), so we just
+  # print a hint — if it's stale, post-configure-mail-dns.py skips on 401/403.
+  if [ "$CF_TOKEN" != "__already_stored__" ]; then
+    echo "  Validating CF_TOKEN against Cloudflare API..."
+    cf_verify_code=$(curl -s -o /tmp/cf-verify.json -w '%{http_code}' \
+      -H "Authorization: Bearer $CF_TOKEN" \
+      "https://api.cloudflare.com/client/v4/user/tokens/verify" 2>/dev/null || echo "000")
+    if [ "$cf_verify_code" != "200" ]; then
+      echo "ERROR: CF_TOKEN failed Cloudflare verify (HTTP $cf_verify_code):" >&2
+      cat /tmp/cf-verify.json >&2 2>/dev/null || true
+      echo "" >&2
+      echo "  Create a fresh token at https://dash.cloudflare.com/profile/api-tokens" >&2
+      echo "  with Zone:Read + Zone:DNS:Edit on the relevant zone." >&2
+      exit 1
+    fi
+    echo "  CF_TOKEN is valid."
+  else
+    echo "  Note: reusing stored CF_TOKEN — if stale, mail DNS step will skip with warning."
+  fi
+
   if [ "$CF_TOKEN" = "__already_stored__" ] && [ "$SMTP_PASSWORD" = "__already_stored__" ]; then
     echo "  Skipping setup-acme.sh (stacks already configured)."
   else
