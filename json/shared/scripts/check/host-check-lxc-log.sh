@@ -27,6 +27,11 @@ if [ -z "$errors" ]; then
 else
     echo "CHECK: lxc_log_no_errors WARNING (errors found)" >&2
     echo "$errors" | head -5 >&2
-    escaped=$(printf '%s' "$errors" | head -5 | sed 's/"/\\"/g' | tr '\n' ' ')
-    printf '[{"id":"check_lxc_log","value":"%s"}]' "$escaped"
+    # JSON requires control characters (\x00-\x1F) and backslashes to be
+    # escaped. LXC logs commonly contain ANSI color codes, tabs and carriage
+    # returns — a hand-rolled sed replace only catches double quotes and
+    # produces invalid JSON ("Bad control character in string literal").
+    # Use python's json.dumps for a robust escape.
+    escaped=$(printf '%s' "$errors" | head -5 | python3 -c 'import json,sys; sys.stdout.write(json.dumps(sys.stdin.read()))')
+    printf '[{"id":"check_lxc_log","value":%s}]' "$escaped"
 fi

@@ -28,6 +28,7 @@ export function registerLogsHtmlRoute(app: express.Application): void {
   app.get("/logs/:veContext/:vmId", async (req, res) => {
     const { vmId: vmIdStr, veContext: veContextKey } = req.params;
     const linesStr = req.query.lines as string | undefined;
+    const service = req.query.service as string | undefined;
 
     // Validate vmId
     const vmId = parseInt(vmIdStr, 10);
@@ -57,13 +58,25 @@ export function registerLogsHtmlRoute(app: express.Application): void {
       return;
     }
 
-    // Fetch logs (auto-detects docker-compose vs console)
     const logsService = new VeLogsService(veContext);
-    const logOptions: { vmId: number; lines?: number } = { vmId };
-    if (linesStr) {
-      logOptions.lines = parseInt(linesStr, 10);
+    const lines = linesStr ? parseInt(linesStr, 10) : undefined;
+
+    // If a specific service is requested, fetch only that service's logs.
+    // Otherwise fall back to the auto-detect path (which merges all
+    // docker-compose services or returns the LXC console log).
+    let result;
+    if (service && /^[a-zA-Z0-9_-]+$/.test(service)) {
+      const opts: { vmId: number; service: string; lines?: number } = {
+        vmId,
+        service,
+      };
+      if (lines !== undefined) opts.lines = lines;
+      result = await logsService.getDockerLogs(opts);
+    } else {
+      const opts: { vmId: number; lines?: number } = { vmId };
+      if (lines !== undefined) opts.lines = lines;
+      result = await logsService.getLogs(opts);
     }
-    const result = await logsService.getLogs(logOptions);
 
     const content =
       result.success && result.content
@@ -72,7 +85,14 @@ export function registerLogsHtmlRoute(app: express.Application): void {
     res
       .status(result.success ? 200 : 400)
       .send(
-        renderHtml(vmId, veContextKey, content, !result.success, result.lines),
+        renderHtml(
+          vmId,
+          veContextKey,
+          content,
+          !result.success,
+          result.lines,
+          service,
+        ),
       );
   });
 }
@@ -83,8 +103,10 @@ function renderHtml(
   content: string,
   isError: boolean,
   lines?: number,
+  activeService?: string,
 ): string {
   const escapedContent = content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const activeJson = activeService ? JSON.stringify(activeService) : "null";
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -93,7 +115,12 @@ function renderHtml(
   <style>
     body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; margin: 0; padding: 20px; }
     h1 { color: #569cd6; margin-bottom: 10px; }
-    .meta { color: #808080; margin-bottom: 20px; }
+    .meta { color: #808080; margin-bottom: 12px; }
+    .tabs { display: none; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px solid #3c3c3c; padding-bottom: 6px; }
+    .tabs.shown { display: flex; }
+    .tab { color: #d4d4d4; text-decoration: none; padding: 6px 14px; border-radius: 4px 4px 0 0; background: #2d2d2d; border: 1px solid transparent; font-size: 13px; }
+    .tab:hover { background: #37373d; }
+    .tab.active { background: #094771; color: #fff; border-color: #569cd6; }
     pre { white-space: pre-wrap; word-wrap: break-word; background: #252526; padding: 15px; border-radius: 4px; overflow-x: auto; }
     .error { color: #f44747; }
   </style>
@@ -101,20 +128,45 @@ function renderHtml(
 <body>
   <h1 id="title">Logs - CT ${vmId}</h1>
   <div class="meta">VE: ${veContextKey} | Lines: ${lines || "N/A"}</div>
+  <div id="tabs" class="tabs"></div>
   <pre${isError ? ' class="error"' : ""}>${escapedContent}</pre>
   <script>
     (async function() {
+      const veCtx = ${JSON.stringify(veContextKey)};
+      const vmId = ${vmId};
+      const activeService = ${activeJson};
+      // Hostname title
       try {
-        const res = await fetch('/api/${veContextKey}/ve/logs/${vmId}/hostname');
+        const res = await fetch('/api/' + veCtx + '/ve/logs/' + vmId + '/hostname');
         const data = await res.json();
         if (data.hostname) {
-          const title = data.hostname + ' (CT ${vmId})';
+          const title = data.hostname + ' (CT ' + vmId + ')';
           document.getElementById('title').textContent = 'Logs - ' + title;
           document.title = 'Logs - ' + title;
         }
-      } catch (e) {
-        // Ignore - keep default CT title
-      }
+      } catch (e) { /* keep default */ }
+      // Render docker-compose service tabs (if any)
+      try {
+        const res = await fetch('/api/' + veCtx + '/ve/logs/' + vmId + '/docker/services');
+        const data = await res.json();
+        const services = (data && Array.isArray(data.services)) ? data.services : [];
+        if (services.length > 0) {
+          const tabs = document.getElementById('tabs');
+          const mkTab = (label, href, isActive) => {
+            const a = document.createElement('a');
+            a.className = 'tab' + (isActive ? ' active' : '');
+            a.href = href;
+            a.textContent = label;
+            return a;
+          };
+          tabs.appendChild(mkTab('All services', '/logs/' + veCtx + '/' + vmId, !activeService));
+          for (const svc of services) {
+            const href = '/logs/' + veCtx + '/' + vmId + '?service=' + encodeURIComponent(svc);
+            tabs.appendChild(mkTab(svc, href, activeService === svc));
+          }
+          tabs.classList.add('shown');
+        }
+      } catch (e) { /* no docker-compose, no tabs */ }
     })();
   </script>
 </body>

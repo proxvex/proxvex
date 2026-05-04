@@ -261,6 +261,7 @@ export enum ApiUri {
   VeLogs = "/api/:veContext/ve/logs/:vmId",
   VeLogsHostname = "/api/:veContext/ve/logs/:vmId/hostname",
   VeDockerLogs = "/api/:veContext/ve/logs/:vmId/docker",
+  VeDockerServices = "/api/:veContext/ve/logs/:vmId/docker/services",
   Applications = "/api/applications",
   ApplicationTags = "/api/applications/tags",
   LocalApplicationIds = "/api/applications/local/ids",

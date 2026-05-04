@@ -125,6 +125,32 @@ export function registerVeLogsRoutes(app: express.Application): void {
       .json(result as IVeLogsResponse);
   });
 
+  // GET /api/:veContext/ve/logs/:vmId/docker/services — Docker compose service list
+  app.get<{ vmId: string; veContext: string }>(
+    ApiUri.VeDockerServices,
+    async (req, res) => {
+      const { vmId: vmIdStr, veContext: veContextKey } = req.params;
+      const vmId = parseInt(vmIdStr, 10);
+      if (isNaN(vmId) || vmId <= 0) {
+        res.status(400).json({ services: [], error: "Invalid VM ID" });
+        return;
+      }
+      const storageContext = pm.getContextManager();
+      const veContext = storageContext.getVEContextByKey(veContextKey);
+      if (!veContext) {
+        res.status(404).json({ services: [], error: "VE context not found" });
+        return;
+      }
+      try {
+        const logsService = new VeLogsService(veContext);
+        const services = await logsService.listDockerServices(vmId);
+        res.json({ services });
+      } catch {
+        res.json({ services: [] });
+      }
+    },
+  );
+
   // GET /api/ve/logs/:vmId/docker/:veContext - Docker Logs
   app.get<
     { vmId: string; veContext: string },

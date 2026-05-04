@@ -148,9 +148,20 @@ def main() -> None:
                 )
                 continue
 
+            # Strip CIDR suffix (e.g. "192.168.4.40/24" → "192.168.4.40").
+            # static_ip can also be "dhcp" — in that case there's no usable IP
+            # to share, so leave it empty and let downstream callers fall back
+            # to the hostname.
+            ip_value = ""
+            if config.static_ip and "/" in config.static_ip:
+                ip_value = config.static_ip.split("/", 1)[0]
+            elif config.static_ip and config.static_ip != "dhcp":
+                ip_value = config.static_ip
+
             found[config.application_id] = {
                 "vm_id": int(vmid_str),
                 "hostname": config.hostname,
+                "ip": ip_value,
                 "version": config.version or "",
             }
 
@@ -186,9 +197,15 @@ def main() -> None:
                 % (config.application_id, ",".join(config.stack_ids or []) or "unknown"),
                 file=sys.stderr,
             )
+            ip_value = ""
+            if config.static_ip and "/" in config.static_ip:
+                ip_value = config.static_ip.split("/", 1)[0]
+            elif config.static_ip and config.static_ip != "dhcp":
+                ip_value = config.static_ip
             found[config.application_id] = {
                 "vm_id": int(vmid_str),
                 "hostname": config.hostname,
+                "ip": ip_value,
                 "version": config.version or "",
             }
             if found.keys() >= needed:
@@ -204,16 +221,23 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # Phase 3: Output resolved hostnames and versions
+    # Phase 3: Output resolved hostnames, IPs and versions.
+    # `_HOST` carries the container hostname (for code paths that need a
+    # name, e.g. TLS hostname verification). `_IP` carries the dependency's
+    # static IP when available — useful for compose `extra_hosts` entries
+    # so docker's embedded DNS can resolve the dependency name even when
+    # the host's upstream DNS can't.
     outputs = []
     for app_id, info in found.items():
         prefix = app_id.upper().replace("-", "_")
         outputs.append({"id": "%s_HOST" % prefix, "value": info["hostname"]})
+        if info.get("ip"):
+            outputs.append({"id": "%s_IP" % prefix, "value": info["ip"]})
         if info["version"]:
             outputs.append({"id": "%s_VERSION" % prefix, "value": info["version"]})
         print(
-            "Resolved dependency: %s_HOST=%s version=%s (VMID %d)"
-            % (prefix, info["hostname"], info["version"] or "n/a", info["vm_id"]),
+            "Resolved dependency: %s_HOST=%s _IP=%s version=%s (VMID %d)"
+            % (prefix, info["hostname"], info.get("ip") or "n/a", info["version"] or "n/a", info["vm_id"]),
             file=sys.stderr,
         )
 
