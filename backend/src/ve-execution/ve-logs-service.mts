@@ -378,31 +378,26 @@ export class VeLogsService {
       );
     }
 
-    // Build docker logs command
-    // Try docker compose first (plugin), fallback to docker-compose (standalone)
-    let dockerCmd: string;
-    if (service) {
-      // Single service logs
-      dockerCmd = `docker logs --tail ${lines} ${service} 2>&1`;
-    } else {
-      // All services via docker-compose
-      // Find compose directory and run docker-compose logs
-      dockerCmd = `
-        COMPOSE_DIR=$(find /opt/docker-compose -maxdepth 1 -type d ! -name docker-compose 2>/dev/null | head -1)
-        if [ -n "$COMPOSE_DIR" ] && [ -f "$COMPOSE_DIR/docker-compose.yaml" ]; then
-          cd "$COMPOSE_DIR"
-          if command -v docker-compose >/dev/null 2>&1; then
-            docker-compose logs --tail ${lines} 2>&1
-          elif docker compose version >/dev/null 2>&1; then
-            docker compose logs --tail ${lines} 2>&1
-          else
-            echo "Error: Neither docker-compose nor docker compose plugin found"
-          fi
+    // Build docker logs command. Always go through docker-compose so that
+    // a service name like "zitadel-api" resolves correctly to the actual
+    // container (whose docker-internal name is "<project>-<service>-1") —
+    // a plain `docker logs <service>` would fail with "No such container".
+    const serviceArg = service ? ` ${service}` : "";
+    const dockerCmd = `
+      COMPOSE_DIR=$(find /opt/docker-compose -maxdepth 1 -type d ! -name docker-compose 2>/dev/null | head -1)
+      if [ -n "$COMPOSE_DIR" ] && [ -f "$COMPOSE_DIR/docker-compose.yaml" ]; then
+        cd "$COMPOSE_DIR"
+        if command -v docker-compose >/dev/null 2>&1; then
+          docker-compose logs --tail ${lines}${serviceArg} 2>&1
+        elif docker compose version >/dev/null 2>&1; then
+          docker compose logs --tail ${lines}${serviceArg} 2>&1
         else
-          echo "Error: No docker-compose.yaml found in /opt/docker-compose/*/"
+          echo "Error: Neither docker-compose nor docker compose plugin found"
         fi
-      `;
-    }
+      else
+        echo "Error: No docker-compose.yaml found in /opt/docker-compose/*/"
+      fi
+    `;
 
     // Execute via lxc-attach
     const lxcAttachCmd = `lxc-attach -n ${vmId} -- sh -c '${dockerCmd.replace(/'/g, "'\"'\"'")}'`;
@@ -432,6 +427,41 @@ export class VeLogsService {
       result.stdout,
       service,
     );
+  }
+
+  /**
+   * Lists docker-compose service names for a container. Returns an empty
+   * array for non-docker-compose containers (no /opt/docker-compose dir),
+   * or when no services are running.
+   */
+  async listDockerServices(vmId: number): Promise<string[]> {
+    if (!this.validateVmId(vmId)) {
+      return [];
+    }
+    const status = await this.checkContainerStatus(vmId);
+    if (!status.exists || !status.running) {
+      return [];
+    }
+    const script = `
+if lxc-attach -n ${vmId} -- test -d /opt/docker-compose 2>/dev/null; then
+  lxc-attach -n ${vmId} -- sh -c '
+    COMPOSE_DIR=$(find /opt/docker-compose -maxdepth 1 -type d ! -name docker-compose 2>/dev/null | head -1)
+    if [ -n "$COMPOSE_DIR" ] && [ -f "$COMPOSE_DIR/docker-compose.yaml" ]; then
+      cd "$COMPOSE_DIR"
+      if docker compose version >/dev/null 2>&1; then
+        docker compose ps --format "{{.Service}}" 2>/dev/null | sort -u
+      elif command -v docker-compose >/dev/null 2>&1; then
+        docker-compose ps --services 2>/dev/null | sort -u
+      fi
+    fi
+  '
+fi`.trim();
+    const result = await this.executeOnHost(script);
+    if (result.exitCode !== 0) return [];
+    return result.stdout
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && /^[a-zA-Z0-9_-]+$/.test(s));
   }
 
   /**
