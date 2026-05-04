@@ -395,7 +395,11 @@ describe("VeLogsService", () => {
       const lastCall = mockSpawnAsync.mock.calls[1];
       const command = lastCall[1][1];
       expect(command).toContain("lxc-attach -n 105");
-      expect(command).toContain("docker logs");
+      // Single-service logs go through docker-compose so the service name
+      // resolves to the actual container (whose internal name is
+      // "<project>-<service>-1"). Plain `docker logs <service>` would fail
+      // with "No such container".
+      expect(command).toMatch(/docker(-| )compose logs/);
       expect(command).toContain("myservice");
     });
   });
