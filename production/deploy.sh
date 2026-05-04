@@ -45,10 +45,14 @@ if [ -n "$DEPLOYER_VMID" ]; then
   run_cli() {
     local params_file="$1"
     shift
-    # Push JSON file into container and run CLI from inside
+    # Push JSON file into container and run CLI from inside.
+    # Use HTTPS — after Step 6 (ACME) the HTTP listener on :3080 only
+    # serves a 301 to :3443, and the CLI's HTTP client does not follow
+    # redirects on POST, so plain http://localhost:3080 returns
+    # "Not found" instead of the expected route handler.
     pct push "$DEPLOYER_VMID" "$params_file" /tmp/deploy-params.json
     pct exec "$DEPLOYER_VMID" -- oci-lxc-cli remote \
-      --server http://localhost:3080 --ve "$PVE_HOST" \
+      --server https://localhost:3443 --ve "$PVE_HOST" \
       --insecure "$@" /tmp/deploy-params.json
     pct exec "$DEPLOYER_VMID" -- rm -f /tmp/deploy-params.json
   }
