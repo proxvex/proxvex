@@ -34,6 +34,26 @@ export class TemplatePathResolver {
       return { fullPath: templatePath, isShared: false, category };
     }
 
+    // Apps may organise templates by lifecycle phase
+    // (e.g. templates/post_start/X.json). Accept those too, since the
+    // installation list still references them by bare name.
+    const templatesRoot = path.join(appPath, "templates");
+    if (fs.existsSync(templatesRoot)) {
+      for (const entry of fs.readdirSync(templatesRoot, {
+        withFileTypes: true,
+      })) {
+        if (!entry.isDirectory()) continue;
+        const subPath = path.join(
+          templatesRoot,
+          entry.name,
+          templateNameWithExt,
+        );
+        if (fs.existsSync(subPath)) {
+          return { fullPath: subPath, isShared: false, category };
+        }
+      }
+    }
+
     // Search order: local → hub → json
     const sharedBases = [pathes.localPath, pathes.hubPath, pathes.jsonPath].filter(Boolean) as string[];
 

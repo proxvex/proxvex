@@ -273,6 +273,54 @@ describe("FileSystemRepositories", () => {
       expect(ref!.applicationId).toBeUndefined();
     });
 
+    it("should find application template in a templates/<phase>/ subdirectory", () => {
+      // Apps may organise templates by lifecycle phase
+      // (e.g. templates/post_start/X.json). The framework should still
+      // resolve them by bare name from the application's installation list,
+      // matching how shared templates work.
+      fs.writeFileSync(
+        path.join(
+          pathes.jsonPath,
+          "applications",
+          "child-app",
+          "application.json",
+        ),
+        JSON.stringify({ name: "Child App" }),
+      );
+      fs.mkdirSync(
+        path.join(
+          pathes.jsonPath,
+          "applications",
+          "child-app",
+          "templates",
+          "post_start",
+        ),
+        { recursive: true },
+      );
+      fs.writeFileSync(
+        path.join(
+          pathes.jsonPath,
+          "applications",
+          "child-app",
+          "templates",
+          "post_start",
+          "subdir-template.json",
+        ),
+        JSON.stringify({ name: "Subdir Template" }),
+      );
+
+      const ref = repositories.resolveTemplateRef(
+        "child-app",
+        "subdir-template",
+        "root",
+      );
+
+      expect(ref).not.toBeNull();
+      expect(ref!.name).toBe("subdir-template");
+      expect(ref!.scope).toBe("application");
+      expect(ref!.applicationId).toBe("child-app");
+    });
+
     it("should return null for non-existent template", () => {
       fs.writeFileSync(
         path.join(
