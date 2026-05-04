@@ -37,6 +37,7 @@ ROUTER_HOST="${ROUTER_HOST:-router-kg}"
 # 3.2 (no `declare -A`).
 APP_HOST_MAP="
 github-runner=ubuntupve
+ghcr-registry-mirror=ubuntupve
 "
 
 host_for_app() {
@@ -99,6 +100,7 @@ print_steps() {
     14  Deploy github-runner (target: $(host_for_app github-runner))
     15  Deploy node-red
     16  Deploy modbus2mqtt
+    17  Deploy ghcr-registry-mirror (target: $(host_for_app ghcr-registry-mirror)) [test/CI infra; optional]
 STEPS
 }
 
@@ -775,6 +777,22 @@ if should_run 16; then
     exit 1
   }
   "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app modbus2mqtt)" modbus2mqtt.json
+fi
+
+# ================================================================
+# Step 17: Deploy ghcr-registry-mirror on the test/CI host (optional)
+#   Site customization: the application definition is installed into the
+#   deployer's /config volume (not shipped under json/applications/), so it
+#   only exists on hosts where this step runs. Used by livetest/github-action
+#   nested VMs that DNS-redirect ghcr.io to this mirror to avoid double-NAT
+#   TLS issues when docker-compose apps pull images.
+#
+#   Production apps do NOT use this mirror — they keep pulling latest
+#   directly from ghcr.io.
+# ================================================================
+if should_run 17; then
+  banner 17 "Deploy ghcr-registry-mirror ($(host_for_app ghcr-registry-mirror))"
+  pve_ssh "sh production/setup-ghcr-mirror.sh"
 fi
 
 # ================================================================

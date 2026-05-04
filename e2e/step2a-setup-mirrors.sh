@@ -119,7 +119,10 @@ echo ""
 # way that requires a forced rebuild (e.g. switching the Docker Hub source).
 # v1               = local dockerhub-mirror + local ghcr-mirror
 # v2-prod-mirror   = production mirror for Docker Hub + local ghcr-mirror
-SCHEMA_VERSION="v2-prod-mirror"
+# v3-ghcr-on-outer = production mirror for Docker Hub + ghcr-mirror LXC on
+#                    the outer PVE host (no nested ghcr-mirror container,
+#                    no `insecure-registries`, valid TLS via proxvex CA)
+SCHEMA_VERSION="v3-ghcr-on-outer"
 
 # Step 0: idempotency check — only skip when BOTH versions-hash AND schema match.
 # A schema mismatch forces a rebuild even if versions.sh is unchanged, so a
@@ -259,112 +262,74 @@ nested_ssh "
 "
 success "Production mirror reachable; proxvex CA in nested VM trust store"
 
-# Step 4: Set up the local ghcr.io mirror. Docker Hub uses the production
-# mirror (no local container); ghcr.io is mirrored locally because the cost
-# of cache loss is low (no rate limit) and a local mirror enables offline runs.
-header "Setting up local ghcr.io mirror"
+# Step 4: Verify the ghcr.io mirror on the outer PVE host is reachable.
+# As of schema v3-ghcr-on-outer the ghcr-mirror lives outside the nested VM
+# (a proxvex-managed LXC on ubuntupve, deployed by
+# production/setup-ghcr-mirror.sh — i.e. setup-production.sh Step 17). It
+# has a TLS cert signed by the proxvex CA (already imported above), so the
+# nested VM's docker daemon can talk to it via plain HTTPS — no
+# `insecure-registries` hack, no per-LXC daemon.json.
+header "Verifying outer ghcr.io mirror"
+GHCR_MIRROR_IP="${GHCR_MIRROR_IP:-192.168.4.48}"
+for i in $(seq 1 10); do
+    nested_ssh "curl -sf --resolve ghcr.io:443:$GHCR_MIRROR_IP \
+        https://ghcr.io/v2/ >/dev/null 2>&1" && break
+    sleep 1
+done
+nested_ssh "curl -sf --resolve ghcr.io:443:$GHCR_MIRROR_IP \
+    https://ghcr.io/v2/ >/dev/null 2>&1" \
+    || error "ghcr.io mirror at $GHCR_MIRROR_IP unreachable from nested VM.
+    - Run ./production/setup-production.sh --step 17 on pve1 (or
+      ./production/setup-ghcr-mirror.sh standalone) to deploy the
+      ghcr-registry-mirror LXC.
+    - Verify routing from nested VM to 192.168.4.0/24 (POSTROUTING MASQUERADE
+      on PVE host should cover this — see step1-create-vm.sh).
+    - Check the LXC's TLS cert SAN includes 'DNS:ghcr.io'."
+success "Outer ghcr.io mirror reachable at $GHCR_MIRROR_IP (TLS via proxvex CA)"
 
-# ghcr.io mirror needs its own IP on vmbr1 (Docker Hub uses 10.0.0.1, the NAT gateway).
-# Persist via a systemd oneshot unit so the IP survives VM reboots / snapshot
-# rollbacks (without it the ghcr-mirror container fails to re-bind :443/:80
-# after a reboot and every ghcr.io pull breaks with "no route to host").
-# Using systemd rather than /etc/network/interfaces.d/ because ifupdown2 on
-# Proxmox rejects colon-aliased interface names (vmbr1:ghcr).
-nested_ssh "cat > /etc/systemd/system/vmbr1-ghcr-alias.service <<'EOF'
-[Unit]
-Description=Secondary IP 10.0.0.2 on vmbr1 for ghcr.io pull-through mirror
-After=networking.service network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/sbin/ip addr add 10.0.0.2/24 dev vmbr1
-ExecStartPost=/bin/docker start ghcr-mirror
-ExecStop=/sbin/ip addr del 10.0.0.2/24 dev vmbr1
-
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable vmbr1-ghcr-alias.service
-"
-nested_ssh "ip addr show vmbr1 | grep -q '10.0.0.2/' || ip addr add 10.0.0.2/24 dev vmbr1"
-
-# Tear down any obsolete local dockerhub-mirror container/volume from the
-# pre-prod-mirror schema. 10.0.0.1 is the main address of vmbr1 (not an
-# alias), so there is no systemd unit to disable.
+# Tear down any leftovers from the older v2-prod-mirror schema (local
+# ghcr-mirror container on 10.0.0.2, vmbr1 alias service, dockerhub-mirror).
+# Idempotent — silently no-ops on a clean nested VM.
+header "Cleaning up legacy local mirrors (v2-prod-mirror leftovers)"
 nested_ssh "
+    set -e
+    if docker ps -aq -f name='^ghcr-mirror\$' | grep -q .; then
+        docker rm -f ghcr-mirror >/dev/null 2>&1 || true
+        echo '  Removed local ghcr-mirror container (now lives on outer PVE host)'
+    fi
+    docker volume rm ghcr-mirror-data 2>/dev/null && \
+        echo '  Removed obsolete ghcr-mirror-data volume' || true
+
     if docker ps -aq -f name='^dockerhub-mirror\$' | grep -q .; then
         docker rm -f dockerhub-mirror >/dev/null 2>&1 || true
         echo '  Removed obsolete dockerhub-mirror container'
     fi
     docker volume rm dockerhub-mirror-data 2>/dev/null && \
         echo '  Removed obsolete dockerhub-mirror-data volume' || true
-"
-success "Obsolete local dockerhub-mirror cleaned up (using production mirror at $PROD_MIRROR_IP)"
 
-# IPv6 is disabled inside this container's net namespace via --sysctl.
-# Without it, distribution v3 (Go's net.Dialer) tries to upstream-fetch from
-# ghcr.io over IPv6 first and burns a 30s timeout per layer before falling
-# back to IPv4. With it disabled, Go cannot create an IPv6 socket, so it
-# goes straight to IPv4. See memory entry "IPv6 Docker Pull Performance".
-# If a stale container without the sysctl is running, force-recreate it.
-nested_ssh "
-    set -e
-    needs_recreate=0
-    if docker ps -q -f name='^ghcr-mirror\$' | grep -q .; then
-        if ! docker inspect ghcr-mirror --format '{{range .HostConfig.Sysctls}}{{.}} {{end}}' 2>/dev/null \
-             | grep -q 'disable_ipv6=1'; then
-            needs_recreate=1
-        fi
-    else
-        needs_recreate=1
+    if systemctl list-unit-files vmbr1-ghcr-alias.service 2>/dev/null | grep -q vmbr1-ghcr-alias; then
+        systemctl disable --now vmbr1-ghcr-alias.service 2>/dev/null || true
+        rm -f /etc/systemd/system/vmbr1-ghcr-alias.service
+        systemctl daemon-reload
+        echo '  Removed vmbr1-ghcr-alias.service'
     fi
-    if [ \"\$needs_recreate\" = '1' ]; then
-        docker rm -f ghcr-mirror 2>/dev/null || true
-        docker run -d --name ghcr-mirror --restart unless-stopped \
-            --dns 8.8.8.8 --dns 8.8.4.4 \
-            --sysctl net.ipv6.conf.all.disable_ipv6=1 \
-            --sysctl net.ipv6.conf.default.disable_ipv6=1 \
-            -p 10.0.0.2:443:5000 \
-            -p 10.0.0.2:80:5000 \
-            -v ghcr-mirror-data:/var/lib/registry \
-            -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
-            distribution/distribution:3.0.0 >&2
+    ip addr show vmbr1 2>/dev/null | grep -q '10.0.0.2/' && \
+        ip addr del 10.0.0.2/24 dev vmbr1 2>/dev/null && \
+        echo '  Removed 10.0.0.2/24 alias from vmbr1' || true
+
+    # daemon.json: drop the insecure-registries entry (no longer needed —
+    # outer mirror has valid proxvex-CA TLS). Empty file or absence is fine.
+    if [ -f /etc/docker/daemon.json ] \
+       && grep -q 'insecure-registries' /etc/docker/daemon.json 2>/dev/null; then
+        rm -f /etc/docker/daemon.json
+        systemctl restart docker >/dev/null 2>&1 || true
+        for i in \$(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+        echo '  Removed daemon.json (insecure-registries no longer needed)'
     fi
 "
-success "ghcr.io mirror running on 10.0.0.2:80+443 (IPv6 disabled in container)"
-
-# Docker daemon config:
-# - No 'registry-mirrors' entry: dnsmasq (set up below) redirects
-#   registry-1.docker.io / index.docker.io -> 192.168.4.45, and the production
-#   mirror's TLS cert is signed by proxvex-CA (now in system trust store), so
-#   plain HTTPS pulls from the daemon validate without further config.
-# - 'insecure-registries' only for the local ghcr-mirror on 10.0.0.2 (still
-#   self-signed via the nested-VM internal CA). 10.0.0.1 is gone.
-# Idempotent: only restart docker when the file content actually changes.
-nested_ssh '
-    NEW=$(printf "%s\n" "{ \"insecure-registries\": [\"10.0.0.2:80\", \"10.0.0.2:443\"] }")
-    if [ -f /etc/docker/daemon.json ] && [ "$(cat /etc/docker/daemon.json)" = "$NEW" ]; then
-        echo "  daemon.json unchanged"
-    else
-        printf "%s\n" "$NEW" > /etc/docker/daemon.json
-        systemctl restart docker >&2 2>/dev/null || true
-        for i in $(seq 1 30); do
-            docker info >/dev/null 2>&1 && break
-            sleep 1
-        done
-        echo "  daemon.json updated, docker restarted"
-    fi
-'
+success "Legacy local mirrors cleaned up"
 
 info "Waiting for mirrors to be healthy..."
-# Local ghcr-mirror on 10.0.0.2:80
-for i in $(seq 1 30); do
-    nested_ssh "curl -s http://10.0.0.2:80/v2/ >/dev/null 2>&1" && break
-    sleep 1
-done
 # Production Docker Hub mirror via TLS-correct hostname (--resolve sidesteps
 # dnsmasq, which is not yet writing the redirect at this point in the script).
 for i in $(seq 1 10); do
@@ -372,17 +337,18 @@ for i in $(seq 1 10); do
         https://registry-1.docker.io/v2/ >/dev/null 2>&1" && break
     sleep 1
 done
-success "Mirrors healthy (ghcr.io @ 10.0.0.2, Docker Hub @ $PROD_MIRROR_IP)"
+success "Mirrors healthy (ghcr.io @ $GHCR_MIRROR_IP, Docker Hub @ $PROD_MIRROR_IP)"
 
 # Step 5: dnsmasq redirects so LXC containers AND the nested-VM Docker daemon
 # resolve registry hostnames to the right mirror.
 #  - registry-1.docker.io / index.docker.io -> 192.168.4.45 (production mirror,
 #    TLS via proxvex CA already in trust store)
-#  - ghcr.io                                -> 10.0.0.2 (local pull-through)
+#  - ghcr.io                                -> $GHCR_MIRROR_IP (proxvex-managed
+#    LXC on outer PVE host, TLS via proxvex CA)
 # Block AAAA for these hosts so Go's net-resolver cannot bypass via IPv6.
 #
 # Idempotent replace: a BEGIN/END fence lets re-runs (or schema migrations)
-# rewrite the block in place, instead of leaving stale 10.0.0.1 lines behind.
+# rewrite the block in place, instead of leaving stale 10.0.0.2 lines behind.
 header "Wiring dnsmasq registry redirects"
 nested_ssh "
     cfg=/etc/dnsmasq.d/e2e-nat.conf
@@ -399,8 +365,8 @@ nested_ssh "
 # Docker Hub -> production mirror (TLS validated via proxvex CA)
 address=/registry-1.docker.io/$PROD_MIRROR_IP
 address=/index.docker.io/$PROD_MIRROR_IP
-# ghcr.io -> local pull-through cache on 10.0.0.2
-address=/ghcr.io/10.0.0.2
+# ghcr.io -> proxvex-managed mirror on outer PVE host (TLS via proxvex CA)
+address=/ghcr.io/$GHCR_MIRROR_IP
 # Block IPv6 so Go's net-resolver cannot bypass the redirect via AAAA
 address=/registry-1.docker.io/::
 address=/index.docker.io/::
@@ -409,13 +375,16 @@ address=/ghcr.io/::
 DNS
     systemctl restart dnsmasq
 "
-success "dnsmasq registry redirects configured (Docker Hub -> $PROD_MIRROR_IP, ghcr.io -> 10.0.0.2)"
+success "dnsmasq registry redirects configured (Docker Hub -> $PROD_MIRROR_IP, ghcr.io -> $GHCR_MIRROR_IP)"
 
 # Step 6: Pre-pull images through the mirrors (the expensive part; ~15 min on
 # a first cold run, near-instant on warm cache). Pulls go transparently via
-# dnsmasq: Docker Hub through 192.168.4.45, ghcr.io through 10.0.0.2. The
-# first time a tag is pulled in the whole fleet, the production mirror fetches
-# it from Docker Hub once — every subsequent pull (any instance) is a hit.
+# dnsmasq: Docker Hub through $PROD_MIRROR_IP, ghcr.io through $GHCR_MIRROR_IP.
+# Both mirrors present TLS certs signed by the proxvex CA (already in the
+# nested VM's trust store), so docker pull validates without any per-image
+# special-casing. The first time a tag is pulled in the whole fleet, the
+# upstream mirror fetches it once — every subsequent pull (any instance) is
+# a hit.
 header "Pre-pulling images through mirrors"
 VERSIONS_FILE="$PROJECT_ROOT/json/shared/scripts/library/versions.sh"
 if [ -f "$VERSIONS_FILE" ]; then
@@ -427,16 +396,9 @@ if [ -f "$VERSIONS_FILE" ]; then
         [ -z "$tag" ] && continue
         full="${image}:${tag}"
         info "  Pulling $full ..."
-        if echo "$image" | grep -q "ghcr.io"; then
-            # Direct mirror address (avoids any TLS/insecure-registry interplay).
-            mirror_path="${image#ghcr.io/}"
-            nested_ssh "docker pull 10.0.0.2:80/${mirror_path}:${tag}" < /dev/null 2>&1 \
-                || echo "    Warning: $full failed"
-        else
-            # dnsmasq redirects registry-1.docker.io -> $PROD_MIRROR_IP.
-            nested_ssh "docker pull '$full'" < /dev/null 2>&1 \
-                || echo "    Warning: $full failed"
-        fi
+        # dnsmasq + proxvex-CA TLS cover both registries — no per-host branch.
+        nested_ssh "docker pull '$full'" < /dev/null 2>&1 \
+            || echo "    Warning: $full failed"
     done
     success "Image pre-pull complete"
 else

@@ -124,40 +124,6 @@ echo ""
 [ "$SSH_READY" = "true" ] || error "Cannot connect to nested VM via $PVE_HOST:$PORT_PVE_SSH after 60s"
 success "SSH connection verified"
 
-# Ensure the ghcr.io mirror's alias IP (10.0.0.2) is back after reboot and the
-# mirror container is running. On older mirrors-ready snapshots the IP was only
-# added at runtime (non-persistent), so `qm rollback + qm start` above loses
-# it and the ghcr-mirror container can't re-bind. Use a systemd oneshot unit
-# (rather than /etc/network/interfaces.d/, which ifupdown2 rejects for
-# colon-aliased stanzas) so the IP comes up on every boot of the snapshot.
-nested_ssh "cat > /etc/systemd/system/vmbr1-ghcr-alias.service <<'EOF'
-[Unit]
-Description=Secondary IP 10.0.0.2 on vmbr1 for ghcr.io pull-through mirror
-After=networking.service network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/sbin/ip addr add 10.0.0.2/24 dev vmbr1
-ExecStartPost=/bin/docker start ghcr-mirror
-ExecStop=/sbin/ip addr del 10.0.0.2/24 dev vmbr1
-
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable vmbr1-ghcr-alias.service
-"
-# Run once now so the current boot has the IP + mirror container before we
-# snapshot deployer-installed.
-nested_ssh "ip addr show vmbr1 | grep -q '10.0.0.2/' || ip addr add 10.0.0.2/24 dev vmbr1"
-nested_ssh "docker ps -q -f name='^ghcr-mirror$' | grep -q . || docker start ghcr-mirror >/dev/null 2>&1 || true"
-
-# Purge the obsolete ifupdown-style stanza written by earlier step2b runs — it
-# confuses ifupdown2 ("cannot find interfaces: vmbr1:ghcr") on boot.
-nested_ssh "rm -f /etc/network/interfaces.d/vmbr1-ghcr-mirror"
-
 # Step 3: Build proxvex Docker image locally
 header "Building local proxvex Docker image"
 cd "$PROJECT_ROOT"
