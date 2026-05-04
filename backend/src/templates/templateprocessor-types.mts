@@ -74,4 +74,14 @@ export interface ITemplateProcessorLoadResult extends ITemplateProcessorLoadResu
   webuiTemplates: string[];
   application?: IApplication; // Full application data (incl. parent)
   processedTemplates?: IProcessedTemplate[]; // List of all processed templates
+  /**
+   * Property defaults collected from `properties.default` blocks across all
+   * processed templates. Most are already applied to the matching parameter
+   * in `parameters` by `applyPropertyDefaults`. Entries for parameters that
+   * were never declared (e.g. `oidc_issuer_url` declared only in addon
+   * templates that loadApplication does not process) survive here and must
+   * be seeded into the runtime defaults Map by the consumer — otherwise
+   * `{{ var }}` substitution yields NOT_DEFINED.
+   */
+  propertyDefaults?: import("./template-output-processor.mjs").PropertyDefaultEntry[];
 }

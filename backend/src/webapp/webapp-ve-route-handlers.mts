@@ -467,7 +467,10 @@ export class WebAppVeRouteHandlers {
         );
       }
 
-      const defaults = this.parameterProcessor.buildDefaults(loaded.parameters);
+      const defaults = this.parameterProcessor.buildDefaults(
+      loaded.parameters,
+      loaded.propertyDefaults,
+    );
 
       // Make stack_id and all_stack_ids visible to the runtime variable
       // resolver (initialInputs only feeds skip_if_all_missing). Scripts like
@@ -851,7 +854,10 @@ export class WebAppVeRouteHandlers {
       return this.buildErrorResult(err);
     }
     const commands = loaded.commands;
-    const defaults = this.parameterProcessor.buildDefaults(loaded.parameters);
+    const defaults = this.parameterProcessor.buildDefaults(
+      loaded.parameters,
+      loaded.propertyDefaults,
+    );
 
     // Process parameters from restartInfo.inputs
     const paramsFromRestartInfo = restartInfo.inputs.map((p) => ({
@@ -981,7 +987,10 @@ export class WebAppVeRouteHandlers {
       return this.buildErrorResult(err);
     }
     const commands = loaded.commands;
-    const defaults = this.parameterProcessor.buildDefaults(loaded.parameters);
+    const defaults = this.parameterProcessor.buildDefaults(
+      loaded.parameters,
+      loaded.propertyDefaults,
+    );
 
     // Use changedParams from vmInstallContext as inputs
     const processedParams = await this.parameterProcessor.processParameters(

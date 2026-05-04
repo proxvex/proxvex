@@ -341,6 +341,7 @@ export class TemplateProcessor extends EventEmitter {
       templateTrace,
       parameterTrace,
       traceInfo,
+      propertyDefaults: pendingPropertyDefaults,
     };
   }
   private async resolveEnumValuesTemplate(
