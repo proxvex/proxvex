@@ -1,0 +1,75 @@
+[
+    {
+        "id": "tab-mqtt-bridge",
+        "type": "tab",
+        "label": "MQTT Bridge",
+        "disabled": false,
+        "info": "Publishes a heartbeat to eclipse-mosquitto via mTLS so the connection can be verified."
+    },
+    {
+        "id": "mqtt-broker-mosquitto",
+        "type": "mqtt-broker",
+        "name": "eclipse-mosquitto (mTLS)",
+        "broker": "eclipse-mosquitto.local",
+        "port": "8883",
+        "clientid": "node-red",
+        "autoConnect": true,
+        "usetls": true,
+        "protocolVersion": "5",
+        "keepalive": "60",
+        "cleansession": true,
+        "tls": "mqtt-tls-mosquitto"
+    },
+    {
+        "id": "mqtt-tls-mosquitto",
+        "type": "tls-config",
+        "name": "mosquitto mTLS",
+        "cert": "/certs/cert.pem",
+        "key": "/certs/privkey.pem",
+        "ca": "/certs/chain.pem",
+        "certname": "",
+        "keyname": "",
+        "caname": "",
+        "servername": "eclipse-mosquitto.local",
+        "verifyservercert": true,
+        "alpnprotocol": ""
+    },
+    {
+        "id": "heartbeat-tick",
+        "type": "inject",
+        "z": "tab-mqtt-bridge",
+        "name": "every 30s",
+        "props": [
+            { "p": "payload" },
+            { "p": "topic", "vt": "str" }
+        ],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 5,
+        "topic": "node-red/heartbeat",
+        "payload": "ok",
+        "payloadType": "str",
+        "x": 140,
+        "y": 100,
+        "wires": [["heartbeat-publish"]]
+    },
+    {
+        "id": "heartbeat-publish",
+        "type": "mqtt out",
+        "z": "tab-mqtt-bridge",
+        "name": "publish heartbeat",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt-broker-mosquitto",
+        "x": 380,
+        "y": 100,
+        "wires": []
+    }
+]

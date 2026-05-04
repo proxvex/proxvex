@@ -1,0 +1,14 @@
+{
+  "application": "node-red",
+  "task": "installation",
+  "params": [
+    { "name": "vm_id_start", "value": 600 },
+    { "name": "static_ip", "value": "192.168.4.46/24" },
+    { "name": "static_gw", "value": "192.168.4.1" },
+    { "name": "nameserver4", "value": "192.168.4.1" },
+    { "name": "upload_settings_js_content", "value": "file:node-red-settings.js" },
+    { "name": "upload_flows_json_content", "value": "file:node-red-flows.json" }
+  ],
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "stackIds": ["oidc_production"]
+}

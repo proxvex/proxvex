@@ -97,6 +97,8 @@ print_steps() {
     12  Deploy gitea
     13  Deploy eclipse-mosquitto
     14  Deploy github-runner (target: $(host_for_app github-runner))
+    15  Deploy node-red
+    16  Deploy modbus2mqtt
 STEPS
 }
 
@@ -694,6 +696,38 @@ EX
 fi
 
 # ================================================================
+# Step 15: Deploy node-red
+#   Uploads settings.js (required) and flows.json (optional). MQTT broker
+#   node in flows.json connects to eclipse-mosquitto via mTLS using the
+#   shared addon-ssl certs in /certs/.
+# ================================================================
+if should_run 15; then
+  banner 15 "Deploy node-red"
+  for f in node-red-settings.js; do
+    [ -f "$SCRIPT_DIR/$f" ] || {
+      echo "ERROR: $SCRIPT_DIR/$f missing — required for node-red deploy" >&2
+      exit 1
+    }
+  done
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app node-red)" node-red.json
+fi
+
+# ================================================================
+# Step 16: Deploy modbus2mqtt
+#   Uploads the modbus2mqtt config via the application's REST API after
+#   start. MQTT broker connection (mTLS to eclipse-mosquitto) is embedded
+#   in the YAML.
+# ================================================================
+if should_run 16; then
+  banner 16 "Deploy modbus2mqtt"
+  [ -f "$SCRIPT_DIR/modbus2mqtt-config.yaml" ] || {
+    echo "ERROR: $SCRIPT_DIR/modbus2mqtt-config.yaml missing — required for modbus2mqtt deploy" >&2
+    exit 1
+  }
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app modbus2mqtt)" modbus2mqtt.json
+fi
+
+# ================================================================
 # Done
 # ================================================================
 echo ""
@@ -708,4 +742,6 @@ echo "  Zitadel:     192.168.4.42 (auth.ohnewarum.de)"
 echo "  Gitea:       192.168.4.43 (git.ohnewarum.de)"
 echo "  Mosquitto:   192.168.4.44 (mqtt.ohnewarum.de)"
 echo "  Registry:    192.168.4.45 (docker-registry-mirror)"
+echo "  Node-RED:    192.168.4.46 (node-red.local)"
+echo "  Modbus2MQTT: 192.168.4.47 (modbus2mqtt.local)"
 echo ""
