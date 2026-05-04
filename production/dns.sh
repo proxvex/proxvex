@@ -129,9 +129,16 @@ echo "=== Configuring NAT redirects ==="
 # LAN (192.168.1.0/24): hairpin NAT via router alt IP
 add_redirect "public-https-to-nginx" \
   lan cluster "$ROUTER_ALT_IP" 443 "$NGINX_IP" 1443
-# CLUSTER (192.168.4.0/24 — PVE hosts, LXC containers) hairpin: allow the
-# forward cluster→lan so packets from 192.168.4.x to 192.168.1.1:443 reach the
-# router's lan interface, where the existing public-https-to-nginx rule DNATs.
+# CLUSTER (192.168.4.0/24 — PVE hosts, LXC containers): a separate DNAT
+# rule with src=cluster catches packets from containers heading to
+# 192.168.1.1:443 and redirects them to nginx in the same zone. Without
+# this, the packet would traverse cluster→lan via cluster-to-lan-https
+# and hit the router's own LAN-interface IP without DNAT — connection
+# refused, since nothing listens on 192.168.1.1:443 on the router.
+add_redirect "cluster-https-to-nginx" \
+  cluster cluster "$ROUTER_ALT_IP" 443 "$NGINX_IP" 1443
+# Kept as a belt-and-suspenders fallback in case some edge case still
+# relies on the cluster→lan path.
 add_forward "cluster-to-lan-https" \
   cluster lan "$ROUTER_ALT_IP" 443
 # WAN: external access
@@ -141,6 +148,9 @@ add_redirect "wan-https-to-nginx" \
 # MQTTS: mqtt.ohnewarum.de → mosquitto (LAN only, no WAN)
 add_redirect "mqtts-to-mosquitto" \
   lan cluster "$ROUTER_ALT_IP" 8883 "$MOSQUITTO_IP" 8883
+# Same pattern for cluster zone — direct DNAT in the source zone.
+add_redirect "cluster-mqtts-to-mosquitto" \
+  cluster cluster "$ROUTER_ALT_IP" 8883 "$MOSQUITTO_IP" 8883
 add_forward "cluster-to-lan-mqtts" \
   cluster lan "$ROUTER_ALT_IP" 8883
 
