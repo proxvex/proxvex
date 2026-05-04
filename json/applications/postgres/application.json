@@ -5,7 +5,7 @@
   "icon": "icon.svg",
   "properties": [
     { "id": "hostname", "default": "postgres" },
-    { "id": "volumes", "default": "data=var/lib/postgresql/data\ninitdb=docker-entrypoint-initdb.d" },
+    { "id": "volumes", "default": "data=var/lib/postgresql/data,size=2G\ninitdb=docker-entrypoint-initdb.d" },
     { "id": "envs", "default": "GID=70\nPGDATA=/var/lib/postgresql/data/pgdata\nPOSTGRES_DB=postgres\nPOSTGRES_PASSWORD={{ POSTGRES_PASSWORD }}\nPOSTGRES_PORT=5432\nPOSTGRES_USER=postgres\nPOSTGRES_VERSION=16-alpine\nUID=70" },
     { "id": "oci_image", "value": "postgres:{{oci_image_tag}}" },
     { "id": "uid", "value": "70" },

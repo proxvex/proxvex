@@ -37,6 +37,7 @@ ROUTER_HOST="${ROUTER_HOST:-router-kg}"
 # 3.2 (no `declare -A`).
 APP_HOST_MAP="
 github-runner=ubuntupve
+ghcr-registry-mirror=ubuntupve
 "
 
 host_for_app() {
@@ -97,6 +98,9 @@ print_steps() {
     12  Deploy gitea
     13  Deploy eclipse-mosquitto
     14  Deploy github-runner (target: $(host_for_app github-runner))
+    15  Deploy node-red
+    16  Deploy modbus2mqtt
+    17  Deploy ghcr-registry-mirror (target: $(host_for_app ghcr-registry-mirror)) [test/CI infra; optional]
 STEPS
 }
 
@@ -498,7 +502,12 @@ if should_run 3; then
     echo "  --- Host: ${host} ---"
 
     # Register host with deployer (idempotent: skips key/registration if present).
-    DEPLOYER_HOST="$DEPLOYER_HOST" "$SCRIPT_DIR/setup-pve-host.sh" "$host"
+    # Pass DEPLOYER_PVE_HOST so setup-pve-host.sh can `ssh root@<pve> pct exec`
+    # to read the deployer's pubkey when this script runs from a control
+    # machine without direct SSH access to the deployer LXC.
+    DEPLOYER_HOST="$DEPLOYER_HOST" \
+    DEPLOYER_PVE_HOST="$PVE_HOST" \
+      "$SCRIPT_DIR/setup-pve-host.sh" "$host"
 
     # Copy production scripts so the deployer-side setup helpers (project-v1.sh,
     # setup-nginx.sh, etc.) are available wherever they may be invoked.
@@ -588,6 +597,27 @@ if should_run 6; then
     fi
   fi
 
+  # Validate a freshly provided CF_TOKEN before storing it. The stored token
+  # cannot be validated from here (it's encrypted in the deployer), so we just
+  # print a hint — if it's stale, post-configure-mail-dns.py skips on 401/403.
+  if [ "$CF_TOKEN" != "__already_stored__" ]; then
+    echo "  Validating CF_TOKEN against Cloudflare API..."
+    cf_verify_code=$(curl -s -o /tmp/cf-verify.json -w '%{http_code}' \
+      -H "Authorization: Bearer $CF_TOKEN" \
+      "https://api.cloudflare.com/client/v4/user/tokens/verify" 2>/dev/null || echo "000")
+    if [ "$cf_verify_code" != "200" ]; then
+      echo "ERROR: CF_TOKEN failed Cloudflare verify (HTTP $cf_verify_code):" >&2
+      cat /tmp/cf-verify.json >&2 2>/dev/null || true
+      echo "" >&2
+      echo "  Create a fresh token at https://dash.cloudflare.com/profile/api-tokens" >&2
+      echo "  with Zone:Read + Zone:DNS:Edit on the relevant zone." >&2
+      exit 1
+    fi
+    echo "  CF_TOKEN is valid."
+  else
+    echo "  Note: reusing stored CF_TOKEN — if stale, mail DNS step will skip with warning."
+  fi
+
   if [ "$CF_TOKEN" = "__already_stored__" ] && [ "$SMTP_PASSWORD" = "__already_stored__" ]; then
     echo "  Skipping setup-acme.sh (stacks already configured)."
   else
@@ -635,6 +665,35 @@ fi
 # ================================================================
 if should_run 10; then
   banner 10 "Deploy zitadel"
+
+  # Idempotency guard: if postgres has zitadel events but no zitadel
+  # container exists, FirstInstance won't re-run on a fresh container —
+  # login-client.pat will never be created and zitadel-login will hang
+  # forever. Detect and fail with a clear repair recipe before we
+  # waste cycles building containers.
+  zitadel_host=$(host_for_app zitadel)
+  zitadel_existing=$(pve_ssh_at "$zitadel_host" \
+    "pct list | awk '\$NF==\"zitadel\"{print \$1}'" 2>/dev/null || true)
+  pg_host=$(host_for_app postgres)
+  pg_vmid=$(pve_ssh_at "$pg_host" \
+    "pct list | awk '\$NF==\"postgres\"{print \$1; exit}'" 2>/dev/null || true)
+  if [ -z "$zitadel_existing" ] && [ -n "$pg_vmid" ]; then
+    pg_events=$(pve_ssh_at "$pg_host" \
+      "pct exec $pg_vmid -- su postgres -c \"psql -d zitadel -tAc 'SELECT COUNT(*) FROM eventstore.events2'\" 2>/dev/null" \
+      | tr -d '[:space:]' || true)
+    if echo "${pg_events:-}" | grep -qE '^[0-9]+$' && [ "${pg_events:-0}" -gt 0 ]; then
+      echo "" >&2
+      echo "ERROR: zitadel DB has ${pg_events} events but no zitadel container exists." >&2
+      echo "  FirstInstance migration will be skipped and login-client.pat won't be" >&2
+      echo "  written, leaving zitadel-login hanging forever." >&2
+      echo "" >&2
+      echo "Fix:" >&2
+      echo "  ssh root@${pg_host} \"pct exec ${pg_vmid} -- su postgres -c 'psql -c \\\"DROP DATABASE zitadel WITH (FORCE); CREATE DATABASE zitadel OWNER zitadel;\\\"'\"" >&2
+      echo "  $0 --step 10" >&2
+      exit 1
+    fi
+  fi
+
   "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app zitadel)" zitadel.json
 fi
 
@@ -689,6 +748,54 @@ EX
 fi
 
 # ================================================================
+# Step 15: Deploy node-red
+#   Uploads settings.js (required) and flows.json (optional). MQTT broker
+#   node in flows.json connects to eclipse-mosquitto via mTLS using the
+#   shared addon-ssl certs in /certs/.
+# ================================================================
+if should_run 15; then
+  banner 15 "Deploy node-red"
+  for f in node-red-settings.js; do
+    [ -f "$SCRIPT_DIR/$f" ] || {
+      echo "ERROR: $SCRIPT_DIR/$f missing — required for node-red deploy" >&2
+      exit 1
+    }
+  done
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app node-red)" node-red.json
+fi
+
+# ================================================================
+# Step 16: Deploy modbus2mqtt
+#   Uploads the modbus2mqtt config via the application's REST API after
+#   start. MQTT broker connection (mTLS to eclipse-mosquitto) is embedded
+#   in the YAML.
+# ================================================================
+if should_run 16; then
+  banner 16 "Deploy modbus2mqtt"
+  [ -f "$SCRIPT_DIR/modbus2mqtt-config.yaml" ] || {
+    echo "ERROR: $SCRIPT_DIR/modbus2mqtt-config.yaml missing — required for modbus2mqtt deploy" >&2
+    exit 1
+  }
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app modbus2mqtt)" modbus2mqtt.json
+fi
+
+# ================================================================
+# Step 17: Deploy ghcr-registry-mirror on the test/CI host (optional)
+#   Site customization: the application definition is installed into the
+#   deployer's /config volume (not shipped under json/applications/), so it
+#   only exists on hosts where this step runs. Used by livetest/github-action
+#   nested VMs that DNS-redirect ghcr.io to this mirror to avoid double-NAT
+#   TLS issues when docker-compose apps pull images.
+#
+#   Production apps do NOT use this mirror — they keep pulling latest
+#   directly from ghcr.io.
+# ================================================================
+if should_run 17; then
+  banner 17 "Deploy ghcr-registry-mirror ($(host_for_app ghcr-registry-mirror))"
+  pve_ssh "sh production/setup-ghcr-mirror.sh"
+fi
+
+# ================================================================
 # Done
 # ================================================================
 echo ""
@@ -703,4 +810,6 @@ echo "  Zitadel:     192.168.4.42 (auth.ohnewarum.de)"
 echo "  Gitea:       192.168.4.43 (git.ohnewarum.de)"
 echo "  Mosquitto:   192.168.4.44 (mqtt.ohnewarum.de)"
 echo "  Registry:    192.168.4.45 (docker-registry-mirror)"
+echo "  Node-RED:    192.168.4.46 (node-red.local)"
+echo "  Modbus2MQTT: 192.168.4.47 (modbus2mqtt.local)"
 echo ""

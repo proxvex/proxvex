@@ -11,9 +11,13 @@
 #   ./setup-pve-host.sh <pve-host> [<ssh-port>]
 #
 # Env:
-#   DEPLOYER_HOST  default: proxvex
-#   DEPLOYER_VMID  auto-detected via `pct list` if running on the deployer's
-#                  PVE host. Otherwise inferred from DEPLOYER_HOST.
+#   DEPLOYER_HOST      default: proxvex
+#   DEPLOYER_PVE_HOST  PVE host that hosts the deployer LXC (used to read the
+#                      deployer's SSH pubkey via `ssh root@<host> pct exec`
+#                      when this script runs from a control machine that
+#                      cannot reach the deployer LXC directly).
+#                      Default: same as $1 (target PVE host) — works when the
+#                      deployer is on the very host being registered.
 #
 # Idempotent: re-running on a host that's already set up is a no-op.
 
@@ -22,6 +26,7 @@ set -e
 PVE_HOST="${1:?usage: $0 <pve-host> [ssh-port]}"
 SSH_PORT="${2:-22}"
 DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
+DEPLOYER_PVE_HOST="${DEPLOYER_PVE_HOST:-$PVE_HOST}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -38,23 +43,55 @@ echo "  Deployer:  $DEPLOYER_URL"
 echo "  PVE host:  $PVE_HOST (port $SSH_PORT)"
 
 # Step 1: Find the deployer container so we can read its SSH key.
-#   We try the local PVE host first (if pct is available), otherwise we
-#   SSH into the configured DEPLOYER_HOST hostname directly.
+#   Three attempt paths in order:
+#     1. Local `pct list` (this script runs on the deployer's PVE host).
+#     2. `ssh root@$DEPLOYER_PVE_HOST pct exec` (this script runs on a control
+#        machine — Mac/laptop — but can SSH to the PVE host that owns the
+#        deployer LXC). This is the typical setup-production.sh path.
+#     3. `ssh root@$DEPLOYER_HOST` directly (control machine has direct SSH
+#        access to the deployer LXC — works in dev but not in default prod).
 DEPLOYER_PUBKEY=""
+# install-proxvex.sh stores the deployer's SSH keypair under
+# `${secure_volume_path}/.ssh` (= /secure/.ssh inside the container, see
+# install-proxvex.sh:860). /root/.ssh stays as fallback for manually-keyed
+# deployers and as last resort.
+PUBKEY_CMD='cat /secure/.ssh/id_ed25519.pub 2>/dev/null \
+    || cat /root/.ssh/id_ed25519.pub 2>/dev/null \
+    || cat /root/.ssh/id_rsa.pub 2>/dev/null'
+
+# Pick the FIRST running LXC matching $DEPLOYER_HOST. There can be multiple
+# entries (stale stopped clones, abandoned migration stubs) — only the
+# running one is the live deployer. `awk … exit` ensures a single VMID.
+PCT_PICK_VMID="awk -v h='${DEPLOYER_HOST}' '\$2==\"running\" && \$NF==h{print \$1; exit}'"
+
 if command -v pct >/dev/null 2>&1; then
-  DEPLOYER_VMID=$(pct list 2>/dev/null | awk -v h="$DEPLOYER_HOST" '$NF==h{print $1}')
+  DEPLOYER_VMID=$(pct list 2>/dev/null | eval "$PCT_PICK_VMID")
   if [ -n "$DEPLOYER_VMID" ]; then
-    DEPLOYER_PUBKEY=$(pct exec "$DEPLOYER_VMID" -- sh -c \
-      'cat /root/.ssh/id_ed25519.pub 2>/dev/null || cat /root/.ssh/id_rsa.pub 2>/dev/null')
+    DEPLOYER_PUBKEY=$(pct exec "$DEPLOYER_VMID" -- sh -c "$PUBKEY_CMD")
+  fi
+fi
+if [ -z "$DEPLOYER_PUBKEY" ]; then
+  DEPLOYER_VMID=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${DEPLOYER_PVE_HOST}" \
+    "pct list 2>/dev/null | $PCT_PICK_VMID" 2>/dev/null || true)
+  if [ -n "$DEPLOYER_VMID" ]; then
+    DEPLOYER_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${DEPLOYER_PVE_HOST}" \
+      "pct exec ${DEPLOYER_VMID} -- sh -c \"${PUBKEY_CMD}\"" 2>/dev/null || true)
   fi
 fi
 if [ -z "$DEPLOYER_PUBKEY" ]; then
   DEPLOYER_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${DEPLOYER_HOST}" \
-    'cat /root/.ssh/id_ed25519.pub 2>/dev/null || cat /root/.ssh/id_rsa.pub 2>/dev/null' 2>/dev/null || true)
+    "$PUBKEY_CMD" 2>/dev/null || true)
 fi
 if [ -z "$DEPLOYER_PUBKEY" ]; then
   echo "ERROR: could not read deployer's SSH public key" >&2
-  echo "  Tried: pct exec via local PVE host, ssh root@${DEPLOYER_HOST}" >&2
+  echo "  Tried:" >&2
+  echo "    1. local pct exec" >&2
+  echo "    2. ssh root@${DEPLOYER_PVE_HOST} 'pct exec <deployer-vmid>'" >&2
+  echo "    3. ssh root@${DEPLOYER_HOST}" >&2
+  echo "  Hints:" >&2
+  echo "    - Set DEPLOYER_PVE_HOST=<host> if the deployer LXC lives on a" >&2
+  echo "      different PVE host than ${PVE_HOST}." >&2
+  echo "    - Verify: ssh root@${DEPLOYER_PVE_HOST} 'pct list | grep ${DEPLOYER_HOST}'" >&2
   exit 1
 fi
 echo "  Deployer pubkey: $(echo "$DEPLOYER_PUBKEY" | awk '{print $1, substr($2,1,16)"…"}')"

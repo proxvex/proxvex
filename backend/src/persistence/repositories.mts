@@ -406,14 +406,33 @@ export class FileSystemRepositories
       const appPath = this.getApplicationPath(appId);
       if (!appPath) continue;
 
-      // Check if template exists in this application's templates folder (not shared)
+      // Check if template exists in this application's templates folder.
+      // Apps may organise templates by lifecycle phase
+      // (e.g. templates/post_start/X.json) — accept those too. The cache key
+      // for application templates does not include the subdirectory, so the
+      // lookup is by bare name and the first match wins.
       const templateNameWithExt = templateName.endsWith(".json")
         ? templateName
         : `${templateName}.json`;
-      const templatePath = path.join(appPath, "templates", templateNameWithExt);
+      const candidates: string[] = [
+        path.join(appPath, "templates", templateNameWithExt),
+      ];
+      const templatesRoot = path.join(appPath, "templates");
+      if (fs.existsSync(templatesRoot)) {
+        for (const entry of fs.readdirSync(templatesRoot, {
+          withFileTypes: true,
+        })) {
+          if (entry.isDirectory()) {
+            candidates.push(
+              path.join(templatesRoot, entry.name, templateNameWithExt),
+            );
+          }
+        }
+      }
 
-      if (fs.existsSync(templatePath)) {
-        const origin = this.detectOrigin(templatePath);
+      for (const candidate of candidates) {
+        if (!fs.existsSync(candidate)) continue;
+        const origin = this.detectOrigin(candidate);
         if (!origin) continue;
         const name = TemplatePathResolver.normalizeTemplateName(templateName);
         return {
@@ -749,14 +768,21 @@ export class FileSystemRepositories
     if (!fs.existsSync(dir)) return;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
-      // Handle subdirectories as categories (for shared scope only)
-      if (entry.isDirectory() && scope === "shared") {
+      // Handle subdirectories.
+      // - shared scope: subdirectory name becomes the template category
+      //   (used for category-scoped lookups in the cache key).
+      // - application scope: subdirectory is purely organisational
+      //   (e.g. templates/post_start/X.json). Application templates are
+      //   keyed by bare name (no category in the cache key — see
+      //   getTemplateCacheKey), so the recursion keeps the parent category
+      //   to flatten subdir templates into the same lookup namespace.
+      if (entry.isDirectory()) {
         const categoryDir = path.join(dir, entry.name);
         this.preloadTemplatesFromDir(
           categoryDir,
           scope,
           applicationId,
-          entry.name,
+          scope === "shared" ? entry.name : category,
         );
         continue;
       }

@@ -42,7 +42,11 @@ CRED_FILE="/bootstrap/deployer-oidc.json"
 # --- Ensure curl is available ---
 if ! command -v curl > /dev/null 2>&1; then
   echo "Installing curl..." >&2
-  apk add --no-cache curl >&2
+  if ! pkg_install curl; then
+    echo "ERROR: failed to install curl — Zitadel API wait would silently time out." >&2
+    echo '[]'
+    exit 1
+  fi
 fi
 
 # --- Read admin PAT from Docker tmpfs ---

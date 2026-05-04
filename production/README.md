@@ -4,7 +4,9 @@ Reproduzierbares Setup für proxvex, postgres, nginx, zitadel, gitea, eclipse-mo
 
 ## Quick Start
 
-Der gesamte Ablauf wird durch [`setup-production.sh`](setup-production.sh) orchestriert. Voraussetzung: SSH-Zugang als root auf den Router (`router-kg`) und auf den Ziel-PVE-Host(s) ohne Passwort, und ein bereits installierter Deployer (oder `--bootstrap` für Fresh-Setup).
+Der gesamte Ablauf wird durch [`setup-production.sh`](setup-production.sh) orchestriert. **Wo ausführen:** auf einem Control-Host (typischerweise dein Mac/Laptop), **nicht** auf einem PVE-Host selbst — das Skript ist ein Orchestrator, der per SSH auf `router-kg` und die Ziel-PVE-Host(s) zugreift. Auf pve1 ausgeführt würde er `ssh root@pve1.cluster` aufrufen und an der Self-Loop scheitern.
+
+Voraussetzung: SSH-Zugang als root auf den Router (`router-kg`) und auf alle Ziel-PVE-Host(s) ohne Passwort. Bei Fresh-Setup zusätzlich `--bootstrap`, sonst muss ein Deployer bereits laufen.
 
 ```bash
 # Hilfe und Step-Liste anzeigen
@@ -58,6 +60,8 @@ VMs werden per `vm_id_start` ab einem Startwert automatisch vergeben (nächste f
 | github-runner           | 600         | ubuntupve  | DHCP           | github-runner            |
 
 **IP-Strategie:** Interne Apps (postgres, zitadel, gitea, github-runner) nutzen DHCP — dnsmasq auf dem Router löst Hostnamen automatisch auf. Externe Apps (nginx, mosquitto) und Mirror-/Deployer-Hosts (proxvex, docker-registry-mirror) brauchen statische IPs, weil sie NAT-Ziele oder DNS-Aliase sind, die zur Setup-Zeit erreichbar sein müssen — der `docker-registry-mirror`-Eintrag in [`dns.sh`](dns.sh) wird vom Pull-Through-Code ausgewertet.
+
+**DNS-Setup pro App-Config (`production/<app>.json`):** Jede App, die `nameserver4` setzt, sollte zusätzlich `nameserver6` mitliefern (z. B. `2606:4700:4700::1111`). Sobald IPv6 im Container konfiguriert oder per SLAAC verfügbar ist, dient der v6-Resolver als Fallback, wenn der IPv4-Pfad zum Gateway klemmt — sonst hängt `apk`/`apt`/`curl` mit „transient DNS error" obwohl IPv6-Konnektivität besteht. Für Container, die schon vor dieser Regel deployed wurden: `pct stop && pct set <vmid> --nameserver "<v4> <v6>" && pct start`.
 
 ## Voraussetzungen
 

@@ -6,6 +6,7 @@
     { "name": "static_ip", "value": "192.168.4.42/24" },
     { "name": "static_gw", "value": "192.168.4.1" },
     { "name": "nameserver4", "value": "192.168.4.1" },
+    { "name": "nameserver6", "value": "2606:4700:4700::1111" },
     { "name": "ZITADEL_EXTERNALDOMAIN", "value": "auth.ohnewarum.de" },
     { "name": "ZITADEL_EXTERNALSECURE", "value": "true" },
     { "name": "ZITADEL_EXTERNALPORT", "value": "443" },

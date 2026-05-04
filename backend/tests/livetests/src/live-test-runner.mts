@@ -336,7 +336,7 @@ async function main() {
     const fwd = config.registryMirror.dnsForwarder;
     try {
       // a) dnsmasq: docker-registry-mirror → production mirror (for mirror_detect in containers)
-      //    registry-1.docker.io/index.docker.io → 10.0.0.1 (local Docker Hub mirror)
+      //    registry-1.docker.io/index.docker.io → 192.168.4.45 (production Docker Hub mirror)
       //    ghcr.io → 10.0.0.2 (local ghcr.io mirror)
       const dnsCheck = nestedSsh(config.pveHost, config.portPveSsh,
         `grep -q 'address=/ghcr.io/' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null && echo "exists" || echo "missing"`,
@@ -345,28 +345,30 @@ async function main() {
         nestedSsh(config.pveHost, config.portPveSsh,
           `cat >> /etc/dnsmasq.d/e2e-nat.conf <<'DNS'\n` +
           `server=/docker-registry-mirror/${fwd}\n` +
-          `address=/registry-1.docker.io/10.0.0.1\n` +
-          `address=/index.docker.io/10.0.0.1\n` +
+          `address=/registry-1.docker.io/192.168.4.45\n` +
+          `address=/index.docker.io/192.168.4.45\n` +
           `address=/ghcr.io/10.0.0.2\n` +
           `DNS\n` +
           `systemctl restart dnsmasq`,
           10000);
         logOk(`dnsmasq forwarding: docker-registry-mirror -> ${fwd}`);
-        logOk("dnsmasq forwarding: registry-1.docker.io -> 10.0.0.1 (local mirror)");
+        logOk("dnsmasq forwarding: registry-1.docker.io -> 192.168.4.45 (production mirror)");
         logOk("dnsmasq forwarding: ghcr.io -> 10.0.0.2 (local mirror)");
       } else {
         logOk("dnsmasq forwarding already configured");
       }
 
-      // b) Skopeo insecure config for local mirrors
+      // b) Skopeo insecure config — only for ghcr.io (still self-signed via
+      //    the nested-VM internal CA). The production Docker Hub mirror at
+      //    192.168.4.45 has a proxvex-CA-signed cert and validates normally.
       const skopeoCheck = nestedSsh(config.pveHost, config.portPveSsh,
         `grep -q ghcr.io /etc/containers/registries.conf.d/mirror.conf 2>/dev/null && echo "exists" || echo "missing"`,
         5000);
       if (skopeoCheck.trim() === "missing") {
         nestedSsh(config.pveHost, config.portPveSsh,
-          `mkdir -p /etc/containers/registries.conf.d && printf '[[registry]]\\nlocation = "registry-1.docker.io"\\ninsecure = true\\n\\n[[registry]]\\nlocation = "index.docker.io"\\ninsecure = true\\n\\n[[registry]]\\nlocation = "ghcr.io"\\ninsecure = true\\n' > /etc/containers/registries.conf.d/mirror.conf`,
+          `mkdir -p /etc/containers/registries.conf.d && printf '[[registry]]\\nlocation = "ghcr.io"\\ninsecure = true\\n' > /etc/containers/registries.conf.d/mirror.conf`,
           10000);
-        logOk("Skopeo insecure config for registry mirrors written");
+        logOk("Skopeo insecure config for ghcr.io mirror written");
       } else {
         logOk("Skopeo insecure config already exists");
       }

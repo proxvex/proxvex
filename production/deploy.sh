@@ -45,10 +45,14 @@ if [ -n "$DEPLOYER_VMID" ]; then
   run_cli() {
     local params_file="$1"
     shift
-    # Push JSON file into container and run CLI from inside
+    # Push JSON file into container and run CLI from inside.
+    # Use HTTPS — after Step 6 (ACME) the HTTP listener on :3080 only
+    # serves a 301 to :3443, and the CLI's HTTP client does not follow
+    # redirects on POST, so plain http://localhost:3080 returns
+    # "Not found" instead of the expected route handler.
     pct push "$DEPLOYER_VMID" "$params_file" /tmp/deploy-params.json
     pct exec "$DEPLOYER_VMID" -- oci-lxc-cli remote \
-      --server http://localhost:3080 --ve "$PVE_HOST" \
+      --server https://localhost:3443 --ve "$PVE_HOST" \
       --insecure "$@" /tmp/deploy-params.json
     pct exec "$DEPLOYER_VMID" -- rm -f /tmp/deploy-params.json
   }
@@ -115,6 +119,7 @@ ensure_stack
 # Dependency order: postgres → nginx → zitadel → gitea
 case "${1:-all}" in
   docker-registry-mirror) deploy_app docker-registry-mirror ;;
+  ghcr-registry-mirror)   deploy_app ghcr-registry-mirror ;;
   postgres) deploy_app postgres ;;
   nginx)    deploy_app nginx ;;
   zitadel)  deploy_app postgres; deploy_app zitadel 900 ;;
@@ -142,5 +147,5 @@ case "${1:-all}" in
       run_cli "$1" --timeout 600
     fi
     ;;
-  *) echo "Usage: $0 [docker-registry-mirror|postgres|nginx|zitadel|gitea|eclipse-mosquitto|all|<file.json>]"; exit 1 ;;
+  *) echo "Usage: $0 [docker-registry-mirror|ghcr-registry-mirror|postgres|nginx|zitadel|gitea|eclipse-mosquitto|all|<file.json>]"; exit 1 ;;
 esac

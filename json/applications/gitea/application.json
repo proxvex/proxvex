@@ -5,7 +5,7 @@
   "icon": "32px-Gitea_Logo.svg.png",
   "properties": [
     { "id": "hostname", "default": "gitea" },
-    { "id": "volumes", "default": "data=var/lib/gitea\nconfig=etc/gitea" },
+    { "id": "volumes", "default": "data=var/lib/gitea,size=2G\nconfig=etc/gitea" },
     { "id": "envs", "default": "GID=1000\nGITEA__security__INSTALL_LOCK=true\nGITEA_ADMIN_USERNAME=admin\nGITEA_ADMIN_PASSWORD={{ GITEA_ADMIN_PASSWORD }}\nGITEA_DB_NAME=gitea\nGITEA_DB_TYPE=postgres\nGITEA_DOMAIN=localhost\nGITEA_HTTP_PORT=3000\nGITEA_ROOT_URL=http://localhost:3000\nGITEA_SSH_PORT=2222\nGITEA_VERSION=latest\nGITEA__database__DB_TYPE=postgres\nGITEA__database__HOST={{ POSTGRES_HOST }}:5432\nGITEA__database__NAME=gitea\nGITEA__database__PASSWD={{ POSTGRES_PASSWORD }}\nGITEA__database__USER=postgres\nGITEA__server__DOMAIN=localhost\nGITEA__server__HTTP_PORT=3000\nGITEA__server__ROOT_URL=http://localhost:3000\nGITEA__server__SSH_DOMAIN=localhost\nGITEA__server__SSH_PORT=2222\nPOSTGRES_USER=postgres\nUID=1000\nUSER_GID=1000\nUSER_UID=1000" },
     { "id": "rootfs_storage", "default": "local-zfs" },
     { "id": "volume_storage", "default": "local-zfs", "required": true },

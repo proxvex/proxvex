@@ -1,0 +1,26 @@
+{
+  "name": "Zitadel State Drift Check",
+  "description": "Pre-compose drift check between postgres zitadel DB and the bootstrap volume PATs. Fails fast if events exist but login-client.pat is missing (zitadel-api would skip FirstInstance and zitadel-login would hang forever) or if PATs exist without a DB.",
+  "execute_on": "ve",
+  "parameters": [
+    {
+      "id": "vm_id",
+      "name": "VM ID",
+      "type": "string",
+      "required": true,
+      "advanced": true,
+      "description": "VMID of the new zitadel container."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Zitadel State Drift Check",
+      "script": "conf-check-zitadel-state-consistency.sh",
+      "outputs": [
+        {
+          "id": "zitadel_state_check"
+        }
+      ]
+    }
+  ]
+}

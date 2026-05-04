@@ -60,10 +60,29 @@ export class WebAppVeParameterProcessor {
   }
 
   /**
-   * Builds a defaults map from loaded parameters.
+   * Builds a defaults map from loaded parameters and (optionally) property
+   * defaults that did not match a declared parameter.
+   *
+   * Property defaults declared in project-level templates (e.g.
+   * `050-set-project-parameters.json`) target parameter ids that may be
+   * declared only by addon templates (e.g. `oidc_issuer_url` in
+   * `150-conf-setup-oidc-client.json`). Those addon templates are not
+   * processed by `loadApplication`, so `applyPropertyDefaults` finds no
+   * matching parameter to update and the project default would otherwise
+   * be silently dropped — the runtime resolver would yield NOT_DEFINED.
+   *
+   * Orphan property defaults (id not present in `loadedParameters`) are
+   * therefore seeded into the Map after the parameter pass. Declared
+   * parameters keep precedence: their `default` field has already been
+   * resolved by `applyPropertyDefaults`, and `defaults.has(id)` shields
+   * them from being overwritten here.
    */
   buildDefaults(
     loadedParameters: IParameter[],
+    propertyDefaults?: ReadonlyArray<{
+      id: string;
+      default?: string | number | boolean;
+    }>,
   ): Map<string, string | number | boolean> {
     const defaults = new Map<string, string | number | boolean>();
     loadedParameters.forEach((param) => {
@@ -73,6 +92,13 @@ export class WebAppVeParameterProcessor {
         defaults.set(param.id, param.default);
       }
     });
+    if (propertyDefaults) {
+      for (const pd of propertyDefaults) {
+        if (pd.default !== undefined && !defaults.has(pd.id)) {
+          defaults.set(pd.id, pd.default);
+        }
+      }
+    }
     return defaults;
   }
 

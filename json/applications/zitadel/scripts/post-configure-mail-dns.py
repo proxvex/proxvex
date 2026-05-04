@@ -121,7 +121,15 @@ if not MAIL_DOMAIN or not MX_TARGET:
 
 # --- Resolve zone ---
 log(f"Looking up Cloudflare zone for {MAIL_DOMAIN}...")
-zone_id = get_zone_id(MAIL_DOMAIN)
+try:
+    zone_id = get_zone_id(MAIL_DOMAIN)
+except urllib.error.HTTPError as e:
+    if e.code in (401, 403):
+        log(f"WARNING: Cloudflare auth failed (HTTP {e.code}) — skipping mail DNS setup.")
+        log("  CF_TOKEN is invalid, expired, or lacks Zone:Read + Zone:DNS:Edit on the zone.")
+        print("[]")
+        sys.exit(0)
+    raise
 log(f"  Zone id: {zone_id}")
 
 # --- MX record ---

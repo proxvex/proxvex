@@ -7,7 +7,7 @@
 
 import { runCli } from "./cli-executor.mjs";
 import { SnapshotManager } from "./snapshot-manager.mjs";
-import { nestedSsh, waitForServices } from "./ssh-helpers.mjs";
+import { nestedSsh, waitForServices, waitForContainerStable } from "./ssh-helpers.mjs";
 import { buildParams, partitionAfterFailure } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import { collectFailureLogs } from "./diagnostics.mjs";
@@ -300,6 +300,27 @@ export async function executeScenarios(
         useOidc ? oidcCredentials : undefined,
       );
 
+      // Container-stability poll during wait_seconds. The install pipeline's
+      // `900-host-check-container` runs once near the end of the installer and
+      // can miss late crashes (e.g. postgres PANIC during initdb when the data
+      // volume is too small). Polling `pct status` here closes that window so
+      // a crashed container fails the scenario instead of silently passing.
+      // Docker-compose apps still use waitForServices in the success path.
+      const appMeta = appMetaMap.get(scenario.application) ?? {};
+      const waitSeconds = scenario.wait_seconds ?? appMeta.verification?.wait_seconds ?? 0;
+      const isDockerCompose = appMeta.extends === "docker-compose";
+      if (cliResult.exitCode === 0 && waitSeconds > 0 && !isDockerCompose) {
+        logInfo(`Waiting ${waitSeconds}s for container to stay healthy...`);
+        const health = await waitForContainerStable(
+          config.pveHost, config.portPveSsh, step.vmId, waitSeconds,
+        );
+        if (!health.ok) {
+          cliResult.exitCode = 1;
+          const crashMsg = `Container ${step.vmId} (${step.hostname}) crashed during wait_seconds (status: ${health.status})`;
+          cliResult.output = `${cliResult.output}\n--- POST-INSTALL CRASH ---\n${crashMsg}\n`;
+        }
+      }
+
       if (cliResult.exitCode !== 0) {
         const errMsg = `Scenario failed: ${scenario.id} (${task})`;
         logFail(errMsg);
@@ -436,16 +457,11 @@ export async function executeScenarios(
         }
       }
 
-      // Wait for services
-      const appMeta = appMetaMap.get(scenario.application) ?? {};
-      const waitSeconds = scenario.wait_seconds ?? appMeta.verification?.wait_seconds ?? 0;
-      if (waitSeconds > 0) {
-        if (appMeta.extends === "docker-compose") {
-          await waitForServices(config.pveHost, config.portPveSsh, step.vmId, waitSeconds, { info: logInfo, ok: logOk, warn: logWarn });
-        } else {
-          logInfo(`Waiting ${waitSeconds}s for container to be ready...`);
-          await new Promise((r) => setTimeout(r, waitSeconds * 1000));
-        }
+      // Wait for services. Docker-compose apps use waitForServices to poll
+      // `docker ps` for "Up" status. Non-docker-compose apps already had their
+      // wait period (with `pct status` polling) before the failure check above.
+      if (waitSeconds > 0 && isDockerCompose) {
+        await waitForServices(config.pveHost, config.portPveSsh, step.vmId, waitSeconds, { info: logInfo, ok: logOk, warn: logWarn });
       }
 
       // Verify

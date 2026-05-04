@@ -1,0 +1,22 @@
+# modbus2mqtt configuration for production
+#
+# Uploaded by the post_start template 0-rest-upload-config.json after the
+# container starts. The exact YAML schema follows the modbus2mqtt source
+# (set by the user during their REST endpoint integration).
+#
+# MQTT broker connection: mTLS against eclipse-mosquitto.local. Certificates
+# are provisioned by addon-ssl into /certs/ inside the container.
+mqtt:
+  url: mqtts://eclipse-mosquitto.local:8883
+  clientId: modbus2mqtt
+  tls:
+    ca: /certs/chain.pem
+    cert: /certs/cert.pem
+    key: /certs/privkey.pem
+    servername: eclipse-mosquitto.local
+    rejectUnauthorized: true
+
+# Modbus device declarations go here. Refer to the modbus2mqtt docs for the
+# exact schema. Example placeholder:
+# devices: []
+devices: []

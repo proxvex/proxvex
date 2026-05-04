@@ -12,8 +12,9 @@
 # 1. Verifies 'mirrors-ready' exists and rolls back to it
 # 2. Builds the proxvex Docker image locally (node:24-slim based)
 # 3. Converts the local Docker image to an OCI-archive tarball via skopeo
-# 4. Uploads the tarball to /var/lib/vz/template/cache/ on the nested VM
-# 5. Runs install-proxvex.sh --use-existing-image to create the deployer LXC
+# 4. Uploads the tarball to /tmp/ on the nested VM
+# 5. Runs install-proxvex.sh --tarball to stage it into the template cache
+#    and create the deployer LXC
 # 6. Wires up port forwarding on the nested VM
 # 7. Creates the 'deployer-installed' snapshot for livetests to roll back to
 #
@@ -123,40 +124,6 @@ echo ""
 [ "$SSH_READY" = "true" ] || error "Cannot connect to nested VM via $PVE_HOST:$PORT_PVE_SSH after 60s"
 success "SSH connection verified"
 
-# Ensure the ghcr.io mirror's alias IP (10.0.0.2) is back after reboot and the
-# mirror container is running. On older mirrors-ready snapshots the IP was only
-# added at runtime (non-persistent), so `qm rollback + qm start` above loses
-# it and the ghcr-mirror container can't re-bind. Use a systemd oneshot unit
-# (rather than /etc/network/interfaces.d/, which ifupdown2 rejects for
-# colon-aliased stanzas) so the IP comes up on every boot of the snapshot.
-nested_ssh "cat > /etc/systemd/system/vmbr1-ghcr-alias.service <<'EOF'
-[Unit]
-Description=Secondary IP 10.0.0.2 on vmbr1 for ghcr.io pull-through mirror
-After=networking.service network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/sbin/ip addr add 10.0.0.2/24 dev vmbr1
-ExecStartPost=/bin/docker start ghcr-mirror
-ExecStop=/sbin/ip addr del 10.0.0.2/24 dev vmbr1
-
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable vmbr1-ghcr-alias.service
-"
-# Run once now so the current boot has the IP + mirror container before we
-# snapshot deployer-installed.
-nested_ssh "ip addr show vmbr1 | grep -q '10.0.0.2/' || ip addr add 10.0.0.2/24 dev vmbr1"
-nested_ssh "docker ps -q -f name='^ghcr-mirror$' | grep -q . || docker start ghcr-mirror >/dev/null 2>&1 || true"
-
-# Purge the obsolete ifupdown-style stanza written by earlier step2b runs — it
-# confuses ifupdown2 ("cannot find interfaces: vmbr1:ghcr") on boot.
-nested_ssh "rm -f /etc/network/interfaces.d/vmbr1-ghcr-mirror"
-
 # Step 3: Build proxvex Docker image locally
 header "Building local proxvex Docker image"
 cd "$PROJECT_ROOT"
@@ -231,11 +198,11 @@ rm -f "$LOCAL_SCRIPTS_TARBALL"
 success "install-proxvex.sh + shared scripts in place"
 
 # Step 7: Run install-proxvex.sh with the local OCI template
-header "Running install-proxvex.sh --use-existing-image"
+header "Running install-proxvex.sh --tarball"
 nested_ssh "chmod +x /tmp/${TMP_INSTALL_NAME} && \
     OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH \
     /tmp/${TMP_INSTALL_NAME} \
-        --use-existing-image $REMOTE_TEMPLATE \
+        --tarball $REMOTE_TARBALL \
         --vm-id $DEPLOYER_VMID \
         --bridge $DEPLOYER_BRIDGE \
         --static-ip $DEPLOYER_STATIC_IP \
@@ -278,9 +245,10 @@ nested_ssh "
     # ran with hostname 'proxvex'.
     echo 'host-record=proxvex,$DEPLOYER_IP'
     # 'docker-registry-mirror' is what registry-mirror-common.sh's mirror_detect
-    # looks for. Point it at 10.0.0.1 (the dockerhub-mirror) so the trust-CA
-    # post_start script enters its mirror branch and configures Docker.
-    echo 'host-record=docker-registry-mirror,10.0.0.1'
+    # looks for. Point it at the PRODUCTION mirror (192.168.4.45) — its TLS
+    # cert is signed by the proxvex CA, which step2a placed in the nested-VM
+    # trust store and template 108 forwards into every test LXC.
+    echo 'host-record=docker-registry-mirror,192.168.4.45'
   } > \$cfg
   # Full restart — SIGHUP/reload doesn't always pick up new files under
   # /etc/dnsmasq.d/ on this Proxmox install.
