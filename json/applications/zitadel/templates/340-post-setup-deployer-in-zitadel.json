@@ -48,6 +48,7 @@
     {
       "name": "Setup Deployer in Zitadel",
       "script": "post-setup-deployer-in-zitadel.sh",
+      "library": "pkg-common.sh",
       "outputs": [
         "oidc_issuer_url",
         "zitadel_project_id",
