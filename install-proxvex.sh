@@ -996,15 +996,21 @@ else
     sleep 2
   done
   if [ "$ca_ready" = "true" ]; then
-    ca_target=/usr/local/share/ca-certificates/proxvex-ca.crt
+    # Use a deployer-specific filename, NOT the generic proxvex-ca.crt.
+    # In a livetest setup the host's proxvex-ca.crt is the production-Hub-CA
+    # (signs production-mirror + ghcr-mirror certs). If we overwrote it with
+    # this deployer's own CA, every container pushed via host-push-ca-to-container
+    # would lose trust for those mirrors and TLS pulls fail with "crypto/rsa
+    # verification error" against a same-CN-but-different-key Proxvex CA.
+    ca_target=/usr/local/share/ca-certificates/proxvex-deployer-ca.crt
     mkdir -p /usr/local/share/ca-certificates
     if [ -f "$ca_target" ] && cmp -s "$ca_tmp" "$ca_target"; then
-      log "Host CA unchanged"
+      log "Host deployer CA unchanged"
       rm -f "$ca_tmp"
     else
       mv "$ca_tmp" "$ca_target"
       update-ca-certificates >/dev/null 2>&1 || true
-      log "Host CA installed at ${ca_target}"
+      log "Host deployer CA installed at ${ca_target}"
     fi
   else
     rm -f "$ca_tmp"
