@@ -407,6 +407,56 @@ def remove_mirror_hosts_entries() -> None:
         log(f"Warning: Could not clean /etc/hosts: {e}")
 
 
+def _prune_stale_mirror_hosts_entry() -> None:
+    """Remove a /etc/hosts marker line whose mirror IP is no longer reachable.
+
+    `check-registry-mirror.sh` writes a marker entry pointing
+    registry-1.docker.io at the mirror container's IP. If that container is
+    later destroyed (e.g. between test runs, or an admin removed it), the
+    entry persists and silently breaks every subsequent OCI pull because
+    socket.gethostbyname returns the dead IP. Probe the IP on the registry
+    TLS port and drop the line if nothing answers.
+    """
+    import socket
+    hosts_path = "/etc/hosts"
+    try:
+        with open(hosts_path, "r") as f:
+            lines = f.readlines()
+    except Exception:
+        return
+
+    marker_ip = None
+    for ln in lines:
+        if _MIRROR_HOSTS_MARKER in ln:
+            parts = ln.split()
+            if parts:
+                marker_ip = parts[0]
+            break
+    if not marker_ip:
+        return
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
+    try:
+        s.connect((marker_ip, 443))
+        return
+    except (socket.error, OSError):
+        pass
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+    new_lines = [ln for ln in lines if _MIRROR_HOSTS_MARKER not in ln]
+    try:
+        with open(hosts_path, "w") as f:
+            f.writelines(new_lines)
+        log(f"Removed stale /etc/hosts mirror entry (IP {marker_ip} unreachable on :443)")
+    except Exception as e:
+        log(f"Warning: Could not clean stale /etc/hosts entry: {e}")
+
+
 def ensure_registry_mirror_hosts() -> bool:
     """Detect whether a local registry mirror is reachable.
 
@@ -423,6 +473,8 @@ def ensure_registry_mirror_hosts() -> bool:
     hosts_path = "/etc/hosts"
     marker = _MIRROR_HOSTS_MARKER
     mirror_hosts = ["registry-1.docker.io", "index.docker.io"]
+
+    _prune_stale_mirror_hosts_entry()
 
     # Path 1: registry hostnames already point to a private IP (mirror via DNS).
     try:
