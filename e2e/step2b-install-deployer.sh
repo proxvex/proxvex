@@ -12,8 +12,9 @@
 # 1. Verifies 'mirrors-ready' exists and rolls back to it
 # 2. Builds the proxvex Docker image locally (node:24-slim based)
 # 3. Converts the local Docker image to an OCI-archive tarball via skopeo
-# 4. Uploads the tarball to /var/lib/vz/template/cache/ on the nested VM
-# 5. Runs install-proxvex.sh --use-existing-image to create the deployer LXC
+# 4. Uploads the tarball to /tmp/ on the nested VM
+# 5. Runs install-proxvex.sh --tarball to stage it into the template cache
+#    and create the deployer LXC
 # 6. Wires up port forwarding on the nested VM
 # 7. Creates the 'deployer-installed' snapshot for livetests to roll back to
 #
@@ -231,11 +232,11 @@ rm -f "$LOCAL_SCRIPTS_TARBALL"
 success "install-proxvex.sh + shared scripts in place"
 
 # Step 7: Run install-proxvex.sh with the local OCI template
-header "Running install-proxvex.sh --use-existing-image"
+header "Running install-proxvex.sh --tarball"
 nested_ssh "chmod +x /tmp/${TMP_INSTALL_NAME} && \
     OWNER=$OWNER OCI_OWNER=$OCI_OWNER LOCAL_SCRIPT_PATH=$LOCAL_SCRIPT_PATH \
     /tmp/${TMP_INSTALL_NAME} \
-        --use-existing-image $REMOTE_TEMPLATE \
+        --tarball $REMOTE_TARBALL \
         --vm-id $DEPLOYER_VMID \
         --bridge $DEPLOYER_BRIDGE \
         --static-ip $DEPLOYER_STATIC_IP \
