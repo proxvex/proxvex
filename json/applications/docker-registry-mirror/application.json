@@ -19,7 +19,7 @@
     { "id": "uid", "value": "0" },
     { "id": "gid", "value": "0" },
     { "id": "username", "value": "root" },
-    { "id": "volumes", "default": "data=/var/lib/registry" },
+    { "id": "volumes", "default": "data=/var/lib/registry,size=5G" },
     { "id": "envs", "default": "REGISTRY_HTTP_ADDR=:443\nREGISTRY_HTTP_TLS_CERTIFICATE=/etc/ssl/addon/fullchain.pem\nREGISTRY_HTTP_TLS_KEY=/etc/ssl/addon/privkey.pem\nREGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io\nREGISTRY_PROXY_USERNAME={{ DOCKER_HUB_USERNAME }}\nREGISTRY_PROXY_PASSWORD={{ DOCKER_HUB_PASSWORD }}" },
     { "id": "ssl_mode", "value": "native" },
     { "id": "https_port", "value": "443" },

@@ -10,7 +10,7 @@
   ],
   "properties": [
     { "id": "hostname", "default": "modbus2mqtt" },
-    { "id": "volumes", "default": "config=/config\ndata=/data\nssl=/ssl" },
+    { "id": "volumes", "default": "config=/config\ndata=/data,size=256M\nssl=/ssl" },
     { "id": "envs", "default": "HTTP_PORT=3000\nHTTPS_PORT=3443" },
     { "id": "rootfs_storage", "default": "local-zfs" },
     { "id": "volume_storage", "default": "local-zfs", "required": true },

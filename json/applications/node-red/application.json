@@ -6,7 +6,7 @@
   "supports": ["serial_tty"],
   "properties": [
     { "id": "hostname", "default": "node-red" },
-    { "id": "volumes", "default": "data=data\ncerts=certs" },
+    { "id": "volumes", "default": "data=data,size=512M\ncerts=certs" },
     { "id": "envs", "default": "GID=1000\nNODERED_PORT=1880\nNODERED_VERSION=latest\nTZ=Europe/Berlin\nUID=1000" },
     { "id": "oci_image", "value": "nodered/node-red:{{oci_image_tag}}" },
     { "id": "uid", "value": "1000" },
