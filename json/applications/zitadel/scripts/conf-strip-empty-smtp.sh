@@ -24,7 +24,7 @@ printf '%s' "$COMPOSE_B64" | base64 -d > "$TMPFILE"
 
 if [ -n "$SMTP_PASSWORD" ]; then
   echo "SMTP_PASSWORD set — keeping SMTP config in compose" >&2
-  echo '[]'
+  echo "[{\"id\":\"compose_file\",\"value\":\"${COMPOSE_B64}\"}]"
   exit 0
 fi
 

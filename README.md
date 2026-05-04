@@ -42,19 +42,24 @@ curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxve
 **IPv6:**
 ```sh
 curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh \
-  | sh -s -- --static-ip6 fd00::50/64 --static-gw6 fd00::1
+  | sh -s -- --static-ip6 fd00::50/64 --static-gw6 fd00::1 \
+             --static-dns6 2606:4700:4700::1111
 ```
 - `--static-ip6 <ip/prefix>`: IPv6 address in CIDR (e.g., `fd00::50/64`)
 - `--static-gw6 <ip>`: IPv6 gateway (e.g., `fd00::1`)
-- `--static-dns6 <ip>`: IPv6 DNS server (optional)
+- `--static-dns6 <ip>`: IPv6 DNS server — **required when configuring IPv6**, otherwise DNS lookups fall back to the (possibly absent) IPv4 path
 
 **Dual Stack (IPv4 + IPv6):**
 ```sh
 curl -fsSL https://raw.githubusercontent.com/proxvex/proxvex/main/install-proxvex.sh \
   | sh -s -- \
     --static-ip 192.168.4.100/24 --static-gw 192.168.4.1 \
-    --static-ip6 fd00::50/64 --static-gw6 fd00::1
+    --static-dns 192.168.4.1 \
+    --static-ip6 fd00::50/64 --static-gw6 fd00::1 \
+    --static-dns6 2606:4700:4700::1111
 ```
+
+> **DNS-Resilienz:** Setze in Dual-Stack-Setups *beide* Resolver. Wenn der IPv4-Resolver/Gateway zeitweise ausfällt (Routing-Hiccup, Wartung), greift `musl`/`glibc` automatisch auf den IPv6-Resolver zurück — andernfalls hängen `apk`/`apt`/`curl` in transient DNS errors fest, obwohl IPv6 läuft.
 ## Internal HTTPS — Certificate Authority Setup
 
 `proxvex` automatically issues HTTPS certificates for all deployed containers

@@ -61,6 +61,8 @@ VMs werden per `vm_id_start` ab einem Startwert automatisch vergeben (nächste f
 
 **IP-Strategie:** Interne Apps (postgres, zitadel, gitea, github-runner) nutzen DHCP — dnsmasq auf dem Router löst Hostnamen automatisch auf. Externe Apps (nginx, mosquitto) und Mirror-/Deployer-Hosts (proxvex, docker-registry-mirror) brauchen statische IPs, weil sie NAT-Ziele oder DNS-Aliase sind, die zur Setup-Zeit erreichbar sein müssen — der `docker-registry-mirror`-Eintrag in [`dns.sh`](dns.sh) wird vom Pull-Through-Code ausgewertet.
 
+**DNS-Setup pro App-Config (`production/<app>.json`):** Jede App, die `nameserver4` setzt, sollte zusätzlich `nameserver6` mitliefern (z. B. `2606:4700:4700::1111`). Sobald IPv6 im Container konfiguriert oder per SLAAC verfügbar ist, dient der v6-Resolver als Fallback, wenn der IPv4-Pfad zum Gateway klemmt — sonst hängt `apk`/`apt`/`curl` mit „transient DNS error" obwohl IPv6-Konnektivität besteht. Für Container, die schon vor dieser Regel deployed wurden: `pct stop && pct set <vmid> --nameserver "<v4> <v6>" && pct start`.
+
 ## Voraussetzungen
 
 ### Proxmox-Cluster (einmalig, falls Multi-Node)
