@@ -14,6 +14,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
+      "108-host-push-ca-to-container.json",
       "107-conf-oci-lxc-configuration.json"
     ],
     "pre_start_finalize": [
@@ -37,6 +38,7 @@
       { "name": "100-conf-create-configure-lxc.json", "category": "pre_start" }
     ],
     "pre_start": [
+      "108-host-push-ca-to-container.json",
       "101-conf-restore-settings.json",
       "107-conf-oci-lxc-configuration.json"
     ],
@@ -61,6 +63,7 @@
     ],
     "pre_start": [
       "set-reconfigure-defaults.json",
+      "108-host-push-ca-to-container.json",
       "150-conf-create-storage-volumes-for-lxc.json",
       "185-host-resolve-dependency-hosts.json",
       "190-host-write-lxc-notes.json"

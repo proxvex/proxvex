@@ -128,7 +128,19 @@ fi
 # is the only one with an A record. Default empty, override via parameter
 # if a specific search domain is needed.
 SEARCHDOMAIN_VAL="{{ searchdomain }}"
-[ "$SEARCHDOMAIN_VAL" = "NOT_DEFINED" ] && SEARCHDOMAIN_VAL=""
+# Treat NOT_DEFINED *and* unresolved literal "{{ ... }}" as empty — the
+# self-install path (install-proxvex.sh) doesn't run the template resolver
+# so the placeholder may arrive verbatim.
+if [ "$SEARCHDOMAIN_VAL" = "NOT_DEFINED" ] || echo "$SEARCHDOMAIN_VAL" | grep -q '{{'; then
+  SEARCHDOMAIN_VAL=""
+fi
+# pct create rejects --searchdomain "" with "invalid format - value does not
+# look like a valid DNS name". Build the flag conditionally and clear the
+# domain post-create with `pct set` (which DOES accept the empty value).
+SD_ARG=""
+if [ -n "$SEARCHDOMAIN_VAL" ]; then
+  SD_ARG="--searchdomain $SEARCHDOMAIN_VAL"
+fi
 
 # Build --startup argument from startup_order, startup_up, startup_down
 STARTUP_ARG=""
@@ -162,10 +174,10 @@ pct create "$VMID" "$TEMPLATE_PATH" \
   --memory "{{ memory }}" \
   --net0 name=eth0,bridge="{{ bridge }}",ip=dhcp \
   --ostype "{{ ostype }}" \
-  --searchdomain "$SEARCHDOMAIN_VAL" \
   --unprivileged 1 \
   --onboot 1 \
   $NS_ARG \
+  $SD_ARG \
   $ARCH_ARG \
   $STARTUP_ARG >&2
 RC=$?
@@ -174,6 +186,14 @@ if [ $RC -ne 0 ]; then
   echo "Note: If you see 'newuidmap' errors, this may be due to automatic UID/GID mapping." >&2
   echo "The uid and gid parameters are used for volume permissions only, not for container idmap." >&2
   exit $RC
+fi
+
+# Post-create: explicitly clear the inherited searchdomain when the user did
+# not specify one. pct set --searchdomain "" accepts the empty value (unlike
+# pct create), and writes a "search " line to /etc/resolv.conf so glibc/Docker
+# don't append the host's domain to bare hostname queries.
+if [ -z "$SEARCHDOMAIN_VAL" ]; then
+  pct set "$VMID" --searchdomain "" >&2 2>/dev/null || true
 fi
 
 # Remove any automatically created idmap entries from the container config

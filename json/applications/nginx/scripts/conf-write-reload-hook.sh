@@ -18,7 +18,15 @@ fi
 [ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
 
 SAFE_HOST=$(echo "$ACTUAL_HOST" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID")
+# The proxvex volume is created by addon-ssl (ssl.addon_volumes). On a
+# reconfigure that disables addon-ssl, it no longer exists — the reload hook
+# is only meaningful when ACME is active, which requires addon-ssl. Skip
+# silently if the volume can't be resolved.
+if ! VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID" 2>/dev/null); then
+  echo "No proxvex volume for $SAFE_HOST (addon-ssl likely disabled), skipping reload hook" >&2
+  printf '[{"id":"reload_hook","value":""}]\n'
+  exit 0
+fi
 
 if [ ! -d "$VOLUME_DIR" ]; then
   echo "Volume directory not found: $VOLUME_DIR" >&2
