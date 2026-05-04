@@ -601,14 +601,17 @@ vol_list_active_storages() {
 #   vm-<vmid>-<rest>
 #   shared/subvol-<vmid>-<rest>   (dir storage after vol_unlink_persistent rename)
 #   shared/vm-<vmid>-<rest>
+# Note: delimiter is `~` (not `|`) because `|` collides with the alternation
+# inside `(subvol|vm)` — sed sees the first inner `|` as the end of the pattern
+# and reports `char 38: unknown option to 's'` against the literal `\3`.
 vol_extract_vmid() {
-  echo "$1" | sed -nE 's|^(shared/)?(subvol|vm)-([0-9]+)-.*|\3|p'
+  echo "$1" | sed -nE 's~^(shared/)?(subvol|vm)-([0-9]+)-.*~\3~p'
 }
 
 # Extract the suffix part after the vmid prefix. Empty if no vmid prefix.
 # Args: $1=volname
 vol_extract_suffix() {
-  echo "$1" | sed -nE 's|^(shared/)?(subvol|vm)-([0-9]+)-(.*)$|\4|p'
+  echo "$1" | sed -nE 's~^(shared/)?(subvol|vm)-([0-9]+)-(.*)$~\4~p'
 }
 
 # Echo newline-separated list of all active LXC container IDs.
