@@ -663,6 +663,35 @@ fi
 # ================================================================
 if should_run 10; then
   banner 10 "Deploy zitadel"
+
+  # Idempotency guard: if postgres has zitadel events but no zitadel
+  # container exists, FirstInstance won't re-run on a fresh container —
+  # login-client.pat will never be created and zitadel-login will hang
+  # forever. Detect and fail with a clear repair recipe before we
+  # waste cycles building containers.
+  zitadel_host=$(host_for_app zitadel)
+  zitadel_existing=$(pve_ssh_at "$zitadel_host" \
+    "pct list | awk '\$NF==\"zitadel\"{print \$1}'" 2>/dev/null || true)
+  pg_host=$(host_for_app postgres)
+  pg_vmid=$(pve_ssh_at "$pg_host" \
+    "pct list | awk '\$NF==\"postgres\"{print \$1; exit}'" 2>/dev/null || true)
+  if [ -z "$zitadel_existing" ] && [ -n "$pg_vmid" ]; then
+    pg_events=$(pve_ssh_at "$pg_host" \
+      "pct exec $pg_vmid -- su postgres -c \"psql -d zitadel -tAc 'SELECT COUNT(*) FROM eventstore.events2'\" 2>/dev/null" \
+      | tr -d '[:space:]' || true)
+    if echo "${pg_events:-}" | grep -qE '^[0-9]+$' && [ "${pg_events:-0}" -gt 0 ]; then
+      echo "" >&2
+      echo "ERROR: zitadel DB has ${pg_events} events but no zitadel container exists." >&2
+      echo "  FirstInstance migration will be skipped and login-client.pat won't be" >&2
+      echo "  written, leaving zitadel-login hanging forever." >&2
+      echo "" >&2
+      echo "Fix:" >&2
+      echo "  ssh root@${pg_host} \"pct exec ${pg_vmid} -- su postgres -c 'psql -c \\\"DROP DATABASE zitadel WITH (FORCE); CREATE DATABASE zitadel OWNER zitadel;\\\"'\"" >&2
+      echo "  $0 --step 10" >&2
+      exit 1
+    fi
+  fi
+
   "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app zitadel)" zitadel.json
 fi
 

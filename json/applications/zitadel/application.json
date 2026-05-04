@@ -148,6 +148,7 @@
       "160-conf-strip-empty-smtp.json"
     ],
     "post_start": [
+      "325-conf-check-zitadel-state-consistency.json",
       "340-post-setup-deployer-in-zitadel.json",
       "385-post-configure-mail-dns.json",
       "380-post-show-admin-credentials.json"
