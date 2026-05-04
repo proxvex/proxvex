@@ -64,7 +64,7 @@ sed -i 's/SSL_MODE: disable/SSL_MODE: require/g' "$TMPFILE"
 # Re-encode
 COMPOSE_SSL_B64=$(base64 < "$TMPFILE" | tr -d '\n')
 
-# Fix cert permissions for non-root Traefik user
+# Fix cert permissions for non-root Traefik user.
 SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 CERT_DIR=$(resolve_host_volume "$SAFE_HOST" "certs" "$VM_ID")
 

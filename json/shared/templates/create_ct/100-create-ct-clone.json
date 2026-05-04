@@ -25,6 +25,14 @@
       "default": "",
       "advanced": true,
       "description": "Optional: Start index for auto-assigned VM IDs. The next free ID starting from this value will be used."
+    },
+    {
+      "id": "searchdomain",
+      "name": "DNS Search Domain",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "DNS search domain for the cloned container's resolv.conf. Default (empty) avoids inheriting the PVE host's hostname domain (e.g. 'cluster'), which can break bare-hostname DNS resolution from inside docker containers. Set explicitly only if you need a specific search domain."
     }
   ],
   "commands": [
@@ -35,7 +43,7 @@
       "name": "Clone Container",
       "script": "create-ct-clone.sh",
       "library": "upgrade-common.sh",
-      "outputs": ["vm_id", "previous_vm_id", "installed_addons", "volume_storage"]
+      "outputs": ["vm_id", "previous_vm_id", "installed_addons", "volume_storage", "hostname"]
     }
   ]
 }

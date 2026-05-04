@@ -120,6 +120,16 @@ if [ -n "$HOST_NS" ]; then
   echo "Using host nameserver: $HOST_NS" >&2
 fi
 
+# Override the searchdomain Proxmox would otherwise inherit from the host's
+# `hostname -d` (often "cluster" on a PVE node named "pveX.cluster"). An
+# inherited search suffix breaks bare-hostname DNS resolution from inside
+# docker containers — Go's resolver and Docker's embedded DNS append the
+# suffix and don't fall back to the bare name when the suffix-less query
+# is the only one with an A record. Default empty, override via parameter
+# if a specific search domain is needed.
+SEARCHDOMAIN_VAL="{{ searchdomain }}"
+[ "$SEARCHDOMAIN_VAL" = "NOT_DEFINED" ] && SEARCHDOMAIN_VAL=""
+
 # Build --startup argument from startup_order, startup_up, startup_down
 STARTUP_ARG=""
 _startup_order="{{ startup_order }}"
@@ -152,12 +162,13 @@ pct create "$VMID" "$TEMPLATE_PATH" \
   --memory "{{ memory }}" \
   --net0 name=eth0,bridge="{{ bridge }}",ip=dhcp \
   --ostype "{{ ostype }}" \
+  --searchdomain "$SEARCHDOMAIN_VAL" \
   --unprivileged 1 \
   --onboot 1 \
   $NS_ARG \
   $ARCH_ARG \
   $STARTUP_ARG >&2
-RC=$? 
+RC=$?
 if [ $RC -ne 0 ]; then
   echo "Failed to create LXC container!" >&2
   echo "Note: If you see 'newuidmap' errors, this may be due to automatic UID/GID mapping." >&2

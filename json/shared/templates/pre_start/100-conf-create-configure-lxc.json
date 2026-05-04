@@ -137,6 +137,14 @@
       "description": "Optional: CPU architecture for pct create (amd64, arm64, armhf, i386). Only used for OCI images. For regular LXC templates, Proxmox auto-detects the architecture."
     },
     {
+      "id": "searchdomain",
+      "name": "DNS Search Domain",
+      "type": "string",
+      "default": "",
+      "advanced": true,
+      "description": "DNS search domain for the container's resolv.conf. Default (empty) avoids inheriting the PVE host's hostname domain (e.g. 'cluster' when the host is 'pve1.cluster'), which can break bare-hostname DNS resolution from inside docker containers (Go's resolver and dnsmasq embedded DNS append the search suffix and don't fall back to the bare name). Set explicitly only if you need a specific search domain."
+    },
+    {
       "id": "startup_order",
       "name": "Startup Order",
       "type": "string",

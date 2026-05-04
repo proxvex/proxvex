@@ -184,12 +184,31 @@ if [ -f "$TARGET_CONF" ] && grep -q "lxc.console.logfile:" "$TARGET_CONF"; then
   log "Updated lxc.console.logfile VMID: $SOURCE_VMID -> $TARGET_VMID"
 fi
 
+# Override the searchdomain Proxmox would otherwise inherit from the host's
+# `hostname -d`. See conf-create-lxc-container.sh for the rationale —
+# inherited search suffixes break bare-hostname DNS resolution from inside
+# docker containers. Default empty.
+SEARCHDOMAIN_VAL="{{ searchdomain }}"
+[ "$SEARCHDOMAIN_VAL" = "NOT_DEFINED" ] && SEARCHDOMAIN_VAL=""
+pct set "$TARGET_VMID" --searchdomain "$SEARCHDOMAIN_VAL" >&2 || \
+  log "Warning: pct set --searchdomain on $TARGET_VMID failed"
+
 # Determine volume_storage from rootfs storage
 VOLUME_STORAGE="$ROOTFS_STORAGE"
 
 # Extract installed addons from source
 INSTALLED_ADDONS=$(extract_addons "$SOURCE_DESC$SOURCE_CONF_TEXT")
-log "Clone prepared: source=$SOURCE_VMID target=$TARGET_VMID volume_storage=$VOLUME_STORAGE addons=$INSTALLED_ADDONS"
 
-printf '[{"id":"vm_id","value":"%s"},{"id":"previous_vm_id","value":"%s"},{"id":"installed_addons","value":"%s"},{"id":"volume_storage","value":"%s"}]' \
-  "$TARGET_VMID" "$SOURCE_VMID" "$INSTALLED_ADDONS" "$VOLUME_STORAGE"
+# Read the actual container hostname from the source config and emit it as
+# an output. This overrides the (possibly stale or compose-project-suffixed)
+# {{ hostname }} template variable for every downstream pre_start/post_start
+# template — outputs win over inputs in the variable resolver. Without this,
+# scripts that call resolve_host_volume "{{ hostname }}" "<key>" "<vmid>" on
+# reconfigure would search for volumes named after the wrong hostname and
+# fail.
+SOURCE_HOSTNAME=$(awk '/^hostname:/ {print $2; exit}' "$SOURCE_CONF" 2>/dev/null || true)
+
+log "Clone prepared: source=$SOURCE_VMID target=$TARGET_VMID volume_storage=$VOLUME_STORAGE addons=$INSTALLED_ADDONS hostname=$SOURCE_HOSTNAME"
+
+printf '[{"id":"vm_id","value":"%s"},{"id":"previous_vm_id","value":"%s"},{"id":"installed_addons","value":"%s"},{"id":"volume_storage","value":"%s"},{"id":"hostname","value":"%s"}]' \
+  "$TARGET_VMID" "$SOURCE_VMID" "$INSTALLED_ADDONS" "$VOLUME_STORAGE" "$SOURCE_HOSTNAME"

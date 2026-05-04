@@ -22,6 +22,13 @@
       "name": "Volume Options",
       "type": "string",
       "description": "Existing volume definitions with options (e.g. permissions). Merged with extracted volumes."
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "type": "string",
+      "required": true,
+      "description": "Container hostname. Used as compose_project default when none was given. Auto-resolved from container config on reconfigure."
     }
   ],
   "commands": [
