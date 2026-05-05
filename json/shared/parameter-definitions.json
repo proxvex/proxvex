@@ -1,0 +1,1537 @@
+{
+  "parameters": [
+    {
+      "id": "ACCESS_TOKEN",
+      "name": "GitHub PAT",
+      "description": "Fine-grained PAT with 'Administration: Read and write' on the repository. The runner uses it once at boot to fetch a registration token; not stored on GitHub.",
+      "type": "string",
+      "required": true,
+      "secure": true,
+      "group": "Authentication"
+    },
+    {
+      "id": "acme_domain",
+      "name": "Domain",
+      "description": "Fully qualified domain name for the certificate",
+      "type": "string",
+      "required": true,
+      "group": "Authentication"
+    },
+    {
+      "id": "acme_email",
+      "name": "Email",
+      "description": "Email address for Let's Encrypt registration and expiry notifications.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "group": "Authentication"
+    },
+    {
+      "id": "acme_needs_ca_cert",
+      "name": "CA Certificate",
+      "description": "Install CA chain certificate (chain.pem).",
+      "type": "boolean",
+      "default": false,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "acme_san",
+      "name": "SAN (Subject Alternative Names)",
+      "description": "Domain(s) for the certificate. Comma-separated for multi-domain SAN (e.g. app.example.com or auth.example.com,api.example.com). Supports wildcards (*.example.com).",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "group": "Authentication"
+    },
+    {
+      "id": "acme_staging",
+      "name": "Staging Mode",
+      "description": "Use Let's Encrypt staging server (for testing, no rate limits).",
+      "type": "boolean",
+      "default": false,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "acme.cert_dir",
+      "name": "Certificate Directory",
+      "description": "Container directory where certificates are written",
+      "type": "string",
+      "default": "/etc/ssl/addon",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "acme.needs_ca_cert",
+      "name": "Needs CA Certificate",
+      "description": "Whether to write the CA/intermediate certificate (chain.pem)",
+      "type": "string",
+      "default": "false",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "acme.needs_server_cert",
+      "name": "Needs Server Certificate",
+      "description": "Whether to issue a server certificate (privkey, cert, fullchain)",
+      "type": "string",
+      "default": "true",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "addon_content",
+      "name": "Samba Configuration File",
+      "description": "Base64 encoded content of the addon configuration file",
+      "type": "string",
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "addon_packages",
+      "name": "Addon Packages",
+      "description": "Additional packages from addons (merged with base packages).",
+      "type": "string",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "addon_path",
+      "name": "Addon File Path",
+      "description": "Target path in format {volume_key}:{filename}. Example: samba_config:smb.conf",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "addon_volumes",
+      "name": "Addon Volumes",
+      "description": "Additional volumes from addons (merged with base volumes).",
+      "type": "string",
+      "multiline": true,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "all_stack_ids",
+      "name": "All Stack IDs",
+      "description": "Auto-injected by backend: JSON array of all selected stack IDs, written as separate :stack-id markers",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "alpine_mirror",
+      "name": "Alpine Mirror",
+      "description": "Alpine Linux APK mirror URL (e.g., 'http://dl-cdn.alpinelinux.org/alpine'). If empty, default repositories will be used. Should include base URL without version/repository path.",
+      "type": "string",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "api_login_password",
+      "name": "API Login Password",
+      "description": "Password for shared api_login role (PostgREST). Resolved from .env if available.",
+      "type": "string",
+      "default": "${API_LOGIN_PASSWORD:-api_login_123}",
+      "secure": true,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "app_dependencies",
+      "name": "Application Dependencies",
+      "description": "Auto-injected by backend: JSON array of application dependencies",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "app_name",
+      "name": "Application Name",
+      "description": "Name of the application (used for schema/role naming: <app>_data, <app>_app, etc.)",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "app_password",
+      "name": "App User Password",
+      "description": "Password for the <app>_app database user",
+      "type": "string",
+      "default": "app123",
+      "secure": true,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "application_id",
+      "name": "Application ID",
+      "description": "Application identifier for matching the Docker image",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "application_name",
+      "name": "Application Name",
+      "description": "Human-readable application name",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "arch",
+      "name": "Architecture",
+      "description": "Optional: CPU architecture for pct create (amd64, arm64, armhf, i386). Only used for OCI images. For regular LXC templates, Proxmox auto-detects the architecture.",
+      "type": "string",
+      "default": "",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "audio_card",
+      "name": "Audio Card",
+      "description": "Audio card identifier in format card0, card1, etc. (e.g., card0 for first audio card)",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "bind_privileged_port",
+      "name": "Bind Privileged Port",
+      "description": "Allow service to bind to privileged ports (e.g., 80, 443) by setting CAP_NET_BIND_SERVICE capability",
+      "type": "boolean",
+      "default": false,
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "bootstrap_zitadel",
+      "name": "Bootstrap Zitadel",
+      "description": "Set to 'true' to run Zitadel bootstrap (creates project, service account, invalidates admin PAT)",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "bridge",
+      "name": "Network bridge",
+      "description": "Bridge to attach (e.g. vmbr0).",
+      "type": "string",
+      "default": "vmbr0",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "ca_cert_b64",
+      "name": "CA Cert",
+      "description": "Base64-encoded CA public certificate PEM",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "cert_dir_override",
+      "name": "Cert Dir Override",
+      "description": "If set, use this path directly as cert directory instead of computing from shared_volpath",
+      "type": "string",
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "CF_TOKEN",
+      "name": "Cloudflare API Token",
+      "description": "Cloudflare API token with Zone:DNS:Edit permission on the mail domain zone. Provided via the cloudflare stack. Required when smtp_own_domain is true.",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "check_file_paths",
+      "name": "File Paths to Check",
+      "description": "Newline-separated list of file paths to verify inside the container.",
+      "type": "string",
+      "required": false,
+      "multiline": true,
+      "internal": true
+    },
+    {
+      "id": "check_oidc_api_protected",
+      "name": "Check OIDC API Protected",
+      "description": "Set to true to verify the deployer API requires authentication.",
+      "type": "boolean",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "check_oidc_enabled",
+      "name": "Check OIDC Enabled",
+      "description": "Set to true to verify OIDC is enabled on this deployer instance.",
+      "type": "boolean",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "check_oidc_machine_login",
+      "name": "Check OIDC Machine Login",
+      "description": "Set to true to verify end-to-end OIDC machine login.",
+      "type": "boolean",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "check_tls_port",
+      "name": "TLS Port to Check",
+      "description": "Port number to verify TLS connection on.",
+      "type": "number",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "command",
+      "name": "Command",
+      "description": "The command to run (also used as service and user name)",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "command_args",
+      "name": "Command Line Arguments",
+      "description": "Arguments for the command. Available variables: $HOME_DIR, $DATA_DIR, $SECURE_DIR",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "compose_file",
+      "name": "Docker Compose File",
+      "description": "Docker Compose YAML file (upload). Upload this file first to extract service information.",
+      "type": "string",
+      "required": true,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "compose_key",
+      "name": "Env Key in docker-compose.yml",
+      "description": "The environment key to set (e.g. CF_API_TOKEN).",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "compose_project",
+      "name": "Compose Project",
+      "description": "Project name for Docker Compose (used for named volumes and directory). Defaults to hostname if not provided.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "container_device_path",
+      "name": "Container Device Path",
+      "description": "Device path inside the container",
+      "type": "string",
+      "default": "/dev/ttyUSB0",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "container_device_paths",
+      "name": "Container Device Paths",
+      "description": "Optional: Comma-separated container device paths (default: auto-detect based on card number). Note: This parameter is currently not used, devices are mapped to standard /dev/snd/* paths.",
+      "type": "string",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "database",
+      "name": "Target Database",
+      "description": "Database to create schemas in (default: postgres)",
+      "type": "string",
+      "default": "postgres",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "database_name",
+      "name": "Database Name",
+      "description": "Name of the PostgreSQL database to create",
+      "type": "string",
+      "group": "Application"
+    },
+    {
+      "id": "debian_mirror",
+      "name": "Debian Mirror",
+      "description": "Debian/Ubuntu APT mirror URL (e.g., 'http://deb.debian.org/debian'). If empty, default repositories will be used.",
+      "type": "string",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "dep_zitadel_vm_id",
+      "name": "Zitadel VM ID",
+      "description": "VM ID of the Zitadel dependency container.",
+      "type": "number",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "deployer_base_url",
+      "name": "Deployer Base URL",
+      "description": "Auto-injected by backend: External deployer URL (e.g. https://deployer.example.com). Used for redirect when set.",
+      "type": "string",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "disk_size",
+      "name": "Disk size",
+      "description": "Rootfs size for the container in GiB. Apps that bundle a large image (Node.js, JDK, full Debian base) should override this in their application.json. Default fits Alpine + small OCI images (~200 MiB used).",
+      "type": "string",
+      "default": "0.5",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "DOCKER_HUB_USERNAME",
+      "name": "Docker Hub Username",
+      "description": "Docker Hub username for authenticated pulls (200 pulls/6h instead of 100). Leave empty to run anonymously.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "group": "Application"
+    },
+    {
+      "id": "domain_suffix",
+      "name": "Domain Suffix",
+      "description": "Global DNS domain suffix — provided by 150-conf-setup-oidc-client.",
+      "type": "string",
+      "default": ".local",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "env_file",
+      "name": "Environment File (.env)",
+      "description": "Environment variables file (.env) template (upload, optional). If it contains {{ markers }}, users must upload a real .env at deployment time.",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "envs",
+      "name": "Environment Variables",
+      "description": "Environment variables in key=value format, one per line. Each line sets an environment variable in the container configuration. Example:\nMYAPP_HOST=localhost\nMYAPP_PORT=8080\nDATABASE_URL=postgresql://localhost:5432/mydb",
+      "type": "string",
+      "multiline": true,
+      "group": "Application",
+      "advanced": true
+    },
+    {
+      "id": "expected_versions",
+      "name": "Expected Versions",
+      "description": "Comma-separated service=version pairs (e.g. zitadel=v4.13.1,traefik=v3.6.13)",
+      "type": "string",
+      "required": false,
+      "group": "Application"
+    },
+    {
+      "id": "flow_password",
+      "name": "Credential Password",
+      "description": "Password for credential nodes (e.g. database password)",
+      "type": "string",
+      "required": false,
+      "secure": true,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "flow_source",
+      "name": "Flow Source",
+      "description": "URL or path to the flow JSON file to import",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "flow_username",
+      "name": "Credential Username",
+      "description": "Username for credential nodes (e.g. database user)",
+      "type": "string",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "gid",
+      "name": "GID",
+      "description": "Optional: GID of the group in the container who should have access to the input device (LXC only). Default is 0 (root). For VMs, this parameter is ignored.",
+      "type": "string",
+      "default": "0",
+      "internal": true
+    },
+    {
+      "id": "GITEA_ADMIN_PASSWORD",
+      "name": "Gitea Admin Password",
+      "description": "Admin password for Gitea REST API access (from gitea stack)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "group",
+      "name": "Group Name",
+      "description": "Optional group name (will be created if not exists)",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "host_device_path",
+      "name": "USB Serial Port",
+      "description": "USB serial port device path on the host",
+      "type": "enum",
+      "required": false,
+      "enumValuesTemplate": "list-host-usb-serial-ports.json",
+      "group": "Application"
+    },
+    {
+      "id": "hostname",
+      "name": "Hostname",
+      "description": "Container hostname. Used as compose_project default when none was given. Auto-resolved from container config on reconfigure.",
+      "type": "string",
+      "required": true,
+      "group": "Network"
+    },
+    {
+      "id": "http_port",
+      "name": "HTTP Port",
+      "description": "Port number for PostgREST HTTP server (default: 3000)",
+      "type": "string",
+      "default": "5050",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "https_port",
+      "name": "HTTPS Port",
+      "description": "The HTTPS port to listen on (default: 1443, rootless containers cannot bind 443).",
+      "type": "string",
+      "default": "1443",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "icon_base64",
+      "name": "Icon Base64",
+      "description": "Auto-injected by backend: Base64-encoded application icon",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "icon_mime_type",
+      "name": "Icon MIME Type",
+      "description": "Auto-injected by backend: Icon MIME type (image/svg+xml or image/png)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "initial_command",
+      "name": "Initial Command",
+      "description": "Initial command to execute in the container (lxc.init_cmd). Useful for OCI images that require a specific start command.",
+      "type": "string",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "install_replug_watcher",
+      "name": "Live Replug (Host Installation)",
+      "description": "Install a watcher service on the host to handle device replug events",
+      "type": "boolean",
+      "default": true,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "is_deployer",
+      "name": "Is Deployer",
+      "description": "Auto-injected by backend: Set to 'true' when installing proxvex itself",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "LABELS",
+      "name": "Runner Labels",
+      "description": "Comma-separated labels used in workflow `runs-on:` selectors.",
+      "type": "string",
+      "default": "self-hosted,linux,x64,ubuntupve",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "lxc_var_name",
+      "name": "Environment Variable Name",
+      "description": "Name of the env variable (e.g. POSTGRES_PASSWORD). Becomes lxc.environment.<NAME>=<VAL>.",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "mapped_gid",
+      "name": "Mapped GID",
+      "description": "Optional: The mapped GID on the host (output from setup-lxc-uid-mapping.py in template 102). If not provided, the script will calculate it. Use this when using 1:1 UID mapping instead of the standard offset.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "mapped_uid",
+      "name": "Mapped UID",
+      "description": "Optional: The mapped UID on the host (output from setup-lxc-uid-mapping.py in template 102). If not provided, the script will calculate it. Use this when using 1:1 UID mapping instead of the standard offset.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "memory",
+      "name": "Memory in MB",
+      "description": "Memory for the container in MB",
+      "type": "number",
+      "default": 512,
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "nameserver4",
+      "name": "nameserver4",
+      "description": "IPv4 DNS nameserver (e.g. 192.168.1.1). Optional.",
+      "type": "string",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "nameserver6",
+      "name": "nameserver6",
+      "description": "IPv6 DNS nameserver (e.g. fd00:...::1 or 2001:...::1). Optional.",
+      "type": "string",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "new_value",
+      "name": "New Value",
+      "description": "New value for the shell variable.",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "oci_image",
+      "name": "OCI Image",
+      "description": "Optional: OCI image reference used to create the container (e.g. docker://mariadb:11.0.2). If provided, it will be written into the Proxmox notes (description) as an identifiable line.",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "oci_image_tag",
+      "name": "Version",
+      "description": "OCI image tag / version to pull (e.g. '0.5.28', 'v4.12.3'). Explicit versions keep registry-mirror caches deterministic and make tests reproducible. Apps typically template this into their `oci_image` property (e.g. `ghcr.io/foo/bar:{{oci_image_tag}}`). Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes.",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "oidc_app_name",
+      "name": "OIDC Application Name",
+      "description": "Name of the OIDC application in Zitadel (defaults to hostname). Used when the deployer can talk to the Zitadel Management API to auto-create or look up the client.",
+      "type": "string",
+      "required": false,
+      "group": "Authentication"
+    },
+    {
+      "id": "oidc_callback_path",
+      "name": "Callback Path",
+      "description": "Path the OIDC provider redirects to after login (from app.properties).",
+      "type": "string",
+      "default": "/auth/strategy/callback",
+      "required": false,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "oidc_client_id",
+      "name": "OIDC Client ID",
+      "description": "Existing OIDC client ID from Zitadel. Provide together with Client Secret and Issuer URL when auto-provisioning via the Zitadel Management API is not available (e.g. deployer OIDC login is disabled or pointing at an external Zitadel).",
+      "type": "string",
+      "required": false,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "oidc_client_secret",
+      "name": "OIDC Client Secret",
+      "description": "OIDC client secret for client_credentials fallback (provided by addon-oidc).",
+      "type": "string",
+      "required": false,
+      "secure": true,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "oidc_issuer_url",
+      "name": "OIDC Issuer URL",
+      "description": "OIDC issuer URL (e.g. https://zitadel.example.com). Required together with Client ID and Secret for the manual entry mode.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "oidc_project_name",
+      "name": "Zitadel Project Name",
+      "description": "Name of the Zitadel project for this application (defaults to hostname). Used for auto-provisioning via the Zitadel Management API.",
+      "type": "string",
+      "required": false,
+      "group": "Authentication"
+    },
+    {
+      "id": "oidc_required_role",
+      "name": "OIDC Required Role",
+      "description": "Zitadel project role required for access (from app.properties). If empty, any authenticated user is allowed.",
+      "type": "string",
+      "required": false,
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "oidc_roles",
+      "name": "OIDC Roles",
+      "description": "JSON array of role definitions from application.json (injected by backend)",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "ostype",
+      "name": "OS Type",
+      "description": "Operating system type: 'alpine' for Alpine Linux (apk) or 'debian'/'ubuntu' for Debian/Ubuntu (apt).",
+      "type": "enum",
+      "default": "alpine",
+      "enumValues": [
+        "alpine",
+        "debian",
+        "ubuntu"
+      ],
+      "internal": true
+    },
+    {
+      "id": "owned_paths",
+      "name": "Owned Paths",
+      "description": "Space-separated list of files/directories the user should own with rw access",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "package",
+      "name": "Package name",
+      "description": "Name of the npm package to install",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "packagerpubkeyurl",
+      "name": "URL of the public key for verifying the package",
+      "description": "URL of the public key for verifying the package",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "packages",
+      "name": "Packages",
+      "description": "Space-separated list of packages to install. For Alpine Linux, use APK package names. For Debian/Ubuntu, use apt package names.",
+      "type": "string",
+      "group": "Application"
+    },
+    {
+      "id": "packageurl",
+      "name": "URL of the APK package",
+      "description": "URL of the APK package to be installed",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "platform",
+      "name": "Platform",
+      "description": "Target platform (e.g., linux/amd64, linux/arm64). Auto-detects if not specified.",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "previous_vm_id",
+      "name": "Previous VM ID",
+      "description": "Previous container VMID (upgrade/reconfigure). Used to prefer reusing that CT's existing volumes over any other historical match.",
+      "type": "number",
+      "default": "",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "registry_password",
+      "name": "Registry Password",
+      "description": "Password for registry authentication (optional, required for private images)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "registry_token",
+      "name": "Registry Token",
+      "description": "Bearer token for registry authentication (optional, alternative to username/password)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "registry_username",
+      "name": "Registry Username",
+      "description": "Username for registry authentication (optional, required for private images)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "REPO_URL",
+      "name": "GitHub Repository URL",
+      "description": "Full URL of the GitHub repository the runner registers against (e.g. https://github.com/proxvex/proxvex).",
+      "type": "string",
+      "default": "https://github.com/proxvex/proxvex",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "rest_content_type",
+      "name": "REST Content-Type",
+      "description": "Content-Type header sent with the POST.",
+      "type": "string",
+      "default": "application/zip",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "rest_health_path",
+      "name": "Health Endpoint Path",
+      "description": "Path polled until the application reports readiness.",
+      "type": "string",
+      "default": "/api/health",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "rest_path",
+      "name": "REST Endpoint Path",
+      "description": "Path of the local-settings import endpoint.",
+      "type": "string",
+      "default": "/api/upload/local",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "rest_payload_b64",
+      "name": "REST Payload (base64)",
+      "description": "Base64-encoded ZIP payload. Defaults to the uploaded ZIP content.",
+      "type": "string",
+      "default": "{{ upload_modbus2mqtt_config_content }}",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "rest_url",
+      "name": "REST Base URL",
+      "description": "Base URL of the application REST API (relative to the container).",
+      "type": "string",
+      "default": "https://localhost:{{ https_port }}",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "rootfs_storage",
+      "name": "Rootfs Storage",
+      "description": "Proxmox storage for the container rootfs",
+      "type": "enum",
+      "default": "local-zfs",
+      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "RUNNER_NAME",
+      "name": "Runner Name",
+      "description": "Display name shown in GitHub Settings → Actions → Runners.",
+      "type": "string",
+      "default": "proxvex-runner",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "script",
+      "name": "Script File",
+      "description": "Filename under ${VOLUME_DIR}/on_start.d/ (e.g. acme-renew.sh).",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "script_var",
+      "name": "Shell Variable Name",
+      "description": "Shell variable whose value is patched (e.g. CF_API_TOKEN).",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "searchdomain",
+      "name": "DNS Search Domain",
+      "description": "DNS search domain for the container's resolv.conf. Default (empty) avoids inheriting the PVE host's hostname domain (e.g. 'cluster' when the host is 'pve1.cluster'), which can break bare-hostname DNS resolution from inside docker containers (Go's resolver and dnsmasq embedded DNS append the search suffix and don't fall back to the bare name). Set explicitly only if you need a specific search domain.",
+      "type": "string",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "server_cert_b64",
+      "name": "Server Cert",
+      "description": "Base64-encoded server certificate PEM (signed by backend)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "server_key_b64",
+      "name": "Server Key",
+      "description": "Base64-encoded server private key PEM (signed by backend)",
+      "type": "string",
+      "secure": true,
+      "internal": true
+    },
+    {
+      "id": "shared_volpath",
+      "name": "Shared Volume Path",
+      "description": "Deployer-global shared volume path on the PVE host — used by app scripts that edit files relative to the LXC volume (e.g. Node-RED settings.js).",
+      "type": "string",
+      "required": false,
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "smb_password",
+      "name": "Samba Password",
+      "description": "Password for Samba authentication",
+      "type": "string",
+      "required": true,
+      "secure": true,
+      "group": "Authentication"
+    },
+    {
+      "id": "smb_user",
+      "name": "Samba Username",
+      "description": "Username for Samba authentication",
+      "type": "string",
+      "required": true,
+      "group": "Authentication"
+    },
+    {
+      "id": "SMTP_HOST",
+      "name": "SMTP Host",
+      "description": "SMTP server hostname (e.g. smtp.mailbox.org). Leave empty to skip SMTP setup.",
+      "type": "string",
+      "default": "",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "smtp_mail_domain",
+      "name": "Mail domain",
+      "description": "Apex domain the mail is sent from (e.g. example.com). Looked up in Cloudflare and used as the zone for MX/SPF records.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "if": "smtp_own_domain",
+      "group": "Authentication"
+    },
+    {
+      "id": "smtp_mx_target",
+      "name": "MX target",
+      "description": "Hostname the MX record points at (e.g. mxext1.mailbox.org). Consult your mail provider's documentation.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "if": "smtp_own_domain",
+      "group": "Authentication"
+    },
+    {
+      "id": "smtp_own_domain",
+      "name": "Own mail domain (configure Cloudflare DNS)",
+      "description": "When checked, create MX and SPF DNS records in Cloudflare for the mail domain (requires a cloudflare stack with CF_TOKEN). Leave unchecked if using an existing hosted mail setup where DNS already points to the provider.",
+      "type": "boolean",
+      "default": false,
+      "required": true,
+      "group": "Authentication"
+    },
+    {
+      "id": "SMTP_PASSWORD",
+      "name": "SMTP Password",
+      "description": "SMTP provider password. Provided via the oidc stack. If empty, mail DNS setup is skipped (no point in writing MX/SPF records when SMTP can't authenticate).",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "SMTP_PORT",
+      "name": "SMTP Port",
+      "description": "SMTP server port (587 for STARTTLS, 465 for implicit TLS).",
+      "type": "string",
+      "default": "587",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "SMTP_SENDER",
+      "name": "SMTP Sender",
+      "description": "From address on outgoing mail (e.g. admin@example.com). Must be authorized at the provider.",
+      "type": "string",
+      "default": "",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "smtp_spf_value",
+      "name": "SPF TXT value",
+      "description": "Full SPF TXT record value, e.g. 'v=spf1 include:mailbox.org ~all'. Consult your mail provider's documentation.",
+      "type": "string",
+      "default": "v=spf1 ~all",
+      "required": false,
+      "if": "smtp_own_domain",
+      "group": "Authentication",
+      "advanced": true
+    },
+    {
+      "id": "SMTP_USER",
+      "name": "SMTP User",
+      "description": "SMTP authentication username (e.g. yourname@mailbox.org).",
+      "type": "string",
+      "default": "",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "ssl_mode",
+      "name": "SSL Mode",
+      "description": "SSL mode: proxy (nginx reverse proxy), native (app handles HTTPS), or certs (certificates only).",
+      "type": "string",
+      "default": "certs",
+      "required": true,
+      "certtype": "server",
+      "group": "Authentication"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "name": "Needs CA Cert",
+      "description": "Write CA public certificate (chain.pem)",
+      "type": "boolean",
+      "default": "false",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "ssl.needs_server_cert",
+      "name": "Needs Server Cert",
+      "description": "Write server certificate files (privkey.pem, cert.pem, fullchain.pem)",
+      "type": "boolean",
+      "default": "true",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "stack_id",
+      "name": "Stack ID",
+      "description": "Auto-injected by backend: Primary stack ID for dependency discovery",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "stack_secret_names",
+      "name": "Stack Secret Names",
+      "description": "Comma-separated NAME=VALUE pairs for secrets to sanitize in template file",
+      "type": "string",
+      "required": false,
+      "group": "Authentication"
+    },
+    {
+      "id": "startup_down",
+      "name": "Startup Down Delay",
+      "description": "Optional: Seconds to wait after shutting down this container before stopping the next one. Maps to Proxmox --startup down=N.",
+      "type": "string",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "startup_order",
+      "name": "Startup Order",
+      "description": "Optional: Boot order for the container. Lower values start first (e.g. 10 for databases, 20 for auth providers). Default 100 for normal apps. Maps to Proxmox --startup order=N.",
+      "type": "string",
+      "default": "100",
+      "internal": true
+    },
+    {
+      "id": "startup_timeout",
+      "name": "Startup Timeout",
+      "description": "Seconds to wait for Docker services to become healthy (--wait-timeout).",
+      "type": "number",
+      "default": 120,
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "startup_up",
+      "name": "Startup Up Delay",
+      "description": "Optional: Seconds to wait after starting this container before starting the next one. Maps to Proxmox --startup up=N.",
+      "type": "string",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "static_gw",
+      "name": "static_gw",
+      "description": "Static IPv4 gateway (e.g. 192.168.4.1). Requires static_ip.",
+      "type": "string",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "static_gw6",
+      "name": "static_gw6",
+      "description": "Static IPv6 gateway (e.g. fd00::1). Requires static_ip6.",
+      "type": "string",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "static_ip",
+      "name": "static_ip",
+      "description": "Static IPv4 address in CIDR notation (e.g. 192.168.4.100/24).",
+      "type": "string",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "static_ip6",
+      "name": "static_ip6",
+      "description": "Static IPv6 address in CIDR notation (e.g. fd00::50/64).",
+      "type": "string",
+      "group": "Network",
+      "advanced": true
+    },
+    {
+      "id": "storage",
+      "name": "Storage",
+      "description": "Proxmox storage where the OCI image should be stored",
+      "type": "string",
+      "default": "local",
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "storage_selection",
+      "name": "Storage Selection",
+      "description": "Select storage to mount. Only filesystems prefixed with 'uuid:' are supported.",
+      "type": "enum",
+      "required": false,
+      "enumValuesTemplate": "list-available-storage.json",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "target_versions",
+      "name": "Target Versions",
+      "description": "Comma-separated service=version pairs. For OCI-image apps: main=version to pull a specific tag.",
+      "type": "string",
+      "required": false,
+      "group": "Application"
+    },
+    {
+      "id": "template_path",
+      "name": "Path to the LXC template",
+      "description": "Path to the LXC template (e.g. local:vztmpl/alpine-3.19-default_20231107_amd64.tar.xz). Required for new installations (auto-selected for Alpine). Not needed in reconfiguration mode when vm_id points to an existing container.",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "test_param",
+      "name": "Test Parameter",
+      "description": "Test parameter for Python script",
+      "type": "string",
+      "default": "default_param",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "test_value",
+      "name": "Test Value",
+      "description": "Test value for Python script",
+      "type": "string",
+      "default": "default_value",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "uid",
+      "name": "UID",
+      "description": "Optional: UID of the user in the container who should have access to the input device (LXC only). Default is 0 (root). For VMs, this parameter is ignored.",
+      "type": "string",
+      "default": "0",
+      "internal": true
+    },
+    {
+      "id": "upload_flows_json_content",
+      "name": "flows.json",
+      "description": "Optional Node-RED flows file (flows.json). When omitted, Node-RED starts with empty flows.",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_flows_json_destination",
+      "name": "Destination Path",
+      "description": "Target path: {volume_key}:{filename}",
+      "type": "string",
+      "default": "data:flows.json",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "upload_modbus2mqtt_config_content",
+      "name": "modbus2mqtt local settings ZIP",
+      "description": "ZIP file produced by 'Download Local Settings' (https://<host>:<port>/specifications). Contains busses, slaves and local specifications. secrets.yaml is intentionally excluded — set MQTT credentials via the UI after first boot.",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_mosquitto_configuration_content",
+      "name": "Mosquitto Configuration",
+      "description": "Upload your mosquitto.conf file.\n\nIf the optional addon \"SSL/HTTPS\" is enabled, TLS certificates are automatically provisioned at:\n- `/mosquitto/config/certs/cert.pem` (server cert)\n- `/mosquitto/config/certs/privkey.pem` (private key)\n- `/mosquitto/config/certs/chain.pem` (CA cert)\n- `/mosquitto/config/certs/fullchain.pem` (server cert + CA)\n\nMQTTS listener example:\n```\nlistener 8883\ncertfile /mosquitto/config/certs/cert.pem\ncafile /mosquitto/config/certs/chain.pem\nkeyfile /mosquitto/config/certs/privkey.pem\n```\nSee [Mosquitto TLS docs](https://mosquitto.org/man/mosquitto-conf-5.html)",
+      "type": "string",
+      "required": true,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_mosquitto_configuration_destination",
+      "name": "Destination Path",
+      "description": "Target path: {volume_key}:{filename}",
+      "type": "string",
+      "default": "config:mosquitto.conf",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "upload_server_cert_content",
+      "name": "server.cert",
+      "description": "Configuration file: server.cert",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_server_cert_destination",
+      "name": "Destination Path",
+      "description": "Target path: {volume_key}:{filename}",
+      "type": "string",
+      "default": "certs:server.cert",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "upload_server_crt_content",
+      "name": "server.crt",
+      "description": "Configuration file: server.crt",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_server_crt_destination",
+      "name": "Destination Path",
+      "description": "Target path: {volume_key}:{filename}",
+      "type": "string",
+      "default": "certs:server.crt",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "upload_server_key_content",
+      "name": "server.key",
+      "description": "Configuration file: server.key",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_server_key_destination",
+      "name": "Destination Path",
+      "description": "Target path: {volume_key}:{filename}",
+      "type": "string",
+      "default": "certs:server.key",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "upload_settings_js_content",
+      "name": "settings.js",
+      "description": "Configuration file: settings.js",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_settings_js_destination",
+      "name": "Destination Path",
+      "description": "Target path: {volume_key}:{filename}",
+      "type": "string",
+      "default": "data:settings.js",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "upload_ssl_cnf_content",
+      "name": "ssl.cnf",
+      "description": "Configuration file: ssl.cnf",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application"
+    },
+    {
+      "id": "upload_ssl_cnf_destination",
+      "name": "Destination Path",
+      "description": "Target path: {volume_key}:{filename}",
+      "type": "string",
+      "default": "conf.d:ssl.cnf",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "usb_bus_device",
+      "name": "USB Bus:Device",
+      "description": "USB bus and device number in format bus:device (e.g., 1:3 for /dev/bus/usb/001/003)",
+      "type": "string",
+      "required": true,
+      "group": "Application"
+    },
+    {
+      "id": "username",
+      "name": "Username",
+      "description": "Optional: Username to create on the VE host before container creation. This ensures consistent UID/GID mapping between host and container. Default is root. If not provided, root will be used.",
+      "type": "string",
+      "default": "root",
+      "internal": true
+    },
+    {
+      "id": "ve_context_key",
+      "name": "VE Context Key",
+      "description": "Auto-injected by backend: VE context identifier for API calls.",
+      "type": "string",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "ve_debug_commands",
+      "name": "VE Debug Commands",
+      "description": "Comma-separated list of command name substrings to debug-dump during execution. For each matching command the backend emits the current inputs+defaults (before) and outputs (after) to stderr of the deploy log. Use '*' to dump every command. Leave empty to disable. Example: 'Write Docker Compose Notes,acme-renew'",
+      "type": "string",
+      "default": "",
+      "group": "Diagnostics",
+      "advanced": true
+    },
+    {
+      "id": "version",
+      "name": "Version",
+      "description": "Version of the package to install",
+      "type": "string",
+      "default": "latest",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "vm_id",
+      "name": "LXC Container ID",
+      "description": "VM ID — used to look up the running container's actual hostname (the one volumes are named after, which can differ from the input hostname during reconfigure).",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "internal": true
+    },
+    {
+      "id": "vm_id_start",
+      "name": "VM ID Start",
+      "description": "Optional: Start index for auto-assigned VM IDs. The next free ID starting from this value will be used.",
+      "type": "number",
+      "default": "",
+      "internal": true
+    },
+    {
+      "id": "volume_backup",
+      "name": "Include in Backup",
+      "description": "Whether the volume should be included in Proxmox backups",
+      "type": "boolean",
+      "default": false,
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "volume_size",
+      "name": "Volume Size",
+      "description": "Default size per managed mp volume (e.g., 4M, 256M, 1G, 2.5G). Most volumes hold KB of state (config, secrets, certs, bootstrap PATs); the default fits those. Per-volume override is supported by appending `,size=…` to a line in the `volumes` property: e.g. `data=/var/lib/gitea,size=2G`.",
+      "type": "string",
+      "default": "4M",
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "volume_storage",
+      "name": "Volume Storage",
+      "description": "Proxmox storage ID for data volumes. Auto-detected from rootfs if not set.",
+      "type": "enum",
+      "default": "local-zfs",
+      "required": false,
+      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
+      "internal": true
+    },
+    {
+      "id": "volumes",
+      "name": "Volumes",
+      "description": "Existing volume definitions with options (e.g. permissions). Merged with extracted volumes.",
+      "type": "string",
+      "required": false,
+      "multiline": true,
+      "group": "Storage",
+      "advanced": true
+    },
+    {
+      "id": "wait_for_network",
+      "name": "Wait for Network",
+      "description": "Wrap entrypoint to wait for network before starting. Only needed for apps that connect to external services at startup.",
+      "type": "boolean",
+      "default": false,
+      "internal": true
+    },
+    {
+      "id": "with_postgrest",
+      "name": "Create PostgREST Roles",
+      "description": "Create additional API schema and roles for PostgREST (api_login, <app>_anon, <app>_user)",
+      "type": "boolean",
+      "default": false,
+      "internal": true
+    },
+    {
+      "id": "ZITADEL_ADMIN_PASSWORD",
+      "name": "Zitadel Admin Password",
+      "description": "Raw password value from the oidc stack (suffix is added at print time)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "ZITADEL_EXTERNALDOMAIN",
+      "name": "Zitadel External Domain",
+      "description": "Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+domain_suffix.",
+      "type": "string",
+      "default": "{{ hostname }}",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "ZITADEL_EXTERNALPORT",
+      "name": "External Port",
+      "description": "Public TCP port Zitadel is reached on (e.g. 443 behind nginx, 8080 for direct exposure).",
+      "type": "string",
+      "default": "8080",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "ZITADEL_EXTERNALSECURE",
+      "name": "External Secure",
+      "description": "Set to 'true' when Zitadel is reached via HTTPS from outside (e.g. behind a TLS reverse proxy).",
+      "type": "string",
+      "default": "false",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "ZITADEL_FORWARDED_PROTO",
+      "name": "Forwarded Proto",
+      "description": "X-Forwarded-Proto value the login UI sends to zitadel-api (http or https). Match the public scheme.",
+      "type": "string",
+      "default": "http",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    },
+    {
+      "id": "ZITADEL_HOST",
+      "name": "Zitadel Host",
+      "description": "Hostname of the Zitadel instance (resolved via dependency)",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "ZITADEL_PAT",
+      "name": "Zitadel PAT",
+      "description": "Short-lived Zitadel access token (injected by backend in zero-secret mode). Falls back to admin-client.pat file if not set.",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "zitadel_project_id",
+      "name": "Zitadel Project ID",
+      "description": "Output from bootstrap step (presence triggers hardening)",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
+    {
+      "id": "ZITADEL_PUBLIC_BASE_URL",
+      "name": "Public Base URL",
+      "description": "Full public base URL the user types in their browser (no trailing slash). Used in BASEURI/OIDC default URLs. Example: https://auth.example.com (no port for default 443/80).",
+      "type": "string",
+      "default": "http://{{ ZITADEL_EXTERNALDOMAIN }}:8080",
+      "required": false,
+      "group": "Other",
+      "advanced": true
+    }
+  ]
+}

@@ -3,72 +3,18 @@
   "name": "Map Serial Device",
   "description": "Map serial device to VM",
   "implements": "serial_tty",
-  "skip_if_all_missing": ["host_device_path"],
+  "skip_if_all_missing": [
+    "host_device_path"
+  ],
   "parameters": [
-    {
-      "id": "host_device_path",
-      "name": "USB Serial Port",
-      "type": "enum",
-      "required": false,
-      "enumValuesTemplate": "list-host-usb-serial-ports.json",
-      "description": "USB serial port device path on the host"
-    },
-    {
-      "id": "install_replug_watcher",
-      "name": "Live Replug (Host Installation)",
-      "type": "boolean",
-      "default": true,
-      "advanced": true,
-      "description": "Install a watcher service on the host to handle device replug events"
-    },
-    {
-      "id": "vm_id",
-      "name": "ID of the VM",
-      "type": "string",
-      "required": true,
-      "description": "LXC container ID"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Container UID for device ownership"
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "20",
-      "advanced": true,
-      "description": "Container GID for device ownership"
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID (Host)",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "UID mapping on the host for the device"
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID (Host)",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "GID mapping on the host for the device"
-    },
-    {
-      "id": "container_device_path",
-      "name": "Container Device Path",
-      "type": "string",
-      "default": "/dev/ttyUSB0",
-      "required": false,
-      "advanced": true,
-      "description": "Device path inside the container"
-    }
+    "host_device_path",
+    "install_replug_watcher",
+    "vm_id",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid",
+    "container_device_path"
   ],
   "commands": [
     {

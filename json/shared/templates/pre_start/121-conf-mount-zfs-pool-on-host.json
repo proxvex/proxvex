@@ -3,48 +3,15 @@
   "description": "Creates a subdirectory under a ZFS pool mountpoint on the Proxmox host.\n\nThe ZFS pool must already be mounted (which is always the case in Proxmox). A subdirectory is created under the pool mountpoint.\n\nThis template only creates the directory on the host. To bind mount it into a container, use the bind-host template afterwards.\n\nThis template can be called independently and is safe to call multiple times (idempotent).",
   "execute_on": "ve",
   "skip_if_property_set": "host_mountpoint",
-  "skip_if_all_missing": ["storage_selection"],
+  "skip_if_all_missing": [
+    "storage_selection"
+  ],
   "parameters": [
-    {
-      "id": "storage_selection",
-      "name": "Storage Selection",
-      "type": "enum",
-      "required": false,
-      "enumValuesTemplate": "list-available-storage.json",
-      "description": "Select ZFS pool. Only pools prefixed with 'zfs:' are shown."
-    },
-    {
-      "id": "uid",
-      "name": "UID for mount directory",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: UID to set for the directory. Default is 0 (root)."
-    },
-    {
-      "id": "gid",
-      "name": "GID for mount directory",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: GID to set for the directory. Default is 0 (root)."
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID (Host)",
-      "type": "string",
-      "default": "",
-      "description": "Optional: The actual UID to use on the host filesystem for unprivileged containers with 1:1 UID mapping. If not provided, defaults to uid parameter. Typically set by setup-lxc-uid-mapping.py (102) output.",
-      "advanced": true
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID (Host)",
-      "type": "string",
-      "default": "",
-      "description": "Optional: The actual GID to use on the host filesystem for unprivileged containers with 1:1 GID mapping. If not provided, defaults to gid parameter. Typically set by setup-lxc-uid-mapping.py (102) output.",
-      "advanced": true
-    }
+    "storage_selection",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid"
   ],
   "commands": [
     {

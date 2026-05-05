@@ -229,6 +229,9 @@ export class ParameterGroupComponent implements OnInit {
     // Don't render if form control doesn't exist
     // Use controls[] instead of get() because get() treats dots as path separators
     if (!this.form.controls[param.id]) return false;
+    // Internal parameters are never shown — they're resolved by backend, app
+    // properties, or addons. Defensive check; the backend should also filter.
+    if (param.internal) return false;
     if (param.advanced && !this.showAdvanced) return false;
     // Check 'if' condition
     if (param.if && !this.evaluateCondition(param.if)) return false;

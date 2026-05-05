@@ -195,19 +195,17 @@ describe("Hub API routes", () => {
   });
 
   describe("GET /api/hub/repositories.tar.gz", () => {
-    it("returns 404 when json/ directory does not exist", async () => {
-      // Env creates an empty json dir by default — remove it to trigger 404.
-      fs.rmSync(setup.env.jsonDir, { recursive: true, force: true });
+    it("returns 404 when local/ directory does not exist", async () => {
+      // Env creates an empty local dir by default — remove it to trigger 404.
+      fs.rmSync(setup.env.localDir, { recursive: true, force: true });
 
       const res = await request(app).get(ApiUri.HubRepositoriesTarball);
       expect(res.status).toBe(404);
-      expect(res.body.error).toMatch(/json/i);
+      expect(res.body.error).toMatch(/local/i);
     });
 
-    it("streams a gzip tarball containing json/ and local/", async () => {
-      // Seed a minimal json/ file and a local/ file so both appear in the tar.
-      const jsonFile = path.join(setup.env.jsonDir, "hub-marker.json");
-      fs.writeFileSync(jsonFile, "{}");
+    it("streams a gzip tarball containing local/", async () => {
+      // Seed a local/ file so it appears in the tar.
       const localOverride = path.join(setup.env.localDir, "shared", "over.txt");
       fs.mkdirSync(path.dirname(localOverride), { recursive: true });
       fs.writeFileSync(localOverride, "local-marker");
@@ -232,7 +230,6 @@ describe("Hub API routes", () => {
       expect(body[1]).toBe(0x8b);
 
       const entries = listTarEntries(body);
-      expect(entries).toContain("json/hub-marker.json");
       expect(entries).toContain("local/shared/over.txt");
     });
   });

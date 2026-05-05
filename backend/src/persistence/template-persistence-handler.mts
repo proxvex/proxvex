@@ -3,6 +3,7 @@ import fs from "fs";
 import { IConfiguredPathes } from "../backend-types.mjs";
 import { ITemplate } from "../types.mjs";
 import { JsonError, JsonValidator } from "../jsonvalidator.mjs";
+import { getParameterDefinitionsRegistry } from "../parameter-definitions.mjs";
 
 /**
  * Handles template-specific persistence operations
@@ -77,6 +78,13 @@ export class TemplatePersistenceHandler {
           templatePath,
           "template",
         );
+
+      // Expand parameter ID references into full IParameter objects.
+      // Templates store `parameters: string[]`; downstream code expects IParameter[].
+      if (Array.isArray(templateData.parameters)) {
+        const registry = getParameterDefinitionsRegistry(this.pathes.jsonPath);
+        templateData.parameters = registry.expand(templateData.parameters);
+      }
 
       // Cache it
       if (this.enableCache) {

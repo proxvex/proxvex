@@ -3,22 +3,8 @@
   "name": "Install Node Application",
   "description": "Install a Node.js application globally via npm",
   "parameters": [
-    {
-      "id": "package",
-      "name": "Package name",
-      "type": "string",
-      "required": true,
-      "description": "Name of the npm package to install"
-    },
-    {
-      "id": "version",
-      "name": "Version",
-      "type": "string",
-      "required": false,
-      "default": "latest",
-      "description": "Version of the package to install",
-      "advanced": true
-    }
+    "package",
+    "version"
   ],
   "commands": [
     {

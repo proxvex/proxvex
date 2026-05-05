@@ -6,60 +6,13 @@
     "usb_bus_device"
   ],
   "parameters": [
-    {
-      "id": "usb_bus_device",
-      "name": "USB Bus:Device",
-      "type": "string",
-      "required": true,
-      "description": "USB bus and device number in format bus:device (e.g., 1:3 for /dev/bus/usb/001/003)"
-    },
-    {
-      "id": "vm_id",
-      "name": "ID of the VM",
-      "type": "string",
-      "required": true,
-      "description": "ID of the LXC container or VM to which the USB device will be assigned"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: UID of the user in the container who should have access to the input device (LXC only). Default is 0 (root). For VMs, this parameter is ignored."
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: GID of the group in the container who should have access to the input device (LXC only). Default is 0 (root). For VMs, this parameter is ignored."
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Optional: The mapped UID on the host (output from setup-lxc-uid-mapping.py in template 102). If not provided, the script will calculate it. Use this when using 1:1 UID mapping instead of the standard offset."
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Optional: The mapped GID on the host (output from setup-lxc-uid-mapping.py in template 102). If not provided, the script will calculate it. Use this when using 1:1 UID mapping instead of the standard offset."
-    },
-    {
-      "id": "container_device_paths",
-      "name": "Container Device Paths",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Optional: Comma-separated container device paths (default: auto-detect)"
-    }
+    "usb_bus_device",
+    "vm_id",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid",
+    "container_device_paths"
   ],
   "commands": [
     {

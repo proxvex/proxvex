@@ -3,13 +3,7 @@
   "description": "Releases host-side volume mounts that were set up during pre_start so `pct start` can mount them into the container. Runs in the pre_start_finalize phase which is reserved for framework cleanup — addons cannot inject into this phase, so the unmount is guaranteed to be the last action before container start.",
   "execute_on": "ve",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "ID of the LXC Container",
-      "type": "string",
-      "required": true,
-      "description": "Container whose mpN volumes should be unmounted from the host."
-    }
+    "vm_id"
   ],
   "commands": [
     {

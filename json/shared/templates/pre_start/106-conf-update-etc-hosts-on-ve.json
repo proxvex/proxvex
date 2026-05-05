@@ -7,24 +7,9 @@
     "static_ip6"
   ],
   "parameters": [
-    {
-      "name": "hostname",
-      "id": "hostname",
-      "type": "string",
-      "description": "Hostname to update."
-    },
-    {
-      "name": "static_ip",
-      "id": "static_ip",
-      "type": "string",
-      "description": "Static IPv4 address (optional)."
-    },
-    {
-      "name": "static_ip6",
-      "id": "static_ip6",
-      "type": "string",
-      "description": "Static IPv6 address (optional)."
-    }
+    "hostname",
+    "static_ip",
+    "static_ip6"
   ],
   "commands": [
     {

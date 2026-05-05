@@ -2,22 +2,12 @@
   "name": "Pre-pull Docker Images",
   "description": "Pull latest Docker images in the old (still running) container before upgrade. Images are cached on the persistent /var/lib/docker volume and reused by the new container.",
   "execute_on": "lxc",
-  "skip_if_all_missing": ["previous_vm_id"],
+  "skip_if_all_missing": [
+    "previous_vm_id"
+  ],
   "parameters": [
-    {
-      "id": "compose_project",
-      "name": "Compose Project Name",
-      "type": "string",
-      "required": true,
-      "description": "Docker Compose project name (used to locate compose file in /opt/docker-compose/<project>/)"
-    },
-    {
-      "id": "target_versions",
-      "name": "Target Versions",
-      "type": "string",
-      "required": false,
-      "description": "Comma-separated service=version pairs for version-specific upgrade"
-    }
+    "compose_project",
+    "target_versions"
   ],
   "commands": [
     {

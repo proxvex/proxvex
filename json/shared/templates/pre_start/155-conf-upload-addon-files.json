@@ -6,54 +6,13 @@
     "addon_content"
   ],
   "parameters": [
-    {
-      "id": "addon_content",
-      "name": "Addon Configuration File",
-      "type": "string",
-      "upload": true,
-      "description": "Base64 encoded content of the addon configuration file"
-    },
-    {
-      "id": "addon_path",
-      "name": "Addon File Path",
-      "type": "string",
-      "description": "Target path in format {volume_key}:{filename}. Example: samba_config:smb.conf"
-    },
-    {
-      "id": "hostname",
-      "name": "Container Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname (used for volume path)"
-    },
-    {
-      "id": "uid",
-      "name": "User ID",
-      "type": "string",
-      "default": "0",
-      "description": "User ID for file ownership inside container"
-    },
-    {
-      "id": "gid",
-      "name": "Group ID",
-      "type": "string",
-      "default": "0",
-      "description": "Group ID for file ownership inside container"
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped User ID",
-      "type": "string",
-      "advanced": true,
-      "description": "Mapped UID on host (for unprivileged containers)"
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped Group ID",
-      "type": "string",
-      "advanced": true,
-      "description": "Mapped GID on host (for unprivileged containers)"
-    }
+    "addon_content",
+    "addon_path",
+    "hostname",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid"
   ],
   "commands": [
     {

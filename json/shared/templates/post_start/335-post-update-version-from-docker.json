@@ -3,27 +3,20 @@
   "description": "Reads the actual Docker image version after pull and updates the LXC notes. Runs on the PVE host (post_start).",
   "execute_on": "ve",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "number",
-      "required": true,
-      "description": "Container VMID"
-    },
-    {
-      "id": "application_id",
-      "name": "Application ID",
-      "type": "string",
-      "required": true,
-      "description": "Application identifier for matching the Docker image"
-    }
+    "vm_id",
+    "application_id"
   ],
   "commands": [
     {
       "name": "Update Version from Docker",
       "script": "post-update-version-from-docker.py",
-      "library": ["oci_version_lib.py", "lxc_config_parser_lib.py"],
-      "outputs": ["app_version"]
+      "library": [
+        "oci_version_lib.py",
+        "lxc_config_parser_lib.py"
+      ],
+      "outputs": [
+        "app_version"
+      ]
     }
   ]
 }

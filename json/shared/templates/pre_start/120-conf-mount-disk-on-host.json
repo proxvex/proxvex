@@ -4,30 +4,9 @@
   "execute_on": "ve",
   "skip_if_property_set": "skip_mount_disk_on_host",
   "parameters": [
-    {
-      "id": "storage_selection",
-      "name": "Storage Selection",
-      "type": "enum",
-      "required": true,
-      "enumValuesTemplate": "list-available-storage.json",
-      "description": "Select storage to mount. Only filesystems prefixed with 'uuid:' are supported."
-    },
-    {
-      "id": "uid",
-      "name": "UID for mount directory",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: UID to set for the mount directory. Default is 0 (root)."
-    },
-    {
-      "id": "gid",
-      "name": "GID for mount directory",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: GID to set for the mount directory. Default is 0 (root)."
-    }
+    "storage_selection",
+    "uid",
+    "gid"
   ],
   "commands": [
     {

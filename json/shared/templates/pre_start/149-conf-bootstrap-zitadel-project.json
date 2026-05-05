@@ -6,56 +6,12 @@
     "bootstrap_zitadel"
   ],
   "parameters": [
-    {
-      "id": "bootstrap_zitadel",
-      "name": "Bootstrap Zitadel",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "Set to 'true' to run Zitadel bootstrap (creates project, service account, invalidates admin PAT)"
-    },
-    {
-      "id": "ZITADEL_HOST",
-      "name": "Zitadel Host",
-      "type": "string",
-      "required": true,
-      "description": "Hostname of the Zitadel instance (resolved via dependency)"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Hostname of this PVE node"
-    },
-    {
-      "id": "domain_suffix",
-      "name": "Domain Suffix",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "Domain suffix for constructing URLs"
-    },
-    {
-      "id": "oidc_issuer_url",
-      "name": "OIDC Issuer URL",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "Optional: External OIDC issuer URL"
-    },
-    {
-      "id": "oidc_callback_path",
-      "name": "Callback Path",
-      "type": "string",
-      "required": false,
-      "default": "/api/auth/callback",
-      "advanced": true,
-      "description": "OIDC callback path"
-    }
+    "bootstrap_zitadel",
+    "ZITADEL_HOST",
+    "hostname",
+    "domain_suffix",
+    "oidc_issuer_url",
+    "oidc_callback_path"
   ],
   "commands": [
     {

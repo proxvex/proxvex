@@ -4,38 +4,9 @@
   "extends": "oci-image",
   "icon": "pgadmin_94126.svg",
   "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "pgadmin4"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "pgadmin=var/lib/pgadmin\ncerts=certs\ndata=var/lib/postgresql/data"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False\nPGADMIN_CONFIG_SERVER_MODE=True\nPGADMIN_DEFAULT_EMAIL=admin@local.dev\nPGADMIN_DEFAULT_PASSWORD=admin\nPGADMIN_EMAIL=admin@local.dev\nPGADMIN_LISTEN_PORT=5050\nPGADMIN_VERSION=latest",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    }
+    "hostname",
+    "volumes",
+    "envs"
   ],
   "properties": [
     {
@@ -57,9 +28,14 @@
       "1-upload-server-key.json"
     ]
   },
-  "supported_addons": ["addon-oidc"],
+  "supported_addons": [
+    "addon-oidc"
+  ],
   "oidc_roles": [
-    { "key": "admin", "display_name": "Administrator" }
+    {
+      "key": "admin",
+      "display_name": "Administrator"
+    }
   ],
   "tags": [
     "database"

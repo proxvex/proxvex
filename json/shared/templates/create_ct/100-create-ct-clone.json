@@ -3,37 +3,10 @@
   "name": "Clone Container",
   "description": "Creates a new LXC container by cloning an existing one. Used for reconfigure tasks where the OS image stays the same but configuration changes.",
   "parameters": [
-    {
-      "id": "previous_vm_id",
-      "name": "Source VM ID",
-      "type": "number",
-      "required": true,
-      "description": "Existing LXC container ID to clone. Must be a container created by proxvex."
-    },
-    {
-      "id": "vm_id",
-      "name": "Target VM ID",
-      "type": "number",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: VM/CT ID for the new container. If empty, the next free ID will be used (respecting vm_id_start if set)."
-    },
-    {
-      "id": "vm_id_start",
-      "name": "VM ID Start",
-      "type": "number",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: Start index for auto-assigned VM IDs. The next free ID starting from this value will be used."
-    },
-    {
-      "id": "searchdomain",
-      "name": "DNS Search Domain",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "DNS search domain for the cloned container's resolv.conf. Default (empty) avoids inheriting the PVE host's hostname domain (e.g. 'cluster'), which can break bare-hostname DNS resolution from inside docker containers. Set explicitly only if you need a specific search domain."
-    }
+    "previous_vm_id",
+    "vm_id",
+    "vm_id_start",
+    "searchdomain"
   ],
   "commands": [
     {
@@ -43,7 +16,13 @@
       "name": "Clone Container",
       "script": "create-ct-clone.sh",
       "library": "upgrade-common.sh",
-      "outputs": ["vm_id", "previous_vm_id", "installed_addons", "volume_storage", "hostname"]
+      "outputs": [
+        "vm_id",
+        "previous_vm_id",
+        "installed_addons",
+        "volume_storage",
+        "hostname"
+      ]
     }
   ]
 }

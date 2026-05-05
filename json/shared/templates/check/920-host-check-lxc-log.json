@@ -3,19 +3,15 @@
   "name": "Check LXC Log",
   "description": "Checks LXC container log for errors.",
   "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
-    }
+    "hostname"
   ],
   "commands": [
     {
       "name": "Check LXC Log",
       "script": "host-check-lxc-log.sh",
-      "outputs": ["check_lxc_log"]
+      "outputs": [
+        "check_lxc_log"
+      ]
     }
   ]
 }

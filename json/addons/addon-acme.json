@@ -1,100 +1,91 @@
 {
   "name": "ACME/Let's Encrypt",
   "description": "Provision trusted TLS certificates via Let's Encrypt using acme.sh with Cloudflare DNS challenge.",
-  "tags": ["security", "network"],
+  "tags": [
+    "security",
+    "network"
+  ],
   "stacktype": "cloudflare",
-
   "parameters": [
+    "acme_san",
+    "acme_email",
+    "http_port",
+    "https_port",
+    "acme_needs_ca_cert",
+    "acme_staging"
+  ],
+  "properties": [
     {
-      "id": "acme_san",
-      "name": "SAN (Subject Alternative Names)",
-      "type": "string",
-      "required": true,
-      "description": "Domain(s) for the certificate. Comma-separated for multi-domain SAN (e.g. app.example.com or auth.example.com,api.example.com). Supports wildcards (*.example.com)."
+      "id": "acme.addon_volumes",
+      "value": "certs=/etc/ssl/addon,0700,0:0\nproxvex=/etc/proxvex,0755,0:0"
     },
     {
-      "id": "acme_email",
-      "name": "Email",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "description": "Email address for Let's Encrypt registration and expiry notifications."
+      "id": "acme.cert_dir",
+      "value": "/etc/ssl/addon"
     },
     {
-      "id": "http_port",
-      "name": "HTTP Port",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "The HTTP port of the application to be proxied."
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "The HTTPS port to listen on."
-    },
-    {
-      "id": "acme_needs_ca_cert",
-      "name": "CA Certificate",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "description": "Install CA chain certificate (chain.pem)."
-    },
-    {
-      "id": "acme_staging",
-      "name": "Staging Mode",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "description": "Use Let's Encrypt staging server (for testing, no rate limits)."
+      "id": "has_on_start_hooks",
+      "value": "true"
     }
   ],
-
-  "properties": [
-    { "id": "acme.addon_volumes", "value": "certs=/etc/ssl/addon,0700,0:0\nproxvex=/etc/proxvex,0755,0:0" },
-    { "id": "acme.cert_dir", "value": "/etc/ssl/addon" },
-    { "id": "has_on_start_hooks", "value": "true" }
-  ],
-
   "installation": {
     "pre_start": [
-      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "159-conf-enable-ssl-app.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
+      {
+        "name": "150-conf-create-storage-volumes-for-lxc.json",
+        "after": "100-conf-create-configure-lxc.json"
+      },
+      {
+        "name": "166-conf-write-on-start-scripts.json",
+        "after": "150-conf-create-storage-volumes-for-lxc.json"
+      },
+      {
+        "name": "159-conf-enable-ssl-app.json",
+        "after": "150-conf-create-storage-volumes-for-lxc.json"
+      },
+      {
+        "name": "170-conf-add-ssl-capabilities.json",
+        "after": "100-conf-create-configure-lxc.json"
+      },
+      {
+        "name": "165-conf-register-hookscript.json",
+        "after": "100-conf-create-configure-lxc.json"
+      }
     ]
   },
-
   "reconfigure": {
     "pre_start": [
-      { "name": "150-conf-create-storage-volumes-for-lxc.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "159-conf-enable-ssl-app.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
+      {
+        "name": "150-conf-create-storage-volumes-for-lxc.json",
+        "after": "100-conf-create-configure-lxc.json"
+      },
+      {
+        "name": "166-conf-write-on-start-scripts.json",
+        "after": "150-conf-create-storage-volumes-for-lxc.json"
+      },
+      {
+        "name": "159-conf-enable-ssl-app.json",
+        "after": "150-conf-create-storage-volumes-for-lxc.json"
+      },
+      {
+        "name": "170-conf-add-ssl-capabilities.json",
+        "after": "100-conf-create-configure-lxc.json"
+      },
+      {
+        "name": "165-conf-register-hookscript.json",
+        "after": "100-conf-create-configure-lxc.json"
+      }
     ]
   },
-
   "disable": {
     "pre_start": [
       "158-conf-disable-ssl-app.json",
       "167-conf-remove-on-start-scripts.json"
     ]
   },
-
   "upgrade": [
     "166-conf-write-on-start-scripts.json"
   ],
-
   "notes_key": "acme",
-
   "stack_usage": [
     {
       "stacktype": "cloudflare",

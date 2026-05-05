@@ -210,10 +210,14 @@ export interface IParameter {
   required?: boolean;
   secure?: boolean;
   advanced?: boolean;
+  /** Internal parameter — never rendered in the UI. Set by backend, app properties, or addons. */
+  internal?: boolean;
   upload?: boolean;
   certtype?: CertType;
   default?: string | number | boolean;
   enumValues?: (string | { name: string; value: string | number | boolean })[];
+  enumValuesTemplate?: string;
+  validatePattern?: string;
   templatename?: string;
   template?: string;
   if?: string;

@@ -3,30 +3,9 @@
   "name": "Set Package Mirror",
   "description": "Configure package manager mirrors for Alpine Linux (apk) or Debian/Ubuntu (apt). If mirrors are not set, default repositories will be used.",
   "parameters": [
-    {
-      "id": "ostype",
-      "name": "OS Type",
-      "type": "string",
-      "default": "alpine",
-      "advanced": true,
-      "description": "Operating system type: 'alpine' for Alpine Linux (apk) or 'debian'/'ubuntu' for Debian/Ubuntu (apt)."
-    },
-    {
-      "id": "alpine_mirror",
-      "name": "Alpine Mirror",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Alpine Linux APK mirror URL (e.g., 'http://dl-cdn.alpinelinux.org/alpine'). If empty, default repositories will be used. Should include base URL without version/repository path."
-    },
-    {
-      "id": "debian_mirror",
-      "name": "Debian Mirror",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Debian/Ubuntu APT mirror URL (e.g., 'http://deb.debian.org/debian'). If empty, default repositories will be used."
-    }
+    "ostype",
+    "alpine_mirror",
+    "debian_mirror"
   ],
   "commands": [
     {

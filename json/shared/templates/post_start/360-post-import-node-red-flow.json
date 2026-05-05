@@ -3,30 +3,9 @@
   "name": "Import Flow",
   "description": "Import a Node-RED flow from a JSON file or URL",
   "parameters": [
-    {
-      "id": "flow_source",
-      "name": "Flow Source",
-      "type": "string",
-      "required": true,
-      "description": "URL or path to the flow JSON file to import"
-    },
-    {
-      "id": "flow_username",
-      "name": "Credential Username",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Username for credential nodes (e.g. database user)"
-    },
-    {
-      "id": "flow_password",
-      "name": "Credential Password",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "secure": true,
-      "description": "Password for credential nodes (e.g. database password)"
-    }
+    "flow_source",
+    "flow_username",
+    "flow_password"
   ],
   "commands": [
     {

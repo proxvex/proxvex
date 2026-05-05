@@ -3,54 +3,13 @@
   "description": "Writes a minimal default.conf to the conf volume if empty. nginx requires at least one .conf file in conf.d/ to start.",
   "execute_on": "ve",
   "parameters": [
-    {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "description": "Host-side base path for volumes"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
-    },
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "string",
-      "advanced": true,
-      "description": "VM ID — used to look up the running container's actual hostname (the one volumes are named after, which can differ from the input hostname during reconfigure)."
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "description": "Application user ID"
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "description": "Application group ID"
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID",
-      "type": "string",
-      "default": "",
-      "description": "Host-mapped user ID"
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID",
-      "type": "string",
-      "default": "",
-      "description": "Host-mapped group ID"
-    }
+    "shared_volpath",
+    "hostname",
+    "vm_id",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid"
   ],
   "commands": [
     {

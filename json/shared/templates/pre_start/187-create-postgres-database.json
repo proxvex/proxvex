@@ -2,14 +2,11 @@
   "execute_on": "application:postgres",
   "name": "Create Postgres Database",
   "description": "Creates a database on the dependency Postgres container if it does not exist. Skipped if no database_name is set.",
-  "skip_if_all_missing": ["database_name"],
+  "skip_if_all_missing": [
+    "database_name"
+  ],
   "parameters": [
-    {
-      "id": "database_name",
-      "name": "Database Name",
-      "type": "string",
-      "description": "Name of the PostgreSQL database to create"
-    }
+    "database_name"
   ],
   "commands": [
     {

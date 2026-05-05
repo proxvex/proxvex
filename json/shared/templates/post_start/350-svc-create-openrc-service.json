@@ -3,54 +3,12 @@
   "name": "Create OpenRC Service",
   "description": "Create, enable and start an OpenRC service for an npm package",
   "parameters": [
-    {
-      "id": "command",
-      "name": "Command",
-      "type": "string",
-      "required": true,
-      "description": "The command to run (also used as service and user name)"
-    },
-    {
-      "id": "command_args",
-      "name": "Command Line Arguments",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "description": "Arguments for the command. Available variables: $HOME_DIR, $DATA_DIR, $SECURE_DIR"
-    },
-    {
-      "id": "uid",
-      "name": "User ID",
-      "type": "string",
-      "default": "0",
-      "description": "Optional user ID. Default is 0 (root). If not provided, the system will assign one automatically.",
-      "advanced": true
-    },
-    {
-      "id": "group",
-      "name": "Group Name",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "description": "Optional group name (will be created if not exists)"
-    },
-    {
-      "id": "owned_paths",
-      "name": "Owned Paths",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "description": "Space-separated list of files/directories the user should own with rw access"
-    },
-    {
-      "id": "bind_privileged_port",
-      "name": "Bind Privileged Port",
-      "type": "boolean",
-      "required": false,
-      "default": false,
-      "advanced": true,
-      "description": "Allow service to bind to privileged ports (e.g., 80, 443) by setting CAP_NET_BIND_SERVICE capability"
-    }
+    "command",
+    "command_args",
+    "uid",
+    "group",
+    "owned_paths",
+    "bind_privileged_port"
   ],
   "commands": [
     {

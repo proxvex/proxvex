@@ -3,20 +3,8 @@
   "name": "Download/Install APK Package",
   "description": "Download and install APK package on the LXC container",
   "parameters": [
-    {
-      "id": "packageurl",
-      "name": "URL of the APK package",
-      "type": "string",
-      "required": true,
-      "description": "URL of the APK package to be installed"
-    },
-    {
-      "id": "packagerpubkeyurl",
-      "name": "URL of the public key for verifying the package",
-      "type": "string",
-      "required": true,
-      "description": "URL of the public key for verifying the package"
-    }
+    "packageurl",
+    "packagerpubkeyurl"
   ],
   "commands": [
     {

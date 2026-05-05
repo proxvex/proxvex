@@ -17,7 +17,11 @@
     { "id": "database_name", "default": "gitea" },
     { "id": "ssl_mode", "value": "native" }
   ],
-  "installation": {},
+  "installation": {
+    "create_ct": [
+      { "name": "187-create-postgres-database.json", "category": "pre_start" }
+    ]
+  },
   "url": "https://github.com/go-gitea/gitea",
   "source": "https://github.com/go-gitea/gitea",
   "tags": [

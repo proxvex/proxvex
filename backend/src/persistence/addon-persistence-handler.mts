@@ -4,6 +4,7 @@ import { IConfiguredPathes } from "../backend-types.mjs";
 import { IAddon } from "../types.mjs";
 import { JsonValidator } from "../jsonvalidator.mjs";
 import { MarkdownReader } from "../markdown-reader.mjs";
+import { getParameterDefinitionsRegistry } from "../parameter-definitions.mjs";
 
 /**
  * Handles addon-specific persistence operations
@@ -103,6 +104,12 @@ export class AddonPersistenceHandler {
 
     // Set ID from filename
     addonData.id = addonId;
+
+    // Expand parameter ID references to full IParameter objects.
+    if (Array.isArray((addonData as any).parameters)) {
+      const registry = getParameterDefinitionsRegistry(this.pathes.jsonPath);
+      (addonData as any).parameters = registry.expand((addonData as any).parameters);
+    }
 
     // Load notice from addon markdown file (## Notice section)
     const mdPath = addonFile.replace(/\.json$/, ".md");

@@ -3,25 +3,8 @@
   "name": "Latest OS Template",
   "description": "Download latest operating system template for Proxmox",
   "parameters": [
-    {
-      "id": "ostype",
-      "name": "Operating System Type",
-      "type": "enum",
-      "default": "alpine",
-      "description": "One of alpine, debian, ubuntu. Base template to download",
-      "enumValues": [
-        "alpine",
-        "debian",
-        "ubuntu"
-      ]
-    },
-    {
-      "id": "oci_image_tag",
-      "name": "Version",
-      "type": "string",
-      "required": true,
-      "description": "OCI image tag / version to deploy (e.g. '1.2.3', 'v4.12.3'). Explicit versions are required so registry-mirror caches stay deterministic and tests reproduce cleanly. Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes."
-    }
+    "ostype",
+    "oci_image_tag"
   ],
   "commands": [
     {

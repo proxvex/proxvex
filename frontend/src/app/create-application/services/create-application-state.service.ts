@@ -966,7 +966,9 @@ export class CreateApplicationStateService {
     const grouped: Record<string, IParameter[]> = {};
 
     for (const param of this.parameters()) {
-      const group = param.templatename || 'General';
+      const group = (param as IParameter & { group?: string }).group
+        || param.templatename
+        || 'General';
       if (!grouped[group]) {
         grouped[group] = [];
       }
@@ -992,7 +994,26 @@ export class CreateApplicationStateService {
       );
     }
 
-    this.groupedParameters.set(grouped);
+    // Reorder groups by canonical UI sequence (Network first because hostname
+    // is the most-edited field). Unknown / legacy template-name groups appear
+    // after the canonical groups.
+    const CANONICAL_GROUP_ORDER = [
+      'Network',
+      'Diagnostics',
+      'Application',
+      'Authentication',
+      'Storage',
+      'Other',
+    ];
+    const indexOf = (g: string) => {
+      const i = CANONICAL_GROUP_ORDER.indexOf(g);
+      return i === -1 ? CANONICAL_GROUP_ORDER.length : i;
+    };
+    const sorted: Record<string, IParameter[]> = {};
+    for (const key of Object.keys(grouped).sort((a, b) => indexOf(a) - indexOf(b))) {
+      sorted[key] = grouped[key];
+    }
+    this.groupedParameters.set(sorted);
   }
 
   /**
@@ -1052,10 +1073,13 @@ export class CreateApplicationStateService {
     this.configService.getFrameworkParameters(frameworkId).subscribe({
       next: (res) => {
         this.parameters.set(res.parameters);
-        // Group parameters by template (or use 'General' as default)
+        // Group parameters by their UI group (Application, Authentication, …)
+        // with templatename fallback for legacy entries.
         const grouped: Record<string, IParameter[]> = {};
         for (const param of res.parameters) {
-          const group = param.templatename || 'General';
+          const group = (param as IParameter & { group?: string }).group
+            || param.templatename
+            || 'General';
           if (!grouped[group]) {
             grouped[group] = [];
           }
@@ -1106,7 +1130,23 @@ export class CreateApplicationStateService {
             (a, b) => Number(!!b.required) - Number(!!a.required)
           );
         }
-        this.groupedParameters.set(grouped);
+        const CANONICAL_GROUP_ORDER = [
+          'Network',
+          'Diagnostics',
+          'Application',
+          'Authentication',
+          'Storage',
+          'Other',
+        ];
+        const indexOf = (g: string) => {
+          const i = CANONICAL_GROUP_ORDER.indexOf(g);
+          return i === -1 ? CANONICAL_GROUP_ORDER.length : i;
+        };
+        const sortedGrouped: Record<string, IParameter[]> = {};
+        for (const key of Object.keys(grouped).sort((a, b) => indexOf(a) - indexOf(b))) {
+          sortedGrouped[key] = grouped[key];
+        }
+        this.groupedParameters.set(sortedGrouped);
         this.loadingParameters.set(false);
 
         this.updateEnvFileRequirement();
@@ -1308,7 +1348,9 @@ export class CreateApplicationStateService {
   private groupByTemplate(params: IParameter[]): Record<string, IParameter[]> {
     const grouped: Record<string, IParameter[]> = {};
     for (const param of params) {
-      const group = param.templatename || 'General';
+      const group = (param as IParameter & { group?: string }).group
+        || param.templatename
+        || 'General';
       if (!grouped[group]) grouped[group] = [];
       grouped[group].push(param);
     }

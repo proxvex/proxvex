@@ -6,60 +6,13 @@
     "audio_card"
   ],
   "parameters": [
-    {
-      "id": "audio_card",
-      "name": "Audio Card",
-      "type": "string",
-      "required": true,
-      "description": "Audio card identifier in format card0, card1, etc. (e.g., card0 for first audio card)"
-    },
-    {
-      "id": "vm_id",
-      "name": "ID of the VM",
-      "type": "string",
-      "required": true,
-      "description": "ID of the LXC container or VM to which the audio device will be assigned"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: UID of the user in the container who should have access to the audio device (LXC only). Default is 0 (root). For VMs, this parameter is ignored."
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: GID of the group in the container who should have access to the audio device (LXC only). Default is 0 (root). For VMs, this parameter is ignored."
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Optional: The mapped UID on the host (output from setup-lxc-uid-mapping.py in template 102). If not provided, the script will calculate it. Use this when using 1:1 UID mapping instead of the standard offset."
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Optional: The mapped GID on the host (output from setup-lxc-uid-mapping.py in template 102). If not provided, the script will calculate it. Use this when using 1:1 UID mapping instead of the standard offset."
-    },
-    {
-      "id": "container_device_paths",
-      "name": "Container Device Paths",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Optional: Comma-separated container device paths (default: auto-detect based on card number). Note: This parameter is currently not used, devices are mapped to standard /dev/snd/* paths."
-    }
+    "audio_card",
+    "vm_id",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid",
+    "container_device_paths"
   ],
   "commands": [
     {

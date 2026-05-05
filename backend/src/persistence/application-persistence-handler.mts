@@ -11,6 +11,7 @@ import { ITemplateReference } from "../backend-types.mjs";
 import { JsonValidator } from "../jsonvalidator.mjs";
 import { JsonError } from "../jsonvalidator.mjs";
 import { createLogger } from "../logger/index.mjs";
+import { getParameterDefinitionsRegistry } from "../parameter-definitions.mjs";
 
 /**
  * Handles application-specific persistence operations
@@ -305,6 +306,12 @@ export class ApplicationPersistenceHandler {
     }
 
     appData.id = appName;
+
+    // Expand parameter ID references to full IParameter objects.
+    if (Array.isArray((appData as any).parameters)) {
+      const registry = getParameterDefinitionsRegistry(this.pathes.jsonPath);
+      (appData as any).parameters = registry.expand((appData as any).parameters);
+    }
 
     // Resolve file: references in properties — replace "file:filename" with base64 content
     this.resolveFileReferences(appData, appPath);

@@ -1,0 +1,2315 @@
+{
+  "ACCESS_TOKEN": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "DOCKER_HUB_USERNAME": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "LABELS": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "REPO_URL": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "RUNNER_NAME": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "SMTP_HOST": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "SMTP_PORT": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "SMTP_SENDER": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "SMTP_USER": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ZITADEL_EXTERNALDOMAIN": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ZITADEL_EXTERNALPORT": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ZITADEL_EXTERNALSECURE": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ZITADEL_FORWARDED_PROTO": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ZITADEL_PAT": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Short-lived Zitadel access token (injected by backend in zero-secret mode). Fall\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "ZITADEL_PUBLIC_BASE_URL": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "acme.cert_dir": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "acme.needs_ca_cert": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "acme.needs_server_cert": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "acme_domain": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "acme_email": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "acme_needs_ca_cert": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "acme_san": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "acme_staging": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "addon_content": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "addon_packages": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "addon_path": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Target-Pfad im Addon (z. B. samba_config:smb.conf). Addon-Maintainer setzt."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "addon_volumes": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "all_stack_ids": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: JSON array of all selected stack IDs, written as separ\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "alpine_mirror": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Wird in den Project-Settings einmal global gesetzt; nie pro App."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "api_login_password": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "app_dependencies": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: JSON array of application dependencies\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "app_name": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "app_password": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "application_id": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "is_output_of: json/shared/templates/image/011-host-get-oci-image.json#Get OCI Image",
+      "votes: internal=1, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "application_name": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/shared/templates/image/011-host-get-oci-image.json#Get OCI Image",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "arch": {
+    "recommended": "advanced",
+    "confidence": "low",
+    "reasoning": [
+      "is_output_of: json/shared/templates/image/011-host-get-oci-image.json#Get OCI Image",
+      "votes: internal=1, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "audio_card": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "bind_privileged_port": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Edge-Case (CAP_NET_BIND_SERVICE für Ports < 1024). Apps die es brauchen, setzen via properties."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "bootstrap_zitadel": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Zitadel-interner Trigger; Backend-Flow setzt es bei Bootstrap, kein User-Input."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "bridge": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ca_cert_b64": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "cert_dir_override": {
+    "recommended": "advanced",
+    "confidence": "low",
+    "reasoning": [
+      "is_output_of: json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json#Create Storage Volumes",
+      "votes: internal=1, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "check_file_paths": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "check_oidc_api_protected": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "check_oidc_enabled": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "check_oidc_machine_login": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "check_tls_port": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "command": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Service-Command für svc-create-Templates. App-Maintainer setzt via properties."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    },
+    "original_recommendation": "internal"
+  },
+  "command_args": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Argumente zu command. App-Maintainer setzt."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "compose_file": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "compose_key": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Refresh-Flow. Nicht Teil der Install-UI."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    },
+    "original_recommendation": "internal"
+  },
+  "compose_project": {
+    "recommended": "advanced",
+    "confidence": "override",
+    "reasoning": [
+      "override: Default = hostname; nur bei abweichendem Projektnamen relevant."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "container_device_path": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "container_device_paths": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "database": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "database_name": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "debian_mirror": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Wird in den Project-Settings einmal global gesetzt; nie pro App."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "dep_zitadel_vm_id": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "deployer_base_url": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: External deployer URL (e.g. https://deployer.example.c\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "disk_size": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "domain_suffix": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: FQDN-Suffix; Apps die es brauchen (z. B. zitadel) setzen es spezifisch."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "env_file": {
+    "recommended": "advanced",
+    "confidence": "override",
+    "reasoning": [
+      "override: Optionaler .env-Upload für docker-compose; selten gebraucht."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "envs": {
+    "recommended": "advanced",
+    "confidence": "high",
+    "reasoning": [
+      "votes: internal=0, advanced=2, visible=0"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 2,
+      "required": 0
+    }
+  },
+  "expected_versions": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "flow_password": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "flow_source": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "flow_username": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "gid": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: App-Maintainer-Sache. App setzt Wert via properties. User sieht nie."
+    ],
+    "flags": {
+      "occurrences": 4,
+      "internal": 1,
+      "advanced": 3,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "group": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "host_device_path": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "hostname": {
+    "recommended": "visible",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/shared/templates/create_ct/100-create-ct-clone.json#Clone Container",
+      "votes: internal=1, advanced=1, visible=4"
+    ],
+    "flags": {
+      "occurrences": 5,
+      "internal": 0,
+      "advanced": 0,
+      "required": 4
+    }
+  },
+  "http_port": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: LXC-Apps haben eigenen Host-Namespace, keine Port-Kollisionen. Apps setzen via properties (modbus2mqtt=3000)."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "https_port": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Wie http_port. Apps setzen via properties (modbus2mqtt=3443)."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "icon_base64": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: Base64-encoded application icon\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "icon_mime_type": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: Icon MIME type (image/svg+xml or image/png)\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "initial_command": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "install_replug_watcher": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "is_deployer": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: Set to 'true' when installing proxvex itself\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "lxc_var_name": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Refresh-Flow (LXC-Config-Env-Update). Nicht Teil der Install-UI."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    },
+    "original_recommendation": "internal"
+  },
+  "mapped_gid": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Wie mapped_uid. Endgültig: Löschen aus Template 150."
+    ],
+    "flags": {
+      "occurrences": 4,
+      "internal": 1,
+      "advanced": 3,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "mapped_uid": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Altes Idmap-Feld, nur noch in .unused-Skripten. Im finalen Cleanup wird es ganz aus Template 150 entfernt."
+    ],
+    "flags": {
+      "occurrences": 4,
+      "internal": 1,
+      "advanced": 3,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "memory": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "nameserver4": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "nameserver6": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "new_value": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Refresh-Flow (Runtime-Env-Update). Nicht Teil der Install-UI."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    },
+    "original_recommendation": "internal"
+  },
+  "oci_image": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/shared/templates/image/011-host-get-oci-image.json#Get OCI Image",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "oci_image_tag": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/shared/templates/image/010-host-get-latest-os-template.json#Latest OS Template, json/shared/templates/image/011-host-get-oci-image.json#Get OCI Image",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "oidc_app_name": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "oidc_callback_path": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "oidc_client_id": {
+    "recommended": "advanced",
+    "confidence": "low",
+    "reasoning": [
+      "is_output_of: json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json#Setup Deployer in Zitadel, json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json#Bootstrap Zitadel Project",
+      "votes: internal=1, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "oidc_client_secret": {
+    "recommended": "advanced",
+    "confidence": "low",
+    "reasoning": [
+      "is_output_of: json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json#Setup Deployer in Zitadel, json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json#Bootstrap Zitadel Project",
+      "votes: internal=1, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "oidc_issuer_url": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json#Setup Deployer in Zitadel, json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json#Bootstrap Zitadel Project",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "oidc_project_name": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "oidc_required_role": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "oidc_roles": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"JSON array of role definitions from application.json (injected by backend)\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "ostype": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Backend ermittelt aus OCI-Image (Output von host-get-latest-os-template.py)."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "owned_paths": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Files/Dirs für User-Ownership in svc-create. App-Maintainer setzt."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "package": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "packagerpubkeyurl": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "packages": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "packageurl": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "platform": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: OCI-Plattform (linux/amd64 etc.) — Backend ermittelt aus Image; User-Input nicht sinnvoll."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "previous_vm_id": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/shared/templates/create_ct/100-create-ct-clone.json#Clone Container",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "registry_password": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Wie registry_username."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "registry_token": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Bearer-Token-Variante; wie registry_username."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "registry_username": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Auth für private Registries; nur von Mirror-Apps via properties[] gesetzt. Im Standard-Fall (öffentliches Image) nicht relevant."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "rest_content_type": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "rest_health_path": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "rest_path": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "rest_payload_b64": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "rest_url": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "rootfs_storage": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "script": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Refresh-Flow (on-start-env-Update). Nicht Teil der Install-UI."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    },
+    "original_recommendation": "internal"
+  },
+  "script_var": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Refresh-Flow (on-start-env-Update). Nicht Teil der Install-UI."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 1
+    },
+    "original_recommendation": "internal"
+  },
+  "searchdomain": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: DNS Search Domain. Wird über Project-Properties global gesetzt, nicht pro App."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "server_cert_b64": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "server_key_b64": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "shared_volpath": {
+    "recommended": "advanced",
+    "confidence": "high",
+    "reasoning": [
+      "votes: internal=0, advanced=4, visible=0"
+    ],
+    "flags": {
+      "occurrences": 4,
+      "internal": 0,
+      "advanced": 4,
+      "required": 0
+    }
+  },
+  "smb_password": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "smb_user": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "smtp_mail_domain": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "smtp_mx_target": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "smtp_own_domain": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "smtp_spf_value": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ssl.needs_ca_cert": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ssl.needs_server_cert": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "ssl_mode": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "stack_id": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: Primary stack ID for dependency discovery\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "stack_secret_names": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "startup_down": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Wie startup_order. Apps setzen via properties."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "startup_order": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Apps wie postgres setzen via properties (startup_order=10). User-Input nicht sinnvoll."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "startup_timeout": {
+    "recommended": "internal",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "startup_up": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Wie startup_order. Apps setzen via properties."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "static_gw": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "static_gw6": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "static_ip": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "static_ip6": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "storage": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "storage_selection": {
+    "recommended": "advanced",
+    "confidence": "override",
+    "reasoning": [
+      "override: Storage-Mount-Selektor; nur in Spezialfällen nötig."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "target_versions": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "template_path": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/shared/templates/image/010-host-get-latest-os-template.json#Latest OS Template, json/shared/templates/image/011-host-get-oci-image.json#Get OCI Image",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "test_param": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Test-Fixture (test-python-shebang.json) für Backend-Unit-Tests."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "test_value": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Test-Fixture (test-python-shebang.json) für Backend-Unit-Tests."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "uid": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: App-Maintainer-Sache. App setzt Wert via properties (modbus2mqtt uid=1000). User sieht nie."
+    ],
+    "flags": {
+      "occurrences": 4,
+      "internal": 1,
+      "advanced": 3,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "upload_flows_json_content": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "upload_flows_json_destination": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "upload_modbus2mqtt_config_content": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "upload_mosquitto_configuration_content": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "upload_mosquitto_configuration_destination": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "upload_server_cert_content": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "upload_server_cert_destination": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "upload_server_crt_content": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "upload_server_crt_destination": {
+    "recommended": "advanced",
+    "confidence": "high",
+    "reasoning": [
+      "votes: internal=0, advanced=2, visible=0"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 2,
+      "required": 0
+    }
+  },
+  "upload_server_key_content": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "upload_server_key_destination": {
+    "recommended": "advanced",
+    "confidence": "high",
+    "reasoning": [
+      "votes: internal=0, advanced=2, visible=0"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 2,
+      "required": 0
+    }
+  },
+  "upload_settings_js_content": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "upload_settings_js_destination": {
+    "recommended": "advanced",
+    "confidence": "high",
+    "reasoning": [
+      "votes: internal=0, advanced=2, visible=0"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 2,
+      "required": 0
+    }
+  },
+  "upload_ssl_cnf_content": {
+    "recommended": "visible",
+    "confidence": "low",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "upload_ssl_cnf_destination": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "usb_bus_device": {
+    "recommended": "visible",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=0, visible=1"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    }
+  },
+  "username": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Apps setzen Wert via properties (github-runner=root, modbus2mqtt=node). Kein User-Input."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "ve_context_key": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "auto_injected_hint: \"Auto-injected by backend: VE context identifier for API calls.\"",
+      "votes: internal=1, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "ve_debug_commands": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "version": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "vm_id": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Backend assigniert VMID automatisch (oder vergibt nächste freie). User-Input nicht sinnvoll."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 0,
+      "required": 1
+    },
+    "original_recommendation": "visible"
+  },
+  "vm_id_start": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Optionaler Startwert für Auto-Vergabe; selten User-Input."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    },
+    "original_recommendation": "advanced"
+  },
+  "volume_backup": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "volume_size": {
+    "recommended": "advanced",
+    "confidence": "medium",
+    "reasoning": [
+      "votes: internal=0, advanced=1, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "volume_storage": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/shared/templates/create_ct/100-create-ct-clone.json#Clone Container",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  },
+  "volumes": {
+    "recommended": "advanced",
+    "confidence": "low",
+    "reasoning": [
+      "is_output_of: json/shared/templates/post_start/310-post-extract-volumes-from-compose.json#host-extract-volumes-from-compose.py",
+      "votes: internal=2, advanced=2, visible=0"
+    ],
+    "flags": {
+      "occurrences": 2,
+      "internal": 0,
+      "advanced": 1,
+      "required": 0
+    }
+  },
+  "wait_for_network": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Apps die es brauchen (modbus2mqtt) setzen via properties."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "with_postgrest": {
+    "recommended": "internal",
+    "confidence": "override",
+    "reasoning": [
+      "override: Boolean für zusätzliche PostgREST-Rollen/Schemas. Apps die postgrest nutzen, setzen via properties."
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    },
+    "original_recommendation": "internal"
+  },
+  "zitadel_project_id": {
+    "recommended": "internal",
+    "confidence": "high",
+    "reasoning": [
+      "is_output_of: json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json#Setup Deployer in Zitadel, json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json#Bootstrap Zitadel Project",
+      "votes: internal=2, advanced=0, visible=0"
+    ],
+    "flags": {
+      "occurrences": 1,
+      "internal": 1,
+      "advanced": 0,
+      "required": 0
+    }
+  }
+}

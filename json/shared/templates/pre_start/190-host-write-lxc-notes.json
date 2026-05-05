@@ -4,127 +4,32 @@
   "skip_if_property_set": "compose_file",
   "description": "Writes the container notes/description for standard (non-docker-compose) apps.\n\nSkipped for docker-compose apps (compose_file is set) - see 191-host-write-docker-compose-notes.json.\n\nThe notes contain:\n- Hidden markers for machine parsing (proxvex:managed, oci-image, application-id, etc.)\n- Visible Markdown content with application info, version, and links",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "number",
-      "required": true,
-      "description": "Container ID"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
-    },
-    {
-      "id": "template_path",
-      "name": "Template Path",
-      "type": "string",
-      "description": "LXC template path (for non-OCI installations)"
-    },
-    {
-      "id": "oci_image",
-      "name": "OCI Image",
-      "type": "string",
-      "description": "OCI image reference (e.g. docker://alpine:3.19)"
-    },
-    {
-      "id": "application_id",
-      "name": "Application ID",
-      "type": "string",
-      "description": "Application identifier"
-    },
-    {
-      "id": "application_name",
-      "name": "Application Name",
-      "type": "string",
-      "description": "Human-readable application name"
-    },
-    {
-      "id": "oci_image_tag",
-      "name": "OCI Image Tag",
-      "type": "string",
-      "description": "OCI image tag/version (e.g. 0.17.5)"
-    },
-    {
-      "id": "deployer_base_url",
-      "name": "Deployer Base URL",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Base URL for log viewer links"
-    },
-    {
-      "id": "ve_context_key",
-      "name": "VE Context Key",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: VE context identifier"
-    },
-    {
-      "id": "icon_base64",
-      "name": "Icon Base64",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Base64-encoded application icon"
-    },
-    {
-      "id": "icon_mime_type",
-      "name": "Icon MIME Type",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Icon MIME type (image/svg+xml or image/png)"
-    },
-    {
-      "id": "username",
-      "name": "Username",
-      "type": "string",
-      "advanced": true,
-      "description": "Username for volume permissions (stored for addon reconfiguration)"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "advanced": true,
-      "description": "UID for volume permissions (stored for addon reconfiguration)"
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "advanced": true,
-      "description": "GID for volume permissions (stored for addon reconfiguration)"
-    },
-    {
-      "id": "is_deployer",
-      "name": "Is Deployer",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Set to 'true' when installing proxvex itself"
-    },
-    {
-      "id": "stack_id",
-      "name": "Stack ID",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Stack ID written to container notes"
-    },
-    {
-      "id": "all_stack_ids",
-      "name": "All Stack IDs",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: JSON array of all selected stack IDs, written as separate :stack-id markers"
-    }
+    "vm_id",
+    "hostname",
+    "template_path",
+    "oci_image",
+    "application_id",
+    "application_name",
+    "oci_image_tag",
+    "deployer_base_url",
+    "ve_context_key",
+    "icon_base64",
+    "icon_mime_type",
+    "username",
+    "uid",
+    "gid",
+    "is_deployer",
+    "stack_id",
+    "all_stack_ids"
   ],
   "commands": [
     {
       "name": "Write LXC Notes",
       "script": "host-write-lxc-notes.py",
       "library": "lxc-notes-common.py",
-      "outputs": ["notes_written"]
+      "outputs": [
+        "notes_written"
+      ]
     }
   ]
 }

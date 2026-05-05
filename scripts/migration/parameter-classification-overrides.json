@@ -1,0 +1,159 @@
+{
+  "_comment": "Manual overrides for parameter classification. The heuristic in 02-classify-parameters.mjs produces an initial draft; entries here override that draft. Each entry: { recommended: 'internal'|'advanced'|'visible', reason: 'short why' }. CAUTION: false-positive 'internal' hides a parameter the user might need — review carefully before adding.",
+  "uid": {
+    "recommended": "internal",
+    "reason": "App-Maintainer-Sache. App setzt Wert via properties (modbus2mqtt uid=1000). User sieht nie."
+  },
+  "gid": {
+    "recommended": "internal",
+    "reason": "App-Maintainer-Sache. App setzt Wert via properties. User sieht nie."
+  },
+  "username": {
+    "recommended": "internal",
+    "reason": "Apps setzen Wert via properties (github-runner=root, modbus2mqtt=node). Kein User-Input."
+  },
+  "http_port": {
+    "recommended": "internal",
+    "reason": "LXC-Apps haben eigenen Host-Namespace, keine Port-Kollisionen. Apps setzen via properties (modbus2mqtt=3000)."
+  },
+  "https_port": {
+    "recommended": "internal",
+    "reason": "Wie http_port. Apps setzen via properties (modbus2mqtt=3443)."
+  },
+  "mapped_uid": {
+    "recommended": "internal",
+    "reason": "Altes Idmap-Feld, nur noch in .unused-Skripten. Im finalen Cleanup wird es ganz aus Template 150 entfernt."
+  },
+  "mapped_gid": {
+    "recommended": "internal",
+    "reason": "Wie mapped_uid. Endgültig: Löschen aus Template 150."
+  },
+  "domain_suffix": {
+    "recommended": "internal",
+    "reason": "FQDN-Suffix; Apps die es brauchen (z. B. zitadel) setzen es spezifisch."
+  },
+  "ostype": {
+    "recommended": "internal",
+    "reason": "Backend ermittelt aus OCI-Image (Output von host-get-latest-os-template.py)."
+  },
+  "bind_privileged_port": {
+    "recommended": "internal",
+    "reason": "Edge-Case (CAP_NET_BIND_SERVICE für Ports < 1024). Apps die es brauchen, setzen via properties."
+  },
+  "bootstrap_zitadel": {
+    "recommended": "internal",
+    "reason": "Zitadel-interner Trigger; Backend-Flow setzt es bei Bootstrap, kein User-Input."
+  },
+  "startup_order": {
+    "recommended": "internal",
+    "reason": "Apps wie postgres setzen via properties (startup_order=10). User-Input nicht sinnvoll."
+  },
+  "startup_up": {
+    "recommended": "internal",
+    "reason": "Wie startup_order. Apps setzen via properties."
+  },
+  "startup_down": {
+    "recommended": "internal",
+    "reason": "Wie startup_order. Apps setzen via properties."
+  },
+  "wait_for_network": {
+    "recommended": "internal",
+    "reason": "Apps die es brauchen (modbus2mqtt) setzen via properties."
+  },
+  "with_postgrest": {
+    "recommended": "internal",
+    "reason": "Boolean für zusätzliche PostgREST-Rollen/Schemas. Apps die postgrest nutzen, setzen via properties."
+  },
+  "compose_project": {
+    "recommended": "advanced",
+    "reason": "Default = hostname; nur bei abweichendem Projektnamen relevant."
+  },
+  "command": {
+    "recommended": "internal",
+    "reason": "Service-Command für svc-create-Templates. App-Maintainer setzt via properties."
+  },
+  "command_args": {
+    "recommended": "internal",
+    "reason": "Argumente zu command. App-Maintainer setzt."
+  },
+  "owned_paths": {
+    "recommended": "internal",
+    "reason": "Files/Dirs für User-Ownership in svc-create. App-Maintainer setzt."
+  },
+  "storage_selection": {
+    "recommended": "advanced",
+    "reason": "Storage-Mount-Selektor; nur in Spezialfällen nötig."
+  },
+  "addon_path": {
+    "recommended": "internal",
+    "reason": "Target-Pfad im Addon (z. B. samba_config:smb.conf). Addon-Maintainer setzt."
+  },
+  "env_file": {
+    "recommended": "advanced",
+    "reason": "Optionaler .env-Upload für docker-compose; selten gebraucht."
+  },
+  "test_param": {
+    "recommended": "internal",
+    "reason": "Test-Fixture (test-python-shebang.json) für Backend-Unit-Tests."
+  },
+  "test_value": {
+    "recommended": "internal",
+    "reason": "Test-Fixture (test-python-shebang.json) für Backend-Unit-Tests."
+  },
+  "new_value": {
+    "recommended": "internal",
+    "reason": "Refresh-Flow (Runtime-Env-Update). Nicht Teil der Install-UI."
+  },
+  "compose_key": {
+    "recommended": "internal",
+    "reason": "Refresh-Flow. Nicht Teil der Install-UI."
+  },
+  "lxc_var_name": {
+    "recommended": "internal",
+    "reason": "Refresh-Flow (LXC-Config-Env-Update). Nicht Teil der Install-UI."
+  },
+  "script": {
+    "recommended": "internal",
+    "reason": "Refresh-Flow (on-start-env-Update). Nicht Teil der Install-UI."
+  },
+  "script_var": {
+    "recommended": "internal",
+    "reason": "Refresh-Flow (on-start-env-Update). Nicht Teil der Install-UI."
+  },
+  "vm_id": {
+    "recommended": "internal",
+    "reason": "Backend assigniert VMID automatisch (oder vergibt nächste freie). User-Input nicht sinnvoll."
+  },
+  "vm_id_start": {
+    "recommended": "internal",
+    "reason": "Optionaler Startwert für Auto-Vergabe; selten User-Input."
+  },
+  "alpine_mirror": {
+    "recommended": "internal",
+    "reason": "Wird in den Project-Settings einmal global gesetzt; nie pro App."
+  },
+  "debian_mirror": {
+    "recommended": "internal",
+    "reason": "Wird in den Project-Settings einmal global gesetzt; nie pro App."
+  },
+  "platform": {
+    "recommended": "internal",
+    "reason": "OCI-Plattform (linux/amd64 etc.) — Backend ermittelt aus Image; User-Input nicht sinnvoll."
+  },
+  "searchdomain": {
+    "recommended": "internal",
+    "reason": "DNS Search Domain. Wird über Project-Properties global gesetzt, nicht pro App."
+  },
+  "registry_username": {
+    "recommended": "internal",
+    "reason": "Auth für private Registries; nur von Mirror-Apps via properties[] gesetzt. Im Standard-Fall (öffentliches Image) nicht relevant."
+  },
+  "registry_password": {
+    "recommended": "internal",
+    "reason": "Wie registry_username."
+  },
+  "registry_token": {
+    "recommended": "internal",
+    "reason": "Bearer-Token-Variante; wie registry_username."
+  }
+}

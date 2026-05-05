@@ -4,63 +4,14 @@
   "description": "Download OCI image from Docker Registry and import to Proxmox storage",
   "skip_if_property_set": "template_path",
   "parameters": [
-    {
-      "id": "oci_image",
-      "name": "OCI Image",
-      "type": "string",
-      "required": true,
-      "description": "OCI image reference (e.g., docker://alpine:latest, docker://debian:bookworm, oci://ghcr.io/owner/repo:latest)"
-    },
-    {
-      "id": "oci_image_tag",
-      "name": "Version",
-      "type": "string",
-      "required": true,
-      "description": "OCI image tag / version to pull (e.g. '0.5.28', 'v4.12.3'). Explicit versions keep registry-mirror caches deterministic and make tests reproducible. Apps typically template this into their `oci_image` property (e.g. `ghcr.io/foo/bar:{{oci_image_tag}}`). Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes."
-    },
-    {
-      "id": "storage",
-      "name": "Storage",
-      "type": "string",
-      "default": "local",
-      "description": "Proxmox storage where the OCI image should be stored",
-      "advanced": true
-    },
-    {
-      "id": "registry_username",
-      "name": "Registry Username",
-      "type": "string",
-      "description": "Username for registry authentication (optional, required for private images)",
-      "advanced": true
-    },
-    {
-      "id": "registry_password",
-      "name": "Registry Password",
-      "type": "string",
-      "description": "Password for registry authentication (optional, required for private images)",
-      "advanced": true
-    },
-    {
-      "id": "registry_token",
-      "name": "Registry Token",
-      "type": "string",
-      "description": "Bearer token for registry authentication (optional, alternative to username/password)",
-      "advanced": true
-    },
-    {
-      "id": "platform",
-      "name": "Platform",
-      "type": "string",
-      "description": "Target platform (e.g., linux/amd64, linux/arm64). Auto-detects if not specified.",
-      "advanced": true
-    },
-    {
-      "id": "target_versions",
-      "name": "Target Versions",
-      "type": "string",
-      "required": false,
-      "description": "Comma-separated service=version pairs. For OCI-image apps: main=version to pull a specific tag."
-    }
+    "oci_image",
+    "oci_image_tag",
+    "storage",
+    "platform",
+    "target_versions",
+    "registry_username",
+    "registry_password",
+    "registry_token"
   ],
   "commands": [
     {

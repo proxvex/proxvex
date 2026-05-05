@@ -1,63 +1,25 @@
 {
   "name": "OIDC Authentication",
   "description": "Enable OpenID Connect authentication via Zitadel. Automatically creates an OIDC client in Zitadel and provides credentials as template variables.",
-  "tags": ["security", "authentication"],
+  "tags": [
+    "security",
+    "authentication"
+  ],
   "stacktype": "oidc",
-
   "parameters": [
+    "oidc_app_name",
+    "oidc_project_name",
+    "oidc_client_id",
+    "oidc_client_secret",
+    "oidc_issuer_url",
+    "oidc_callback_path"
+  ],
+  "dependencies": [
     {
-      "id": "oidc_app_name",
-      "name": "OIDC Application Name",
-      "type": "string",
-      "required": false,
-      "description": "Name of the OIDC application in Zitadel (defaults to hostname). Used when the deployer can talk to the Zitadel Management API to auto-create or look up the client."
-    },
-    {
-      "id": "oidc_project_name",
-      "name": "Zitadel Project Name",
-      "type": "string",
-      "required": false,
-      "description": "Name of the Zitadel project for this application (defaults to hostname). Used for auto-provisioning via the Zitadel Management API."
-    },
-    {
-      "id": "oidc_client_id",
-      "name": "OIDC Client ID",
-      "type": "string",
-      "required": false,
-      "description": "Existing OIDC client ID from Zitadel. Provide together with Client Secret and Issuer URL when auto-provisioning via the Zitadel Management API is not available (e.g. deployer OIDC login is disabled or pointing at an external Zitadel)."
-    },
-    {
-      "id": "oidc_client_secret",
-      "name": "OIDC Client Secret",
-      "type": "string",
-      "required": false,
-      "secure": true,
-      "description": "OIDC client secret matching the Client ID above."
-    },
-    {
-      "id": "oidc_issuer_url",
-      "name": "OIDC Issuer URL",
-      "type": "string",
-      "required": false,
-      "description": "OIDC issuer URL (e.g. https://zitadel.example.com). Required together with Client ID and Secret for the manual entry mode."
-    },
-    {
-      "id": "oidc_callback_path",
-      "name": "Callback Path",
-      "type": "string",
-      "required": false,
-      "default": "/auth/strategy/callback",
-      "advanced": true,
-      "description": "OIDC callback path appended to the application URL"
+      "application": "zitadel"
     }
   ],
-
-  "dependencies": [
-    { "application": "zitadel" }
-  ],
-
   "properties": [],
-
   "installation": {
     "pre_start": [
       "150-conf-setup-oidc-client.json",
@@ -68,10 +30,8 @@
       "355-post-configure-oidc-app.json"
     ]
   },
-
   "reconfigure": {
     "pre_start": [
-
       "150-conf-setup-oidc-client.json",
       "162-conf-configure-oidc-app.json"
     ],
@@ -80,12 +40,10 @@
       "355-post-configure-oidc-app.json"
     ]
   },
-
   "disable": {
     "pre_start": [
       "162-conf-disable-oidc-app.json"
     ]
   },
-
   "notes_key": "oidc"
 }

@@ -174,13 +174,16 @@ export class AddonService {
       }
     }
 
-    if (parameters.length === 0) {
+    // Internal parameters never reach the UI — strip them from the response.
+    const visible = parameters.filter((p) => !p.internal);
+
+    if (visible.length === 0) {
       return addon;
     }
 
     return {
       ...addon,
-      parameters,
+      parameters: visible,
     };
   }
 

@@ -6,87 +6,16 @@
     "upload_modbus2mqtt_config_content"
   ],
   "parameters": [
-    {
-      "id": "upload_modbus2mqtt_config_content",
-      "name": "modbus2mqtt config",
-      "type": "string",
-      "upload": true,
-      "required": false,
-      "advanced": false,
-      "description": "modbus2mqtt configuration file (YAML). Includes MQTT broker host/port and TLS cert paths."
-    },
-    {
-      "id": "rest_url",
-      "name": "REST Base URL",
-      "type": "string",
-      "default": "https://localhost:{{ https_port }}",
-      "advanced": true,
-      "description": "Base URL of the application REST API (relative to the container)."
-    },
-    {
-      "id": "rest_path",
-      "name": "REST Endpoint Path",
-      "type": "string",
-      "default": "/api/admin/config",
-      "advanced": true,
-      "description": "Path of the config-upload endpoint."
-    },
-    {
-      "id": "rest_payload_b64",
-      "name": "REST Payload (base64)",
-      "type": "string",
-      "default": "{{ upload_modbus2mqtt_config_content }}",
-      "advanced": true,
-      "description": "Base64-encoded payload. Defaults to the uploaded config content."
-    },
-    {
-      "id": "rest_content_type",
-      "name": "REST Content-Type",
-      "type": "string",
-      "default": "application/yaml",
-      "advanced": true,
-      "description": "Content-Type header sent with the POST."
-    },
-    {
-      "id": "rest_health_path",
-      "name": "Health Endpoint Path",
-      "type": "string",
-      "default": "/api/health",
-      "advanced": true,
-      "description": "Path polled until the application reports readiness."
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "required": true,
-      "description": "Application HTTPS port inside the container."
-    },
-    {
-      "id": "oidc_issuer_url",
-      "name": "OIDC Issuer URL",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Zitadel issuer for OIDC fallback (provided by addon-oidc)."
-    },
-    {
-      "id": "oidc_client_id",
-      "name": "OIDC Client ID",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "OIDC client ID for client_credentials fallback (provided by addon-oidc)."
-    },
-    {
-      "id": "oidc_client_secret",
-      "name": "OIDC Client Secret",
-      "type": "string",
-      "required": false,
-      "secure": true,
-      "advanced": true,
-      "description": "OIDC client secret for client_credentials fallback (provided by addon-oidc)."
-    }
+    "upload_modbus2mqtt_config_content",
+    "rest_url",
+    "rest_path",
+    "rest_payload_b64",
+    "rest_content_type",
+    "rest_health_path",
+    "https_port",
+    "oidc_issuer_url",
+    "oidc_client_id",
+    "oidc_client_secret"
   ],
   "commands": [
     {

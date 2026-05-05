@@ -2,22 +2,19 @@
   "execute_on": "ve",
   "name": "Check OIDC Enabled",
   "description": "Checks that OIDC is enabled on the deployer API (/api/auth/config).",
-  "skip_if_all_missing": ["check_oidc_enabled"],
+  "skip_if_all_missing": [
+    "check_oidc_enabled"
+  ],
   "parameters": [
-    {
-      "id": "check_oidc_enabled",
-      "name": "Check OIDC Enabled",
-      "type": "boolean",
-      "required": false,
-      "internal": true,
-      "description": "Set to true to verify OIDC is enabled on this deployer instance."
-    }
+    "check_oidc_enabled"
   ],
   "commands": [
     {
       "name": "Check OIDC Enabled",
       "script": "host-check-oidc-enabled.sh",
-      "outputs": ["check_oidc_enabled_result"]
+      "outputs": [
+        "check_oidc_enabled_result"
+      ]
     }
   ]
 }
