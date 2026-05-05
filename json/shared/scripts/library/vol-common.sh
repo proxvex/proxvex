@@ -733,8 +733,59 @@ vol_unlink_persistent() {
     esac
     if [ -n "$_vol_clean" ] && [ "$_vol_clean" != "$_vol_name" ]; then
       _vol_type=$(vol_get_storage_type "$_vol_stor")
-      if vol_rename "$_vol_stor" "$_vol_mpsrc" "$_vol_clean" "$_vol_type" >/dev/null 2>&1; then
+      _vol_rename_out=$(vol_rename "$_vol_stor" "$_vol_mpsrc" "$_vol_clean" "$_vol_type" 2>&1)
+      if [ $? -eq 0 ]; then
         echo "Renamed volume to clean name: $_vol_clean" >&2
+      else
+        # Rename failed. The common cause in reconfigure-cascades over the
+        # same hostname (e.g. nginx default→reconf-on→reconf-off, where each
+        # step copies subvol-<vmid>-nginx-default-X) is that the destination
+        # was already promoted by an earlier unlink. Detect that case and
+        # delete the redundant source — otherwise it lingers as an
+        # orphan_unmounted volume and breaks the global Volume Consistency
+        # check for every subsequent test/install.
+        _vol_dest_exists=1
+        case "$_vol_type" in
+          zfspool)
+            _vol_pool=$(vol_get_zfs_pool "$_vol_stor")
+            [ -n "$_vol_pool" ] && zfs list -H -o name "${_vol_pool}/${_vol_clean}" >/dev/null 2>&1 \
+              && _vol_dest_exists=0
+            ;;
+          lvmthin|lvm)
+            _vol_vgname=$(vol_get_lvm_vgname "$_vol_stor")
+            [ -n "$_vol_vgname" ] && lvs --noheadings "${_vol_vgname}/${_vol_clean}" >/dev/null 2>&1 \
+              && _vol_dest_exists=0
+            ;;
+          dir)
+            _vol_base=$(vol_get_dir_path "$_vol_stor")
+            { [ -e "${_vol_base}/images/shared/${_vol_clean}" ] \
+              || [ -e "${_vol_base}/images/${_vol_clean}" ]; } && _vol_dest_exists=0
+            ;;
+        esac
+
+        if [ $_vol_dest_exists -eq 0 ]; then
+          echo "Rename collision: ${_vol_stor}:${_vol_clean} already exists; deleting redundant source ${_vol_mpsrc}" >&2
+          case "$_vol_type" in
+            zfspool)
+              if ! zfs destroy -r "${_vol_pool}/${_vol_name}" 2>&1 >&2; then
+                echo "WARNING: could not destroy redundant ZFS dataset ${_vol_pool}/${_vol_name}; will surface as orphan_unmounted" >&2
+              fi
+              ;;
+            lvmthin|lvm)
+              if ! lvremove -f "${_vol_vgname}/${_vol_name}" 2>&1 >&2; then
+                echo "WARNING: could not lvremove redundant LV ${_vol_vgname}/${_vol_name}; will surface as orphan_unmounted" >&2
+              fi
+              ;;
+            dir)
+              _vol_old_vmid_d=$(echo "$_vol_name" | sed -E 's/^(subvol|vm)-([0-9]+)-.*/\2/')
+              if ! rm -rf "${_vol_base}/images/${_vol_old_vmid_d}/${_vol_name}" 2>&1 >&2; then
+                echo "WARNING: could not delete redundant dir volume ${_vol_name}" >&2
+              fi
+              ;;
+          esac
+        else
+          echo "WARNING: vol_rename ${_vol_mpsrc} -> ${_vol_clean} failed: ${_vol_rename_out}" >&2
+        fi
       fi
     fi
   done
