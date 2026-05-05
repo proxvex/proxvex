@@ -256,7 +256,14 @@ nested_ssh "
     else
         mkdir -p /usr/local/share/ca-certificates
         mv \"\$TMP\" \"\$CA_TARGET\"
+        chmod 644 \"\$CA_TARGET\"
         update-ca-certificates >/dev/null 2>&1
+        # Docker (Go) caches the system CA pool at daemon start; restart so
+        # subsequent pulls through the mirror validate the proxvex-signed cert.
+        if systemctl is-active --quiet docker; then
+            systemctl restart docker
+            for i in \$(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+        fi
         echo '  CA installed and trust store updated'
     fi
 "

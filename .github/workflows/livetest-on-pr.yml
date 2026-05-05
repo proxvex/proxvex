@@ -5,13 +5,18 @@ name: Livetest (non-blocking)
 # runner is offline (skipped) or when tests fail (continue-on-error).
 #
 # Triggers:
-#   - pull_request: on changes to code paths that could affect runtime behaviour
+#   - pull_request_target: on changes to code paths that could affect runtime
+#                          behaviour. We use *_target (not pull_request) so the
+#                          workflow runs in the base-repo context and has access
+#                          to repo/environment secrets — fork PRs cannot read
+#                          secrets under plain `pull_request`. PR code is
+#                          explicitly checked out via the head SHA where needed.
 #   - workflow_dispatch: manual run from the GitHub UI (branch picker is
 #                        provided by GitHub natively; choose branch + optional
 #                        test filter and click "Run workflow")
 
 on:
-  pull_request:
+  pull_request_target:
     paths:
       - backend/**
       - frontend/**
@@ -86,6 +91,8 @@ jobs:
         with:
           fetch-depth: 0
           filter: 'blob:none'
+          # pull_request_target defaults to base ref; we need PR head for the diff.
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -151,7 +158,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref }}
+          # workflow_dispatch: use selected branch.
+          # pull_request_target: explicitly check out the PR head, otherwise we'd
+          # test the base ref instead of the PR contents.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.pull_request.head.sha }}
 
       - name: Materialize e2e/config.json from secret
         env:
