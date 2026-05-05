@@ -126,7 +126,7 @@ jobs:
           git diff --name-only "origin/${{ github.base_ref }}...HEAD" > /tmp/changed.txt
           printf '%s' "$PR_BODY" > /tmp/body.md
 
-          npx tsx tests/livetests/src/compute-affected-tests.mts \
+          npx tsx backend/tests/livetests/src/compute-affected-tests.mts \
             --diff /tmp/changed.txt \
             --pr-body /tmp/body.md \
             --out /tmp/result.json \
