@@ -86,6 +86,13 @@ else
     echo "No nested-VM SSH key found at $SECRETS_DIR/nested_vm_id_ed25519 — runner -> nested-VM will fail"
 fi
 
+# SSH user for outer-host operations (qm snapshot/start/stop on PVE host).
+# A dedicated proxvex-runner user with PVE role LivetestRunner exists on the
+# PVE host; running outer-host SSH as this user instead of root is Phase A0
+# of the runner-privilege reduction. Override via env in the LXC config if
+# the operator setup has not been completed.
+export PVE_SSH_USER="${PVE_SSH_USER:-proxvex-runner}"
+
 RUNNER_NAME="${RUNNER_NAME:-$(hostname)}"
 LABELS="${LABELS:-self-hosted,linux,x64}"
 RUNNER_WORKDIR="${RUNNER_WORKDIR:-/tmp/runner-work}"

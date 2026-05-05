@@ -59,10 +59,76 @@ export class SnapshotManager {
 
   /** SSH to the outer PVE host (port 22) for qm commands */
   private outerSsh(cmd: string, timeout = 60000): string {
+    const user = process.env.PVE_SSH_USER || "root";
     return execSync(
-      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 root@${this.outerPveHost} ${JSON.stringify(cmd)}`,
+      `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 ${user}@${this.outerPveHost} ${JSON.stringify(cmd)}`,
       { timeout, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
     ).trim();
+  }
+
+  /** Whether to drive qm via the PVE REST API (Phase A1) instead of SSH. */
+  private get useApi(): boolean {
+    return process.env.PVE_USE_API === "1"
+      && !!process.env.PVE_API_TOKEN_ID
+      && !!process.env.PVE_API_TOKEN_SECRET;
+  }
+
+  private apiNode(): string {
+    return process.env.PVE_NODE || this.outerPveHost;
+  }
+
+  /** Authenticated curl against the PVE REST API. Returns stdout text. */
+  private apiCurl(args: string[], timeout = 60000): string {
+    const ca = process.env.PVE_API_CA || "/etc/pve/pve-root-ca.pem";
+    const tokenHeader = `Authorization: PVEAPIToken=${process.env.PVE_API_TOKEN_ID}=${process.env.PVE_API_TOKEN_SECRET}`;
+    const caArg = ca === "-" ? ["-k"] : ["--cacert", ca];
+    const argv = ["curl", "-fsS", ...caArg, "-H", tokenHeader, ...args]
+      .map((a) => JSON.stringify(a)).join(" ");
+    return execSync(argv, { timeout, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+  }
+
+  /** Poll task status until stopped; throws on failure or timeout (s). */
+  private apiWaitTask(upid: string, timeoutS = 300): void {
+    const url = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/tasks/${encodeURIComponent(upid)}/status`;
+    const end = Date.now() + timeoutS * 1000;
+    while (Date.now() < end) {
+      try {
+        const body = this.apiCurl([url], 10000);
+        const parsed = JSON.parse(body) as { data?: { status?: string; exitstatus?: string } };
+        if (parsed.data?.status === "stopped") {
+          const exitstatus = parsed.data.exitstatus ?? "OK";
+          // OK and WARNINGS: ... are both successful task completions in PVE.
+          if (exitstatus !== "OK" && !exitstatus.startsWith("WARNINGS:")) {
+            throw new Error(`PVE task ${upid} failed: ${exitstatus}`);
+          }
+          return;
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("PVE task")) throw err;
+        // transient curl/parse error — retry
+      }
+      execSync("sleep 1");
+    }
+    throw new Error(`PVE task ${upid} timeout after ${timeoutS}s`);
+  }
+
+  /** List snapshots (API or SSH). Returns `{name, description}` per entry. */
+  private listSnapshots(): { name: string; description: string }[] {
+    if (this.useApi) {
+      const url = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/qemu/${this.nestedVmId}/snapshot`;
+      const body = this.apiCurl([url]);
+      const parsed = JSON.parse(body) as { data: { name: string; description?: string }[] };
+      return parsed.data.map((s) => ({ name: s.name, description: s.description ?? "" }));
+    }
+    const out = this.outerSsh(`qm listsnapshot ${this.nestedVmId}`, 15000);
+    const result: { name: string; description: string }[] = [];
+    for (const line of out.split("\n")) {
+      const m = line.match(/[`|]\->\s+(\S+)\s+\S+\s+\S+(?:\s+(.+))?$/);
+      if (m && m[1] !== "current") {
+        result.push({ name: m[1], description: (m[2] ?? "").trim() });
+      }
+    }
+    return result;
   }
 
   /** SSH to the nested PVE VM (via port-forwarded port) */
@@ -92,11 +158,7 @@ export class SnapshotManager {
   /** Check if a host-PVE qm snapshot with this name exists for the nested VM */
   exists(name: string): boolean {
     try {
-      this.outerSsh(
-        `qm listsnapshot ${this.nestedVmId} | grep -q ' ${name} \\| ${name}$'`,
-        15000,
-      );
-      return true;
+      return this.listSnapshots().some((s) => s.name === name);
     } catch {
       return false;
     }
@@ -168,17 +230,34 @@ export class SnapshotManager {
 
     // Idempotent: drop existing snapshot with same name
     try {
-      this.outerSsh(
-        `qm delsnapshot ${this.nestedVmId} ${name} 2>/dev/null; true`,
-        30000,
-      );
+      if (this.exists(name)) {
+        if (this.useApi) {
+          const url = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/qemu/${this.nestedVmId}/snapshot/${name}`;
+          const upid = JSON.parse(this.apiCurl(["-X", "DELETE", url], 30000)).data;
+          this.apiWaitTask(upid, 60);
+        } else {
+          this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${name}`, 30000);
+        }
+      }
     } catch { /* ignore */ }
 
     const desc = buildHash ? `build:${buildHash}` : "livetest";
-    this.outerSsh(
-      `qm snapshot ${this.nestedVmId} ${name} --vmstate 0 --description ${JSON.stringify(desc)}`,
-      60000,
-    );
+    if (this.useApi) {
+      const url = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/qemu/${this.nestedVmId}/snapshot`;
+      const upid = JSON.parse(this.apiCurl([
+        "-X", "POST",
+        "--data-urlencode", `snapname=${name}`,
+        "--data-urlencode", "vmstate=0",
+        "--data-urlencode", `description=${desc}`,
+        url,
+      ], 60000)).data;
+      this.apiWaitTask(upid, 600);
+    } else {
+      this.outerSsh(
+        `qm snapshot ${this.nestedVmId} ${name} --vmstate 0 --description ${JSON.stringify(desc)}`,
+        60000,
+      );
+    }
 
     this.saveContextSnapshot(`after-create-${name}`);
     this.log(`Snapshot @${name} created`);
@@ -197,18 +276,19 @@ export class SnapshotManager {
     // Delete snapshots newer than target — qm rollback requires the target
     // snapshot to be the most recent one in the chain.
     try {
-      const snapList = this.outerSsh(`qm listsnapshot ${this.nestedVmId}`, 15000);
-      const allNames: string[] = [];
-      for (const line of snapList.split("\n")) {
-        const m = line.match(/[`|]\->\s+(\S+)/);
-        if (m && m[1] !== "current") allNames.push(m[1]);
-      }
+      const allNames = this.listSnapshots().map((s) => s.name);
       const targetIdx = allNames.indexOf(name);
       if (targetIdx >= 0) {
         for (let i = allNames.length - 1; i > targetIdx; i--) {
           this.log(`Deleting newer snapshot @${allNames[i]}`);
           try {
-            this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${allNames[i]}`, 30000);
+            if (this.useApi) {
+              const url = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/qemu/${this.nestedVmId}/snapshot/${allNames[i]}`;
+              const upid = JSON.parse(this.apiCurl(["-X", "DELETE", url], 30000)).data;
+              this.apiWaitTask(upid, 60);
+            } else {
+              this.outerSsh(`qm delsnapshot ${this.nestedVmId} ${allNames[i]}`, 30000);
+            }
           } catch { /* ignore */ }
         }
       }
@@ -217,13 +297,27 @@ export class SnapshotManager {
     }
 
     try {
-      this.outerSsh(`qm stop ${this.nestedVmId}`, 60000);
+      if (this.useApi) {
+        const url = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/qemu/${this.nestedVmId}/status/stop`;
+        const upid = JSON.parse(this.apiCurl(["-X", "POST", url], 60000)).data;
+        this.apiWaitTask(upid, 60);
+      } else {
+        this.outerSsh(`qm stop ${this.nestedVmId}`, 60000);
+      }
     } catch {
       this.log("Warning: qm stop failed (may already be stopped)");
     }
 
-    this.outerSsh(`qm rollback ${this.nestedVmId} ${name}`, 120000);
-    this.outerSsh(`qm start ${this.nestedVmId}`, 30000);
+    if (this.useApi) {
+      const baseUrl = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/qemu/${this.nestedVmId}`;
+      const rollbackUpid = JSON.parse(this.apiCurl(["-X", "POST", `${baseUrl}/snapshot/${name}/rollback`], 120000)).data;
+      this.apiWaitTask(rollbackUpid, 180);
+      const startUpid = JSON.parse(this.apiCurl(["-X", "POST", `${baseUrl}/status/start`], 30000)).data;
+      this.apiWaitTask(startUpid, 60);
+    } else {
+      this.outerSsh(`qm rollback ${this.nestedVmId} ${name}`, 120000);
+      this.outerSsh(`qm start ${this.nestedVmId}`, 30000);
+    }
     this.waitForNestedVm();
 
     this.restoreContext();
@@ -238,13 +332,8 @@ export class SnapshotManager {
   matchesBuild(name: string, buildHash?: string): boolean {
     if (!buildHash) return true;
     try {
-      const output = this.outerSsh(`qm listsnapshot ${this.nestedVmId}`, 15000);
-      for (const line of output.split("\n")) {
-        if (line.includes(` ${name} `) || line.includes(` ${name}\t`)) {
-          return line.includes(`build:${buildHash}`);
-        }
-      }
-      return false;
+      const snap = this.listSnapshots().find((s) => s.name === name);
+      return !!snap && snap.description.includes(`build:${buildHash}`);
     } catch {
       return false;
     }

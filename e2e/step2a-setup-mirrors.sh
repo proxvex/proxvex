@@ -91,9 +91,12 @@ header() {
 nested_ssh() {
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
 }
-pve_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 "root@$PVE_HOST" "$@"
-}
+
+# Source the pve-ops abstraction so qm calls go through PVE_USE_API toggle.
+# After Phase A2 step2a has no outer-host SSH at all — qm via API, CA was
+# baked into the baseline by step1, mirror checks happen via nested_ssh.
+# shellcheck source=lib/pve-ops.sh
+. "$SCRIPT_DIR/lib/pve-ops.sh"
 
 header "Step 2a: Install Docker + registry mirrors on nested VM"
 echo "Instance:   $E2E_INSTANCE"
@@ -128,7 +131,7 @@ SCHEMA_VERSION="v3-ghcr-on-outer"
 # A schema mismatch forces a rebuild even if versions.sh is unchanged, so a
 # topology change like the dockerhub-mirror migration is picked up automatically.
 if [ "$FORCE" != "true" ]; then
-    snap_desc=$(pve_ssh "qm listsnapshot $TEST_VMID 2>/dev/null" | grep -E 'mirrors-ready[[:space:]]' || true)
+    snap_desc=$(pve_qm_snapshot_description "$TEST_VMID" mirrors-ready || true)
     if echo "$snap_desc" | grep -q "versions-hash=${VERSIONS_HASH}" \
         && echo "$snap_desc" | grep -q "schema=${SCHEMA_VERSION}"; then
         info "mirrors-ready already reflects current versions.sh (hash=${VERSIONS_HASH}, schema=${SCHEMA_VERSION}) — nothing to do"
@@ -138,19 +141,19 @@ fi
 
 # Step 1: Rollback to baseline snapshot (clean state from step1)
 info "Rolling back to baseline snapshot for clean mirror setup..."
-if ! pve_ssh "qm listsnapshot $TEST_VMID 2>/dev/null | grep -q baseline"; then
+if ! pve_qm_snapshot_exists "$TEST_VMID" baseline; then
     error "baseline snapshot missing on VM $TEST_VMID — run step1-create-vm.sh first"
 fi
-pve_ssh "qm shutdown $TEST_VMID --timeout 30" 2>/dev/null || true
+pve_qm_shutdown "$TEST_VMID" 30 2>/dev/null || true
 for i in $(seq 1 30); do
-    pve_ssh "qm status $TEST_VMID 2>/dev/null" | grep -q stopped && break
+    pve_qm_is_stopped "$TEST_VMID" && break
     sleep 1
 done
 # Drop downstream snapshots so rollback to baseline is allowed.
-pve_ssh "qm delsnapshot $TEST_VMID deployer-installed 2>/dev/null || true"
-pve_ssh "qm delsnapshot $TEST_VMID mirrors-ready 2>/dev/null || true"
-pve_ssh "qm rollback $TEST_VMID baseline"
-pve_ssh "qm start $TEST_VMID"
+pve_qm_snapshot_delete "$TEST_VMID" deployer-installed
+pve_qm_snapshot_delete "$TEST_VMID" mirrors-ready
+pve_qm_snapshot_rollback "$TEST_VMID" baseline
+pve_qm_start "$TEST_VMID"
 success "Rolled back to baseline"
 
 # Step 2: Wait for SSH
@@ -223,11 +226,11 @@ nested_ssh "docker image inspect distribution/distribution:3.0.0 >/dev/null 2>&1
 success "Mirror image available"
 
 # Step 3.5: Verify production Docker Hub mirror reachability from the nested
-# VM and push the proxvex CA into the nested VM's trust store. The production
-# mirror at 192.168.4.45 presents a TLS cert signed by the proxvex CA with
-# SANs registry-1.docker.io / index.docker.io, so we need both: routing (the
-# pre-flight curl) and trust (the CA install).
-header "Verifying production Docker Hub mirror + installing proxvex CA"
+# VM. The production mirror at 192.168.4.45 presents a TLS cert signed by
+# the proxvex CA. The CA was baked into the nested VM's trust store at
+# baseline creation time (step1-create-vm.sh, Phase A2), so no runtime CA
+# distribution from the outer host is needed here.
+header "Verifying production Docker Hub mirror"
 PROD_MIRROR_IP="192.168.4.45"
 nested_ssh "curl -ksf --connect-timeout 5 https://$PROD_MIRROR_IP/v2/ >/dev/null" \
     || error "Production Docker Hub mirror at $PROD_MIRROR_IP unreachable from nested VM.
@@ -237,37 +240,20 @@ nested_ssh "curl -ksf --connect-timeout 5 https://$PROD_MIRROR_IP/v2/ >/dev/null
       on PVE host should cover this — see step1-create-vm.sh).
     - production/setup-production.sh --step 5 must have completed."
 
-CA_HOST_PATH="/usr/local/share/ca-certificates/proxvex-ca.crt"
-pve_ssh "[ -f $CA_HOST_PATH ]" \
-    || error "proxvex CA missing on PVE host at $CA_HOST_PATH.
-    Run production/setup-pve-host.sh \$PVE_HOST first."
-CA_B64=$(pve_ssh "base64 < $CA_HOST_PATH | tr -d '\n'")
-[ -n "$CA_B64" ] || error "proxvex CA on PVE host is empty"
-
-# Idempotent install: only run update-ca-certificates if the cert content
-# changed. Same pattern as production/setup-pve-host.sh:103-117.
+# Validate the proxvex CA is in the nested VM trust store (set up at
+# baseline). If it's missing the baseline pre-dates Phase A2 — re-run
+# step1-create-vm.sh to refresh, or for a one-off patch:
+#   ssh root@$PVE_HOST "base64 < $CA_HOST_PATH" | nested_ssh "base64 -d > /usr/local/share/ca-certificates/proxvex-ca.crt && update-ca-certificates"
+nested_ssh "[ -f /usr/local/share/ca-certificates/proxvex-ca.crt ]" \
+    || error "proxvex CA missing in nested VM trust store. Re-run step1-create-vm.sh or manually patch the baseline."
 nested_ssh "
-    CA_TARGET=/usr/local/share/ca-certificates/proxvex-ca.crt
-    TMP=\$(mktemp)
-    printf '%s' '$CA_B64' | base64 -d > \"\$TMP\"
-    if [ -f \"\$CA_TARGET\" ] && cmp -s \"\$TMP\" \"\$CA_TARGET\"; then
-        rm -f \"\$TMP\"
-        echo '  CA unchanged'
-    else
-        mkdir -p /usr/local/share/ca-certificates
-        mv \"\$TMP\" \"\$CA_TARGET\"
-        chmod 644 \"\$CA_TARGET\"
-        update-ca-certificates >/dev/null 2>&1
-        # Docker (Go) caches the system CA pool at daemon start; restart so
-        # subsequent pulls through the mirror validate the proxvex-signed cert.
-        if systemctl is-active --quiet docker; then
-            systemctl restart docker
-            for i in \$(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
-        fi
-        echo '  CA installed and trust store updated'
+    if systemctl is-active --quiet docker; then
+        # docker caches the system CA pool at daemon start — make sure the
+        # baseline-installed CA is loaded before any pull through the mirror.
+        update-ca-certificates >/dev/null 2>&1 || true
     fi
 "
-success "Production mirror reachable; proxvex CA in nested VM trust store"
+success "Production mirror reachable; proxvex CA already trusted in nested VM"
 
 # Step 4: Verify the ghcr.io mirror on the outer PVE host is reachable.
 # As of schema v3-ghcr-on-outer the ghcr-mirror lives outside the nested VM
@@ -415,19 +401,19 @@ fi
 # Step 7: Snapshot — VM must be stopped for a clean snapshot.
 header "Creating 'mirrors-ready' snapshot"
 info "Stopping nested VM $TEST_VMID..."
-pve_ssh "qm shutdown $TEST_VMID --timeout 60"
+pve_qm_shutdown "$TEST_VMID" 60
 for i in $(seq 1 60); do
-    pve_ssh "qm status $TEST_VMID 2>/dev/null | grep -q stopped" 2>/dev/null && break
+    pve_qm_is_stopped "$TEST_VMID" && break
     sleep 1
 done
-pve_ssh "qm status $TEST_VMID 2>/dev/null | grep -q stopped" 2>/dev/null \
+pve_qm_is_stopped "$TEST_VMID" \
     || error "VM $TEST_VMID did not shut down cleanly — cannot create reliable snapshot"
 
-pve_ssh "qm delsnapshot $TEST_VMID mirrors-ready 2>/dev/null || true"
-pve_ssh "qm snapshot $TEST_VMID mirrors-ready --description 'Nested VM with Docker + production-mirror trust + ghcr.io mirror; versions-hash=${VERSIONS_HASH}; schema=${SCHEMA_VERSION}'"
+pve_qm_snapshot_delete "$TEST_VMID" mirrors-ready
+pve_qm_snapshot_create "$TEST_VMID" mirrors-ready "Nested VM with Docker + production-mirror trust + ghcr.io mirror; versions-hash=${VERSIONS_HASH}; schema=${SCHEMA_VERSION}"
 success "Snapshot 'mirrors-ready' created (versions-hash=${VERSIONS_HASH}, schema=${SCHEMA_VERSION})"
 
-pve_ssh "qm start $TEST_VMID"
+pve_qm_start "$TEST_VMID"
 
 TOTAL_TIME=$(elapsed)
 echo ""

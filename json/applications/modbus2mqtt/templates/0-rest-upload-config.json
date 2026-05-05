@@ -1,5 +1,5 @@
 {
-  "name": "Upload modbus2mqtt local settings",
+  "name": "Upload modbus2mqtt settings",
   "description": "POSTs a 'Download Local Settings' ZIP (busses, slaves, local specifications) to the application's import endpoint after start. Bootstrap-only: refused with 409 if the local config dir is already populated. Tries unauthenticated first; on 401 falls back to OIDC client_credentials.",
   "execute_on": "lxc",
   "skip_if_all_missing": [
