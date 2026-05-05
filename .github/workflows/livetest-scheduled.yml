@@ -76,16 +76,27 @@ jobs:
     steps:
       - name: Probe self-hosted runner status
         id: probe
+        # RUNNER_CHECK_PAT: fine-grained PAT with "Administration: Read" on the
+        # repo. The auto-issued GITHUB_TOKEN cannot list runners (Administration
+        # scope is not grantable via `permissions:`), hence a separate secret.
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RUNNER_CHECK_PAT }}
         run: |
-          set -e
-          count=$(gh api "/repos/${{ github.repository }}/actions/runners" --paginate \
-            | jq '[.runners[]
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "RUNNER_CHECK_PAT secret not set — livetest will be skipped."
+            echo "runner_online=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! response=$(gh api "/repos/${{ github.repository }}/actions/runners" --paginate 2>&1); then
+            echo "gh api call failed: $response"
+            echo "runner_online=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          count=$(printf '%s' "$response" | jq '[.runners[]
                    | select(.status == "online")
                    | select(.labels[].name == "ubuntupve")] | length')
           echo "Online ubuntupve runners: $count"
-          if [ "$count" -gt 0 ]; then
+          if [ "${count:-0}" -gt 0 ]; then
             echo "runner_online=true" >> "$GITHUB_OUTPUT"
           else
             echo "runner_online=false" >> "$GITHUB_OUTPUT"
