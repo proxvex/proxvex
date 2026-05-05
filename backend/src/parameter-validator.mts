@@ -166,9 +166,10 @@ export class ParameterValidator {
         }
 
         // Check the addon's own required:true parameters have a value.
-        // Mirrors the application-level required check (lines 52-70) so addons
-        // with required inputs (e.g. addon-acme's acme_san) fail deploy-time
-        // validation instead of silently skipping at pre_start time.
+        // Mirrors the application-level required check above (including the
+        // default-fallback) so addons with required inputs (e.g. addon-acme's
+        // acme_san) fail deploy-time validation instead of silently skipping
+        // at pre_start time.
         const addon = availableAddons.find((a) => a.id === addonId);
         if (addon?.parameters?.length) {
           for (const def of addon.parameters) {
@@ -178,7 +179,13 @@ export class ParameterValidator {
               if (!condValue || condValue === "false" || condValue === "0")
                 continue;
             }
-            const value = paramMap.get(def.id);
+            // Same default-fallback as the application-level check: a
+            // parameter that declares `default: "..."` is considered set
+            // even when no explicit value was provided.
+            let value: unknown = paramMap.get(def.id);
+            if (value === undefined && def.default !== undefined && def.default !== "") {
+              value = def.default;
+            }
             if (value === undefined || value === "" || value === null) {
               errors.push({
                 field: def.id,
