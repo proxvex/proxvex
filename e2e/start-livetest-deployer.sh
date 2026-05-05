@@ -112,9 +112,14 @@ if [ "$REFRESH_HUB" = "true" ]; then
   ( cd "$PROJECT_ROOT" && docker build --platform linux/amd64 -t "$DOCKER_TAG" -f docker/Dockerfile.npm-pack . >&2 ) \
     || err "docker build failed"
   OCI_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-local.oci.tar"
-  rm -f "$OCI_TARBALL"
-  skopeo copy "docker-daemon:${DOCKER_TAG}" "oci-archive:${OCI_TARBALL}:latest" >&2 \
+  DOCKER_SAVE_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-docker.tar"
+  rm -f "$OCI_TARBALL" "$DOCKER_SAVE_TARBALL"
+  # docker save → skopeo via docker-archive: avoids the live-daemon API path,
+  # which mismatches between Ubuntu 24.04's bundled skopeo (1.41) and dockerd (≥1.44).
+  docker save "$DOCKER_TAG" -o "$DOCKER_SAVE_TARBALL" || err "docker save failed"
+  skopeo copy "docker-archive:${DOCKER_SAVE_TARBALL}" "oci-archive:${OCI_TARBALL}:latest" >&2 \
     || err "skopeo copy failed"
+  rm -f "$DOCKER_SAVE_TARBALL"
 
   REMOTE_TARBALL="/tmp/proxvex-${E2E_INSTANCE}-redeploy.oci.tar"
   REMOTE_INSTALLER="/tmp/install-proxvex-${E2E_INSTANCE}.sh"
