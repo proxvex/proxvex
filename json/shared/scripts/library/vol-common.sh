@@ -733,8 +733,11 @@ vol_unlink_persistent() {
     esac
     if [ -n "$_vol_clean" ] && [ "$_vol_clean" != "$_vol_name" ]; then
       _vol_type=$(vol_get_storage_type "$_vol_stor")
-      _vol_rename_out=$(vol_rename "$_vol_stor" "$_vol_mpsrc" "$_vol_clean" "$_vol_type" 2>&1)
-      if [ $? -eq 0 ]; then
+      # `set -e` in callers (e.g. replace-ct.sh) would abort on a non-zero
+      # vol_rename. Capture stderr+stdout AND the rc in a single expression
+      # so the `||` keeps `set -e` from triggering before we can branch.
+      _vol_rename_out=$(vol_rename "$_vol_stor" "$_vol_mpsrc" "$_vol_clean" "$_vol_type" 2>&1) && _vol_rename_rc=0 || _vol_rename_rc=$?
+      if [ "$_vol_rename_rc" -eq 0 ]; then
         echo "Renamed volume to clean name: $_vol_clean" >&2
       else
         # Rename failed. The common cause in reconfigure-cascades over the
