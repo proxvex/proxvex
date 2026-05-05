@@ -6,7 +6,8 @@ on:
     branches: [main]
     paths:
       - 'e2e/infrastructure/github-runner/Dockerfile'
-      - 'e2e/infrastructure/github-runner/entrypoint.sh'
+      - 'e2e/infrastructure/github-runner/entrypoint-root.sh'
+      - 'e2e/infrastructure/github-runner/entrypoint-runner.sh'
       - 'e2e/infrastructure/github-runner/pvetest'
       - 'e2e/infrastructure/test-worker/Dockerfile'
       - 'e2e/infrastructure/test-worker/entrypoint.sh'

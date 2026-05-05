@@ -73,9 +73,12 @@ header() {
 nested_ssh() {
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
 }
-pve_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 "root@$PVE_HOST" "$@"
-}
+
+# Source the pve-ops abstraction so qm calls go through PVE_USE_API toggle.
+# After Phase A2 step2b has no outer-host SSH at all — qm via API, scp
+# directly into the nested VM through the port-forwarded SSH.
+# shellcheck source=lib/pve-ops.sh
+. "$SCRIPT_DIR/lib/pve-ops.sh"
 
 header "Step 2b: Install proxvex"
 echo "Instance:      $E2E_INSTANCE"
@@ -95,21 +98,21 @@ TMP_SCRIPTS_NAME="proxvex-scripts-${E2E_INSTANCE}.tar.gz"
 LOCAL_SCRIPTS_TARBALL="/tmp/${TMP_SCRIPTS_NAME}"
 
 # Step 1: Verify 'mirrors-ready' snapshot exists (hard requirement — see header).
-if ! pve_ssh "qm listsnapshot $TEST_VMID 2>/dev/null | grep -q 'mirrors-ready'"; then
+if ! pve_qm_snapshot_exists "$TEST_VMID" mirrors-ready; then
     error "'mirrors-ready' snapshot missing on VM $TEST_VMID — run ./step2a-setup-mirrors.sh $E2E_INSTANCE first"
 fi
 
 # Rollback to mirrors-ready for a clean, mirror-populated environment.
 info "Rolling back to 'mirrors-ready' snapshot..."
-pve_ssh "qm shutdown $TEST_VMID --timeout 30" 2>/dev/null || true
+pve_qm_shutdown "$TEST_VMID" 30 2>/dev/null || true
 for i in $(seq 1 30); do
-    pve_ssh "qm status $TEST_VMID 2>/dev/null" | grep -q stopped && break
+    pve_qm_is_stopped "$TEST_VMID" && break
     sleep 1
 done
 # Drop any existing deployer-installed snapshot — rollback requires it be absent.
-pve_ssh "qm delsnapshot $TEST_VMID deployer-installed 2>/dev/null || true"
-pve_ssh "qm rollback $TEST_VMID mirrors-ready"
-pve_ssh "qm start $TEST_VMID"
+pve_qm_snapshot_delete "$TEST_VMID" deployer-installed
+pve_qm_snapshot_rollback "$TEST_VMID" mirrors-ready
+pve_qm_start "$TEST_VMID"
 success "Rolled back to 'mirrors-ready'"
 
 # Step 2: Wait for SSH
@@ -162,35 +165,32 @@ skopeo copy \
     || error "skopeo copy failed"
 success "OCI-archive: $(ls -l "$OCI_TARBALL" | awk '{print $5}') bytes"
 
-# Step 5: Upload tarball to the nested VM (via PVE host) into /tmp.
-# install-proxvex.sh --tarball will stage it into the Proxmox template cache.
+# Step 5: Upload tarball directly into the nested VM /tmp via the
+# port-forwarded SSH ($PVE_HOST:$PORT_PVE_SSH lands inside the nested VM,
+# same path as nested_ssh()). No outer-host hop, no outer-host SSH.
 REMOTE_TARBALL="/tmp/${TMP_OCI_NAME}"
 info "Uploading $OCI_TARBALL → $NESTED_IP:$REMOTE_TARBALL ..."
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$OCI_TARBALL" "root@$PVE_HOST:/tmp/${TMP_OCI_NAME}" \
-    || error "scp to PVE host failed"
-pve_ssh "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/${TMP_OCI_NAME} root@$NESTED_IP:${REMOTE_TARBALL}" \
-    || error "scp from PVE host to nested VM failed"
-pve_ssh "rm -f /tmp/${TMP_OCI_NAME}" || true
+    -P "$PORT_PVE_SSH" \
+    "$OCI_TARBALL" "root@$PVE_HOST:${REMOTE_TARBALL}" \
+    || error "scp to nested VM failed"
 success "Tarball uploaded to $REMOTE_TARBALL (install-proxvex.sh will stage to cache)"
 
-# Step 6: Copy local install-proxvex.sh + shared scripts to the nested VM
-# (install-proxvex.sh's LOCAL_SCRIPT_PATH bypasses GitHub so the local fix
-# under test is what runs). All hop paths carry $E2E_INSTANCE.
+# Step 6: Copy local install-proxvex.sh + shared scripts directly to the
+# nested VM (install-proxvex.sh's LOCAL_SCRIPT_PATH bypasses GitHub so the
+# local fix under test is what runs).
 LOCAL_SCRIPT_PATH="/tmp/proxvex-scripts-${E2E_INSTANCE}"
 header "Copying install script + shared scripts to nested VM"
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -P "$PORT_PVE_SSH" \
     "$PROJECT_ROOT/install-proxvex.sh" "root@$PVE_HOST:/tmp/${TMP_INSTALL_NAME}" \
-    || error "Failed to copy install-proxvex.sh to PVE host"
-pve_ssh "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/${TMP_INSTALL_NAME} root@$NESTED_IP:/tmp/${TMP_INSTALL_NAME}" \
     || error "Failed to copy install-proxvex.sh to nested VM"
 
 tar -czf "$LOCAL_SCRIPTS_TARBALL" -C "$PROJECT_ROOT" json/shared/scripts \
     || error "Failed to create scripts tarball"
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -P "$PORT_PVE_SSH" \
     "$LOCAL_SCRIPTS_TARBALL" "root@$PVE_HOST:/tmp/${TMP_SCRIPTS_NAME}" \
-    || error "Failed to copy scripts tarball to PVE host"
-pve_ssh "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/${TMP_SCRIPTS_NAME} root@$NESTED_IP:/tmp/${TMP_SCRIPTS_NAME}" \
     || error "Failed to copy scripts tarball to nested VM"
 nested_ssh "mkdir -p $LOCAL_SCRIPT_PATH && tar -xzf /tmp/${TMP_SCRIPTS_NAME} -C $LOCAL_SCRIPT_PATH" \
     || error "Failed to extract shared scripts on nested VM"
@@ -276,19 +276,19 @@ success "Deployer API is responding"
 # Step 10: Snapshot — clean shutdown, then qm snapshot deployer-installed
 header "Creating 'deployer-installed' snapshot"
 info "Stopping nested VM $TEST_VMID..."
-pve_ssh "qm shutdown $TEST_VMID --timeout 60"
+pve_qm_shutdown "$TEST_VMID" 60
 for i in $(seq 1 60); do
-    pve_ssh "qm status $TEST_VMID 2>/dev/null | grep -q stopped" 2>/dev/null && break
+    pve_qm_is_stopped "$TEST_VMID" && break
     sleep 1
 done
-pve_ssh "qm status $TEST_VMID 2>/dev/null | grep -q stopped" 2>/dev/null \
+pve_qm_is_stopped "$TEST_VMID" \
     || error "VM $TEST_VMID did not shut down cleanly — cannot create reliable snapshot"
 
-pve_ssh "qm delsnapshot $TEST_VMID deployer-installed 2>/dev/null || true"
-pve_ssh "qm snapshot $TEST_VMID deployer-installed --description 'Nested VM with proxvex installed (step2b)'"
+pve_qm_snapshot_delete "$TEST_VMID" deployer-installed
+pve_qm_snapshot_create "$TEST_VMID" deployer-installed "Nested VM with proxvex installed (step2b)"
 success "Snapshot 'deployer-installed' created"
 
-pve_ssh "qm start $TEST_VMID"
+pve_qm_start "$TEST_VMID"
 info "Waiting for deployer API after restart..."
 api_ok=false
 for i in $(seq 1 60); do

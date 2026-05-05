@@ -1,6 +1,6 @@
 {
-  "name": "Upload modbus2mqtt config",
-  "description": "POSTs the modbus2mqtt configuration (YAML) to the application's admin REST endpoint after start. Tries unauthenticated first; on 401 falls back to OIDC client_credentials. MQTT broker connection details are embedded in the YAML — no separate MQTT-setup call.",
+  "name": "Upload modbus2mqtt settings",
+  "description": "POSTs a 'Download Local Settings' ZIP (busses, slaves, local specifications) to the application's import endpoint after start. Bootstrap-only: refused with 409 if the local config dir is already populated. Tries unauthenticated first; on 401 falls back to OIDC client_credentials.",
   "execute_on": "lxc",
   "skip_if_all_missing": [
     "upload_modbus2mqtt_config_content"
@@ -8,12 +8,12 @@
   "parameters": [
     {
       "id": "upload_modbus2mqtt_config_content",
-      "name": "modbus2mqtt config",
+      "name": "modbus2mqtt local settings ZIP",
       "type": "string",
       "upload": true,
       "required": false,
       "advanced": false,
-      "description": "modbus2mqtt configuration file (YAML). Includes MQTT broker host/port and TLS cert paths."
+      "description": "ZIP file produced by 'Download Local Settings' (https://<host>:<port>/specifications). Contains busses, slaves and local specifications. secrets.yaml is intentionally excluded — set MQTT credentials via the UI after first boot."
     },
     {
       "id": "rest_url",
@@ -27,9 +27,9 @@
       "id": "rest_path",
       "name": "REST Endpoint Path",
       "type": "string",
-      "default": "/api/admin/config",
+      "default": "/api/upload/local",
       "advanced": true,
-      "description": "Path of the config-upload endpoint."
+      "description": "Path of the local-settings import endpoint."
     },
     {
       "id": "rest_payload_b64",
@@ -37,13 +37,13 @@
       "type": "string",
       "default": "{{ upload_modbus2mqtt_config_content }}",
       "advanced": true,
-      "description": "Base64-encoded payload. Defaults to the uploaded config content."
+      "description": "Base64-encoded ZIP payload. Defaults to the uploaded ZIP content."
     },
     {
       "id": "rest_content_type",
       "name": "REST Content-Type",
       "type": "string",
-      "default": "application/yaml",
+      "default": "application/zip",
       "advanced": true,
       "description": "Content-Type header sent with the POST."
     },

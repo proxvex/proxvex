@@ -712,6 +712,30 @@ nested_ssh "
 " || error "Failed to add CI pubkey to nested VM"
 success "CI runner key authorized on nested VM"
 
+# Step 12b: Install proxvex CA into the nested VM's trust store.
+# Pre-baselining the CA here means step2a doesn't need any outer-host SSH
+# read-access to fetch it at runtime (Phase A2 of the runner-privilege
+# rework). The proxvex-signed Docker mirrors at 192.168.4.45 (pve1) and
+# 192.168.4.48 (ubuntupve ghcr-mirror) require this trust to be in place.
+header "Installing proxvex CA into nested VM trust store"
+CA_HOST_PATH="/usr/local/share/ca-certificates/proxvex-ca.crt"
+if pve_ssh "[ -f $CA_HOST_PATH ]" 2>/dev/null; then
+    CA_B64=$(pve_ssh "base64 < $CA_HOST_PATH | tr -d '\n'") \
+        || error "Failed to read proxvex CA from $PVE_HOST:$CA_HOST_PATH"
+    [ -n "$CA_B64" ] || error "proxvex CA on PVE host is empty"
+    nested_ssh "
+        CA_TARGET=/usr/local/share/ca-certificates/proxvex-ca.crt
+        mkdir -p /usr/local/share/ca-certificates
+        printf '%s' '$CA_B64' | base64 -d > \"\$CA_TARGET\"
+        chmod 644 \"\$CA_TARGET\"
+        update-ca-certificates >/dev/null 2>&1
+        echo 'proxvex CA installed in nested VM trust store'
+    " || error "Failed to install proxvex CA in nested VM"
+    success "proxvex CA baked into baseline"
+else
+    info "proxvex CA not found at $PVE_HOST:$CA_HOST_PATH — skipping (mirror trust will not work; run production/setup-pve-host.sh to provision)"
+fi
+
 # Step 13: Create baseline snapshot (VM must be stopped for clean snapshot)
 header "Creating Baseline Snapshot"
 info "Stopping VM $TEST_VMID for clean snapshot..."
