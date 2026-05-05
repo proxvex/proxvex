@@ -1,26 +1,32 @@
 FROM ghcr.io/actions/actions-runner:latest
 
+USER root
+
 # System tools needed by e2e/step2b-install-deployer.sh when executed inside
-# the runner: docker (docker build), skopeo (docker-daemon -> oci-archive).
-# Node itself is installed per-workflow via actions/setup-node@v4 so the
-# node version stays pinned in the workflow file, not in the image.
-# etherwake remains for the WOL flow on pve1.
-RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+# the runner: docker (docker build), skopeo (docker-daemon -> oci-archive),
+# jq (token JSON parsing, PVE API responses), curl (PVE API + GitHub).
+# gosu lets the entrypoint drop privileges from root to runner cleanly
+# (Phase B of the runner-privilege rework). etherwake stays for WOL on pve1.
+RUN apt-get update && apt-get install -y --no-install-recommends \
         etherwake \
         docker.io \
         skopeo \
         ca-certificates \
-    && sudo rm -rf /var/lib/apt/lists/*
+        gosu \
+        jq \
+        curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && usermod -aG docker runner
 
 COPY pvetest /usr/local/bin/pvetest
-RUN sudo chmod +x /usr/local/bin/pvetest
+COPY entrypoint-root.sh /entrypoint-root.sh
+COPY entrypoint-runner.sh /entrypoint-runner.sh
+RUN chmod +x /usr/local/bin/pvetest /entrypoint-root.sh /entrypoint-runner.sh \
+    && chown -R runner:runner /home/runner
 
-COPY entrypoint.sh /entrypoint.sh
-RUN sudo chmod +x /entrypoint.sh
-
-USER root
-RUN chown -R runner:runner /home/runner
-ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+# entrypoint-root.sh runs as root (PID 1 in the LXC), sets up DHCP, dockerd,
+# and materialises secrets, then exec gosu's into runner for run.sh.
+ENTRYPOINT ["/bin/bash", "/entrypoint-root.sh"]
 
 LABEL \
     org.opencontainers.image.title="proxvex-github-runner" \
