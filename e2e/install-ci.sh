@@ -318,6 +318,39 @@ ssh $SSH_OPTS "root@$RUNNER_HOST" "
 " || true
 
 start_lxc "$RUNNER_HOST" "$RUNNER_VMID"
+sleep 2
+push_ssh_key "$RUNNER_HOST" "$RUNNER_VMID" "$SSH_PRIVATE_KEY" "/root/.ssh/id_ed25519"
+
+# ============================================================
+# Step 3: Authorize runner SSH key on the Proxmox host
+# (so the runner can SSH to $RUNNER_HOST as a non-root user for qm commands
+# scoped to the test-VMs only — see Phase A0 of the runner-privilege plan)
+# ============================================================
+header "Step 3: Authorize runner SSH key on $RUNNER_HOST"
+
+PVE_RUNNER_USER="${PVE_RUNNER_USER:-proxvex-runner}"
+info "Adding runner public key to $RUNNER_HOST:${PVE_RUNNER_USER} authorized_keys..."
+ssh $SSH_OPTS "root@$RUNNER_HOST" "
+    if ! id -u '$PVE_RUNNER_USER' >/dev/null 2>&1; then
+        echo 'ERROR: Linux user $PVE_RUNNER_USER missing on $RUNNER_HOST.' >&2
+        echo 'Run the operator setup first:' >&2
+        echo '  useradd -r -m -s /bin/sh $PVE_RUNNER_USER' >&2
+        echo '  usermod -aG www-data $PVE_RUNNER_USER' >&2
+        echo '  pveum user add ${PVE_RUNNER_USER}@pam' >&2
+        echo '  pveum role add LivetestRunner -privs VM.Audit,VM.PowerMgmt,VM.Snapshot,VM.Snapshot.Rollback' >&2
+        echo '  pveum aclmod /vms/<vmid> -user ${PVE_RUNNER_USER}@pam -role LivetestRunner --propagate 0' >&2
+        exit 1
+    fi
+    HOME_DIR=\$(getent passwd '$PVE_RUNNER_USER' | cut -d: -f6)
+    install -d -o '$PVE_RUNNER_USER' -g '$PVE_RUNNER_USER' -m 700 \"\$HOME_DIR/.ssh\"
+    AUTH_KEYS=\"\$HOME_DIR/.ssh/authorized_keys\"
+    if ! grep -qF '$SSH_PUBLIC_KEY' \"\$AUTH_KEYS\" 2>/dev/null; then
+        echo '$SSH_PUBLIC_KEY' >> \"\$AUTH_KEYS\"
+        chown '$PVE_RUNNER_USER':'$PVE_RUNNER_USER' \"\$AUTH_KEYS\"
+        chmod 600 \"\$AUTH_KEYS\"
+    fi
+"
+ok "Runner authorized on $RUNNER_HOST as ${PVE_RUNNER_USER}"
 
 # ============================================================
 # Summary
