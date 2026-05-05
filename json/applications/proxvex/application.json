@@ -19,7 +19,7 @@
   ],
   "properties": [
     { "id": "envs", "default": "HTTP_PORT=3080\nHTTPS_PORT=3443" },
-    { "id": "hostname", "value": "proxvex" },
+    { "id": "hostname", "default": "proxvex" },
     { "id": "oci_image", "value": "ghcr.io/proxvex/proxvex:{{oci_image_tag}}" },
     { "id": "uid", "value": "1001" },
     { "id": "gid", "value": "1001" },
