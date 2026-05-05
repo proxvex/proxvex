@@ -314,7 +314,24 @@ export async function executeScenarios(
       // Docker-compose apps still use waitForServices in the success path.
       const appMeta = appMetaMap.get(scenario.application) ?? {};
       const waitSeconds = scenario.wait_seconds ?? appMeta.verification?.wait_seconds ?? 0;
-      const isDockerCompose = appMeta.extends === "docker-compose";
+      // Use the resolved framework (walks the full extends chain) — `extends`
+      // is the direct parent only, which is e.g. `json:zitadel` for a local
+      // test override that ultimately inherits from docker-compose.
+      const isDockerCompose = (appMeta.framework ?? appMeta.extends) === "docker-compose";
+
+      // docker-compose `upgrade` is in-place: it patches compose image tags
+      // and restarts services on the existing container — no new LXC. The
+      // planned `step.vmId` (next-free reserved by the test planner) was
+      // never allocated by the pipeline, so subsequent waitForServices /
+      // verifier checks would target a missing VM. Snap step.vmId back to
+      // the previous container that actually got upgraded.
+      if (cliResult.exitCode === 0 && isDockerCompose && task === "upgrade" && existingVm?.vm_id) {
+        if (step.vmId !== existingVm.vm_id) {
+          logInfo(`docker-compose in-place upgrade: target VM is ${existingVm.vm_id} (was ${step.vmId})`);
+          step.vmId = existingVm.vm_id;
+        }
+      }
+
       if (cliResult.exitCode === 0 && waitSeconds > 0 && !isDockerCompose) {
         logInfo(`Waiting ${waitSeconds}s for container to stay healthy...`);
         const health = await waitForContainerStable(

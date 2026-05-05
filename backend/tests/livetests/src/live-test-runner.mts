@@ -425,12 +425,13 @@ async function main() {
   // Fetch application metadata (stacktypes, extends, tags)
   const appStacktypes = new Map<string, string | string[]>();
   const appMetaMap = new Map<string, AppMeta>();
-  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[]; extends?: string; tags?: string[]; verification?: AppMeta["verification"] }>>(apiUrl, "/api/applications");
+  const apps = await apiFetch<Array<{ id: string; stacktype?: string | string[]; extends?: string; framework?: string; tags?: string[]; verification?: AppMeta["verification"] }>>(apiUrl, "/api/applications");
   if (apps) {
     for (const app of apps) {
       if (app.stacktype) appStacktypes.set(app.id, app.stacktype);
       appMetaMap.set(app.id, {
         extends: app.extends,
+        framework: app.framework,
         stacktype: app.stacktype,
         tags: app.tags,
         verification: app.verification,

@@ -34,6 +34,12 @@ export { apiFetch };
 /** Application metadata used for auto-determining verifications */
 export interface AppMeta {
   extends?: string | undefined;
+  /** Framework derived from the full extends chain (e.g. "docker-compose"
+   *  for an app that extends `json:zitadel` which extends docker-compose).
+   *  Prefer this over `extends` for framework-based decisions — `extends`
+   *  is the direct parent only and will be e.g. `json:zitadel` for local
+   *  test overrides. */
+  framework?: string | undefined;
   stacktype?: string | string[] | undefined;
   tags?: string[] | undefined;
   verification?: { wait_seconds?: number; [key: string]: unknown } | undefined;
