@@ -3,13 +3,7 @@
   "name": "Check Registry Mirror",
   "description": "Verifies the Docker Registry Mirror is working: DNS resolves locally, CA is trusted, and skopeo can inspect images through the mirror.",
   "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "advanced": true,
-      "description": "Registry hostname to check"
-    }
+    "hostname"
   ],
   "commands": [
     {

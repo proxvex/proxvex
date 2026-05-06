@@ -181,9 +181,26 @@ export async function executeScenarios(
       // always "vmbr1" (created by step1). config.bridge is the host-PVE-side
       // bridge of the outer VM (vmbr1/2/3 depending on instance) and is NOT
       // the same thing.
+      //
+      // Hidden apps (e.g. proxmox host reconfigure) target the PVE host itself
+      // — the runner-derived `${app}-${variant}` is meaningless there. Use the
+      // real PVE host's short name so backend cert-signing produces a cert
+      // matching the actual web UI hostname. `/api/applications` filters hidden
+      // apps out, so missing from appMetaMap == hidden.
+      const isHiddenApp = !appMetaMap.has(scenario.application);
+      let effectiveHostname = step.hostname;
+      if (isHiddenApp) {
+        try {
+          effectiveHostname = nestedSsh(
+            config.pveHost, config.portPveSsh,
+            "uname -n | cut -d. -f1",
+            5000,
+          ).trim() || step.hostname;
+        } catch { /* fall back to step.hostname */ }
+      }
       const isReplaceCt = REPLACE_CT_TASKS.includes(task);
       const baseParams = [
-        { name: "hostname", value: step.hostname },
+        { name: "hostname", value: effectiveHostname },
         { name: "bridge", value: "vmbr1" },
         ...(!isReplaceCt ? [{ name: "vm_id", value: String(step.vmId) }] : []),
         ...(isReplaceCt ? [{ name: "vm_id_start", value: String(step.vmId) }] : []),
@@ -215,7 +232,15 @@ export async function executeScenarios(
       // wrong container).
       let existingVm: { vm_id: number; addons?: string[] } | null = null;
       if (isReplaceCt) {
-        if (scenario.depends_on) {
+        // Scenario carries an explicit previous_vm_id (e.g. proxmox/oidc-ssl
+        // sets "0" because the PVE host is the reconfigure target — there
+        // is no LXC findExistingVm could match). Trust it; skip discovery.
+        const explicitPrev = buildResult.params.find((p) => p.name === "previous_vm_id");
+        if (explicitPrev) {
+          existingVm = { vm_id: Number(explicitPrev.value) };
+          logInfo(`Using explicit previous_vm_id=${explicitPrev.value} from scenario for ${task}`);
+        }
+        if (!existingVm && scenario.depends_on) {
           for (const depId of scenario.depends_on) {
             const depStep = planned.find((p) => p.scenario.id === depId);
             if (depStep && depStep.scenario.application === scenario.application) {
@@ -241,7 +266,10 @@ export async function executeScenarios(
           // torn down by a previous scenario's cleanup.
           continue;
         }
-        buildResult.params.push({ name: "previous_vm_id", value: String(existingVm.vm_id) });
+        // Only push if not already present (explicit case already has it).
+        if (!buildResult.params.some((p) => p.name === "previous_vm_id")) {
+          buildResult.params.push({ name: "previous_vm_id", value: String(existingVm.vm_id) });
+        }
         logInfo(`Found existing VM ${existingVm.vm_id} for ${task} (previous_vm_id)`);
       }
 
@@ -332,7 +360,9 @@ export async function executeScenarios(
         }
       }
 
-      if (cliResult.exitCode === 0 && waitSeconds > 0 && !isDockerCompose) {
+      // Hidden host apps (e.g. proxmox host reconfigure) don't create an LXC,
+      // so polling pct status against step.vmId would always fail.
+      if (cliResult.exitCode === 0 && waitSeconds > 0 && !isDockerCompose && !isHiddenApp) {
         logInfo(`Waiting ${waitSeconds}s for container to stay healthy...`);
         const health = await waitForContainerStable(
           config.pveHost, config.portPveSsh, step.vmId, waitSeconds,

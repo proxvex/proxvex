@@ -1,0 +1,129 @@
+{
+  "$id": "parameter-definitions",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "parameter-definitions",
+  "description": "Central registry of all UI/template parameter definitions. Templates reference parameters by id only; the canonical definition lives here.",
+  "type": "object",
+  "properties": {
+    "parameters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/parameterDefinition" }
+    }
+  },
+  "required": ["parameters"],
+  "additionalProperties": false,
+  "$defs": {
+    "parameterDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$",
+          "description": "Stable identifier referenced from templates."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable label shown in the UI."
+        },
+        "description": {
+          "type": "string",
+          "description": "Help text shown as tooltip or expandable help panel."
+        },
+        "type": {
+          "enum": ["string", "number", "boolean", "enum"]
+        },
+        "default": {
+          "type": ["string", "number", "boolean"]
+        },
+        "required": { "type": "boolean" },
+        "internal": {
+          "type": "boolean",
+          "description": "Never shown in the UI. Resolved by backend, by application properties, or by addons."
+        },
+        "advanced": {
+          "type": "boolean",
+          "description": "Hidden behind the Advanced toggle in the UI."
+        },
+        "multiline": { "type": "boolean" },
+        "upload": {
+          "type": "boolean",
+          "description": "Renders as file upload (base64-encoded)."
+        },
+        "secure": {
+          "type": "boolean",
+          "description": "Marks sensitive values (PATs, passwords, secrets) — UI masks input and avoids logging."
+        },
+        "certtype": {
+          "enum": ["ca", "ca_pub", "server", "fullchain"],
+          "description": "Certificate type. Enables auto-generation when upload has no value."
+        },
+        "validatePattern": {
+          "type": "string",
+          "description": "Regex pattern for client-side validation."
+        },
+        "enumValuesTemplate": {
+          "type": "string",
+          "description": "Template name that produces the enum values at runtime (only valid for type:enum)."
+        },
+        "enumValues": {
+          "type": "array",
+          "description": "Static enum values (only valid for type:enum).",
+          "items": {
+            "anyOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "value": { "type": ["string", "number", "boolean"] }
+                },
+                "required": ["name", "value"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "if": {
+          "type": "string",
+          "description": "Parameter id or special condition (e.g. env_file_has_markers). When falsy, the parameter is hidden in the UI."
+        },
+        "group": {
+          "enum": ["Application", "Authentication", "Network", "Storage", "Diagnostics", "Other"],
+          "description": "Logical UI section. Required for non-internal parameters."
+        },
+        "order": {
+          "type": "number",
+          "description": "Sort order within the group. Lower = higher up. Default 100."
+        }
+      },
+      "required": ["id", "name", "description", "type"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "$comment": "internal parameters skip the group requirement",
+          "if": { "not": { "required": ["internal"] } },
+          "then": { "required": ["id", "name", "description", "type"] }
+        },
+        {
+          "$comment": "internal and advanced are mutually exclusive",
+          "not": {
+            "allOf": [
+              { "properties": { "internal": { "const": true } }, "required": ["internal"] },
+              { "properties": { "advanced": { "const": true } }, "required": ["advanced"] }
+            ]
+          }
+        },
+        {
+          "$comment": "type:enum requires either enumValues or enumValuesTemplate",
+          "if": { "properties": { "type": { "const": "enum" } }, "required": ["type"] },
+          "then": {
+            "anyOf": [
+              { "required": ["enumValues"] },
+              { "required": ["enumValuesTemplate"] }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

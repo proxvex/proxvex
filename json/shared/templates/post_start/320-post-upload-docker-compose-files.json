@@ -3,43 +3,11 @@
   "name": "Upload Docker Compose Files",
   "description": "Upload Docker Compose file and .env file to the LXC container. Files are stored in /opt/docker-compose/<project>/",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "LXC Container ID",
-      "type": "string",
-      "required": true,
-      "description": "LXC container ID (for logging)"
-    },
-    {
-      "id": "compose_file",
-      "name": "Docker Compose File",
-      "type": "string",
-      "upload": true,
-      "required": true,
-      "description": "Docker Compose YAML file (upload). Upload this file first to extract service information."
-    },
-    {
-      "id": "env_file",
-      "name": "Environment File (.env)",
-      "type": "string",
-      "upload": true,
-      "required": false,
-      "description": "Environment variables file (.env) template (upload, optional). If it contains {{ markers }}, users must upload a real .env at deployment time."
-    },
-    {
-      "id": "compose_project",
-      "name": "Compose Project Name",
-      "type": "string",
-      "required": false,
-      "description": "Project name for Docker Compose (used for named volumes and directory). Defaults to hostname if not provided."
-    },
-    {
-      "id": "stack_secret_names",
-      "name": "Stack Secret Names",
-      "type": "string",
-      "required": false,
-      "description": "Comma-separated NAME=VALUE pairs for secrets to sanitize in template file"
-    }
+    "vm_id",
+    "compose_file",
+    "env_file",
+    "compose_project",
+    "stack_secret_names"
   ],
   "commands": [
     {

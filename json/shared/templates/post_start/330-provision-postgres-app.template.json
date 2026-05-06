@@ -3,45 +3,11 @@
   "name": "Provision Postgres App",
   "description": "Creates PostgreSQL schemas and roles for an application. Creates data schema (<app>_data) and app user (<app>_app). With PostgREST option, also creates API schema (<app>_api) and roles (<app>_anon, <app>_user). The shared api_login role is created once and reused across apps.",
   "parameters": [
-    {
-      "id": "app_name",
-      "name": "Application Name",
-      "type": "string",
-      "required": true,
-      "description": "Name of the application (used for schema/role naming: <app>_data, <app>_app, etc.)"
-    },
-    {
-      "id": "app_password",
-      "name": "App User Password",
-      "type": "string",
-      "default": "app123",
-      "secure": true,
-      "description": "Password for the <app>_app database user"
-    },
-    {
-      "id": "with_postgrest",
-      "name": "Create PostgREST Roles",
-      "type": "boolean",
-      "default": false,
-      "description": "Create additional API schema and roles for PostgREST (api_login, <app>_anon, <app>_user)"
-    },
-    {
-      "id": "api_login_password",
-      "name": "API Login Password",
-      "type": "string",
-      "default": "${API_LOGIN_PASSWORD:-api_login_123}",
-      "secure": true,
-      "advanced": true,
-      "description": "Password for shared api_login role (PostgREST). Resolved from .env if available."
-    },
-    {
-      "id": "database",
-      "name": "Target Database",
-      "type": "string",
-      "default": "postgres",
-      "advanced": true,
-      "description": "Database to create schemas in (default: postgres)"
-    }
+    "app_name",
+    "app_password",
+    "with_postgrest",
+    "api_login_password",
+    "database"
   ],
   "commands": [
     {

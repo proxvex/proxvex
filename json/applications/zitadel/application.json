@@ -4,87 +4,21 @@
   "extends": "docker-compose",
   "icon": "icon.png",
   "parameters": [
-    {
-      "id": "ZITADEL_EXTERNALDOMAIN",
-      "name": "External Domain",
-      "type": "string",
-      "required": false,
-      "description": "Public domain name for Zitadel (used in URLs and OIDC config)",
-      "default": "{{ hostname }}"
-    },
-    {
-      "id": "ZITADEL_EXTERNALSECURE",
-      "name": "External Secure",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "default": "false",
-      "description": "Set to 'true' when Zitadel is reached via HTTPS from outside (e.g. behind a TLS reverse proxy)."
-    },
-    {
-      "id": "ZITADEL_EXTERNALPORT",
-      "name": "External Port",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "default": "8080",
-      "description": "Public TCP port Zitadel is reached on (e.g. 443 behind nginx, 8080 for direct exposure)."
-    },
-    {
-      "id": "ZITADEL_FORWARDED_PROTO",
-      "name": "Forwarded Proto",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "default": "http",
-      "description": "X-Forwarded-Proto value the login UI sends to zitadel-api (http or https). Match the public scheme."
-    },
-    {
-      "id": "ZITADEL_PUBLIC_BASE_URL",
-      "name": "Public Base URL",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "default": "http://{{ ZITADEL_EXTERNALDOMAIN }}:8080",
-      "description": "Full public base URL the user types in their browser (no trailing slash). Used in BASEURI/OIDC default URLs. Example: https://auth.example.com (no port for default 443/80)."
-    },
-    {
-      "id": "smtp_own_domain",
-      "name": "Own mail domain (configure Cloudflare DNS)",
-      "type": "boolean",
-      "default": false,
-      "description": "When checked, create MX and SPF DNS records in Cloudflare for the mail domain (requires a cloudflare stack with CF_TOKEN). Leave unchecked if using an existing hosted mail setup where DNS already points to the provider."
-    },
-    {
-      "id": "smtp_mail_domain",
-      "name": "Mail domain",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "if": "smtp_own_domain",
-      "description": "Apex domain the mail is sent from (e.g. example.com). Looked up in Cloudflare and used as the zone for MX/SPF records."
-    },
-    {
-      "id": "smtp_mx_target",
-      "name": "MX target",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "if": "smtp_own_domain",
-      "description": "Hostname the MX record points at (e.g. mxext1.mailbox.org). Consult your mail provider's documentation."
-    },
-    {
-      "id": "smtp_spf_value",
-      "name": "SPF TXT value",
-      "type": "string",
-      "required": false,
-      "default": "v=spf1 ~all",
-      "if": "smtp_own_domain",
-      "description": "Full SPF TXT record value, e.g. 'v=spf1 include:mailbox.org ~all'. Consult your mail provider's documentation."
-    }
+    "ZITADEL_EXTERNALDOMAIN",
+    "ZITADEL_EXTERNALSECURE",
+    "ZITADEL_EXTERNALPORT",
+    "ZITADEL_FORWARDED_PROTO",
+    "ZITADEL_PUBLIC_BASE_URL",
+    "smtp_own_domain",
+    "smtp_mail_domain",
+    "smtp_mx_target",
+    "smtp_spf_value"
   ],
   "properties": [
-    { "id": "hostname", "default": "zitadel" },
+    {
+      "id": "hostname",
+      "default": "zitadel"
+    },
     {
       "id": "volumes",
       "default": "bootstrap=bootstrap,0750,1000:1001"
@@ -183,13 +117,19 @@
     {
       "stacktype": "oidc",
       "vars": [
-        { "name": "ZITADEL_MASTERKEY", "replacement": "manual" },
+        {
+          "name": "ZITADEL_MASTERKEY",
+          "replacement": "manual"
+        },
         {
           "name": "ZITADEL_DB_PASSWORD",
           "replacement": "compose-env",
           "compose_key": "ZITADEL_DATABASE_POSTGRES_USER_PASSWORD"
         },
-        { "name": "ZITADEL_ADMIN_PASSWORD", "replacement": "manual" },
+        {
+          "name": "ZITADEL_ADMIN_PASSWORD",
+          "replacement": "manual"
+        },
         {
           "name": "SMTP_PASSWORD",
           "replacement": "compose-env",

@@ -1,111 +1,34 @@
 {
   "execute_on": "ve",
   "name": "Write Docker Compose Notes",
-  "skip_if_all_missing": ["compose_file"],
+  "skip_if_all_missing": [
+    "compose_file"
+  ],
   "description": "Writes the container notes/description for docker-compose apps.\n\nOnly runs when compose_file is set. Differences from standard notes (190):\n- No 'LXC template' line\n- No 'Log file' line (logs come from docker-compose, auto-detected by log viewer)\n- Link text: 'Logs' instead of 'Console Logs'",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "number",
-      "required": true,
-      "description": "Container ID"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
-    },
-    {
-      "id": "application_id",
-      "name": "Application ID",
-      "type": "string",
-      "description": "Application identifier"
-    },
-    {
-      "id": "application_name",
-      "name": "Application Name",
-      "type": "string",
-      "description": "Human-readable application name"
-    },
-    {
-      "id": "oci_image_tag",
-      "name": "OCI Image Tag",
-      "type": "string",
-      "description": "OCI image tag/version (e.g. 0.17.5)"
-    },
-    {
-      "id": "deployer_base_url",
-      "name": "Deployer Base URL",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Base URL for log viewer links"
-    },
-    {
-      "id": "ve_context_key",
-      "name": "VE Context Key",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: VE context identifier"
-    },
-    {
-      "id": "icon_base64",
-      "name": "Icon Base64",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Base64-encoded application icon"
-    },
-    {
-      "id": "icon_mime_type",
-      "name": "Icon MIME Type",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Icon MIME type (image/svg+xml or image/png)"
-    },
-    {
-      "id": "username",
-      "name": "Username",
-      "type": "string",
-      "advanced": true,
-      "description": "Username for volume permissions (stored for addon reconfiguration)"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "advanced": true,
-      "description": "UID for volume permissions (stored for addon reconfiguration)"
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "advanced": true,
-      "description": "GID for volume permissions (stored for addon reconfiguration)"
-    },
-    {
-      "id": "stack_id",
-      "name": "Stack ID",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: Stack ID written to container notes"
-    },
-    {
-      "id": "all_stack_ids",
-      "name": "All Stack IDs",
-      "type": "string",
-      "advanced": true,
-      "description": "Auto-injected by backend: JSON array of all selected stack IDs, written as separate :stack-id markers"
-    }
+    "vm_id",
+    "hostname",
+    "application_id",
+    "application_name",
+    "oci_image_tag",
+    "deployer_base_url",
+    "ve_context_key",
+    "icon_base64",
+    "icon_mime_type",
+    "username",
+    "uid",
+    "gid",
+    "stack_id",
+    "all_stack_ids"
   ],
   "commands": [
     {
       "name": "Write Docker Compose Notes",
       "script": "host-write-docker-compose-notes.py",
       "library": "lxc-notes-common.py",
-      "outputs": ["notes_written"]
+      "outputs": [
+        "notes_written"
+      ]
     }
   ]
 }

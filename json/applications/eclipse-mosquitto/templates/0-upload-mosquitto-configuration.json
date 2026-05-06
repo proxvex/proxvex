@@ -6,69 +6,14 @@
     "upload_mosquitto_configuration_content"
   ],
   "parameters": [
-    {
-      "id": "upload_mosquitto_configuration_content",
-      "name": "Mosquitto Configuration",
-      "type": "string",
-      "upload": true,
-      "required": true,
-      "advanced": false,
-      "description": "Upload your mosquitto.conf file.\n\nIf the optional addon \"SSL/HTTPS\" is enabled, TLS certificates are automatically provisioned at:\n- `/mosquitto/config/certs/cert.pem` (server cert)\n- `/mosquitto/config/certs/privkey.pem` (private key)\n- `/mosquitto/config/certs/chain.pem` (CA cert)\n- `/mosquitto/config/certs/fullchain.pem` (server cert + CA)\n\nMQTTS listener example:\n```\nlistener 8883\ncertfile /mosquitto/config/certs/cert.pem\ncafile /mosquitto/config/certs/chain.pem\nkeyfile /mosquitto/config/certs/privkey.pem\n```\nSee [Mosquitto TLS docs](https://mosquitto.org/man/mosquitto-conf-5.html)"
-    },
-    {
-      "id": "upload_mosquitto_configuration_destination",
-      "name": "Destination Path",
-      "type": "string",
-      "default": "config:mosquitto.conf",
-      "advanced": true,
-      "description": "Target path: {volume_key}:{filename}"
-    },
-    {
-      "id": "shared_volpath",
-      "name": "Shared Volume Path",
-      "type": "string",
-      "advanced": true,
-      "description": "Path to the shared volume mount point"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "User ID for file ownership"
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Group ID for file ownership"
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Mapped user ID for unprivileged containers"
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Mapped group ID for unprivileged containers"
-    }
+    "upload_mosquitto_configuration_content",
+    "upload_mosquitto_configuration_destination",
+    "shared_volpath",
+    "hostname",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid"
   ],
   "commands": [
     {

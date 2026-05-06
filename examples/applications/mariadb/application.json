@@ -4,38 +4,9 @@
   "extends": "oci-image",
   "icon": "icon.svg",
   "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "mariadb"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "data=var/lib/mysql\ncerts=certs\nconf.d=etc/mysql/conf.d"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "GID=999\nMARIADB_DATABASE=appdb\nMARIADB_PASSWORD={{ MARIADB_PASSWORD }}\nMARIADB_PORT=3306\nMARIADB_ROOT_PASSWORD={{ MARIADB_ROOT_PASSWORD }}\nMARIADB_USER=appuser\nMARIADB_VERSION=11\nUID=999",
-      "description": "Environment variables to substitute in initial_command.",
-      "template": "107-conf-oci-lxc-configuration.json",
-      "templatename": "Configure LXC for OCI"
-    }
+    "hostname",
+    "volumes",
+    "envs"
   ],
   "properties": [
     {

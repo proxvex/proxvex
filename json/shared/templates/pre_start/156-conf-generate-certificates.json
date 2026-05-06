@@ -5,108 +5,28 @@
     "server_cert_b64"
   ],
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "string",
-      "description": "LXC container ID"
-    },
-    {
-      "id": "server_key_b64",
-      "name": "Server Key",
-      "type": "string",
-      "internal": true,
-      "secure": true,
-      "description": "Base64-encoded server private key PEM (signed by backend)"
-    },
-    {
-      "id": "server_cert_b64",
-      "name": "Server Cert",
-      "type": "string",
-      "internal": true,
-      "description": "Base64-encoded server certificate PEM (signed by backend)"
-    },
-    {
-      "id": "ca_cert_b64",
-      "name": "CA Cert",
-      "type": "string",
-      "internal": true,
-      "description": "Base64-encoded CA public certificate PEM"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname (for cert directory naming)"
-    },
-    {
-      "id": "domain_suffix",
-      "name": "Domain Suffix",
-      "type": "string",
-      "default": ".local",
-      "advanced": true,
-      "description": "FQDN suffix (informational; signing already done in backend)"
-    },
-    {
-      "id": "ssl.needs_server_cert",
-      "name": "Needs Server Cert",
-      "type": "boolean",
-      "default": "true",
-      "advanced": true,
-      "description": "Write server certificate files (privkey.pem, cert.pem, fullchain.pem)"
-    },
-    {
-      "id": "ssl.needs_ca_cert",
-      "name": "Needs CA Cert",
-      "type": "boolean",
-      "default": "false",
-      "advanced": true,
-      "description": "Write CA public certificate (chain.pem)"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Container UID for certificate file ownership"
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Container GID for certificate file ownership"
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID",
-      "type": "string",
-      "advanced": true,
-      "description": "UID mapping on the host for unprivileged containers"
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID",
-      "type": "string",
-      "advanced": true,
-      "description": "GID mapping on the host for unprivileged containers"
-    },
-    {
-      "id": "cert_dir_override",
-      "name": "Cert Dir Override",
-      "type": "string",
-      "advanced": true,
-      "description": "If set, use this path directly as cert directory instead of computing from shared_volpath"
-    }
+    "vm_id",
+    "server_key_b64",
+    "server_cert_b64",
+    "ca_cert_b64",
+    "hostname",
+    "domain_suffix",
+    "ssl.needs_server_cert",
+    "ssl.needs_ca_cert",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid",
+    "cert_dir_override"
   ],
   "commands": [
     {
       "name": "Write Certificates",
       "script": "conf-generate-certificates.sh",
-      "library": ["pve-common.sh", "cert-common.sh"],
+      "library": [
+        "pve-common.sh",
+        "cert-common.sh"
+      ],
       "outputs": [
         "certs_generated"
       ]

@@ -174,13 +174,16 @@ export class AddonService {
       }
     }
 
-    if (parameters.length === 0) {
+    // Internal parameters never reach the UI — strip them from the response.
+    const visible = parameters.filter((p) => !p.internal);
+
+    if (visible.length === 0) {
       return addon;
     }
 
     return {
       ...addon,
-      parameters,
+      parameters: visible,
     };
   }
 
@@ -285,6 +288,16 @@ export class AddonService {
       return;
     }
 
+    // Handle explicit position (preferred over before/after anchors)
+    if (template.position === "start") {
+      templates.unshift(template.name);
+      return;
+    }
+    if (template.position === "end") {
+      templates.push(template.name);
+      return;
+    }
+
     // Handle before reference
     if (template.before) {
       const idx = this.findTemplateIndex(templates, template.before);
@@ -304,7 +317,7 @@ export class AddonService {
     }
 
     // Default: append to end
-    templates.push(typeof template === "string" ? template : template.name);
+    templates.push(template.name);
   }
 
   /**

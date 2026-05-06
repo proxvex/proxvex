@@ -464,9 +464,10 @@ export interface IAddonVolume {
     mount_point: string;
     default_size?: string;
 }
-/** Template reference: either a string or object with name and optional before/after */
+/** Template reference: either a string or object with name and optional position/before/after */
 export type AddonTemplateReference = string | {
     name: string;
+    position?: "start" | "end";
     before?: string;
     after?: string;
 };

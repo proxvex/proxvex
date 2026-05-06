@@ -320,8 +320,10 @@ export function planScenarios(
     const stacktypes = rawStacktype ? (Array.isArray(rawStacktype) ? rawStacktype : [rawStacktype]) : [];
     const hasStacktype = stacktypes.length > 0;
 
-    // Stack name = scenario variant (e.g. "default", "ssl")
-    const stackName = scenario.id.split("/")[1] ?? "default";
+    // Stack name defaults to scenario variant (e.g. "default", "ssl"),
+    // but can be overridden via scenario.stack_name so cross-app reconfigure
+    // tests can join an existing stack instead of forking a fresh one.
+    const stackName = scenario.stack_name ?? scenario.id.split("/")[1] ?? "default";
 
     return {
       vmId,

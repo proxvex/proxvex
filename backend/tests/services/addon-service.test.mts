@@ -375,6 +375,83 @@ describe("AddonService", () => {
       ]);
     });
 
+    it("should prepend template when position is start", () => {
+      const baseTemplates: AddonTemplateReference[] = [
+        "template-a.json",
+        "template-b.json",
+      ];
+      const addon = createAddonJson({
+        installation: {
+          post_start: [{ name: "addon-template.json", position: "start" }],
+        },
+      });
+
+      const result = service.mergeAddonTemplates(
+        baseTemplates,
+        addon,
+        "installation",
+        "post_start",
+      );
+
+      expect(result).toEqual([
+        "addon-template.json",
+        "template-a.json",
+        "template-b.json",
+      ]);
+    });
+
+    it("should append template when position is end", () => {
+      const baseTemplates: AddonTemplateReference[] = [
+        "template-a.json",
+        "template-b.json",
+      ];
+      const addon = createAddonJson({
+        installation: {
+          post_start: [{ name: "addon-template.json", position: "end" }],
+        },
+      });
+
+      const result = service.mergeAddonTemplates(
+        baseTemplates,
+        addon,
+        "installation",
+        "post_start",
+      );
+
+      expect(result).toEqual([
+        "template-a.json",
+        "template-b.json",
+        "addon-template.json",
+      ]);
+    });
+
+    it("should preserve insertion order when multiple templates use position end", () => {
+      const baseTemplates: AddonTemplateReference[] = ["template-a.json"];
+      const addon = createAddonJson({
+        installation: {
+          post_start: [
+            { name: "x.json", position: "end" },
+            { name: "y.json", position: "end" },
+            { name: "z.json", position: "end" },
+          ],
+        },
+      });
+
+      const result = service.mergeAddonTemplates(
+        baseTemplates,
+        addon,
+        "installation",
+        "post_start",
+      );
+
+      expect(result).toEqual([
+        "template-a.json",
+        "x.json",
+        "y.json",
+        "z.json",
+      ]);
+    });
+
     it("should append template when before reference not found", () => {
       const baseTemplates: AddonTemplateReference[] = ["template-a.json"];
       const addon = createAddonJson({

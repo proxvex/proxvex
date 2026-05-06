@@ -1,0 +1,12 @@
+{
+  "selectedAddons": ["addon-ssl", "addon-oidc"],
+  "task": "reconfigure",
+  "depends_on": ["zitadel/default"],
+  "stack_name": "default",
+  "params": [
+    { "name": "previous_vm_id", "value": "0" }
+  ],
+  "wait_seconds": 30,
+  "cli_timeout": 360,
+  "description": "Reconfigure the PVE host: enable addon-ssl (proxvex-signed cert for the web UI on :8006) and addon-oidc (oidc-zitadel realm via pveum CLI). The 'proxmox' application is hidden, runs reconfigure-only against the host (vm_id=0), joins zitadel/default's oidc_default stack so addon-oidc inherits ZITADEL_HOST."
+}

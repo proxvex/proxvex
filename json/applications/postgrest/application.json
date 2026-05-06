@@ -3,40 +3,44 @@
   "description": "PostgreSQL REST API server - automatically creates a RESTful API from a PostgreSQL database",
   "extends": "docker-compose",
   "icon": "icon.svg",
-  "tags": ["api", "database"],
+  "tags": [
+    "api",
+    "database"
+  ],
   "parameters": [
-    {
-      "id": "http_port",
-      "name": "HTTP Port",
-      "type": "string",
-      "default": "3000",
-      "required": false,
-      "advanced": true,
-      "description": "Port number for PostgREST HTTP server (default: 3000)"
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "default": "3443",
-      "required": false,
-      "advanced": true,
-      "description": "Port number for HTTPS access (default: 3443)"
-    }
+    "http_port",
+    "https_port"
   ],
   "properties": [
-    { "id": "hostname", "default": "postgrest" },
-    { "id": "compose_project", "value": "postgrest" },
+    {
+      "id": "hostname",
+      "default": "postgrest"
+    },
+    {
+      "id": "compose_project",
+      "value": "postgrest"
+    },
     {
       "id": "compose_file",
       "value": "c2VydmljZXM6CiAgcG9zdGdyZXN0OgogICAgaW1hZ2U6IHBvc3RncmVzdC9wb3N0Z3Jlc3Q6JHtET0NLRVJfcG9zdGdyZXN0X1RBR30KICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZpcm9ubWVudDoKICAgICAgUEdSU1RfREJfVVJJOiAicG9zdGdyZXM6Ly8ke1BPU1RHUkVTX1VTRVI6LXBvc3RncmVzfTp7eyBQT1NUR1JFU19QQVNTV09SRCB9fUB7eyBQT1NUR1JFU19IT1NUIH19OiR7UE9TVEdSRVNfUE9SVDotNTQzMn0vJHtQT1NUR1JFU19EQjotcG9zdGdyZXN9IgogICAgICBQR1JTVF9EQl9TQ0hFTUFTOiAke1BHUlNUX1NDSEVNQVM6LXB1YmxpY30KICAgICAgUEdSU1RfREJfQU5PTl9ST0xFOiAke1BHUlNUX0FOT05fUk9MRTotcG9zdGdyZXN9CiAgICAgIFBHUlNUX1NFUlZFUl9QT1JUOiAzMDAwCiAgICBwb3J0czoKICAgICAgLSAiMzAwMDozMDAwIgo="
     },
-    { "id": "ssl_mode", "value": "proxy" },
-    { "id": "ssl.needs_server_cert", "value": "true" },
-    { "id": "ssl.needs_ca_cert", "value": "true" }
+    {
+      "id": "ssl_mode",
+      "value": "proxy"
+    },
+    {
+      "id": "ssl.needs_server_cert",
+      "value": "true"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "value": "true"
+    }
   ],
   "dependencies": [
-    { "application": "postgres" }
+    {
+      "application": "postgres"
+    }
   ],
   "installation": {},
   "stacktype": "postgres",
@@ -44,7 +48,10 @@
     {
       "stacktype": "postgres",
       "vars": [
-        { "name": "POSTGRES_PASSWORD", "replacement": "manual" }
+        {
+          "name": "POSTGRES_PASSWORD",
+          "replacement": "manual"
+        }
       ]
     }
   ]

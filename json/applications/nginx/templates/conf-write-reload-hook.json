@@ -2,22 +2,12 @@
   "name": "Write nginx reload hook",
   "description": "Writes /etc/proxvex/reload_certificates so the acme-renew loop can trigger 'nginx -s reload' after installing or renewing a certificate. Skipped when addon-acme is not enabled (no acme_san).",
   "execute_on": "ve",
-  "skip_if_all_missing": ["acme_san"],
+  "skip_if_all_missing": [
+    "acme_san"
+  ],
   "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
-    },
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "string",
-      "advanced": true,
-      "description": "VM ID — used to look up the running container's actual hostname (the one volumes are named after, which can differ from the input hostname during reconfigure)."
-    }
+    "hostname",
+    "vm_id"
   ],
   "commands": [
     {

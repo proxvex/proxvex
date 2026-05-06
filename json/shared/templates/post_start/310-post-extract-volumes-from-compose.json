@@ -3,33 +3,10 @@
   "name": "Extract Volumes from Compose",
   "description": "Extract volume mappings from Docker Compose file and convert them to LXC volume format. Relative paths (./data) are converted to volumes/<project>/data format.",
   "parameters": [
-    {
-      "id": "compose_file",
-      "name": "Docker Compose File",
-      "type": "string",
-      "upload": true,
-      "required": true,
-      "description": "Docker Compose YAML file (upload)"
-    },
-    {
-      "id": "compose_project",
-      "name": "Compose Project Name",
-      "type": "string",
-      "description": "Project name for Docker Compose (used for named volumes and directory). Defaults to hostname if not provided."
-    },
-    {
-      "id": "volumes",
-      "name": "Volume Options",
-      "type": "string",
-      "description": "Existing volume definitions with options (e.g. permissions). Merged with extracted volumes."
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname. Used as compose_project default when none was given. Auto-resolved from container config on reconfigure."
-    }
+    "compose_file",
+    "compose_project",
+    "volumes",
+    "hostname"
   ],
   "commands": [
     {
@@ -37,9 +14,18 @@
       "description": "Extract volumes from Docker Compose file and convert to LXC format",
       "outputs": [
         "volumes",
-        { "id": "compose_project", "optional": true },
-        { "id": "uid", "optional": true },
-        { "id": "gid", "optional": true }
+        {
+          "id": "compose_project",
+          "optional": true
+        },
+        {
+          "id": "uid",
+          "optional": true
+        },
+        {
+          "id": "gid",
+          "optional": true
+        }
       ]
     }
   ]

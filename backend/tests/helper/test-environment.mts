@@ -197,6 +197,16 @@ export function createTestEnvironment(
     patterns: compileRegexes(jsonIncludePatterns, "jsonIncludePatterns"),
   });
 
+  // Always copy parameter-definitions.json — every template loaded via the
+  // persistence layer needs the registry to expand `parameters: string[]`.
+  // Cheap to copy (single file) and avoids per-test boilerplate.
+  const paramDefsSrc = path.join(repoJsonDir, "shared", "parameter-definitions.json");
+  if (fs.existsSync(paramDefsSrc)) {
+    const paramDefsDst = path.join(jsonDir, "shared", "parameter-definitions.json");
+    mkdirp(path.dirname(paramDefsDst));
+    fs.copyFileSync(paramDefsSrc, paramDefsDst);
+  }
+
   // fixtures/: copy test fixtures into json directory
   const fixturesDir = path.join(repoRoot, "backend", "tests", "fixtures");
   if (opts.fixturesIncludePatterns && opts.fixturesIncludePatterns.length > 0) {

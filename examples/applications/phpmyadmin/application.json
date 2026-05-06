@@ -4,38 +4,9 @@
   "extends": "oci-image",
   "icon": "icon.svg",
   "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": false,
-      "type": "string",
-      "description": "Hostname for the LXC container",
-      "template": "100-conf-create-configure-lxc.json",
-      "templatename": "Create and Configure LXC",
-      "default": "phpmyadmin"
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path",
-      "template": "150-conf-create-storage-volumes-for-lxc.json",
-      "templatename": "Create Storage Volumes for LXC",
-      "default": "data=var/lib/mysql"
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "description": "Environment variables in key=value format, one per line. Each line sets an environment variable in the container configuration. Example:\nMYAPP_HOST=localhost\nMYAPP_PORT=8080\nDATABASE_URL=postgresql://localhost:5432/mydb",
-      "template": "170-conf-set-environment-variables-in-lxc.json",
-      "templatename": "Env Variables in LXC",
-      "default": "MARIADB_HOST=mariadb\nMARIADB_PORT=3306\nPHPMYADMIN_PORT=8080\nPHPMYADMIN_VERSION=latest\nPMA_HOST=mariadb\nPMA_PORT=3306\nUPLOAD_LIMIT=100M"
-    }
+    "hostname",
+    "volumes",
+    "envs"
   ],
   "properties": [
     {

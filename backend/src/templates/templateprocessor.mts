@@ -772,6 +772,8 @@ export class TemplateProcessor extends EventEmitter {
         loaded.parameterTrace.map((entry) => [entry.id, entry]),
       );
       return loaded.parameters.filter((param) => {
+        // Internal parameters are never user-input — keep them out of the UI feed.
+        if (param.internal) return false;
         if (param.type === "enum") return true;
         const trace = traceById.get(param.id);
         // Include parameters that are missing OR have only a default value
@@ -783,13 +785,15 @@ export class TemplateProcessor extends EventEmitter {
     }
 
     // Fallback: Only parameters whose id is not in resolvedParams.param
-    return loaded.parameters.filter(
-      (param) =>
+    return loaded.parameters.filter((param) => {
+      if (param.internal) return false;
+      return (
         undefined ==
         loaded.resolvedParams.find(
           (rp) => rp.id == param.id && rp.template != param.template,
-        ),
-    );
+        )
+      );
+    });
   }
 
   async getParameters(

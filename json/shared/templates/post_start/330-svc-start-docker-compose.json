@@ -3,34 +3,17 @@
   "name": "Start Docker Compose",
   "description": "Start Docker Compose services. Runs 'docker-compose up -d' in the project directory. Docker daemon must be running.",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "LXC Container ID",
-      "type": "string",
-      "required": true,
-      "description": "LXC container ID (for logging)"
-    },
-    {
-      "id": "compose_project",
-      "name": "Compose Project Name",
-      "type": "string",
-      "required": false,
-      "description": "Project name for Docker Compose (directory name)"
-    },
-    {
-      "id": "startup_timeout",
-      "name": "Startup Timeout",
-      "type": "number",
-      "required": false,
-      "internal": true,
-      "default": 120,
-      "description": "Seconds to wait for Docker services to become healthy (--wait-timeout)."
-    }
+    "vm_id",
+    "compose_project",
+    "startup_timeout"
   ],
   "commands": [
     {
       "script": "post-start-docker-compose.sh",
-      "library": ["versions.sh", "versions-local.sh"],
+      "library": [
+        "versions.sh",
+        "versions-local.sh"
+      ],
       "description": "Start Docker Compose services with docker-compose up -d"
     }
   ]

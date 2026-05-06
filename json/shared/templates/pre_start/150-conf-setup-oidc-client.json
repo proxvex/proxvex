@@ -3,77 +3,15 @@
   "description": "Create or retrieve an OIDC client application in Zitadel. Outputs oidc_issuer_url, oidc_client_id, and oidc_client_secret as template variables. Runs on PVE host before container start so credentials are available to pre_start templates.",
   "execute_on": "ve",
   "parameters": [
-    {
-      "id": "ZITADEL_HOST",
-      "name": "Zitadel Host",
-      "type": "string",
-      "required": true,
-      "description": "Hostname of the Zitadel instance (resolved via dependency)"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Hostname of the application container"
-    },
-    {
-      "id": "oidc_app_name",
-      "name": "OIDC Application Name",
-      "type": "string",
-      "required": false,
-      "description": "Name of the OIDC application in Zitadel (defaults to hostname)"
-    },
-    {
-      "id": "oidc_callback_path",
-      "name": "Callback Path",
-      "type": "string",
-      "required": false,
-      "default": "/auth/strategy/callback",
-      "advanced": true,
-      "description": "OIDC callback path"
-    },
-    {
-      "id": "domain_suffix",
-      "name": "Domain Suffix",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "Domain suffix for constructing URLs"
-    },
-    {
-      "id": "oidc_project_name",
-      "name": "OIDC Project Name",
-      "type": "string",
-      "required": true,
-      "description": "Name of the Zitadel project"
-    },
-    {
-      "id": "oidc_issuer_url",
-      "name": "OIDC Issuer URL",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "Optional: External OIDC issuer URL (e.g. https://auth.example.com). If empty, defaults to internal Zitadel URL."
-    },
-    {
-      "id": "ZITADEL_PAT",
-      "name": "Zitadel PAT",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Short-lived Zitadel access token (injected by backend in zero-secret mode). Falls back to admin-client.pat file if not set."
-    },
-    {
-      "id": "oidc_roles",
-      "name": "OIDC Roles",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "JSON array of role definitions from application.json (injected by backend)"
-    }
+    "ZITADEL_HOST",
+    "hostname",
+    "oidc_app_name",
+    "oidc_callback_path",
+    "domain_suffix",
+    "oidc_project_name",
+    "oidc_issuer_url",
+    "ZITADEL_PAT",
+    "oidc_roles"
   ],
   "commands": [
     {

@@ -2,22 +2,20 @@
   "execute_on": "ve",
   "name": "Check TLS Connect",
   "description": "Checks TLS connection to a container port.",
-  "skip_if_all_missing": ["has_addon_ssl", "check_tls_port"],
+  "skip_if_all_missing": [
+    "has_addon_ssl",
+    "check_tls_port"
+  ],
   "parameters": [
-    {
-      "id": "check_tls_port",
-      "name": "TLS Port to Check",
-      "type": "number",
-      "required": false,
-      "internal": true,
-      "description": "Port number to verify TLS connection on."
-    }
+    "check_tls_port"
   ],
   "commands": [
     {
       "name": "Check TLS Connect",
       "script": "host-check-tls-connect.sh",
-      "outputs": ["check_tls_connect"]
+      "outputs": [
+        "check_tls_connect"
+      ]
     }
   ]
 }

@@ -2,22 +2,19 @@
   "execute_on": "ve",
   "name": "Check OIDC API Protected",
   "description": "Checks that the deployer API returns 401 without authentication token.",
-  "skip_if_all_missing": ["check_oidc_api_protected"],
+  "skip_if_all_missing": [
+    "check_oidc_api_protected"
+  ],
   "parameters": [
-    {
-      "id": "check_oidc_api_protected",
-      "name": "Check OIDC API Protected",
-      "type": "boolean",
-      "required": false,
-      "internal": true,
-      "description": "Set to true to verify the deployer API requires authentication."
-    }
+    "check_oidc_api_protected"
   ],
   "commands": [
     {
       "name": "Check OIDC API Protected",
       "script": "host-check-oidc-api-protected.sh",
-      "outputs": ["check_oidc_api_protected_result"]
+      "outputs": [
+        "check_oidc_api_protected_result"
+      ]
     }
   ]
 }

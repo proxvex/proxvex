@@ -17,10 +17,13 @@ exec >&2
 
 set -e
 
-# Check prerequisites
+# USB input devices are optional. A headless host has no /sys/class/input
+# — that's not an error, just nothing to enumerate. Emit an empty list so
+# enum-resolution succeeds and the deploy proceeds.
 if [ ! -d "/sys/class/input" ]; then
-  echo "Error: /sys/class/input directory not found." >&2
-  exit 1
+  echo "Note: /sys/class/input missing — no USB input devices on this host." >&2
+  printf '[]'
+  exit 0
 fi
 
 FIRST=true

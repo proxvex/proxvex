@@ -2,45 +2,15 @@
   "execute_on": "lxc",
   "name": "Install SSL Proxy On-Start",
   "description": "Installs a drop-in script that handles nginx reverse proxy setup and iptables rules on each container start.",
-  "skip_if_all_missing": ["ssl_mode"],
+  "skip_if_all_missing": [
+    "ssl_mode"
+  ],
   "parameters": [
-    {
-      "id": "ssl_mode",
-      "name": "SSL Mode",
-      "type": "string",
-      "required": true,
-      "description": "SSL mode: proxy (nginx), native (app handles HTTPS), or certs (certificates only)"
-    },
-    {
-      "id": "http_port",
-      "name": "HTTP Port",
-      "type": "string",
-      "required": true,
-      "description": "Application HTTP port"
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "required": true,
-      "description": "HTTPS port for nginx proxy"
-    },
-    {
-      "id": "alpine_mirror",
-      "name": "Alpine Mirror",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Alpine Linux mirror URL for package installation"
-    },
-    {
-      "id": "debian_mirror",
-      "name": "Debian Mirror",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Debian/Ubuntu mirror URL for package installation"
-    }
+    "ssl_mode",
+    "http_port",
+    "https_port",
+    "alpine_mirror",
+    "debian_mirror"
   ],
   "commands": [
     {

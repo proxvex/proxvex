@@ -9,29 +9,8 @@
     }
   ],
   "parameters": [
-    {
-      "id": "username",
-      "name": "Username",
-      "type": "string",
-      "default": "root",
-      "description": "The username to create inside the LXC container. Default is root.",
-      "advanced": true
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: The UID for the user. Default is 0 (root). If not provided, the system will assign one automatically."
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Optional: The GID for the user. Default is 0 (root). If not provided, the system will assign one automatically."
-    }
+    "username",
+    "uid",
+    "gid"
   ]
 }

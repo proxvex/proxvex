@@ -3,13 +3,7 @@
   "name": "Remove On-Start Scripts",
   "description": "Removes addon on_start.d drop-in scripts from the host-side volume directory when an addon is disabled.",
   "parameters": [
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname"
-    }
+    "hostname"
   ],
   "commands": [
     {

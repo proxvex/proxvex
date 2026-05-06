@@ -3,13 +3,7 @@
   "name": "Configure LXC for Docker",
   "description": "Configure LXC container to support Docker (cgroup2, AppArmor, capabilities). Container must be stopped for configuration changes.",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "LXC Container ID",
-      "type": "string",
-      "required": true,
-      "description": "LXC container ID to configure"
-    }
+    "vm_id"
   ],
   "commands": [
     {

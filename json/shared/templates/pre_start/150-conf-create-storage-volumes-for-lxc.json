@@ -2,106 +2,32 @@
   "name": "Create Storage Volumes for LXC",
   "description": "Creates Proxmox storage volumes (mpX) and attaches them to the container. Volumes are named by hostname and can be shared across CTs.",
   "execute_on": "ve",
-  "skip_if_all_missing": ["volumes", "addon_volumes"],
+  "skip_if_all_missing": [
+    "volumes",
+    "addon_volumes"
+  ],
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "ID of the LXC Container",
-      "type": "string",
-      "description": "Optional. If set, volumes are attached to the container."
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "description": "Optional. Used for per-host volume subdirectories."
-    },
-    {
-      "id": "volumes",
-      "name": "Volumes",
-      "type": "string",
-      "multiline": true,
-      "required": false,
-      "description": "One per line: key=/container/path"
-    },
-    {
-      "id": "addon_volumes",
-      "name": "Addon Volumes",
-      "type": "string",
-      "multiline": true,
-      "description": "Additional volumes from addons (merged with base volumes).",
-      "advanced": true
-    },
-    {
-      "id": "volume_storage",
-      "name": "Volume Storage",
-      "type": "enum",
-      "required": false,
-      "default": "",
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage ID for data volumes. Auto-detected from rootfs if not set."
-    },
-    {
-      "id": "volume_size",
-      "name": "Volume Size",
-      "type": "string",
-      "default": "4M",
-      "description": "Default size per managed mp volume (e.g., 4M, 256M, 1G, 2.5G). Most volumes hold KB of state (config, secrets, certs, bootstrap PATs); the default fits those. Per-volume override is supported by appending `,size=…` to a line in the `volumes` property: e.g. `data=/var/lib/gitea,size=2G`."
-    },
-    {
-      "id": "volume_backup",
-      "name": "Include in Backup",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "description": "Whether the volume should be included in Proxmox backups"
-    },
-{
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Container UID for volume ownership"
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "advanced": true,
-      "description": "Container GID for volume ownership"
-    },
-    {
-      "id": "mapped_uid",
-      "name": "Mapped UID (Host)",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "UID mapping on the host for unprivileged containers"
-    },
-    {
-      "id": "mapped_gid",
-      "name": "Mapped GID (Host)",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "GID mapping on the host for unprivileged containers"
-    },
-    {
-      "id": "previous_vm_id",
-      "name": "Previous VM ID",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Previous container VMID (upgrade/reconfigure). Used to prefer reusing that CT's existing volumes over any other historical match."
-    }
+    "vm_id",
+    "hostname",
+    "volumes",
+    "addon_volumes",
+    "volume_storage",
+    "volume_size",
+    "volume_backup",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid",
+    "previous_vm_id"
   ],
   "commands": [
     {
       "name": "Create Storage Volumes",
       "script": "conf-create-storage-volumes-for-lxc.sh",
-      "library": ["pve-common.sh", "vol-common.sh"],
+      "library": [
+        "pve-common.sh",
+        "vol-common.sh"
+      ],
       "outputs": [
         "volumes_attached",
         "cert_dir_override"

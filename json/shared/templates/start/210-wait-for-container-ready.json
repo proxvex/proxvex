@@ -3,14 +3,16 @@
   "name": "Wait for LXC Container Ready",
   "description": "Wait until LXC container is ready (network + apk available)",
   "parameters": [
-    { "id": "vm_id", "name": "VM ID", "type": "string", "required": true, "description": "LXC container ID" }
+    "vm_id"
   ],
   "commands": [
     {
       "name": "Wait for Container",
       "script": "wait-for-container-ready.sh",
       "description": "Poll host until the LXC container reports readiness (network up, apk reachable)",
-      "outputs": ["ready"]
+      "outputs": [
+        "ready"
+      ]
     }
   ]
 }

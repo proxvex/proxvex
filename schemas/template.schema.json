@@ -58,45 +58,37 @@
     },
     "parameters": {
       "type": "array",
+      "description": "Parameter IDs referenced from this template. The canonical definition for each ID lives in json/shared/parameter-definitions.json. (Inline objects are accepted as a transitional form for legacy/backup directories.)",
       "items": {
-        "type": "object",
-        "properties": {
-          "name": { "type": "string" },
-          "id": { "type": "string" },
-          "if": { "type": "string" },
-          "type": { "enum": ["string", "number", "enum", "boolean"] },
-          "description": { "type": "string" },
-          "multiline": { "type": "boolean", "default": false },
-          "upload": { "type": "boolean", "default": false },
-          "certtype": {
+        "anyOf": [
+          {
             "type": "string",
-            "enum": ["ca", "ca_pub", "server", "fullchain"],
-            "description": "Certificate type. Enables auto-generation when upload has no value."
+            "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$"
           },
-          "required": { "type": "boolean", "default": false },
-          "validatePattern": { "type": "string", "default": false },
-          "secure": { "type": "boolean", "default": false },
-          "advanced": { "type": "boolean", "default": false },
-          "internal": { "type": "boolean", "default": false, "description": "Internal parameter: not shown in application UI, only settable via addon properties." },
-          "default": { "type": ["string", "number", "boolean"] }
-        },
-        "required": ["name", "id", "type"],
-        "if": { "properties": { "type": { "const": "enum" } } },
-        "then": {
-          "properties": {
-            "enumValues": {
-              "type": "array",
-              "items": { "anyOf": [ { "type": "string" }, { "type": "object", "properties": { "name": { "type": "string" }, "value": { "type": ["string", "number", "boolean"] } } } ] }
+          {
+            "type": "object",
+            "$comment": "Legacy inline form — accepted only for backup/transitional templates, not for new code.",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "type": { "enum": ["string", "number", "enum", "boolean"] },
+              "description": { "type": "string" },
+              "multiline": { "type": "boolean" },
+              "upload": { "type": "boolean" },
+              "certtype": { "type": "string" },
+              "required": { "type": "boolean" },
+              "secure": { "type": "boolean" },
+              "advanced": { "type": "boolean" },
+              "internal": { "type": "boolean" },
+              "default": { "type": ["string", "number", "boolean"] },
+              "enumValues": { "type": "array" },
+              "enumValuesTemplate": { "type": "string" },
+              "validatePattern": { "type": "string" },
+              "if": { "type": "string" }
             },
-            "enumValuesTemplate": {
-              "type": "string"
-            }
-          },
-          "anyOf": [
-            { "required": ["enumValues"] },
-            { "required": ["enumValuesTemplate"] }
-          ]
-        }
+            "required": ["id"]
+          }
+        ]
       }
     },
     "commands": {

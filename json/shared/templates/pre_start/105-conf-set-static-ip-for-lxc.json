@@ -8,69 +8,15 @@
     "nameserver4"
   ],
   "parameters": [
-    {
-      "name": "static_ip",
-      "id": "static_ip",
-      "type": "string",
-      "description": "Static IPv4 address in CIDR notation (e.g. 192.168.4.100/24).",
-      "advanced": true
-    },
-    {
-      "name": "static_gw",
-      "id": "static_gw",
-      "type": "string",
-      "description": "Static IPv4 gateway (e.g. 192.168.4.1). Requires static_ip.",
-      "advanced": true
-    },
-    {
-      "name": "static_ip6",
-      "id": "static_ip6",
-      "type": "string",
-      "description": "Static IPv6 address in CIDR notation (e.g. fd00::50/64).",
-      "advanced": true
-    },
-    {
-      "name": "static_gw6",
-      "id": "static_gw6",
-      "type": "string",
-      "description": "Static IPv6 gateway (e.g. fd00::1). Requires static_ip6.",
-      "advanced": true
-    },
-    {
-      "name": "nameserver4",
-      "id": "nameserver4",
-      "type": "string",
-      "description": "IPv4 DNS nameserver (e.g. 192.168.1.1). Optional.",
-      "advanced": true
-    },
-    {
-      "name": "nameserver6",
-      "id": "nameserver6",
-      "type": "string",
-      "description": "IPv6 DNS nameserver (e.g. fd00:...::1 or 2001:...::1). Optional.",
-      "advanced": true
-    },
-    {
-      "name": "vm_id",
-      "id": "vm_id",
-      "type": "string",
-      "description": "VMID of the container.",
-      "advanced": true
-    },
-    {
-      "name": "hostname",
-      "id": "hostname",
-      "type": "string",
-      "description": "Hostname of the container.",
-      "advanced": true
-    },
-    {
-      "name": "bridge",
-      "id": "bridge",
-      "type": "string",
-      "description": "Bridge to attach (e.g. vmbr0).",
-      "advanced": true
-    }
+    "static_ip",
+    "static_gw",
+    "static_ip6",
+    "static_gw6",
+    "nameserver4",
+    "nameserver6",
+    "vm_id",
+    "hostname",
+    "bridge"
   ],
   "commands": [
     {

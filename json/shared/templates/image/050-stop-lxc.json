@@ -3,12 +3,7 @@
   "name": "Stop LXC Container",
   "description": "Stops the LXC container and waits until it is stopped",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "number",
-      "description": "ID of the virtual machine"
-    }
+    "vm_id"
   ],
   "commands": [
     {

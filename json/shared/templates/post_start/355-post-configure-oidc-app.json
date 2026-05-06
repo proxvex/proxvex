@@ -1,60 +1,19 @@
 {
   "name": "Configure OIDC in Application",
   "description": "Configure the application to use OIDC authentication. The shared script is a no-op. Applications override this in their own scripts/ directory.",
-  "execute_on": { "where": "lxc", "uid": true, "gid": true },
+  "execute_on": {
+    "where": "lxc",
+    "uid": true,
+    "gid": true
+  },
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "VM ID",
-      "type": "string",
-      "required": true,
-      "description": "VMID of the application container"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Hostname of the application container"
-    },
-    {
-      "id": "oidc_issuer_url",
-      "name": "OIDC Issuer URL",
-      "type": "string",
-      "required": true,
-      "description": "Zitadel issuer URL (from post-setup-oidc-client)"
-    },
-    {
-      "id": "oidc_client_id",
-      "name": "OIDC Client ID",
-      "type": "string",
-      "required": true,
-      "description": "OIDC client ID (from post-setup-oidc-client)"
-    },
-    {
-      "id": "oidc_client_secret",
-      "name": "OIDC Client Secret",
-      "type": "string",
-      "required": true,
-      "description": "OIDC client secret (from post-setup-oidc-client)"
-    },
-    {
-      "id": "domain_suffix",
-      "name": "Domain Suffix",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "Domain suffix for constructing URLs"
-    },
-    {
-      "id": "GITEA_ADMIN_PASSWORD",
-      "name": "Gitea Admin Password",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Admin password for Gitea REST API access (from gitea stack)"
-    }
+    "vm_id",
+    "hostname",
+    "oidc_issuer_url",
+    "oidc_client_id",
+    "oidc_client_secret",
+    "domain_suffix",
+    "GITEA_ADMIN_PASSWORD"
   ],
   "commands": [
     {

@@ -2,30 +2,20 @@
   "execute_on": "ve",
   "name": "Check OIDC Machine Login",
   "description": "Verifies end-to-end OIDC machine login: reads test credentials from the Zitadel dependency, obtains a JWT via client_credentials grant, and calls the deployer API with the token.",
-  "skip_if_all_missing": ["check_oidc_machine_login"],
+  "skip_if_all_missing": [
+    "check_oidc_machine_login"
+  ],
   "parameters": [
-    {
-      "id": "check_oidc_machine_login",
-      "name": "Check OIDC Machine Login",
-      "type": "boolean",
-      "required": false,
-      "internal": true,
-      "description": "Set to true to verify end-to-end OIDC machine login."
-    },
-    {
-      "id": "dep_zitadel_vm_id",
-      "name": "Zitadel VM ID",
-      "type": "number",
-      "required": false,
-      "internal": true,
-      "description": "VM ID of the Zitadel dependency container."
-    }
+    "check_oidc_machine_login",
+    "dep_zitadel_vm_id"
   ],
   "commands": [
     {
       "name": "Check OIDC Machine Login",
       "script": "host-check-oidc-machine-login.sh",
-      "outputs": ["check_oidc_machine_login_result"]
+      "outputs": [
+        "check_oidc_machine_login_result"
+      ]
     }
   ]
 }

@@ -3,39 +3,81 @@
   "description": "Deploys and manages LXC containers on Proxmox from OCI images via a web UI and API, and lets you easily define custom container services",
   "extends": "oci-image",
   "icon": "favicon.svg",
-  "tags": ["infrastructure"],
-  "supported_addons": ["addon-oidc"],
-  "oidc_roles": [
-    { "key": "admin", "display_name": "Administrator", "group": "deployer" }
+  "tags": [
+    "infrastructure"
   ],
-  "parameters": [
+  "supported_addons": [
+    "addon-oidc"
+  ],
+  "oidc_roles": [
     {
-      "id": "oci_image_tag",
-      "name": "Version",
-      "type": "string",
-      "required": true,
-      "description": "OCI image tag / version to deploy (e.g. 'latest', 'v1.2.3'). Default comes from versions.sh (OCI_oci_lxc_deployer_TAG)."
+      "key": "admin",
+      "display_name": "Administrator",
+      "group": "deployer"
     }
   ],
+  "parameters": [
+    "oci_image_tag"
+  ],
   "properties": [
-    { "id": "envs", "default": "HTTP_PORT=3080\nHTTPS_PORT=3443" },
-    { "id": "hostname", "default": "proxvex" },
-    { "id": "oci_image", "value": "ghcr.io/proxvex/proxvex:{{oci_image_tag}}" },
-    { "id": "uid", "value": "1001" },
-    { "id": "gid", "value": "1001" },
-    { "id": "username", "value": "lxc" },
-    { "id": "http_port", "value": "3080" },
-    { "id": "https_port", "value": "3443" },
-    { "id": "volume_backup", "value": "true" },
-    { "id": "volumes", "value": "config=/config\nsecure=/secure,0700" },
-    { "id": "ssl_mode", "value": "native" },
-    { "id": "oidc_callback_path", "value": "/api/auth/callback" },
-    { "id": "oidc_required_role", "value": "admin" }
+    {
+      "id": "envs",
+      "default": "HTTP_PORT=3080\nHTTPS_PORT=3443"
+    },
+    {
+      "id": "hostname",
+      "default": "proxvex"
+    },
+    {
+      "id": "oci_image",
+      "value": "ghcr.io/proxvex/proxvex:{{oci_image_tag}}"
+    },
+    {
+      "id": "uid",
+      "value": "1001"
+    },
+    {
+      "id": "gid",
+      "value": "1001"
+    },
+    {
+      "id": "username",
+      "value": "lxc"
+    },
+    {
+      "id": "http_port",
+      "value": "3080"
+    },
+    {
+      "id": "https_port",
+      "value": "3443"
+    },
+    {
+      "id": "volume_backup",
+      "value": "true"
+    },
+    {
+      "id": "volumes",
+      "value": "config=/config\nsecure=/secure,0700"
+    },
+    {
+      "id": "ssl_mode",
+      "value": "native"
+    },
+    {
+      "id": "oidc_callback_path",
+      "value": "/api/auth/callback"
+    },
+    {
+      "id": "oidc_required_role",
+      "value": "admin"
+    }
   ],
   "installation": {},
   "check": {
     "check": [
-      "check-oidc-endpoint.json"
+      "check-oidc-endpoint.json",
+      "check-ssl-cert.json"
     ]
   },
   "url": "https://github.com/proxvex/proxvex",

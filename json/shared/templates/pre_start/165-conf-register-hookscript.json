@@ -3,13 +3,7 @@
   "name": "Register PVE Hookscript",
   "description": "Registers the proxvex hookscript on the Proxmox host. The hookscript runs on_start_container inside the container after each restart to start services that have no init system support.",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "Container ID",
-      "type": "string",
-      "required": true,
-      "description": "The ID of the LXC container to register the hookscript for"
-    }
+    "vm_id"
   ],
   "commands": [
     {

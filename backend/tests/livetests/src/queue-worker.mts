@@ -108,8 +108,22 @@ export async function runQueueWorker(
       // Build params
       const appMeta = appMetaMap.get(scenario.application) ?? {};
       const hasStacktype = !!appMeta.stacktype;
+      // Hidden apps (proxmox host reconfigure) target the PVE host itself.
+      // Substitute the real PVE short hostname so backend cert-signing matches
+      // the actual web UI hostname instead of the runner-derived variant name.
+      const isHiddenApp = !appMetaMap.has(scenario.application);
+      let effectiveHostname = hostname;
+      if (isHiddenApp) {
+        try {
+          effectiveHostname = nestedSsh(
+            config.pveHost, config.portPveSsh,
+            "uname -n | cut -d. -f1",
+            5000,
+          ).trim() || hostname;
+        } catch { /* fall back */ }
+      }
       const baseParams = [
-        { name: "hostname", value: hostname },
+        { name: "hostname", value: effectiveHostname },
         { name: "bridge", value: config.bridge },
         { name: "vm_id", value: String(vmId) },
       ];

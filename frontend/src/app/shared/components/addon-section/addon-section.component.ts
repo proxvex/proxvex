@@ -303,7 +303,7 @@ export class AddonSectionComponent {
   getAddonGroupedParametersAll(addon: IAddonWithParameters): Record<string, IParameter[]> {
     const appIds = new Set(this.appParameterIds);
     let params = (addon.parameters ?? []).filter(p =>
-      (!p.advanced || this.showAdvanced) && !appIds.has(p.id)
+      !p.internal && (!p.advanced || this.showAdvanced) && !appIds.has(p.id)
     );
     if (addon.id === 'addon-oidc') {
       const hiddenIds = this.oidcMode() === 'auto'

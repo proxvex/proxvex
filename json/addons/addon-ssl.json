@@ -1,74 +1,53 @@
 {
   "name": "SSL/HTTPS",
   "description": "Enable HTTPS via nginx reverse proxy, native app configuration, or certificate provisioning only.",
-  "tags": ["security", "network"],
-
+  "tags": [
+    "security",
+    "network"
+  ],
   "parameters": [
+    "ssl_mode",
+    "http_port",
+    "https_port"
+  ],
+  "properties": [
     {
-      "id": "ssl_mode",
-      "name": "SSL Mode",
-      "type": "string",
-      "default": "certs",
-      "certtype": "server",
-      "description": "SSL mode: proxy (nginx reverse proxy), native (app handles HTTPS), or certs (certificates only)."
+      "id": "ssl.addon_volumes",
+      "value": "certs=/etc/ssl/addon,0700\nproxvex=/etc/proxvex,0755"
     },
     {
-      "id": "http_port",
-      "name": "HTTP Port",
-      "type": "string",
-      "required": false,
-      "default": "",
-      "advanced": true,
-      "description": "The HTTP port of the application to be proxied."
-    },
-    {
-      "id": "https_port",
-      "name": "HTTPS Port",
-      "type": "string",
-      "required": false,
-      "default": "1443",
-      "advanced": true,
-      "description": "The HTTPS port to listen on (default: 1443, rootless containers cannot bind 443)."
+      "id": "has_on_start_hooks",
+      "value": "true"
     }
   ],
-
-  "properties": [
-    { "id": "ssl.addon_volumes", "value": "certs=/etc/ssl/addon,0700\nproxvex=/etc/proxvex,0755" },
-    { "id": "has_on_start_hooks", "value": "true" }
-  ],
-
   "installation": {
     "pre_start": [
-      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "157-conf-publish-ssl-provides.json", "after": "156-conf-generate-certificates.json" },
-      { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "159-conf-enable-ssl-app.json", "after": "156-conf-generate-certificates.json" },
-      { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
+      { "name": "156-conf-generate-certificates.json", "position": "end" },
+      { "name": "157-conf-publish-ssl-provides.json", "position": "end" },
+      { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
+      { "name": "159-conf-enable-ssl-app.json", "position": "end" },
+      { "name": "170-conf-add-ssl-capabilities.json", "position": "end" },
+      { "name": "165-conf-register-hookscript.json", "position": "end" }
     ]
   },
-
   "reconfigure": {
     "pre_start": [
-      { "name": "156-conf-generate-certificates.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "157-conf-publish-ssl-provides.json", "after": "156-conf-generate-certificates.json" },
-      { "name": "166-conf-write-on-start-scripts.json", "after": "150-conf-create-storage-volumes-for-lxc.json" },
-      { "name": "159-conf-enable-ssl-app.json", "after": "156-conf-generate-certificates.json" },
-      { "name": "170-conf-add-ssl-capabilities.json", "after": "100-conf-create-configure-lxc.json" },
-      { "name": "165-conf-register-hookscript.json", "after": "100-conf-create-configure-lxc.json" }
+      { "name": "156-conf-generate-certificates.json", "position": "end" },
+      { "name": "157-conf-publish-ssl-provides.json", "position": "end" },
+      { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
+      { "name": "159-conf-enable-ssl-app.json", "position": "end" },
+      { "name": "170-conf-add-ssl-capabilities.json", "position": "end" },
+      { "name": "165-conf-register-hookscript.json", "position": "end" }
     ]
   },
-
   "disable": {
     "pre_start": [
       "158-conf-disable-ssl-app.json",
       "167-conf-remove-on-start-scripts.json"
     ]
   },
-
   "upgrade": [
     "166-conf-write-on-start-scripts.json"
   ],
-
   "notes_key": "ssl"
 }

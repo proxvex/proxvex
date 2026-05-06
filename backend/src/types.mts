@@ -210,10 +210,14 @@ export interface IParameter {
   required?: boolean;
   secure?: boolean;
   advanced?: boolean;
+  /** Internal parameter — never rendered in the UI. Set by backend, app properties, or addons. */
+  internal?: boolean;
   upload?: boolean;
   certtype?: CertType;
   default?: string | number | boolean;
   enumValues?: (string | { name: string; value: string | number | boolean })[];
+  enumValuesTemplate?: string;
+  validatePattern?: string;
   templatename?: string;
   template?: string;
   if?: string;
@@ -675,11 +679,12 @@ export interface IAddonVolume {
   default_size?: string;
 }
 
-/** Template reference: either a string or object with name and optional before/after */
+/** Template reference: either a string or object with name and optional position/before/after */
 export type AddonTemplateReference =
   | string
   | {
       name: string;
+      position?: "start" | "end";
       before?: string;
       after?: string;
     };

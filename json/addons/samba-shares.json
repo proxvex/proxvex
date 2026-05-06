@@ -1,87 +1,53 @@
 {
   "name": "Samba File Shares",
   "description": "SMB/CIFS file sharing for the container. Upload a custom smb.conf to configure shares.",
-  "tags": ["storage", "network"],
-
+  "tags": [
+    "storage",
+    "network"
+  ],
   "parameters": [
+    "addon_content",
+    "smb_user",
+    "smb_password"
+  ],
+  "properties": [
     {
-      "id": "addon_content",
-      "name": "Samba Configuration File",
-      "type": "string",
-      "upload": true,
-      "description": "Upload your smb.conf file"
+      "id": "addon_packages",
+      "value": "samba"
     },
     {
-      "id": "smb_user",
-      "name": "Samba Username",
-      "type": "string",
-      "required": true,
-      "description": "Username for Samba authentication"
+      "id": "addon_volumes",
+      "value": "samba_private=/var/lib/samba/private,0700,0:0\nsamba_config=/etc/samba,0700,0:0\nproxvex=/etc/proxvex,0755,0:0"
     },
     {
-      "id": "smb_password",
-      "name": "Samba Password",
-      "type": "string",
-      "required": true,
-      "secure": true,
-      "description": "Password for Samba authentication"
+      "id": "addon_path",
+      "value": "samba_config:smb.conf"
+    },
+    {
+      "id": "has_on_start_hooks",
+      "value": "true"
     }
   ],
-
-  "properties": [
-    { "id": "addon_packages", "value": "samba" },
-    { "id": "addon_volumes", "value": "samba_private=/var/lib/samba/private,0700,0:0\nsamba_config=/etc/samba,0700,0:0\nproxvex=/etc/proxvex,0755,0:0" },
-    { "id": "addon_path", "value": "samba_config:smb.conf" },
-    { "id": "has_on_start_hooks", "value": "true" }
-  ],
-
   "installation": {
     "pre_start": [
-      {
-        "name": "150-conf-create-storage-volumes-for-lxc.json",
-        "after": "100-conf-create-configure-lxc.json"
-      },
-      {
-        "name": "155-conf-upload-addon-files.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "166-conf-write-on-start-scripts.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "165-conf-register-hookscript.json",
-        "after": "100-conf-create-configure-lxc.json"
-      }
+      { "name": "150-conf-create-storage-volumes-for-lxc.json", "position": "end" },
+      { "name": "155-conf-upload-addon-files.json", "position": "end" },
+      { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
+      { "name": "165-conf-register-hookscript.json", "position": "end" }
     ]
   },
-
   "reconfigure": {
     "pre_start": [
-      {
-        "name": "150-conf-create-storage-volumes-for-lxc.json",
-        "after": "100-conf-create-configure-lxc.json"
-      },
-      {
-        "name": "155-conf-upload-addon-files.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "166-conf-write-on-start-scripts.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "165-conf-register-hookscript.json",
-        "after": "100-conf-create-configure-lxc.json"
-      }
+      { "name": "150-conf-create-storage-volumes-for-lxc.json", "position": "end" },
+      { "name": "155-conf-upload-addon-files.json", "position": "end" },
+      { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
+      { "name": "165-conf-register-hookscript.json", "position": "end" }
     ]
   },
-
   "disable": {
     "pre_start": [
       "167-conf-remove-on-start-scripts.json"
     ]
   },
-
   "notes_key": "samba-shares"
 }

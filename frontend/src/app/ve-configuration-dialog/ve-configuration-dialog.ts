@@ -135,14 +135,18 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
     this.configService.getUnresolvedParameters(this.data.app.id, this.task).subscribe({
       next: (res) => {
         this.unresolvedParameters = res.unresolvedParameters;
-        // Group parameters by template (filter out addon_ parameters - they are set by addons only)
+        // Group parameters by their UI group (Application, Authentication, …).
+        // Falls back to templatename for parameters without a group set
+        // (transitional, until parameter-definitions.json is fully populated).
         this.groupedParameters = {};
         for (const param of this.unresolvedParameters) {
           // Skip addon_ parameters - they are internal and set by addon templates
           if (param.id.startsWith('addon_')) {
             continue;
           }
-          const group = param.templatename || 'General';
+          const group = (param as IParameter & { group?: string }).group
+            || param.templatename
+            || 'General';
           if (!this.groupedParameters[group]) this.groupedParameters[group] = [];
           this.groupedParameters[group].push(param);
           const validators = param.required ? [Validators.required] : [];
@@ -169,18 +173,26 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
           this.groupedParameters[group] = this.groupedParameters[group].slice().sort((a, b) => Number(!!b.required) - Number(!!a.required));
         }
 
-        // Reorder groups: groups with unfilled required (non-advanced) params first
+        // Reorder groups by canonical UI sequence. Unknown / legacy template-name
+        // groups appear after the canonical groups, in original order.
+        // Network first (hostname is the most-edited field). Diagnostics second
+        // because when the user opens Advanced, those settings are interesting
+        // to surface; without advanced params the group is empty anyway.
+        const CANONICAL_GROUP_ORDER = [
+          'Network',
+          'Diagnostics',
+          'Application',
+          'Authentication',
+          'Storage',
+          'Other',
+        ];
         const sorted: Record<string, IParameter[]> = {};
         const groupKeys = Object.keys(this.groupedParameters);
-        groupKeys.sort((a, b) => {
-          const aScore = this.groupedParameters[a].some(p =>
-            p.required && !p.advanced && (p.default === undefined || p.default === null || p.default === '')
-          ) ? 1 : 0;
-          const bScore = this.groupedParameters[b].some(p =>
-            p.required && !p.advanced && (p.default === undefined || p.default === null || p.default === '')
-          ) ? 1 : 0;
-          return bScore - aScore;
-        });
+        const indexOf = (g: string) => {
+          const i = CANONICAL_GROUP_ORDER.indexOf(g);
+          return i === -1 ? CANONICAL_GROUP_ORDER.length : i;
+        };
+        groupKeys.sort((a, b) => indexOf(a) - indexOf(b));
         for (const key of groupKeys) {
           sorted[key] = this.groupedParameters[key];
         }
@@ -909,7 +921,7 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   }
 
   hasAdvancedParams(): boolean {
-    return this.unresolvedParameters.some(p => p.advanced);
+    return this.unresolvedParameters.some(p => p.advanced && !p.internal);
   }
 
   get missingRequiredParams(): IParameter[] {

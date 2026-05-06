@@ -3,44 +3,11 @@
   "name": "Configure LXC for OCI",
   "description": "Configures LXC container options for OCI images. Sets lxc.console.logpath.",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "ID of the virtual machine",
-      "type": "number",
-      "required": true,
-      "description": "ID of the virtual machine"
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "type": "string",
-      "required": true,
-      "description": "Container hostname (used for log file naming)"
-    },
-    {
-      "id": "initial_command",
-      "name": "Initial Command",
-      "type": "string",
-      "description": "Initial command to execute in the container (lxc.init_cmd). Useful for OCI images that require a specific start command.",
-      "advanced": true
-    },
-    {
-      "id": "envs",
-      "name": "Environment Variables",
-      "type": "string",
-      "advanced": true,
-      "multiline": true,
-      "default": "",
-      "description": "Environment variables to substitute in initial_command."
-    },
-    {
-      "id": "wait_for_network",
-      "name": "Wait for Network",
-      "type": "boolean",
-      "advanced": true,
-      "default": false,
-      "description": "Wrap entrypoint to wait for network before starting. Only needed for apps that connect to external services at startup."
-    }
+    "vm_id",
+    "hostname",
+    "initial_command",
+    "envs",
+    "wait_for_network"
   ],
   "commands": [
     {

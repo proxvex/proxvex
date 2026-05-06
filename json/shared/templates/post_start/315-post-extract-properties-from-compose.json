@@ -3,14 +3,7 @@
   "name": "Extract Compose Props",
   "description": "Extract useful properties from Docker Compose file (services, ports, images, networks) for documentation and configuration",
   "parameters": [
-    {
-      "id": "compose_file",
-      "name": "Docker Compose File",
-      "type": "string",
-      "upload": true,
-      "required": true,
-      "description": "Docker Compose YAML file (upload)"
-    }
+    "compose_file"
   ],
   "commands": [
     {

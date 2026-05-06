@@ -1,0 +1,14 @@
+{
+  "selectedAddons": ["addon-ssl", "addon-oidc"],
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "memory", "value": "1024" },
+    { "name": "check_oidc_enabled", "value": "true" },
+    { "name": "check_oidc_api_protected", "value": "true" }
+  ],
+  "task": "installation",
+  "depends_on": ["zitadel/default"],
+  "wait_seconds": 60,
+  "cli_timeout": 600,
+  "description": "Fresh install of proxvex with both SSL and OIDC addons. Verifies that (a) addon-ssl issued a fresh server certificate at /etc/ssl/addon/fullchain.pem with the container hostname in the SAN list and a future expiry, and (b) the OIDC endpoint returns 401 for unauthenticated API calls (i.e. OIDC is actually protecting the API)."
+}

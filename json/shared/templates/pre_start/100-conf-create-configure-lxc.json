@@ -3,171 +3,27 @@
   "name": "Create and Configure LXC",
   "description": "Creates or reconfigures LXC container and applies optional configurations (templates 101-199).\n\n**New Installation Mode** (vm_id not set):\nCreates a new container using pct create and applies all configuration templates.\n\n**Reconfiguration Mode** (vm_id set and container exists):\nSkips pct create and only applies configuration changes. Existing mountpoints and environment variables are preserved (not removed).\n\nIf username is provided, a user will be created on the VE host before the container is created (template 095). This ensures consistent UID/GID mapping between host and container.\n\nNote: uid and gid parameters are used for volume permissions only, not for container idmap configuration. The container is created as unprivileged without automatic UID/GID mappings.\n\nTemplates included:\n- 095: Create User on VE Host (if username provided)\n- 100: Create LXC container (unprivileged, no idmap) - skipped in reconfiguration mode\n- 104: Compute Static IPs from prefixes\n- 105: Set Static IP for LXC\n- 106: Update /etc/hosts entries\n- 110: Map Serial Device\n- 150: Create Storage Volumes for LXC (only adds new, preserves existing)\n- 170: Set Environment Variables in LXC (only adds new, preserves existing)\n- 190: Write LXC Notes (managed marker, OCI image, links)",
   "parameters": [
-    {
-      "id": "vm_id",
-      "name": "ID of the virtual machine",
-      "type": "number",
-      "default": "",
-      "description": "ID of the virtual machine",
-      "advanced": true
-    },
-    {
-      "id": "vm_id_start",
-      "name": "VM ID Start",
-      "type": "number",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: Start index for auto-assigned VM IDs. The next free ID starting from this value will be used."
-    },
-    {
-      "id": "template_path",
-      "name": "Path to the LXC template",
-      "type": "string",
-      "description": "Path to the LXC template (e.g. local:vztmpl/alpine-3.19-default_20231107_amd64.tar.xz). Required for new installations (auto-selected for Alpine). Not needed in reconfiguration mode when vm_id points to an existing container."
-    },
-    {
-      "id": "oci_image",
-      "name": "OCI Image",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: OCI image reference used to create the container (e.g. docker://mariadb:11.0.2). If provided, it will be written into the Proxmox notes (description) as an identifiable line."
-    },
-    {
-      "id": "oci_image_tag",
-      "name": "OCI Image Tag",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: Actual OCI image tag/version that was downloaded (e.g. 0.17.5). If provided, it will be written into the Proxmox notes as Version."
-    },
-    {
-      "id": "disk_size",
-      "name": "Disk size",
-      "type": "string",
-      "default": "0.5",
-      "description": "Rootfs size for the container in GiB. Apps that bundle a large image (Node.js, JDK, full Debian base) should override this in their application.json. Default fits Alpine + small OCI images (~200 MiB used).",
-      "advanced": true
-    },
-    {
-      "id": "rootfs_storage",
-      "name": "Rootfs Storage",
-      "type": "enum",
-      "enumValuesTemplate": "list-available-pve-rootdir-storage.json",
-      "description": "Proxmox storage for the container rootfs",
-      "advanced": true
-    },
-    {
-      "id": "memory",
-      "name": "Memory in MB",
-      "type": "number",
-      "default": 512,
-      "description": "Memory for the container in MB",
-      "advanced": true
-    },
-    {
-      "id": "bridge",
-      "name": "Network bridge",
-      "type": "string",
-      "default": "vmbr0",
-      "description": "Network bridge to use",
-      "advanced": true
-    },
-    {
-      "id": "hostname",
-      "name": "Hostname",
-      "required": true,
-      "type": "string",
-      "description": "Hostname for the LXC container"
-    },
-    {
-      "id": "uid",
-      "name": "UID",
-      "type": "string",
-      "default": "0",
-      "description": "UID for UID/GID mapping and permissions. If provided, will be mapped directly between host and container (1:1 mapping). Default is 0 (root).",
-      "advanced": true
-    },
-    {
-      "id": "gid",
-      "name": "GID",
-      "type": "string",
-      "default": "0",
-      "description": "GID for UID/GID mapping and permissions. If provided, will be mapped directly between host and container (1:1 mapping). Default is 0 (root).",
-      "advanced": true
-    },
-    {
-      "id": "username",
-      "name": "Username",
-      "type": "string",
-      "default": "root",
-      "description": "Optional: Username to create on the VE host before container creation. This ensures consistent UID/GID mapping between host and container. Default is root. If not provided, root will be used.",
-      "advanced": true
-    },
-    {
-      "id": "deployer_base_url",
-      "name": "Deployer Base URL",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Auto-injected by backend: Base URL of the deployer for log viewer links in Proxmox notes."
-    },
-    {
-      "id": "ve_context_key",
-      "name": "VE Context Key",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Auto-injected by backend: VE context identifier for API calls."
-    },
-    {
-      "id": "ve_debug_commands",
-      "name": "VE Debug Commands",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Comma-separated list of command name substrings to debug-dump during execution. For each matching command the backend emits the current inputs+defaults (before) and outputs (after) to stderr of the deploy log. Use '*' to dump every command. Leave empty to disable. Example: 'Write Docker Compose Notes,acme-renew'"
-    },
-    {
-      "id": "arch",
-      "name": "Architecture",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: CPU architecture for pct create (amd64, arm64, armhf, i386). Only used for OCI images. For regular LXC templates, Proxmox auto-detects the architecture."
-    },
-    {
-      "id": "searchdomain",
-      "name": "DNS Search Domain",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "DNS search domain for the container's resolv.conf. Default (empty) avoids inheriting the PVE host's hostname domain (e.g. 'cluster' when the host is 'pve1.cluster'), which can break bare-hostname DNS resolution from inside docker containers (Go's resolver and dnsmasq embedded DNS append the search suffix and don't fall back to the bare name). Set explicitly only if you need a specific search domain."
-    },
-    {
-      "id": "startup_order",
-      "name": "Startup Order",
-      "type": "string",
-      "default": "100",
-      "advanced": true,
-      "description": "Optional: Boot order for the container. Lower values start first (e.g. 10 for databases, 20 for auth providers). Default 100 for normal apps. Maps to Proxmox --startup order=N."
-    },
-    {
-      "id": "startup_up",
-      "name": "Startup Up Delay",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: Seconds to wait after starting this container before starting the next one. Maps to Proxmox --startup up=N."
-    },
-    {
-      "id": "startup_down",
-      "name": "Startup Down Delay",
-      "type": "string",
-      "default": "",
-      "advanced": true,
-      "description": "Optional: Seconds to wait after shutting down this container before stopping the next one. Maps to Proxmox --startup down=N."
-    }
+    "vm_id",
+    "vm_id_start",
+    "template_path",
+    "oci_image",
+    "oci_image_tag",
+    "disk_size",
+    "rootfs_storage",
+    "memory",
+    "bridge",
+    "hostname",
+    "uid",
+    "gid",
+    "username",
+    "deployer_base_url",
+    "ve_context_key",
+    "ve_debug_commands",
+    "arch",
+    "searchdomain",
+    "startup_order",
+    "startup_up",
+    "startup_down"
   ],
   "commands": [
     {
@@ -186,10 +42,6 @@
       "name": "Setup GID mapping",
       "script": "conf-setup-lxc-gid-mapping.py",
       "library": "setup_lxc_idmap_common.py"
-    },
-    {
-      "name": "Compute Static IPs",
-      "template": "104-conf-lxc-static-ip-prefix.json"
     },
     {
       "name": "Set Static IP for LXC",
