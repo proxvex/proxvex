@@ -18,7 +18,21 @@ export interface StackMaps {
 
 /**
  * Run cleanup SQL on reused dependency VMs.
- * E.g. DROP DATABASE for target apps that need a fresh database.
+ *
+ * Triggered when a scenario is going to be re-installed and its `cleanup`
+ * map declares SQL that should run against a reused dependency. Concretely:
+ * zitadel/default's `cleanup.postgres` drops the `zitadel` user + database
+ * inside the postgres-default container so the next zitadel install can
+ * bootstrap a fresh user with the new oidc_default stack's password.
+ *
+ * The filter is ``skipExecution`` (will the scenario actually re-install?)
+ * — NOT ``isDependency``. When zitadel/default is depended on by gitea
+ * but its VM was destroyed (e.g. stack-recreate path), it is a dependency
+ * AND has skipExecution=false. The cleanup must still run, otherwise the
+ * postgres `zitadel` user keeps the old password while ensureStacks rolls
+ * the oidc stack to a new one — and the next zitadel install fails
+ * "password authentication failed for user \"zitadel\"" (SQLSTATE 28P01)
+ * during start-from-init.
  */
 export function runCleanupSql(
   planned: PlannedScenario[],
@@ -26,7 +40,7 @@ export function runCleanupSql(
   sshPort: number,
 ): void {
   for (const p of planned) {
-    if (p.isDependency || !p.scenario.cleanup) continue;
+    if (p.skipExecution || !p.scenario.cleanup) continue;
     for (const [depApp, sql] of Object.entries(p.scenario.cleanup)) {
       const depVm = planned.find(d => d.scenario.application === depApp && d.skipExecution);
       if (depVm) {
