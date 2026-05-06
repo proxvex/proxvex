@@ -50,18 +50,38 @@ function evaluateExpect2Fail(
       const seenTemplates = [
         ...new Set(cliResult.messages.map((m) => m.template).filter(Boolean)),
       ].sort();
+      // Also collect command names for messages without template, to help
+      // diagnose whether the template ran but failed to propagate the field.
+      const orphanCommands = [
+        ...new Set(
+          cliResult.messages
+            .filter((m) => !m.template && m.command)
+            .map((m) => m.command),
+        ),
+      ].sort();
       const seenSummary = seenTemplates.length > 0
-        ? `seen: ${seenTemplates.join(", ")}`
+        ? `seen[${seenTemplates.length}]: ${seenTemplates.join(", ")}`
         : "no messages had a 'template' field — runtime did not propagate template filenames";
+      const orphanSummary = orphanCommands.length > 0
+        ? ` | orphan-cmds[${orphanCommands.length}]: ${orphanCommands.slice(0, 30).join(", ")}`
+        : "";
       mismatches.push(
-        `${tmpl}: expected to exit ${expectedCode}, but template never ran (${seenSummary})`,
+        `${tmpl}: expected to exit ${expectedCode}, but template never ran (${seenSummary}${orphanSummary})`,
       );
       continue;
     }
-    // A template may emit multiple messages (one per command); use the last
-    // non-partial one as the authoritative result.
+    // A template may emit multiple messages (one per command, plus a synthetic
+    // error wrapper with exitCode=-1 from the catch handler when the script
+    // throws). Prefer the real script exit (0..N) over the synthetic -1, and
+    // skip partial streaming messages.
     const finals = msgs.filter((m) => !m.partial);
-    const lastMsg = finals.length > 0 ? finals[finals.length - 1] : msgs[msgs.length - 1];
+    const realExits = finals.filter((m) => m.exitCode !== -1);
+    const lastMsg =
+      realExits.length > 0
+        ? realExits[realExits.length - 1]
+        : finals.length > 0
+          ? finals[finals.length - 1]
+          : msgs[msgs.length - 1];
     if (lastMsg.exitCode !== expectedCode) {
       mismatches.push(
         `${tmpl}: expected exit ${expectedCode}, got ${lastMsg.exitCode}`,
@@ -70,13 +90,21 @@ function evaluateExpect2Fail(
   }
 
   // Flag any non-zero exit that's not covered by an expect2fail entry.
+  // Exclude:
+  //  - exitCode 0 / -1 (success / synthetic-error wrapper)
+  //  - the "Failed" pipeline-abort message (command="Failed", no template) —
+  //    it's the synthetic top-level wrapper VeExecution emits when an inner
+  //    template throws; the inner failure is what matters and is matched
+  //    separately above
+  //  - messages without a template field (typically not real script results;
+  //    e.g. "Completed", "Failed" wrappers, hook-trigger streaming chunks)
   for (const msg of cliResult.messages) {
     if (msg.exitCode === undefined || msg.exitCode === 0 || msg.exitCode === -1) {
       continue;
     }
-    if (msg.template && expect2fail[msg.template] !== undefined) continue;
-    const id = msg.template ?? msg.command ?? "<unknown>";
-    mismatches.push(`unexpected failure: ${id} exited ${msg.exitCode}`);
+    if (!msg.template) continue;
+    if (expect2fail[msg.template] !== undefined) continue;
+    mismatches.push(`unexpected failure: ${msg.template} exited ${msg.exitCode}`);
   }
 
   return { matched: mismatches.length === 0, mismatches };

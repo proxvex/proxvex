@@ -39,6 +39,7 @@ export class VeExecutionMessageEmitter {
     index: number,
     hostname?: string,
   ): void {
+    const sourceTemplate = (cmd as unknown as { _sourceTemplate?: string })._sourceTemplate;
     this.eventEmitter.emit("message", {
       stderr,
       result,
@@ -48,6 +49,7 @@ export class VeExecutionMessageEmitter {
       host: hostname,
       index,
       partial: false,
+      ...(sourceTemplate ? { template: sourceTemplate } : {}),
     } as unknown as IVeExecuteMessage);
   }
 
@@ -64,6 +66,7 @@ export class VeExecutionMessageEmitter {
     // If error is a JsonError, preserve its details in the error field
     const errorObj: IJsonError | undefined =
       error instanceof JsonError ? error : undefined;
+    const sourceTemplate = (cmd as unknown as { _sourceTemplate?: string })._sourceTemplate;
     this.eventEmitter.emit("message", {
       stderr: msg,
       result: null,
@@ -74,6 +77,7 @@ export class VeExecutionMessageEmitter {
       index: msgIndex,
       partial: false,
       error: errorObj,
+      ...(sourceTemplate ? { template: sourceTemplate } : {}),
     } as IVeExecuteMessage);
   }
 }

@@ -8,12 +8,15 @@
 # time, so no outer wrapper / heredoc trickery is needed.
 #
 # Exit codes:
-#   0 - success: valid cert is installed at $CERT_DIR/fullchain.pem
-#   1 - setup failure: tooling install (apk/apt) failed, openssl not found
-#   2 - cert missing: ACME ran but no cert file appeared (e.g. DNS challenge
-#       failed, Cloudflare API rejected the token, LE rate-limited, etc.)
-#   3 - cert invalid: cert file exists but is not currently valid (expired
-#       or malformed PEM)
+#   0 - hook deployed + best-effort issuance attempted; renewal loop started
+#   1 - setup failure: tooling install (apk/apt) failed before issuance
+#
+# Note: success/failure of the actual ACME issuance is NOT reflected in the
+# exit code. The system carries a self-signed bootstrap placeholder
+# (CN=bootstrap-placeholder) at $CERT_DIR/fullchain.pem so apps with
+# listen … ssl can start before LE has issued. Verification that a real
+# Let's Encrypt cert was issued belongs in the check phase
+# (945-host-check-cert-issuer compares the issuer against an expected pattern).
 
 CF_API_TOKEN="{{ CF_TOKEN }}"
 ACME_DOMAIN="{{ acme_domain }}"
@@ -169,28 +172,12 @@ acme_issue_or_renew() {
   return 0
 }
 
-# --- Initial certificate issuance (synchronous) ---
-acme_issue_or_renew
-
-# --- Validity gate: fail loudly if no usable cert ended up on disk ---
-# fullchain.pem is what apps actually consume; checkend 0 = valid right now.
-# A failed acme_issue_or_renew silently returning 1 is not enough — the on-start
-# hook must signal failure visibly, otherwise tests and operators can't tell
-# whether the cert pipeline succeeded. Differentiate failure modes so the log
-# tells the operator where to look.
-if ! command -v openssl >/dev/null 2>&1; then
-  echo "ERROR: openssl not available — cannot verify certificate at $CERT_DIR/fullchain.pem" >&2
-  exit 1
-fi
-if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
-  echo "ERROR: certificate file missing at $CERT_DIR/fullchain.pem after ACME attempt" >&2
-  exit 2
-fi
-if ! openssl x509 -in "$CERT_DIR/fullchain.pem" -checkend 0 -noout 2>/dev/null; then
-  echo "ERROR: certificate at $CERT_DIR/fullchain.pem is not valid (expired or malformed)" >&2
-  exit 3
-fi
-echo "Valid certificate confirmed at $CERT_DIR/fullchain.pem" >&2
+# --- Initial certificate issuance (synchronous, best-effort) ---
+# Failure here is not fatal: the bootstrap placeholder at $CERT_DIR/fullchain.pem
+# keeps the app booting, the renewal loop will retry, and the check phase
+# (945-host-check-cert-issuer) is where "did ACME actually succeed?" is
+# verified against the expected issuer pattern.
+acme_issue_or_renew || true
 
 # --- Start background renewal loop ---
 (

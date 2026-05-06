@@ -475,13 +475,19 @@ export class VeExecutionSshExecutor {
         ...(e instanceof JsonError && e.details ? { details: e.details.map((d: IJsonError) => d.message) } : {}),
       });
     }
+    // Emit the message before throwing so consumers (e.g. live-test runner's
+    // expect2fail) see the real per-command exit code AND the template field.
+    // The catch in VeExecution.run will additionally emit a synthetic error
+    // message — that's fine; expect2fail filters out -1 exits.
+    msg.index = getNextMessageIndex();
+    msg.partial = false;
+    eventEmitter.emit("message", msg);
+
     if (exitCode !== 0) {
       throw new Error(
         `Command "${tmplCommand.name}" failed with exit code ${exitCode}: ${stderr}`,
       );
-    } else msg.index = getNextMessageIndex();
-    msg.partial = false;
-    eventEmitter.emit("message", msg);
+    }
     return msg;
   }
 }

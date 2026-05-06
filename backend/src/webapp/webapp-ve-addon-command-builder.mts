@@ -39,18 +39,25 @@ export class WebAppVeAddonCommandBuilder {
   }
 
   /**
-   * Loads addon commands for a specific phase (pre_start or post_start).
+   * Loads addon commands for a specific phase (pre_start, post_start, or check).
    * Returns an array of ICommand objects ready for execution.
+   *
+   * - pre_start / post_start: read from addon[task][phase] (e.g. addon.installation.pre_start)
+   * - check: read from addon.check (top-level, task-agnostic — runs at the end of every install/reconfigure)
    */
   private async loadAddonCommandsForPhase(
     addonIds: string[],
     task: TaskType,
-    phase: "pre_start" | "post_start",
+    phase: "pre_start" | "post_start" | "check",
     application?: IApplication,
   ): Promise<ICommand[]> {
-    const addonKey = this.getAddonKeyForTask(task);
-    if (!addonKey) {
-      return [];
+    // check is task-agnostic — it always runs as long as the addon defines it.
+    // For pre_start/post_start we need a task key (installation/reconfigure/upgrade).
+    if (phase !== "check") {
+      const addonKey = this.getAddonKeyForTask(task);
+      if (!addonKey) {
+        return [];
+      }
     }
 
     const pm = this.pm;
@@ -70,14 +77,23 @@ export class WebAppVeAddonCommandBuilder {
 
       // Get templates for the phase from the appropriate addon key
       let templateRefs;
-      if (addonKey === "upgrade") {
-        // upgrade is flat — load for both pre_start and post_start phases
-        // (templates may be in either category directory)
-        templateRefs = (phase === "pre_start" || phase === "post_start") ? addon.upgrade : undefined;
+      if (phase === "check") {
+        // categorized-templatelist allows flat array OR object form. Accept both.
+        const checkData = (addon as { check?: unknown }).check;
+        if (Array.isArray(checkData)) {
+          templateRefs = checkData;
+        } else if (checkData && typeof checkData === "object") {
+          // object form, e.g. { check: [...] }
+          templateRefs = (checkData as Record<string, unknown>)["check"] as typeof templateRefs;
+        }
       } else {
-        // installation and reconfigure have nested structure
-        const addonConfig = addon[addonKey];
-        templateRefs = addonConfig?.[phase];
+        const addonKey = this.getAddonKeyForTask(task);
+        if (addonKey === "upgrade") {
+          templateRefs = (phase === "pre_start" || phase === "post_start") ? addon.upgrade : undefined;
+        } else if (addonKey) {
+          const addonConfig = addon[addonKey];
+          templateRefs = addonConfig?.[phase];
+        }
       }
 
       if (!templateRefs || templateRefs.length === 0) {
@@ -141,6 +157,7 @@ export class WebAppVeAddonCommandBuilder {
       const categoryMap: Record<string, string> = {
         pre_start: "pre_start",
         post_start: "post_start",
+        check: "check",
       };
       const category = categoryMap[phase] ?? "root";
 
@@ -156,7 +173,7 @@ export class WebAppVeAddonCommandBuilder {
           category,
         }) as ITemplate | null;
 
-        if (!template && addonKey === "upgrade") {
+        if (!template && phase !== "check" && this.getAddonKeyForTask(task) === "upgrade") {
           const fallbackCategory = category === "post_start" ? "pre_start" : "post_start";
           template = repositories.getTemplate({
             name: templateName,
@@ -396,6 +413,22 @@ export class WebAppVeAddonCommandBuilder {
     if (postStartCommands.length > 0) {
       const postStartIndex = this.findAddonInsertionIndex(result, "post_start");
       result.splice(postStartIndex, 0, ...postStartCommands);
+    }
+
+    // Load and append check commands at the end of the pipeline.
+    // The application's own check[] templates (e.g. 900-host-check-container)
+    // come from oci-image/docker-compose and were already merged via
+    // application-persistence-handler. Addon checks slot in after them so
+    // addon-specific verification (e.g. 945 cert-issuer for addon-acme) runs
+    // last, after the generic ones have validated container-level health.
+    const checkCommands = await this.loadAddonCommandsForPhase(
+      addonIds,
+      task,
+      "check",
+      application,
+    );
+    if (checkCommands.length > 0) {
+      result.push(...checkCommands);
     }
 
     // Add notes update commands BEFORE "Start LXC Container" (pre_start position).
