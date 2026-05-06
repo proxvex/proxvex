@@ -3,7 +3,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Outputs",
   "description": "Schema for outputs: either a single object with id and value, an array of such objects, or a plain array of name/value objects. The value property can also be an array containing strings, objects with name/value, or objects with id/value.",
-  "oneOf": [
+  "anyOf": [
     { "$ref": "#/$defs/outputObject" },
     {
       "type": "array",
