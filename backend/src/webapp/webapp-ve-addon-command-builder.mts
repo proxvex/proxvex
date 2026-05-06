@@ -175,6 +175,13 @@ export class WebAppVeAddonCommandBuilder {
           for (const cmd of template.commands) {
             const command: ICommand = { ...cmd };
 
+            // Annotate with the source template filename so downstream consumers
+            // (e.g. the live-test runner's expect2fail logic) can identify which
+            // template a result came from. Mirrors the decoration that
+            // TemplateProcessor applies for non-addon templates.
+            (command as unknown as { _sourceTemplate?: string })._sourceTemplate =
+              templateName;
+
             // Set command name from template name if missing (same logic as TemplateProcessor)
             if (!command.name || command.name.trim() === "") {
               command.name = template.name || templateName;

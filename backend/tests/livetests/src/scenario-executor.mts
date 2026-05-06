@@ -47,8 +47,14 @@ function evaluateExpect2Fail(
   for (const [tmpl, expectedCode] of Object.entries(expect2fail)) {
     const msgs = cliResult.messages.filter((m) => m.template === tmpl);
     if (msgs.length === 0) {
+      const seenTemplates = [
+        ...new Set(cliResult.messages.map((m) => m.template).filter(Boolean)),
+      ].sort();
+      const seenSummary = seenTemplates.length > 0
+        ? `seen: ${seenTemplates.join(", ")}`
+        : "no messages had a 'template' field — runtime did not propagate template filenames";
       mismatches.push(
-        `${tmpl}: expected to exit ${expectedCode}, but template never ran`,
+        `${tmpl}: expected to exit ${expectedCode}, but template never ran (${seenSummary})`,
       );
       continue;
     }
