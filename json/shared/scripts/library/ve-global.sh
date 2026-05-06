@@ -24,7 +24,8 @@ find_vmid_by_hostname() {
   # pct list columns: VMID Status Lock Name. Match Name (= hostname).
   _fvbh_running=$(pct list 2>/dev/null \
     | awk -v h="$_fvbh_host" 'NR>1 && $NF==h && $2=="running" {print $1}')
-  _fvbh_running_count=$(printf '%s' "$_fvbh_running" | grep -c .)
+  # Trailing \n via printf forces the last entry to count as a line under any grep.
+  _fvbh_running_count=$(printf '%s\n' "$_fvbh_running" | grep -c .)
 
   if [ "$_fvbh_running_count" -gt 1 ]; then
     echo "ERROR: find_vmid_by_hostname: multiple running containers match hostname '$_fvbh_host': $(echo $_fvbh_running | tr '\n' ' ')— remove duplicates before retrying" >&2
@@ -37,7 +38,7 @@ find_vmid_by_hostname() {
 
   _fvbh_any=$(pct list 2>/dev/null \
     | awk -v h="$_fvbh_host" 'NR>1 && $NF==h {print $1}')
-  _fvbh_any_count=$(printf '%s' "$_fvbh_any" | grep -c .)
+  _fvbh_any_count=$(printf '%s\n' "$_fvbh_any" | grep -c .)
 
   if [ "$_fvbh_any_count" -gt 1 ]; then
     echo "ERROR: find_vmid_by_hostname: multiple containers match hostname '$_fvbh_host': $(echo $_fvbh_any | tr '\n' ' ')— remove duplicates before retrying" >&2
