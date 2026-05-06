@@ -26,6 +26,14 @@
     {
       "id": "has_on_start_hooks",
       "value": "true"
+    },
+    {
+      "id": "cert_check_path",
+      "value": "/etc/ssl/addon/fullchain.pem"
+    },
+    {
+      "id": "cert_expected_issuer_pattern",
+      "value": "Let.s Encrypt"
     }
   ],
   "installation": {
@@ -35,6 +43,9 @@
       { "name": "159-conf-enable-ssl-app.json", "position": "end" },
       { "name": "170-conf-add-ssl-capabilities.json", "position": "end" },
       { "name": "165-conf-register-hookscript.json", "position": "end" }
+    ],
+    "post_start": [
+      "342-post-install-acme-renew-on-start.json"
     ]
   },
   "reconfigure": {
@@ -44,6 +55,9 @@
       { "name": "159-conf-enable-ssl-app.json", "position": "end" },
       { "name": "170-conf-add-ssl-capabilities.json", "position": "end" },
       { "name": "165-conf-register-hookscript.json", "position": "end" }
+    ],
+    "post_start": [
+      "342-post-install-acme-renew-on-start.json"
     ]
   },
   "disable": {
@@ -54,6 +68,9 @@
   },
   "upgrade": [
     "166-conf-write-on-start-scripts.json"
+  ],
+  "check": [
+    "945-host-check-cert-issuer.json"
   ],
   "notes_key": "acme",
   "stack_usage": [

@@ -110,6 +110,7 @@ export interface IVeExecuteMessage {
     vmId?: number;
     redirectUrl?: string;
     completionInfo?: ICompletionInfo;
+    template?: string;
 }
 export interface ICompletionInfo {
     header: string;

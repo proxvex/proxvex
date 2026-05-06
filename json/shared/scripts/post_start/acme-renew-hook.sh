@@ -6,12 +6,21 @@
 #
 # Template variables ({{ ... }}) are substituted by the Spoke at deploy
 # time, so no outer wrapper / heredoc trickery is needed.
+#
+# Exit codes:
+#   0 - success: valid cert is installed at $CERT_DIR/fullchain.pem
+#   1 - setup failure: tooling install (apk/apt) failed, openssl not found
+#   2 - cert missing: ACME ran but no cert file appeared (e.g. DNS challenge
+#       failed, Cloudflare API rejected the token, LE rate-limited, etc.)
+#   3 - cert invalid: cert file exists but is not currently valid (expired
+#       or malformed PEM)
 
 CF_API_TOKEN="{{ CF_TOKEN }}"
 ACME_DOMAIN="{{ acme_domain }}"
 ACME_EMAIL="{{ acme_email }}"
 CERT_DIR="{{ acme.cert_dir }}"
 NEEDS_CA_CERT="{{ acme.needs_ca_cert }}"
+ACME_STAGING="{{ acme_staging }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
 
@@ -69,7 +78,7 @@ MIRROREOF
         echo "apk install attempt $_try failed, retrying..." >&2
         sleep 3
       done
-      [ "$_ok" -eq 1 ] || echo "apk install of curl/openssl failed after 5 attempts" >&2
+      [ "$_ok" -eq 1 ] || { echo "ERROR: apk install of curl/openssl failed after 5 attempts" >&2; exit 1; }
       ;;
     debian|ubuntu)
       if [ -n "$DEBIAN_MIRROR" ] && [ "$DEBIAN_MIRROR" != "NOT_DEFINED" ]; then
@@ -93,7 +102,7 @@ MIRROREOF
         echo "apt install attempt $_try failed, retrying..." >&2
         sleep 3
       done
-      [ "$_ok" -eq 1 ] || echo "apt install of curl/openssl failed after 5 attempts" >&2
+      [ "$_ok" -eq 1 ] || { echo "ERROR: apt install of curl/openssl failed after 5 attempts" >&2; exit 1; }
       ;;
   esac
 fi
@@ -118,6 +127,9 @@ acme_issue_or_renew() {
   export CF_Token="$CF_API_TOKEN"
 
   ACME_ARGS="--dns dns_cf -d $ACME_DOMAIN"
+  if [ "$ACME_STAGING" = "true" ]; then
+    ACME_ARGS="$ACME_ARGS --server letsencrypt_test"
+  fi
 
   # Always install server cert (privkey/cert/fullchain). Optionally also the CA chain.
   INSTALL_ARGS="--key-file ${CERT_DIR}/privkey.pem --cert-file ${CERT_DIR}/cert.pem --fullchain-file ${CERT_DIR}/fullchain.pem"
@@ -159,6 +171,26 @@ acme_issue_or_renew() {
 
 # --- Initial certificate issuance (synchronous) ---
 acme_issue_or_renew
+
+# --- Validity gate: fail loudly if no usable cert ended up on disk ---
+# fullchain.pem is what apps actually consume; checkend 0 = valid right now.
+# A failed acme_issue_or_renew silently returning 1 is not enough — the on-start
+# hook must signal failure visibly, otherwise tests and operators can't tell
+# whether the cert pipeline succeeded. Differentiate failure modes so the log
+# tells the operator where to look.
+if ! command -v openssl >/dev/null 2>&1; then
+  echo "ERROR: openssl not available — cannot verify certificate at $CERT_DIR/fullchain.pem" >&2
+  exit 1
+fi
+if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
+  echo "ERROR: certificate file missing at $CERT_DIR/fullchain.pem after ACME attempt" >&2
+  exit 2
+fi
+if ! openssl x509 -in "$CERT_DIR/fullchain.pem" -checkend 0 -noout 2>/dev/null; then
+  echo "ERROR: certificate at $CERT_DIR/fullchain.pem is not valid (expired or malformed)" >&2
+  exit 3
+fi
+echo "Valid certificate confirmed at $CERT_DIR/fullchain.pem" >&2
 
 # --- Start background renewal loop ---
 (

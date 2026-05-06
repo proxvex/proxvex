@@ -12,6 +12,7 @@
     "acme.cert_dir",
     "acme.needs_server_cert",
     "acme.needs_ca_cert",
+    "acme_staging",
     "alpine_mirror",
     "debian_mirror"
   ],

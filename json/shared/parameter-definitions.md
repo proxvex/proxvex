@@ -57,16 +57,25 @@ Fully qualified domain name the ACME certificate is issued for.
 - `app.example.com`<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 -->
 
 ### Used by
 
 <!-- used-by:start -->
-_(registry-only — not referenced by any application or addon)_
+- addon-acme
 <!-- used-by:end -->
 <!--
 Templates / frameworks referencing this parameter:
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 -->
 
 ## acme_email
@@ -74,6 +83,18 @@ Templates / frameworks referencing this parameter:
 Email address for Let's Encrypt registration and expiry notifications.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
@@ -86,7 +107,7 @@ Templates / frameworks referencing this parameter:
 <!-- used-by:end -->
 <!--
 Templates / frameworks referencing this parameter:
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
@@ -111,6 +132,15 @@ Set as a property in the application's `application.json` (`{ "id": "acme_needs_
 Domain(s) for the certificate. Comma-separated for multi-domain SAN (e.g. app.example.com or auth.example.com,api.example.com). Supports wildcards (*.example.com).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ### Used by
@@ -130,6 +160,17 @@ Templates / frameworks referencing this parameter:
 Use Let's Encrypt staging server (for testing, no rate limits).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ### Used by
@@ -141,6 +182,7 @@ Templates / frameworks referencing this parameter:
 <!-- used-by:end -->
 <!--
 Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
@@ -150,6 +192,18 @@ Container directory where certificates are written<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ### Used by
@@ -161,7 +215,7 @@ Templates / frameworks referencing this parameter:
 <!-- used-by:end -->
 <!--
 Templates / frameworks referencing this parameter:
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
@@ -171,6 +225,18 @@ Whether to write the CA/intermediate certificate (chain.pem)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ### Used by
@@ -182,7 +248,7 @@ Templates / frameworks referencing this parameter:
 <!-- used-by:end -->
 <!--
 Templates / frameworks referencing this parameter:
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
@@ -191,21 +257,39 @@ Templates / frameworks referencing this parameter:
 Whether to issue a server certificate (privkey, cert, fullchain)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 -->
 
 ### Used by
 
 <!-- used-by:start -->
-_(registry-only — not referenced by any application or addon)_
+- addon-acme
 <!-- used-by:end -->
 <!--
 Templates / frameworks referencing this parameter:
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 -->
 
 ## addon_content
 
 Base64 encoded content of the addon configuration file<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
 -->
@@ -225,6 +309,15 @@ Templates / frameworks referencing this parameter:
 Additional packages from addons (merged with base packages).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
 -->
 
 ### Used by
@@ -242,6 +335,15 @@ Templates / frameworks referencing this parameter:
 Target path in format {volume_key}:{filename}. Example: samba_config:smb.conf<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
 -->
 
 ### Used by
@@ -257,6 +359,15 @@ Templates / frameworks referencing this parameter:
 ## addon_volumes
 
 Additional volumes from addons (merged with base volumes).<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
 -->
@@ -278,6 +389,21 @@ Templates / frameworks referencing this parameter:
 ## all_stack_ids
 
 Auto-injected by backend: JSON array of all selected stack IDs, written as separate :stack-id markers<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
@@ -306,6 +432,24 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ### Used by
@@ -322,13 +466,22 @@ Templates / frameworks referencing this parameter:
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ## api_login_password
 
 Password for shared api_login role (PostgREST). Resolved from .env if available.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/330-provision-postgres-app.template.json
 -->
@@ -346,6 +499,15 @@ Templates / frameworks referencing this parameter:
 ## app_dependencies
 
 Auto-injected by backend: JSON array of application dependencies<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
 -->
@@ -366,6 +528,15 @@ Templates / frameworks referencing this parameter:
 Name of the application (used for schema/role naming: <app>_data, <app>_app, etc.)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
 -->
 
 ### Used by
@@ -383,6 +554,15 @@ Templates / frameworks referencing this parameter:
 Password for the <app>_app database user<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
 -->
 
 ### Used by
@@ -398,6 +578,21 @@ Templates / frameworks referencing this parameter:
 ## application_id
 
 Application identifier for matching the Docker image<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/335-post-update-version-from-docker.json (via docker-compose)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/335-post-update-version-from-docker.json (via docker-compose)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/335-post-update-version-from-docker.json (via docker-compose)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/335-post-update-version-from-docker.json (via docker-compose)
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
@@ -424,6 +619,18 @@ Human-readable application name<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -442,6 +649,15 @@ Templates / frameworks referencing this parameter:
 ## arch
 
 Optional: CPU architecture for pct create (amd64, arm64, armhf, i386). Only used for OCI images. For regular LXC templates, Proxmox auto-detects the architecture.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -463,6 +679,15 @@ Templates / frameworks referencing this parameter:
 Audio card identifier in format card0, card1, etc. (e.g., card0 for first audio card)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/112-conf-map-audio.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/112-conf-map-audio.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/112-conf-map-audio.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/112-conf-map-audio.json
 -->
 
 ### Used by
@@ -478,6 +703,18 @@ Templates / frameworks referencing this parameter:
 ## bind_privileged_port
 
 Allow service to bind to privileged ports (e.g., 80, 443) by setting CAP_NET_BIND_SERVICE capability<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
 - json/shared/templates/post_start/350-svc-create-openrc-service.json
@@ -499,6 +736,15 @@ Templates / frameworks referencing this parameter:
 Set to 'true' to run Zitadel bootstrap (creates project, service account, invalidates admin PAT)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
 -->
 
 ### Used by
@@ -514,6 +760,18 @@ Templates / frameworks referencing this parameter:
 ## bridge
 
 Bridge to attach (e.g. vmbr0).<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
@@ -537,6 +795,15 @@ Templates / frameworks referencing this parameter:
 Base64-encoded CA public certificate PEM<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 -->
 
 ### Used by
@@ -547,6 +814,20 @@ Templates / frameworks referencing this parameter:
 <!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+-->
+
+## cert_check_path
+
+_(no description yet — please add one)_
+
+### Used by
+
+<!-- used-by:start -->
+- addon-acme
+<!-- used-by:end -->
+<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/945-host-check-cert-issuer.json (via addon-acme)
 -->
 
 ## cert_dir_override
@@ -554,6 +835,15 @@ Templates / frameworks referencing this parameter:
 If set, use this path directly as cert directory instead of computing from shared_volpath<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 -->
 
 ### Used by
@@ -564,6 +854,20 @@ Templates / frameworks referencing this parameter:
 <!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+-->
+
+## cert_expected_issuer_pattern
+
+_(no description yet — please add one)_
+
+### Used by
+
+<!-- used-by:start -->
+- addon-acme
+<!-- used-by:end -->
+<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/945-host-check-cert-issuer.json (via addon-acme)
 -->
 
 ## CF_TOKEN
@@ -572,6 +876,21 @@ Stack-managed value (provided by cloudflare stack).<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
@@ -586,13 +905,22 @@ Templates / frameworks referencing this parameter:
 <!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ## check_file_paths
 
 Newline-separated list of file paths to verify inside the container.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/940-host-check-file-exists.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/940-host-check-file-exists.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/940-host-check-file-exists.json (via docker-compose, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/check/940-host-check-file-exists.json (via docker-compose, oci-image)
 -->
@@ -613,6 +941,15 @@ Templates / frameworks referencing this parameter:
 Set to true to verify the deployer API requires authentication.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/check/970-host-check-oidc-api-protected.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/970-host-check-oidc-api-protected.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/970-host-check-oidc-api-protected.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/970-host-check-oidc-api-protected.json
 -->
 
 ### Used by
@@ -628,6 +965,15 @@ Templates / frameworks referencing this parameter:
 ## check_oidc_enabled
 
 Set to true to verify OIDC is enabled on this deployer instance.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/960-host-check-oidc-enabled.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/960-host-check-oidc-enabled.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/960-host-check-oidc-enabled.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/check/960-host-check-oidc-enabled.json
 -->
@@ -647,6 +993,15 @@ Templates / frameworks referencing this parameter:
 Set to true to verify end-to-end OIDC machine login.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/check/980-host-check-oidc-machine-login.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/980-host-check-oidc-machine-login.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/980-host-check-oidc-machine-login.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/980-host-check-oidc-machine-login.json
 -->
 
 ### Used by
@@ -662,6 +1017,15 @@ Templates / frameworks referencing this parameter:
 ## check_tls_port
 
 Port number to verify TLS connection on.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/950-host-check-tls-connect.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/950-host-check-tls-connect.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/950-host-check-tls-connect.json (via docker-compose, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/check/950-host-check-tls-connect.json (via docker-compose, oci-image)
 -->
@@ -683,6 +1047,18 @@ The command to run (also used as service and user name)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
 - json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
 -->
 
 ### Used by
@@ -699,6 +1075,18 @@ Templates / frameworks referencing this parameter:
 ## command_args
 
 Arguments for the command. Available variables: $HOME_DIR, $DATA_DIR, $SECURE_DIR<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
 - json/shared/templates/post_start/350-svc-create-openrc-service.json
@@ -722,6 +1110,21 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
 - json/shared/templates/post_start/315-post-extract-properties-from-compose.json
 - json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/315-post-extract-properties-from-compose.json
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/315-post-extract-properties-from-compose.json
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/315-post-extract-properties-from-compose.json
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
 -->
 
 ### Used by
@@ -741,6 +1144,15 @@ Templates / frameworks referencing this parameter:
 The environment key to set (e.g. CF_API_TOKEN).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/refresh/compose-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/compose-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/compose-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/compose-env.json
 -->
 
 ### Used by
@@ -756,6 +1168,45 @@ Templates / frameworks referencing this parameter:
 ## compose_project
 
 Project name for Docker Compose (used for named volumes and directory). Defaults to hostname if not provided.<!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/315-post-update-compose-image-tags.json (via docker-compose)
+- json/shared/templates/post_start/317-svc-upgrade-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/360-post-harden-zitadel-compose.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/refresh/compose-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/315-post-update-compose-image-tags.json (via docker-compose)
+- json/shared/templates/post_start/317-svc-upgrade-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/360-post-harden-zitadel-compose.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/refresh/compose-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/315-post-update-compose-image-tags.json (via docker-compose)
+- json/shared/templates/post_start/317-svc-upgrade-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/360-post-harden-zitadel-compose.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/refresh/compose-env.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
 - json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
@@ -799,6 +1250,15 @@ Templates / frameworks referencing this parameter:
 Device path inside the container<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -816,6 +1276,18 @@ Templates / frameworks referencing this parameter:
 ## container_device_paths
 
 Optional: Comma-separated container device paths (default: auto-detect based on card number). Note: This parameter is currently not used, devices are mapped to standard /dev/snd/* paths.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/111-conf-map-input.json
 - json/shared/templates/pre_start/112-conf-map-audio.json
@@ -837,6 +1309,15 @@ Templates / frameworks referencing this parameter:
 Database to create schemas in (default: postgres)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
 -->
 
 ### Used by
@@ -852,6 +1333,15 @@ Templates / frameworks referencing this parameter:
 ## database_name
 
 Name of the PostgreSQL database to create<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/187-create-postgres-database.json (via gitea)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/187-create-postgres-database.json (via gitea)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/187-create-postgres-database.json (via gitea)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/187-create-postgres-database.json (via gitea)
 -->
@@ -874,6 +1364,24 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
 - json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ### Used by
@@ -890,13 +1398,22 @@ Templates / frameworks referencing this parameter:
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
-- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json
+- json/shared/templates/post_start/342-post-install-acme-renew-on-start.json (via addon-acme)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 -->
 
 ## dep_zitadel_vm_id
 
 VM ID of the Zitadel dependency container.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/980-host-check-oidc-machine-login.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/980-host-check-oidc-machine-login.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/980-host-check-oidc-machine-login.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/check/980-host-check-oidc-machine-login.json
 -->
@@ -914,6 +1431,27 @@ Templates / frameworks referencing this parameter:
 ## deployer_base_url
 
 Auto-injected by backend: External deployer URL (e.g. https://deployer.example.com). Used for redirect when set.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/900-post-cleanup-previous-container.json
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
@@ -941,6 +1479,15 @@ Templates / frameworks referencing this parameter:
 ## disk_size
 
 Rootfs size for the container in GiB. Apps that bundle a large image (Node.js, JDK, full Debian base) should override this in their application.json. Default fits Alpine + small OCI images (~200 MiB used).<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -978,6 +1525,33 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 - json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
 - json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
 -->
 
 ### Used by
@@ -1003,6 +1577,15 @@ Templates / frameworks referencing this parameter:
 Environment variables file (.env) template (upload, optional). If it contains {{ markers }}, users must upload a real .env at deployment time.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
 -->
 
 ### Used by
@@ -1021,6 +1604,15 @@ Environment variables in key=value format, one per line. Each line sets an envir
 MYAPP_HOST=localhost
 MYAPP_PORT=8080
 DATABASE_URL=postgresql://localhost:5432/mydb<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
 -->
@@ -1045,6 +1637,15 @@ Templates / frameworks referencing this parameter:
 Comma-separated service=version pairs (e.g. zitadel=v4.13.1,traefik=v3.6.13)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/check/915-host-check-docker-image-versions.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/915-host-check-docker-image-versions.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/915-host-check-docker-image-versions.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/915-host-check-docker-image-versions.json (via docker-compose)
 -->
 
 ### Used by
@@ -1060,6 +1661,15 @@ Templates / frameworks referencing this parameter:
 ## flow_password
 
 Password for credential nodes (e.g. database password)<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/360-post-import-node-red-flow.json
 -->
@@ -1079,6 +1689,15 @@ Templates / frameworks referencing this parameter:
 URL or path to the flow JSON file to import<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
 -->
 
 ### Used by
@@ -1096,6 +1715,15 @@ Templates / frameworks referencing this parameter:
 Username for credential nodes (e.g. database user)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-import-node-red-flow.json
 -->
 
 ### Used by
@@ -1111,6 +1739,93 @@ Templates / frameworks referencing this parameter:
 ## gid
 
 Optional: GID of the group in the container who should have access to the input device (LXC only). Default is 0 (root). For VMs, this parameter is ignored.<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
 - examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
@@ -1193,6 +1908,15 @@ Templates / frameworks referencing this parameter:
 Stack-managed value (provided by gitea stack).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
 -->
 
 ### Used by
@@ -1208,6 +1932,18 @@ Templates / frameworks referencing this parameter:
 ## group
 
 Optional group name (will be created if not exists)<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
 - json/shared/templates/post_start/350-svc-create-openrc-service.json
@@ -1229,6 +1965,15 @@ Templates / frameworks referencing this parameter:
 USB serial port device path on the host<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -1246,6 +1991,138 @@ Templates / frameworks referencing this parameter:
 ## hostname
 
 Container hostname. Used as compose_project default when none was given. Auto-resolved from container config on reconfigure.<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/docker-registry-mirror/templates/check-registry-mirror.json (via docker-registry-mirror)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/nginx/templates/conf-write-reload-hook.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/applications/proxvex/templates/check-ssl-cert.json (via proxvex)
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/check/900-host-check-container.json (via docker-compose, oci-image)
+- json/shared/templates/check/920-host-check-lxc-log.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/158-conf-disable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-disable-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/167-conf-remove-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/on-start-env.json
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/docker-registry-mirror/templates/check-registry-mirror.json (via docker-registry-mirror)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/nginx/templates/conf-write-reload-hook.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/applications/proxvex/templates/check-ssl-cert.json (via proxvex)
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/check/900-host-check-container.json (via docker-compose, oci-image)
+- json/shared/templates/check/920-host-check-lxc-log.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/158-conf-disable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-disable-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/167-conf-remove-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/on-start-env.json
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/docker-registry-mirror/templates/check-registry-mirror.json (via docker-registry-mirror)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/nginx/templates/conf-write-reload-hook.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/applications/proxvex/templates/check-ssl-cert.json (via proxvex)
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/check/900-host-check-container.json (via docker-compose, oci-image)
+- json/shared/templates/check/920-host-check-lxc-log.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/158-conf-disable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-disable-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/167-conf-remove-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/on-start-env.json
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
 - examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
@@ -1371,6 +2248,36 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
 - json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
 - json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/345-post-disable-ssl-proxy.json
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/345-post-disable-ssl-proxy.json
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/345-post-disable-ssl-proxy.json
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
 -->
 
 ### Used by
@@ -1400,6 +2307,39 @@ Templates / frameworks referencing this parameter:
 ## https_port
 
 The HTTPS port to listen on (default: 1443, rootless containers cannot bind 443).<!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
@@ -1444,6 +2384,18 @@ Auto-injected by backend: Base64-encoded application icon<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -1462,6 +2414,18 @@ Templates / frameworks referencing this parameter:
 ## icon_mime_type
 
 Auto-injected by backend: Icon MIME type (image/svg+xml or image/png)<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
@@ -1485,6 +2449,15 @@ Templates / frameworks referencing this parameter:
 Initial command to execute in the container (lxc.init_cmd). Useful for OCI images that require a specific start command.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
 -->
 
 ### Used by
@@ -1500,6 +2473,15 @@ Templates / frameworks referencing this parameter:
 ## install_replug_watcher
 
 Install a watcher service on the host to handle device replug events<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -1519,6 +2501,15 @@ Templates / frameworks referencing this parameter:
 ## is_deployer
 
 Auto-injected by backend: Set to 'true' when installing proxvex itself<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -1550,6 +2541,15 @@ Comma-separated labels used in workflow `runs-on:` selectors.
 Name of the env variable (e.g. POSTGRES_PASSWORD). Becomes lxc.environment.<NAME>=<VAL>.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/refresh/lxc-config-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/lxc-config-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/lxc-config-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/lxc-config-env.json
 -->
 
 ### Used by
@@ -1565,6 +2565,72 @@ Templates / frameworks referencing this parameter:
 ## mapped_gid
 
 Optional: The mapped GID on the host (output from setup-lxc-uid-mapping.py in template 102). If not provided, the script will calculate it. Use this when using 1:1 UID mapping instead of the standard offset.<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
 - examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
@@ -1652,6 +2718,72 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 - json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
 -->
 
 ### Used by
@@ -1699,6 +2831,15 @@ Templates / frameworks referencing this parameter:
 Memory for the container in MB<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -1716,6 +2857,15 @@ Templates / frameworks referencing this parameter:
 ## nameserver4
 
 IPv4 DNS nameserver (e.g. 192.168.1.1). Optional.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -1737,6 +2887,15 @@ Templates / frameworks referencing this parameter:
 IPv6 DNS nameserver (e.g. fd00:...::1 or 2001:...::1). Optional.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -1754,6 +2913,21 @@ Templates / frameworks referencing this parameter:
 ## new_value
 
 New value for the shell variable.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/lxc-config-env.json
+- json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/lxc-config-env.json
+- json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/lxc-config-env.json
+- json/shared/templates/refresh/on-start-env.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/refresh/compose-env.json
 - json/shared/templates/refresh/lxc-config-env.json
@@ -1779,6 +2953,21 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -1798,6 +2987,27 @@ Templates / frameworks referencing this parameter:
 ## oci_image_tag
 
 OCI image tag / version to pull (e.g. '0.5.28', 'v4.12.3'). Explicit versions keep registry-mirror caches deterministic and make tests reproducible. Apps typically template this into their `oci_image` property (e.g. `ghcr.io/foo/bar:{{oci_image_tag}}`). Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
@@ -1828,6 +3038,15 @@ Templates / frameworks referencing this parameter:
 Name of the OIDC application in Zitadel (defaults to hostname). Used when the deployer can talk to the Zitadel Management API to auto-create or look up the client.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
 -->
 
 ### Used by
@@ -1843,6 +3062,21 @@ Templates / frameworks referencing this parameter:
 ## oidc_callback_path
 
 Path the OIDC provider redirects to after login (from app.properties).<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
 - json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
@@ -1869,6 +3103,24 @@ Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
 - json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
 - json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
 -->
 
 ### Used by
@@ -1888,6 +3140,24 @@ Templates / frameworks referencing this parameter:
 ## oidc_client_secret
 
 OIDC client secret for client_credentials fallback (provided by addon-oidc).<!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
@@ -1919,6 +3189,30 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
 - json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
 - json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
 -->
 
 ### Used by
@@ -1942,6 +3236,15 @@ Templates / frameworks referencing this parameter:
 Name of the Zitadel project for this application (defaults to hostname). Used for auto-provisioning via the Zitadel Management API.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
 -->
 
 ### Used by
@@ -1957,6 +3260,15 @@ Templates / frameworks referencing this parameter:
 ## oidc_required_role
 
 Zitadel project role required for access (from app.properties). If empty, any authenticated user is allowed.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
 -->
@@ -1976,6 +3288,15 @@ Templates / frameworks referencing this parameter:
 JSON array of role definitions from application.json (injected by backend)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
 -->
 
 ### Used by
@@ -1991,6 +3312,18 @@ Templates / frameworks referencing this parameter:
 ## ostype
 
 Operating system type: 'alpine' for Alpine Linux (apk) or 'debian'/'ubuntu' for Debian/Ubuntu (apt).<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
+- json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/010-host-get-latest-os-template.json (via docker-compose, npm-nodejs)
 - json/shared/templates/post_start/305-post-set-pkg-mirror.json (via docker-compose, npm-nodejs, oci-image)
@@ -2015,6 +3348,18 @@ Space-separated list of files/directories the user should own with rw access<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
 - json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
 -->
 
 ### Used by
@@ -2031,6 +3376,15 @@ Templates / frameworks referencing this parameter:
 ## package
 
 Name of the npm package to install<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
 -->
@@ -2050,6 +3404,15 @@ Templates / frameworks referencing this parameter:
 URL of the public key for verifying the package<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/300-post-download-and-install-apk-package.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/300-post-download-and-install-apk-package.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/300-post-download-and-install-apk-package.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/300-post-download-and-install-apk-package.json
 -->
 
 ### Used by
@@ -2065,6 +3428,15 @@ Templates / frameworks referencing this parameter:
 ## packages
 
 Space-separated list of packages to install. For Alpine Linux, use APK package names. For Debian/Ubuntu, use apt package names.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/330-post-install-packages.json (via npm-nodejs)
 -->
@@ -2084,6 +3456,15 @@ Templates / frameworks referencing this parameter:
 URL of the APK package to be installed<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/300-post-download-and-install-apk-package.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/300-post-download-and-install-apk-package.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/300-post-download-and-install-apk-package.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/300-post-download-and-install-apk-package.json
 -->
 
 ### Used by
@@ -2101,6 +3482,15 @@ Templates / frameworks referencing this parameter:
 Target platform (e.g., linux/amd64, linux/arm64). Auto-detects if not specified.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
 -->
 
 ### Used by
@@ -2116,6 +3506,27 @@ Templates / frameworks referencing this parameter:
 ## previous_vm_id
 
 Previous container VMID (upgrade/reconfigure). Used to prefer reusing that CT's existing volumes over any other historical match.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/101-conf-restore-settings.json (via oci-image)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/101-conf-restore-settings.json (via oci-image)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/101-conf-restore-settings.json (via oci-image)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
 - json/shared/templates/post_start/900-post-cleanup-previous-container.json
@@ -2147,6 +3558,15 @@ Templates / frameworks referencing this parameter:
 Password for registry authentication (optional, required for private images)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
 -->
 
 ### Used by
@@ -2164,6 +3584,15 @@ Templates / frameworks referencing this parameter:
 Bearer token for registry authentication (optional, alternative to username/password)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
 -->
 
 ### Used by
@@ -2179,6 +3608,15 @@ Templates / frameworks referencing this parameter:
 ## registry_username
 
 Username for registry authentication (optional, required for private images)<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
 -->
@@ -2209,6 +3647,18 @@ Content-Type header sent with the POST.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
 -->
 
 ### Used by
@@ -2225,6 +3675,18 @@ Templates / frameworks referencing this parameter:
 ## rest_health_path
 
 Path polled until the application reports readiness.<!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
@@ -2247,6 +3709,18 @@ Path of the local-settings import endpoint.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
 -->
 
 ### Used by
@@ -2263,6 +3737,18 @@ Templates / frameworks referencing this parameter:
 ## rest_payload_b64
 
 Base64-encoded ZIP payload. Defaults to the uploaded ZIP content.<!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
@@ -2285,6 +3771,18 @@ Base URL of the application REST API (relative to the container).<!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
 -->
 
 ### Used by
@@ -2301,6 +3799,15 @@ Templates / frameworks referencing this parameter:
 ## rootfs_storage
 
 Proxmox storage for the container rootfs<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -2333,6 +3840,15 @@ Display name shown in GitHub Settings → Actions → Runners.
 Filename under ${VOLUME_DIR}/on_start.d/ (e.g. acme-renew.sh).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/on-start-env.json
 -->
 
 ### Used by
@@ -2350,6 +3866,15 @@ Templates / frameworks referencing this parameter:
 Shell variable whose value is patched (e.g. CF_API_TOKEN).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/on-start-env.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/on-start-env.json
 -->
 
 ### Used by
@@ -2365,6 +3890,18 @@ Templates / frameworks referencing this parameter:
 ## searchdomain
 
 DNS search domain for the container's resolv.conf. Default (empty) avoids inheriting the PVE host's hostname domain (e.g. 'cluster' when the host is 'pve1.cluster'), which can break bare-hostname DNS resolution from inside docker containers (Go's resolver and dnsmasq embedded DNS append the search suffix and don't fall back to the bare name). Set explicitly only if you need a specific search domain.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
@@ -2388,6 +3925,15 @@ Templates / frameworks referencing this parameter:
 Base64-encoded server certificate PEM (signed by backend)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 -->
 
 ### Used by
@@ -2405,6 +3951,15 @@ Templates / frameworks referencing this parameter:
 Base64-encoded server private key PEM (signed by backend)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 -->
 
 ### Used by
@@ -2420,6 +3975,51 @@ Templates / frameworks referencing this parameter:
 ## shared_volpath
 
 Deployer-global shared volume path on the PVE host — used by app scripts that edit files relative to the LXC volume (e.g. Node-RED settings.js).<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
 - examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
@@ -2489,6 +4089,15 @@ Username for Samba authentication
 SMTP server hostname (e.g. smtp.mailbox.org). Leave empty to skip SMTP setup.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
 
 ### Used by
@@ -2504,6 +4113,15 @@ Templates / frameworks referencing this parameter:
 ## smtp_mail_domain
 
 Apex domain the mail is sent from (e.g. example.com). Looked up in Cloudflare and used as the zone for MX/SPF records.<!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
@@ -2523,6 +4141,15 @@ Templates / frameworks referencing this parameter:
 Hostname the MX record points at (e.g. mxext1.mailbox.org). Consult your mail provider's documentation.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
 
 ### Used by
@@ -2540,6 +4167,15 @@ Templates / frameworks referencing this parameter:
 When checked, create MX and SPF DNS records in Cloudflare for the mail domain (requires a cloudflare stack with CF_TOKEN). Leave unchecked if using an existing hosted mail setup where DNS already points to the provider.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
 
 ### Used by
@@ -2555,6 +4191,18 @@ Templates / frameworks referencing this parameter:
 ## SMTP_PASSWORD
 
 Stack-managed value (provided by oidc stack).<!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/160-conf-strip-empty-smtp.json (via zitadel)
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/160-conf-strip-empty-smtp.json (via zitadel)
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/160-conf-strip-empty-smtp.json (via zitadel)
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/160-conf-strip-empty-smtp.json (via zitadel)
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
@@ -2576,6 +4224,15 @@ Templates / frameworks referencing this parameter:
 SMTP server port (587 for STARTTLS, 465 for implicit TLS).<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
 
 ### Used by
@@ -2591,6 +4248,15 @@ Templates / frameworks referencing this parameter:
 ## SMTP_SENDER
 
 From address on outgoing mail (e.g. admin@example.com). Must be authorized at the provider.<!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
@@ -2610,6 +4276,15 @@ Templates / frameworks referencing this parameter:
 Full SPF TXT record value, e.g. 'v=spf1 include:mailbox.org ~all'. Consult your mail provider's documentation.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
 
 ### Used by
@@ -2627,6 +4302,15 @@ Templates / frameworks referencing this parameter:
 SMTP authentication username (e.g. yourname@mailbox.org).<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/385-post-configure-mail-dns.json (via zitadel)
 -->
 
 ### Used by
@@ -2642,6 +4326,33 @@ Templates / frameworks referencing this parameter:
 ## ssl_mode
 
 SSL mode: proxy (nginx reverse proxy), native (app handles HTTPS), or certs (certificates only).<!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/170-conf-add-ssl-capabilities.json (via addon-acme, addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/170-conf-add-ssl-capabilities.json (via addon-acme, addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/340-post-install-ssl-proxy-on-start.json
+- json/shared/templates/pre_start/157-conf-publish-ssl-provides.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/170-conf-add-ssl-capabilities.json (via addon-acme, addon-ssl)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
 - json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
@@ -2677,6 +4388,15 @@ Templates / frameworks referencing this parameter:
 Write CA public certificate (chain.pem)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 -->
 
 ### Used by
@@ -2694,6 +4414,15 @@ Templates / frameworks referencing this parameter:
 Write server certificate files (privkey.pem, cert.pem, fullchain.pem)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
 -->
 
 ### Used by
@@ -2709,6 +4438,21 @@ Templates / frameworks referencing this parameter:
 ## stack_id
 
 Auto-injected by backend: Primary stack ID for dependency discovery<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/185-host-resolve-dependency-hosts.json (via docker-compose, oci-image)
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
@@ -2734,6 +4478,15 @@ Templates / frameworks referencing this parameter:
 Comma-separated NAME=VALUE pairs for secrets to sanitize in template file<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
 -->
 
 ### Used by
@@ -2749,6 +4502,15 @@ Templates / frameworks referencing this parameter:
 ## startup_down
 
 Optional: Seconds to wait after shutting down this container before stopping the next one. Maps to Proxmox --startup down=N.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -2768,6 +4530,15 @@ Templates / frameworks referencing this parameter:
 ## startup_order
 
 Optional: Boot order for the container. Lower values start first (e.g. 10 for databases, 20 for auth providers). Default 100 for normal apps. Maps to Proxmox --startup order=N.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -2791,6 +4562,21 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/check/910-host-check-docker-services.json (via docker-compose)
 - json/shared/templates/post_start/317-svc-upgrade-docker-compose.json (via docker-compose)
 - json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/910-host-check-docker-services.json (via docker-compose)
+- json/shared/templates/post_start/317-svc-upgrade-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/910-host-check-docker-services.json (via docker-compose)
+- json/shared/templates/post_start/317-svc-upgrade-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/check/910-host-check-docker-services.json (via docker-compose)
+- json/shared/templates/post_start/317-svc-upgrade-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
 -->
 
 ### Used by
@@ -2808,6 +4594,15 @@ Templates / frameworks referencing this parameter:
 ## startup_up
 
 Optional: Seconds to wait after starting this container before starting the next one. Maps to Proxmox --startup up=N.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
@@ -2829,6 +4624,15 @@ Templates / frameworks referencing this parameter:
 Static IPv4 gateway (e.g. 192.168.4.1). Requires static_ip.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -2848,6 +4652,15 @@ Templates / frameworks referencing this parameter:
 Static IPv6 gateway (e.g. fd00::1). Requires static_ip6.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -2865,6 +4678,18 @@ Templates / frameworks referencing this parameter:
 ## static_ip
 
 Static IPv4 address in CIDR notation (e.g. 192.168.4.100/24).<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
@@ -2889,6 +4714,18 @@ Static IPv6 address in CIDR notation (e.g. fd00::50/64).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/106-conf-update-etc-hosts-on-ve.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -2909,6 +4746,15 @@ Templates / frameworks referencing this parameter:
 Proxmox storage where the OCI image should be stored<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
 -->
 
 ### Used by
@@ -2924,6 +4770,18 @@ Templates / frameworks referencing this parameter:
 ## storage_selection
 
 Select storage to mount. Only filesystems prefixed with 'uuid:' are supported.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
 - json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
@@ -2943,6 +4801,21 @@ Templates / frameworks referencing this parameter:
 ## target_versions
 
 Comma-separated service=version pairs. For OCI-image apps: main=version to pull a specific tag.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
+- json/shared/templates/post_start/315-post-update-compose-image-tags.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
+- json/shared/templates/post_start/315-post-update-compose-image-tags.json (via docker-compose)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
+- json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
+- json/shared/templates/post_start/315-post-update-compose-image-tags.json (via docker-compose)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/image/011-host-get-oci-image.json (via oci-image)
 - json/shared/templates/image/012-host-docker-pull-in-existing.json (via docker-compose)
@@ -2968,6 +4841,18 @@ Path to the LXC template (e.g. local:vztmpl/alpine-3.19-default_20231107_amd64.t
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -2988,6 +4873,15 @@ Templates / frameworks referencing this parameter:
 Test parameter for Python script<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/test-python-shebang.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/test-python-shebang.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/test-python-shebang.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/test-python-shebang.json
 -->
 
 ### Used by
@@ -3005,6 +4899,15 @@ Templates / frameworks referencing this parameter:
 Test value for Python script<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/test-python-shebang.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/test-python-shebang.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/test-python-shebang.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/test-python-shebang.json
 -->
 
 ### Used by
@@ -3020,6 +4923,99 @@ Templates / frameworks referencing this parameter:
 ## uid
 
 Optional: UID of the user in the container who should have access to the input device (LXC only). Default is 0 (root). For VMs, this parameter is ignored.<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/325-post-inject-ssl-proxy-compose.json
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/post_start/350-svc-create-openrc-service.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/120-conf-mount-disk-on-host.json
+- json/shared/templates/pre_start/121-conf-mount-zfs-pool-on-host.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/155-conf-upload-addon-files.json (via samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/159-conf-enable-ssl-app.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
 - examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
@@ -3106,6 +5102,15 @@ Templates / frameworks referencing this parameter:
 Optional Node-RED flows file (flows.json). When omitted, Node-RED starts with empty flows.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
 -->
 
 ### Used by
@@ -3123,6 +5128,15 @@ Templates / frameworks referencing this parameter:
 Target path: {volume_key}:{filename}<!--
 Templates / frameworks referencing this parameter:
 - json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/node-red/templates/1-upload-flows-json.json (via node-red)
 -->
 
 ### Used by
@@ -3138,6 +5152,18 @@ Templates / frameworks referencing this parameter:
 ## upload_modbus2mqtt_config_content
 
 ZIP file produced by 'Download Local Settings' (https://<host>:<port>/specifications). Contains busses, slaves and local specifications. secrets.yaml is intentionally excluded — set MQTT credentials via the UI after first boot.<!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
+- json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
@@ -3174,6 +5200,15 @@ keyfile /mosquitto/config/certs/privkey.pem
 See [Mosquitto TLS docs](https://mosquitto.org/man/mosquitto-conf-5.html)<!--
 Templates / frameworks referencing this parameter:
 - json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
 -->
 
 ### Used by
@@ -3189,6 +5224,15 @@ Templates / frameworks referencing this parameter:
 ## upload_mosquitto_configuration_destination
 
 Target path: {volume_key}:{filename}<!--
+Templates / frameworks referencing this parameter:
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/eclipse-mosquitto/templates/0-upload-mosquitto-configuration.json (via eclipse-mosquitto)
 -->
@@ -3208,6 +5252,15 @@ Templates / frameworks referencing this parameter:
 Configuration file: server.cert<!--
 Templates / frameworks referencing this parameter:
 - examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
 -->
 
 ### Used by
@@ -3225,6 +5278,15 @@ Templates / frameworks referencing this parameter:
 Target path: {volume_key}:{filename}<!--
 Templates / frameworks referencing this parameter:
 - examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/pgadmin/templates/0-upload-server-cert.json (via pgadmin)
 -->
 
 ### Used by
@@ -3240,6 +5302,18 @@ Templates / frameworks referencing this parameter:
 ## upload_server_crt_content
 
 Configuration file: server.crt<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
 - examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
@@ -3263,6 +5337,18 @@ Target path: {volume_key}:{filename}<!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
 - examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/0-upload-server-crt.json (via mariadb)
+- examples/applications/node-red.bck/templates/1-upload-server-crt.json (via node-red.bck)
 -->
 
 ### Used by
@@ -3280,6 +5366,21 @@ Templates / frameworks referencing this parameter:
 ## upload_server_key_content
 
 Configuration file: server.key<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
 - examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
@@ -3307,6 +5408,21 @@ Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
 - examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
 - examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/1-upload-server-key.json (via mariadb, pgadmin)
+- examples/applications/node-red.bck/templates/2-upload-server-key.json (via node-red.bck)
+- examples/applications/pgadmin/templates/1-upload-server-key.json (via mariadb, pgadmin)
 -->
 
 ### Used by
@@ -3326,6 +5442,18 @@ Templates / frameworks referencing this parameter:
 ## upload_settings_js_content
 
 Configuration file: settings.js<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
 - json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
@@ -3349,6 +5477,18 @@ Target path: {volume_key}:{filename}<!--
 Templates / frameworks referencing this parameter:
 - examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
 - json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/node-red.bck/templates/0-upload-settings-js.json (via node-red, node-red.bck)
+- json/applications/node-red/templates/0-upload-settings-js.json (via node-red, node-red.bck)
 -->
 
 ### Used by
@@ -3368,6 +5508,15 @@ Templates / frameworks referencing this parameter:
 Configuration file: ssl.cnf<!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
 -->
 
 ### Used by
@@ -3383,6 +5532,15 @@ Templates / frameworks referencing this parameter:
 ## upload_ssl_cnf_destination
 
 Target path: {volume_key}:{filename}<!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+--><!--
+Templates / frameworks referencing this parameter:
+- examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
+--><!--
 Templates / frameworks referencing this parameter:
 - examples/applications/mariadb/templates/2-upload-ssl-cnf.json (via mariadb)
 -->
@@ -3402,6 +5560,15 @@ Templates / frameworks referencing this parameter:
 USB bus and device number in format bus:device (e.g., 1:3 for /dev/bus/usb/001/003)<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/111-conf-map-input.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/111-conf-map-input.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/111-conf-map-input.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/111-conf-map-input.json
 -->
 
 ### Used by
@@ -3417,6 +5584,27 @@ Templates / frameworks referencing this parameter:
 ## username
 
 Optional: Username to create on the VE host before container creation. This ensures consistent UID/GID mapping between host and container. Default is root. If not provided, root will be used.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-create-user.json
+- json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/310-post-create-user.json
 - json/shared/templates/post_start/350-svc-create-enable-service.json (via npm-nodejs)
@@ -3448,6 +5636,21 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -3469,6 +5672,15 @@ Templates / frameworks referencing this parameter:
 Comma-separated list of command name substrings to debug-dump during execution. For each matching command the backend emits the current inputs+defaults (before) and outputs (after) to stderr of the deploy log. Use '*' to dump every command. Leave empty to disable. Example: 'Write Docker Compose Notes,acme-renew'<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -3488,6 +5700,15 @@ Templates / frameworks referencing this parameter:
 Version of the package to install<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/340-post-install-node-application.json (via npm-nodejs)
 -->
 
 ### Used by
@@ -3503,6 +5724,126 @@ Templates / frameworks referencing this parameter:
 ## vm_id
 
 VM ID — used to look up the running container's actual hostname (the one volumes are named after, which can differ from the input hostname during reconfigure).<!--
+Templates / frameworks referencing this parameter:
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/nginx/templates/conf-write-reload-hook.json (via nginx)
+- json/applications/proxvex/templates/check-ssl-cert.json (via proxvex)
+- json/applications/zitadel/templates/325-conf-check-zitadel-state-consistency.json (via zitadel)
+- json/shared/templates/check/915-host-check-docker-image-versions.json (via docker-compose)
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/image/040-host-assign-free-gpu-to-vm.json
+- json/shared/templates/image/050-stop-lxc.json
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/335-post-update-version-from-docker.json (via docker-compose)
+- json/shared/templates/post_start/350-host-check-hook-log.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/101-conf-configure-lxc-for-docker.json (via docker-compose, github-runner)
+- json/shared/templates/pre_start/101-conf-restore-settings.json (via oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+- json/shared/templates/pre_start/108-host-push-ca-to-container.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/165-conf-register-hookscript.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/170-conf-add-ssl-capabilities.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start_finalize/100-conf-unmount-volumes.json (via docker-compose, oci-image)
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/lxc-config-env.json
+- json/shared/templates/refresh/on-start-env.json
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+- json/shared/templates/start/200-start-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/start/210-wait-for-container-ready.json (via npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/nginx/templates/conf-write-reload-hook.json (via nginx)
+- json/applications/proxvex/templates/check-ssl-cert.json (via proxvex)
+- json/applications/zitadel/templates/325-conf-check-zitadel-state-consistency.json (via zitadel)
+- json/shared/templates/check/915-host-check-docker-image-versions.json (via docker-compose)
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/image/040-host-assign-free-gpu-to-vm.json
+- json/shared/templates/image/050-stop-lxc.json
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/335-post-update-version-from-docker.json (via docker-compose)
+- json/shared/templates/post_start/350-host-check-hook-log.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/101-conf-configure-lxc-for-docker.json (via docker-compose, github-runner)
+- json/shared/templates/pre_start/101-conf-restore-settings.json (via oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+- json/shared/templates/pre_start/108-host-push-ca-to-container.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/165-conf-register-hookscript.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/170-conf-add-ssl-capabilities.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start_finalize/100-conf-unmount-volumes.json (via docker-compose, oci-image)
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/lxc-config-env.json
+- json/shared/templates/refresh/on-start-env.json
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+- json/shared/templates/start/200-start-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/start/210-wait-for-container-ready.json (via npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/nginx/templates/conf-write-default-config.json (via nginx)
+- json/applications/nginx/templates/conf-write-reload-hook.json (via nginx)
+- json/applications/proxvex/templates/check-ssl-cert.json (via proxvex)
+- json/applications/zitadel/templates/325-conf-check-zitadel-state-consistency.json (via zitadel)
+- json/shared/templates/check/915-host-check-docker-image-versions.json (via docker-compose)
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/image/040-host-assign-free-gpu-to-vm.json
+- json/shared/templates/image/050-stop-lxc.json
+- json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
+- json/shared/templates/post_start/330-svc-start-docker-compose.json (via docker-compose)
+- json/shared/templates/post_start/335-post-update-version-from-docker.json (via docker-compose)
+- json/shared/templates/post_start/350-host-check-hook-log.json (via docker-compose, oci-image)
+- json/shared/templates/post_start/355-post-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/post_start/900-post-cleanup-previous-container.json
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/101-conf-configure-lxc-for-docker.json (via docker-compose, github-runner)
+- json/shared/templates/pre_start/101-conf-restore-settings.json (via oci-image)
+- json/shared/templates/pre_start/105-conf-set-static-ip-for-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+- json/shared/templates/pre_start/108-host-push-ca-to-container.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/110-conf-map-serial.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/111-conf-map-input.json
+- json/shared/templates/pre_start/112-conf-map-audio.json
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+- json/shared/templates/pre_start/156-conf-generate-certificates.json (via addon-ssl)
+- json/shared/templates/pre_start/162-conf-configure-oidc-app.json (via addon-oidc)
+- json/shared/templates/pre_start/165-conf-register-hookscript.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/166-conf-write-on-start-scripts.json (via addon-acme, addon-ssl, samba-shares)
+- json/shared/templates/pre_start/170-conf-add-ssl-capabilities.json (via addon-acme, addon-ssl)
+- json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/pre_start_finalize/100-conf-unmount-volumes.json (via docker-compose, oci-image)
+- json/shared/templates/refresh/compose-env.json
+- json/shared/templates/refresh/lxc-config-env.json
+- json/shared/templates/refresh/on-start-env.json
+- json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
+- json/shared/templates/start/200-start-lxc.json (via docker-compose, npm-nodejs, oci-image)
+- json/shared/templates/start/210-wait-for-container-ready.json (via npm-nodejs, oci-image)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/nginx/templates/conf-write-default-config.json (via nginx)
 - json/applications/nginx/templates/conf-write-reload-hook.json (via nginx)
@@ -3607,6 +5948,18 @@ Optional: Start index for auto-assigned VM IDs. The next free ID starting from t
 Templates / frameworks referencing this parameter:
 - json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
 - json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/create_ct/100-create-ct-clone.json (via docker-compose, oci-image)
+- json/shared/templates/pre_start/100-conf-create-configure-lxc.json (via docker-compose, npm-nodejs, oci-image)
 -->
 
 ### Used by
@@ -3625,6 +5978,15 @@ Templates / frameworks referencing this parameter:
 ## volume_backup
 
 Whether the volume should be included in Proxmox backups<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
 -->
@@ -3648,6 +6010,15 @@ Templates / frameworks referencing this parameter:
 Default size per managed mp volume (e.g., 4M, 256M, 1G, 2.5G). Most volumes hold KB of state (config, secrets, certs, bootstrap PATs); the default fits those. Per-volume override is supported by appending `,size=…` to a line in the `volumes` property: e.g. `data=/var/lib/gitea,size=2G`.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
 -->
 
 ### Used by
@@ -3667,6 +6038,15 @@ Templates / frameworks referencing this parameter:
 ## volume_storage
 
 Proxmox storage ID for data volumes. Auto-detected from rootfs if not set.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
 -->
@@ -3689,6 +6069,18 @@ Templates / frameworks referencing this parameter:
 ## volumes
 
 Existing volume definitions with options (e.g. permissions). Merged with extracted volumes.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
+- json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/310-post-extract-volumes-from-compose.json (via docker-compose)
 - json/shared/templates/pre_start/150-conf-create-storage-volumes-for-lxc.json (via addon-acme, docker-compose, npm-nodejs, oci-image, samba-shares)
@@ -3719,6 +6111,15 @@ Templates / frameworks referencing this parameter:
 Wrap entrypoint to wait for network before starting. Only needed for apps that connect to external services at startup.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/107-conf-oci-lxc-configuration.json (via oci-image)
 -->
 
 ### Used by
@@ -3734,6 +6135,15 @@ Templates / frameworks referencing this parameter:
 ## with_postgrest
 
 Create additional API schema and roles for PostgREST (api_login, <app>_anon, <app>_user)<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/330-provision-postgres-app.template.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/330-provision-postgres-app.template.json
 -->
@@ -3753,6 +6163,15 @@ Templates / frameworks referencing this parameter:
 Stack-managed value (provided by oidc stack).<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
 -->
 
 ### Used by
@@ -3768,6 +6187,18 @@ Templates / frameworks referencing this parameter:
 ## ZITADEL_EXTERNALDOMAIN
 
 Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+domain_suffix.<!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
+- json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
+--><!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
 - json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)
@@ -3820,6 +6251,18 @@ Stack-managed value (provided by oidc stack).<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
 - json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/149-conf-bootstrap-zitadel-project.json
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
 -->
 
 ### Used by
@@ -3838,6 +6281,15 @@ Templates / frameworks referencing this parameter:
 Short-lived Zitadel access token (injected by backend in zero-secret mode). Falls back to admin-client.pat file if not set.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/pre_start/150-conf-setup-oidc-client.json (via addon-oidc)
 -->
 
 ### Used by
@@ -3853,6 +6305,15 @@ Templates / frameworks referencing this parameter:
 ## zitadel_project_id
 
 Output from bootstrap step (presence triggers hardening)<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-harden-zitadel-compose.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-harden-zitadel-compose.json
+--><!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/post_start/360-post-harden-zitadel-compose.json
+--><!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/360-post-harden-zitadel-compose.json
 -->

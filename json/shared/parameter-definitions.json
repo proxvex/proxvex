@@ -195,6 +195,18 @@
       "multiline": true,
       "internal": true
     },
+    "cert_check_path": {
+      "name": "Certificate File to Verify",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
+    "cert_expected_issuer_pattern": {
+      "name": "Expected Cert Issuer Pattern",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
     "check_oidc_api_protected": {
       "name": "Check OIDC API Protected",
       "type": "boolean",

@@ -54,6 +54,7 @@
       "additionalProperties": false
     },
     "upgrade": { "$ref": "templatelist" },
+    "check": { "$ref": "categorized-templatelist" },
     "disable": {
       "type": "object",
       "properties": {

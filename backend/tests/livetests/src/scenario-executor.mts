@@ -5,7 +5,7 @@
  * verifies results, writes test results, and creates snapshots for dependencies.
  */
 
-import { runCli } from "./cli-executor.mjs";
+import { runCli, type CliJsonResult } from "./cli-executor.mjs";
 import { SnapshotManager } from "./snapshot-manager.mjs";
 import { nestedSsh, waitForServices, waitForContainerStable } from "./ssh-helpers.mjs";
 import { buildParams, partitionAfterFailure } from "./scenario-planner.mjs";
@@ -22,6 +22,59 @@ import { checkVolumeConsistency } from "./volume-consistency-check.mjs";
 
 /** Tasks that use create_ct + replace_ct (old container must stay running) */
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
+
+/**
+ * Evaluate expect2fail expectations against the CLI's per-template results.
+ *
+ * Three failure modes per entry, all flagged as mismatches:
+ *  - template never ran: no message has matching `template` field
+ *  - template ran but exited with a different code (including 0)
+ *  - any OTHER template exited non-zero (i.e. an unexpected failure)
+ *
+ * Returns matched=true only when every entry maps to exactly the expected
+ * exit code AND no extraneous non-zero exits occurred.
+ *
+ * Internal CLI errors with exitCode -1 (output validation, not a real script
+ * exit) are excluded — they don't represent template-level failures.
+ */
+function evaluateExpect2Fail(
+  cliResult: CliJsonResult,
+  expect2fail: Record<string, number>,
+): { matched: boolean; mismatches: string[] } {
+  const mismatches: string[] = [];
+
+  // For each declared expectation, find the corresponding messages.
+  for (const [tmpl, expectedCode] of Object.entries(expect2fail)) {
+    const msgs = cliResult.messages.filter((m) => m.template === tmpl);
+    if (msgs.length === 0) {
+      mismatches.push(
+        `${tmpl}: expected to exit ${expectedCode}, but template never ran`,
+      );
+      continue;
+    }
+    // A template may emit multiple messages (one per command); use the last
+    // non-partial one as the authoritative result.
+    const finals = msgs.filter((m) => !m.partial);
+    const lastMsg = finals.length > 0 ? finals[finals.length - 1] : msgs[msgs.length - 1];
+    if (lastMsg.exitCode !== expectedCode) {
+      mismatches.push(
+        `${tmpl}: expected exit ${expectedCode}, got ${lastMsg.exitCode}`,
+      );
+    }
+  }
+
+  // Flag any non-zero exit that's not covered by an expect2fail entry.
+  for (const msg of cliResult.messages) {
+    if (msg.exitCode === undefined || msg.exitCode === 0 || msg.exitCode === -1) {
+      continue;
+    }
+    if (msg.template && expect2fail[msg.template] !== undefined) continue;
+    const id = msg.template ?? msg.command ?? "<unknown>";
+    mismatches.push(`unexpected failure: ${id} exited ${msg.exitCode}`);
+  }
+
+  return { matched: mismatches.length === 0, mismatches };
+}
 
 /** Find an existing managed container by application_id via the installations API.
  *
@@ -334,6 +387,34 @@ export async function executeScenarios(
         useOidc ? oidcCredentials : undefined,
       );
 
+      // expect2fail: if the scenario declares specific templates expected
+      // to fail with specific exit codes, evaluate those expectations against
+      // the per-template messages. When all expectations are met (and no
+      // other unexpected failures occurred), override cliResult.exitCode to
+      // 0 so the rest of the pipeline treats this as a passing scenario.
+      // Skip wait_seconds in that case — the install was expected to abort,
+      // so the container may legitimately be in a partial state.
+      let expect2failApplied = false;
+      if (scenario.expect2fail && Object.keys(scenario.expect2fail).length > 0) {
+        const verdict = evaluateExpect2Fail(cliResult, scenario.expect2fail);
+        if (verdict.matched) {
+          logInfo(
+            `expect2fail satisfied: ${Object.entries(scenario.expect2fail)
+              .map(([t, c]) => `${t}→${c}`)
+              .join(", ")} — treating scenario as passed`,
+          );
+          cliResult.exitCode = 0;
+          expect2failApplied = true;
+        } else {
+          // Force failure with a clear diagnostic; preserve original
+          // exit code if non-zero, otherwise synthesize 1.
+          if (cliResult.exitCode === 0) cliResult.exitCode = 1;
+          const mismatchBlock = verdict.mismatches.map((m) => `  - ${m}`).join("\n");
+          cliResult.output =
+            `${cliResult.output}\n--- expect2fail MISMATCH ---\n${mismatchBlock}\n`;
+        }
+      }
+
       // Container-stability poll during wait_seconds. The install pipeline's
       // `900-host-check-container` runs once near the end of the installer and
       // can miss late crashes (e.g. postgres PANIC during initdb when the data
@@ -361,8 +442,10 @@ export async function executeScenarios(
       }
 
       // Hidden host apps (e.g. proxmox host reconfigure) don't create an LXC,
-      // so polling pct status against step.vmId would always fail.
-      if (cliResult.exitCode === 0 && waitSeconds > 0 && !isDockerCompose && !isHiddenApp) {
+      // so polling pct status against step.vmId would always fail. Also skip
+      // when expect2fail rewrote the result — the install was expected to
+      // abort, so the container may legitimately be in a partial state.
+      if (cliResult.exitCode === 0 && waitSeconds > 0 && !isDockerCompose && !isHiddenApp && !expect2failApplied) {
         logInfo(`Waiting ${waitSeconds}s for container to stay healthy...`);
         const health = await waitForContainerStable(
           config.pveHost, config.portPveSsh, step.vmId, waitSeconds,

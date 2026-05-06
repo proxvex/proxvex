@@ -357,6 +357,10 @@ export class VeExecutionSshExecutor {
         ? (tmplCommand.execute_on as { where: string }).where
         : tmplCommand.execute_on;
     }
+    const sourceTemplate = (tmplCommand as unknown as { _sourceTemplate?: string })._sourceTemplate;
+    if (sourceTemplate) {
+      message.template = sourceTemplate;
+    }
     return message;
   }
 
