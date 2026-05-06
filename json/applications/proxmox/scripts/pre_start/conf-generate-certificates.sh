@@ -1,62 +1,70 @@
 #!/bin/sh
-# Proxmox override: Generate and deploy PVE host certificate
+# Proxmox host override: write the pre-signed PVE web UI certificate.
 #
-# Generates a server certificate signed by the CA and deploys it
-# to the PVE host certificate paths. Restarts pveproxy.
+# The cert is signed by the backend (CertificateAuthorityService / Hub).
+# This script only decodes the base64 inputs and writes them to the
+# pveproxy user-override paths, then asks pveproxy to reload.
 #
-# Library functions are prepended automatically:
-# - cert_generate_server()
+# Library functions are prepended automatically (see template 156):
+# - cert_write_server() / cert_write_ca_pub() / cert_output_result()
 #
-# Template variables:
-#   ca_key_b64    - Base64-encoded CA private key PEM
-#   ca_cert_b64   - Base64-encoded CA certificate PEM
-#   hostname      - PVE host short hostname
-#   domain_suffix - Domain suffix (e.g. .local)
+# Target paths:
+#   /etc/pve/local/pveproxy-ssl.pem  - server cert (user-managed override)
+#   /etc/pve/local/pveproxy-ssl.key  - server key
+# These take precedence over /etc/pve/local/pve-ssl.{pem,key}, which is
+# managed by `pveca` and must not be touched.
 
-CA_KEY_B64="{{ ca_key_b64 }}"
+SERVER_KEY_B64="{{ server_key_b64 }}"
+SERVER_CERT_B64="{{ server_cert_b64 }}"
 CA_CERT_B64="{{ ca_cert_b64 }}"
 HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
-FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
+NEEDS_SERVER_CERT="{{ ssl.needs_server_cert }}"
+NEEDS_CA_CERT="{{ ssl.needs_ca_cert }}"
 
+[ "$NEEDS_SERVER_CERT" = "NOT_DEFINED" ] && NEEDS_SERVER_CERT="true"
+[ "$NEEDS_CA_CERT" = "NOT_DEFINED" ] && NEEDS_CA_CERT="false"
+
+PVE_LOCAL_DIR="/etc/pve/local"
 TMP_DIR=$(mktemp -d)
 
-echo "Provisioning PVE certificate for ${FQDN}..." >&2
+if [ "$NEEDS_SERVER_CERT" != "false" ]; then
+  if [ -z "$SERVER_KEY_B64" ] || [ "$SERVER_KEY_B64" = "NOT_DEFINED" ] \
+     || [ -z "$SERVER_CERT_B64" ] || [ "$SERVER_CERT_B64" = "NOT_DEFINED" ]; then
+    echo "Error: server_key_b64 / server_cert_b64 not provided by backend" >&2
+    rm -rf "$TMP_DIR"
+    exit 1
+  fi
 
-# Generate server cert in temp dir
-cert_generate_server "$CA_KEY_B64" "$CA_CERT_B64" "$FQDN" "$TMP_DIR" "$HOSTNAME"
+  # Decode into a tmp dir first so a partial write can't leave pveproxy with
+  # a half-written cert. Use the cert-common helper so the failure paths /
+  # logging match the rest of the cert pipeline.
+  if ! cert_write_server "$SERVER_KEY_B64" "$SERVER_CERT_B64" "$CA_CERT_B64" "$TMP_DIR"; then
+    rm -rf "$TMP_DIR"
+    exit 1
+  fi
 
-if [ $? -ne 0 ]; then
-  echo "Failed to generate PVE server certificate" >&2
-  rm -rf "$TMP_DIR"
-  echo '[{"id":"certs_generated","value":"false"}]'
-  exit 1
+  # /etc/pve is the pmxcfs FUSE filesystem, which rejects chmod/chown.
+  # Use plain cp; pmxcfs enforces 0640 root:www-data on its own.
+  cp "$TMP_DIR/fullchain.pem" "$PVE_LOCAL_DIR/pveproxy-ssl.pem"
+  cp "$TMP_DIR/privkey.pem"   "$PVE_LOCAL_DIR/pveproxy-ssl.key"
+  echo "Wrote ${PVE_LOCAL_DIR}/pveproxy-ssl.{pem,key} for ${HOSTNAME}" >&2
 fi
 
-# Backup existing certs
-if [ -f /etc/pve/local/pve-ssl.pem ]; then
-  cp /etc/pve/local/pve-ssl.pem /etc/pve/local/pve-ssl.pem.bak 2>/dev/null || true
-  echo "Backed up existing PVE SSL cert" >&2
+if [ "$NEEDS_CA_CERT" = "true" ]; then
+  if [ -z "$CA_CERT_B64" ] || [ "$CA_CERT_B64" = "NOT_DEFINED" ]; then
+    echo "Error: ca_cert_b64 not provided by backend" >&2
+    rm -rf "$TMP_DIR"
+    exit 1
+  fi
+  echo "$CA_CERT_B64" | base64 -d > /etc/pve/pve-root-ca.pem
+  echo "Wrote /etc/pve/pve-root-ca.pem" >&2
 fi
-if [ -f /etc/pve/local/pve-ssl.key ]; then
-  cp /etc/pve/local/pve-ssl.key /etc/pve/local/pve-ssl.key.bak 2>/dev/null || true
-  echo "Backed up existing PVE SSL key" >&2
-fi
 
-# Deploy new certs
-cp "$TMP_DIR/cert.pem" /etc/pve/local/pve-ssl.pem
-cp "$TMP_DIR/privkey.pem" /etc/pve/local/pve-ssl.key
-
-# Write CA cert for trust
-echo "$CA_CERT_B64" | base64 -d > /etc/pve/pve-root-ca.pem
-echo "Deployed CA cert to /etc/pve/pve-root-ca.pem" >&2
-
-# Clean up temp
 rm -rf "$TMP_DIR"
 
-# Restart pveproxy to pick up new cert
-echo "Restarting pveproxy..." >&2
-systemctl restart pveproxy 2>&1 >&2 || true
+# Pick up the new cert without dropping live API connections.
+if ! systemctl reload-or-restart pveproxy >/dev/null 2>&1; then
+  echo "Warning: failed to reload pveproxy" >&2
+fi
 
-echo "PVE certificate provisioned successfully for ${FQDN}" >&2
-echo '[{"id":"certs_generated","value":"true"}]'
+cert_output_result "certs_generated"

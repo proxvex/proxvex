@@ -1,0 +1,12 @@
+{
+  "execute_on": "ve",
+  "name": "Detect PVE Hostname",
+  "description": "Output the PVE host's actual short hostname so downstream cert-signing uses the correct SAN. Numbered 090 so it runs before the 1xx slots that addon-ssl/addon-oidc hook into.",
+  "commands": [
+    {
+      "name": "Detect PVE Hostname",
+      "script": "host-detect-pve-hostname.sh",
+      "outputs": ["hostname"]
+    }
+  ]
+}

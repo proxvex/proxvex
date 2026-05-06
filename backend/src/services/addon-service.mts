@@ -288,6 +288,16 @@ export class AddonService {
       return;
     }
 
+    // Handle explicit position (preferred over before/after anchors)
+    if (template.position === "start") {
+      templates.unshift(template.name);
+      return;
+    }
+    if (template.position === "end") {
+      templates.push(template.name);
+      return;
+    }
+
     // Handle before reference
     if (template.before) {
       const idx = this.findTemplateIndex(templates, template.before);
@@ -307,7 +317,7 @@ export class AddonService {
     }
 
     // Default: append to end
-    templates.push(typeof template === "string" ? template : template.name);
+    templates.push(template.name);
   }
 
   /**

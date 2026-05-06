@@ -19,6 +19,11 @@ export interface TestScenario {
   cli_timeout?: number;
   verify?: Record<string, boolean | number | string>;
   cleanup?: Record<string, string>;
+  /** Override stack name (default: derived from scenario id variant). Use when
+   * a reconfigure-only scenario (e.g. proxmox/oidc-ssl) needs to join the
+   * stack of a same-typed dependency (zitadel/default) instead of creating a
+   * fresh stack named after its own variant. */
+  stack_name?: string;
 }
 
 /** Discovered scenario with resolved identity */

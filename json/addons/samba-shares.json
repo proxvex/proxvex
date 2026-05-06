@@ -30,42 +30,18 @@
   ],
   "installation": {
     "pre_start": [
-      {
-        "name": "150-conf-create-storage-volumes-for-lxc.json",
-        "after": "100-conf-create-configure-lxc.json"
-      },
-      {
-        "name": "155-conf-upload-addon-files.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "166-conf-write-on-start-scripts.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "165-conf-register-hookscript.json",
-        "after": "100-conf-create-configure-lxc.json"
-      }
+      { "name": "150-conf-create-storage-volumes-for-lxc.json", "position": "end" },
+      { "name": "155-conf-upload-addon-files.json", "position": "end" },
+      { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
+      { "name": "165-conf-register-hookscript.json", "position": "end" }
     ]
   },
   "reconfigure": {
     "pre_start": [
-      {
-        "name": "150-conf-create-storage-volumes-for-lxc.json",
-        "after": "100-conf-create-configure-lxc.json"
-      },
-      {
-        "name": "155-conf-upload-addon-files.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "166-conf-write-on-start-scripts.json",
-        "after": "150-conf-create-storage-volumes-for-lxc.json"
-      },
-      {
-        "name": "165-conf-register-hookscript.json",
-        "after": "100-conf-create-configure-lxc.json"
-      }
+      { "name": "150-conf-create-storage-volumes-for-lxc.json", "position": "end" },
+      { "name": "155-conf-upload-addon-files.json", "position": "end" },
+      { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
+      { "name": "165-conf-register-hookscript.json", "position": "end" }
     ]
   },
   "disable": {

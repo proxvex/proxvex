@@ -9,6 +9,9 @@
     { "key": "admin", "display_name": "Administrator" }
   ],
   "reconfigure": {
-    "pre_start": []
+    "pre_start": [
+      "090-host-detect-pve-hostname.json",
+      "185-host-resolve-dependency-hosts.json"
+    ]
   }
 }

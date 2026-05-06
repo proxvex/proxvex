@@ -420,13 +420,6 @@ export class WebAppVeRouteHandlers {
         initialInputs, // Pass initialInputs so skip_if_all_missing can check user inputs
       );
       let commands = loaded.commands;
-      if (!commands || commands.length === 0) {
-        return {
-          success: false,
-          error: "No commands to execute for this task",
-          statusCode: 422,
-        };
-      }
 
       // Insert addon templates at correct positions for each phase
       // For reconfigure with installedAddons: only inject changed addons (delta)
@@ -465,6 +458,17 @@ export class WebAppVeRouteHandlers {
           disabledAddons,
           loaded.application,
         );
+      }
+
+      // Defer the "no commands" check until after addons are merged. Apps
+      // with an empty pre_start (e.g. the hidden proxmox host app) rely on
+      // selected addons to contribute the actual reconfigure work.
+      if (!commands || commands.length === 0) {
+        return {
+          success: false,
+          error: "No commands to execute for this task",
+          statusCode: 422,
+        };
       }
 
       const defaults = this.parameterProcessor.buildDefaults(

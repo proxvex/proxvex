@@ -233,6 +233,19 @@ export class WebAppVeAddonCommandBuilder {
               }
             }
 
+            // Hidden host apps (e.g. proxmox) have no LXC container — addon
+            // commands targeted at lxc would call lxc-attach against vm_id 0
+            // and fail. Drop them silently; host-side parts (Setup OIDC Client
+            // on ve, addon-ssl cert write) still run.
+            if (application?.hidden) {
+              const where = typeof command.execute_on === "string"
+                ? command.execute_on
+                : (command.execute_on as { where?: string } | undefined)?.where;
+              if (where === "lxc" || where === "hook") {
+                continue;
+              }
+            }
+
             commands.push(command);
           }
         }
