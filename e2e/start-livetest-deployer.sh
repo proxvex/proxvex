@@ -154,7 +154,13 @@ info "Starting local backend (Spoke) with HUB_URL=$HUB_URL on :$DEPLOYER_PORT"
 info "Log: $LOG_FILE"
 
 cd "$PROJECT_ROOT/backend"
+# LXC_MANAGER_SCRIPT_TIMEOUT bumped to 300s for livetests:
+# `apk add docker docker-cli docker-compose` (32 packages, ~80MB) routinely
+# exceeds the 120s default on a loaded nested-VM, killing the SSH child with
+# SIGKILL (exitCode 137) and breaking docker-compose installs at the Install
+# Docker step. Production deployers can keep the default.
 HUB_URL="$HUB_URL" DEPLOYER_PORT="$DEPLOYER_PORT" \
+LXC_MANAGER_SCRIPT_TIMEOUT="${LXC_MANAGER_SCRIPT_TIMEOUT:-300}" \
   nohup node dist/proxvex.mjs \
   --local ../livetest-local \
   --storageContextFilePath ../.livetest-data/storagecontext.json \

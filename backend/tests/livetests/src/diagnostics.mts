@@ -26,7 +26,7 @@ export interface LogSummary {
 }
 
 const MAX_ERRORS = 50;
-const MAX_LINE_CHARS = 500;
+const MAX_LINE_CHARS = 4000;
 const ERROR_PATTERN = /\b(error|err|fail|failed|failure|fatal|panic|exception|denied|refused|cannot|not found|unable|undefined|invalid|timeout|timed out)\b/i;
 
 function trim(line: string): string {

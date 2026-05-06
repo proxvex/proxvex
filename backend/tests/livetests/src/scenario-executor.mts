@@ -164,6 +164,33 @@ async function findExistingVm(
   return null;
 }
 
+/** Round-trip a Spoke→Hub call to verify the Hub is reachable.
+ *
+ * After `qm rollback` the nested VM and the Hub LXC inside it are restarting.
+ * `waitForNestedVm` only checks SSH, but the Hub HTTP API needs additional
+ * seconds before it accepts requests. The Spoke proxies stack and CA-sign
+ * calls to the Hub via curl with a 15s timeout — if the next scenario starts
+ * before the Hub is listening, those calls fail with curl rc=7. This helper
+ * polls the Spoke's /api/applications endpoint, which (in Spoke mode) forces
+ * a Hub round-trip, until it succeeds or the timeout elapses. */
+async function waitForHubViaSpoke(apiUrl: string, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  let lastError = "";
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const resp = await fetch(`${apiUrl}/api/applications`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (resp.ok) return;
+      lastError = `HTTP ${resp.status}`;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  logInfo(`Warning: Hub did not respond via Spoke within ${timeoutMs / 1000}s (last: ${lastError}) — continuing anyway`);
+}
+
 /** Return VMIDs (other than `excludeVmId`) whose hostname matches `hostname`.
  *
  * Pre-flight guard against leftover containers from previous runs. If a stale
@@ -577,6 +604,12 @@ export async function executeScenarios(
         if (snapMgr && !step.isDependency && !keepForDebug && snapMgr.exists("dep-stacks-ready")) {
           try {
             snapMgr.rollbackHostSnapshot("dep-stacks-ready");
+            // After qm rollback the nested VM (and Hub LXC inside it) is
+            // restarting. The Spoke proxies all stack/CA-sign requests to the
+            // Hub, so the next scenario's POST /api/stacks or /api/hub/ca/sign
+            // will fail with curl rc=7 if Hub isn't listening yet. Round-trip
+            // a Spoke→Hub call here to wait until the Hub answers.
+            await waitForHubViaSpoke(apiUrl, 60000);
             checkVolumeConsistency(
               config.pveHost, config.portPveSsh, projectRoot,
               `rollback to dep-stacks-ready`,

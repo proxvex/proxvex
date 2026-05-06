@@ -172,6 +172,19 @@ export class RemoteCli {
             def.default = containerConfig[containerKey];
           }
         }
+        // Also push aliased values directly into params, even when the alias
+        // target is not in parameterDefs. getUnresolvedParameters filters out
+        // already-resolved params — for proxvex/reconfigure, oci_image_tag is
+        // resolved through the application's `oci_image` property template, so
+        // the loop above never sees it. Without this fallback, the server-side
+        // validator rejects reconfigure with "Required parameter 'Version' is
+        // missing or empty" even though the value is right there in the notes.
+        for (const [paramId, containerKey] of Object.entries(aliasMap)) {
+          if (paramsInput.params.some(p => p.name === paramId)) continue;
+          const v = containerConfig[containerKey];
+          if (v == null || v === "") continue;
+          paramsInput.params.push({ name: paramId, value: String(v) });
+        }
         if (!this.options.quiet) {
           process.stderr.write(`Using previous container ${previousVmId.value} config as defaults.\n`);
         }

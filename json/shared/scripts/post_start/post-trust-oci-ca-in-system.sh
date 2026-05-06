@@ -35,7 +35,13 @@ mkdir -p "$CA_DIR"
 # in the nested-VM network. Apps that link addon-oidc to a TLS-protected
 # zitadel always pair it with addon-ssl, so this path covers the real cases.
 if [ -s "/etc/ssl/addon/chain.pem" ]; then
-  cp "/etc/ssl/addon/chain.pem" "$CA_FILE"
+  # Shell-redirect, not cp: when host-push-ca-to-container.sh pre-staged the
+  # CA file (and created /usr/local/share/ca-certificates as host-root), the
+  # directory ends up owned by "nobody" inside the unprivileged LXC and
+  # busybox `cp` fails with "File exists" because its unlink+create sequence
+  # needs write on the directory. `> file` only needs write on the file
+  # itself, which container-root has.
+  cat "/etc/ssl/addon/chain.pem" > "$CA_FILE"
 else
   echo "Warning: /etc/ssl/addon/chain.pem not present — skipping CA trust install" >&2
   echo "         (does the app declare 'ssl.needs_ca_cert: true' alongside addon-ssl?)" >&2
