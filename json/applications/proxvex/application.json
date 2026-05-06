@@ -76,7 +76,8 @@
   "installation": {},
   "check": {
     "check": [
-      "check-oidc-endpoint.json"
+      "check-oidc-endpoint.json",
+      "check-ssl-cert.json"
     ]
   },
   "url": "https://github.com/proxvex/proxvex",

@@ -1,0 +1,17 @@
+{
+  "execute_on": "ve",
+  "name": "Check SSL Certificate",
+  "description": "Verifies addon-ssl wrote a valid certificate into the container at /etc/ssl/addon/fullchain.pem: PEM parses, the SAN list contains the container hostname (proves a fresh issuance, not a placeholder/leftover), and the expiry is in the future. Skipped when addon-ssl is not active.",
+  "skip_if_all_missing": ["has_addon_ssl"],
+  "parameters": [
+    "vm_id",
+    "hostname"
+  ],
+  "commands": [
+    {
+      "name": "Check SSL Certificate",
+      "script": "host-check-ssl-cert.sh",
+      "outputs": ["check_ssl_cert"]
+    }
+  ]
+}

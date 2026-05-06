@@ -647,11 +647,10 @@
     {
       "id": "oci_image_tag",
       "name": "Version",
-      "description": "OCI image tag / version to pull (e.g. '0.5.28', 'v4.12.3'). Explicit versions keep registry-mirror caches deterministic and make tests reproducible. Apps typically template this into their `oci_image` property (e.g. `ghcr.io/foo/bar:{{oci_image_tag}}`). Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes.",
+      "description": "OCI image tag / version to pull (e.g. '0.5.28', 'v4.12.3'). Explicit versions keep registry-mirror caches deterministic and make tests reproducible. Apps typically template this into their `oci_image` property (e.g. `ghcr.io/foo/bar:{{oci_image_tag}}`). Reconfigure does not execute this template, so the reconfigure path inherits the tag already stored in the container's notes (parsed via `<!-- proxvex:version X -->` and applied as the parameter's default by the CLI's previous-container-config alias).",
       "type": "string",
       "default": "",
-      "required": true,
-      "internal": true
+      "required": true
     },
     {
       "id": "oidc_app_name",

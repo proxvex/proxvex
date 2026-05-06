@@ -34,22 +34,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check if lsusb is available
+# USB devices are optional: a host with no serial adapters or no usb stack
+# is a perfectly valid deploy target. Treat each missing prerequisite as
+# "no devices available" and emit an empty enum list (`[]`), not an error.
+# This keeps applications like modbus2mqtt installable without an attached
+# USB adapter — `host_device_path` will simply have no enum values, the
+# parameter stays empty, and templates gated by
+# `skip_if_all_missing: ["host_device_path"]` (e.g. 110-conf-map-serial)
+# auto-skip.
 if ! command -v lsusb >/dev/null 2>&1; then
-  echo "Error: lsusb command not found. This script requires lsusb to list USB devices." >&2
-  exit 1
+  echo "Note: lsusb not available — assuming no USB devices on this host." >&2
+  printf '[]'
+  exit 0
 fi
 
-# Check if we can access USB devices
 if [ ! -d "/sys/bus/usb/devices" ]; then
-  echo "Error: Cannot access /sys/bus/usb/devices directory." >&2
-  exit 1
+  echo "Note: /sys/bus/usb/devices missing — assuming no USB devices on this host." >&2
+  printf '[]'
+  exit 0
 fi
 
-# Prefer stable identifiers exposed by udev-generated symlinks
+# Prefer stable identifiers exposed by udev-generated symlinks. Absence of
+# the by-id directory means no serial adapters are currently plugged in.
 if [ ! -d "/dev/serial/by-id" ]; then
-  echo "Error: /dev/serial/by-id not found. udev might not be running or serial devices are not present." >&2
-  exit 1
+  echo "Note: /dev/serial/by-id missing — no USB serial adapters plugged in." >&2
+  printf '[]'
+  exit 0
 fi
 
 FIRST=true

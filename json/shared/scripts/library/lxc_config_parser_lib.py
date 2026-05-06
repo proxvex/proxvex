@@ -222,6 +222,57 @@ def _normalize_config_text(conf_text: str) -> str:
     return conf_text.replace("\\n", "\n")
 
 
+def parse_version_string(version_str: str) -> Dict[str, str]:
+    """Parse a multi-service version string into {service: version}.
+
+    Two production formats coexist:
+
+      - Notes format (written by ``post-update-version-from-docker.py``):
+        ``"service:version, service:version, ..."`` — colon between service
+        and version, comma+space between entries.
+
+      - Test/parameter format (used by ``target_versions`` /
+        ``expected_versions``): ``"service=version,service=version"`` —
+        equals sign between service and version, comma (no space) between
+        entries.
+
+    For single-service apps (``proxvex``, ``gitea``, ...) the value is just
+    the bare version string with no separator, e.g. ``"0.5.48"``. We map it
+    to ``{"": version}`` so callers always get a dict.
+
+    Empty input or the ``NOT_DEFINED`` sentinel template-engines write when
+    a parameter is unset return an empty dict.
+    """
+    if not version_str:
+        return {}
+    s = version_str.strip()
+    if not s or s == "NOT_DEFINED":
+        return {}
+
+    # Detect format: prefer '=' if present (test-parameter style), otherwise
+    # fall back to ':'. We cannot rely on the comma alone because the colon
+    # form uses ", " and the equals form uses ",".
+    sep = "=" if "=" in s else ":"
+    if sep not in s:
+        # Bare version (single-service app). Yield {"": "0.5.48"}.
+        return {"": s}
+
+    result: Dict[str, str] = {}
+    for part in s.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if sep not in part:
+            # Mixed/malformed entry — skip rather than misattribute.
+            continue
+        svc, ver = part.split(sep, 1)
+        svc = svc.strip()
+        ver = ver.strip()
+        if svc and ver:
+            result[svc] = ver
+    return result
+
+
 def _decode_config_text(conf_text: str) -> str:
     """URL-decode config text (for description field).
 
