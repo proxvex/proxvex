@@ -212,6 +212,8 @@ export interface IParameter {
   advanced?: boolean;
   /** Internal parameter — never rendered in the UI. Set by backend, app properties, or addons. */
   internal?: boolean;
+  /** Marks parameters typically set once globally per project (DNS, mirrors, registry credentials, …). Pure documentation hint, no runtime effect. */
+  project?: boolean;
   upload?: boolean;
   certtype?: CertType;
   default?: string | number | boolean;

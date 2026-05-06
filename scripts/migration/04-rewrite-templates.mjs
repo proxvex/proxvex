@@ -58,7 +58,7 @@ async function* walkJson(dir) {
 async function main() {
   const definitionsRaw = await readFile(DEFINITIONS_PATH, "utf8");
   const definitions = JSON.parse(definitionsRaw);
-  const knownIds = new Set(definitions.parameters.map((p) => p.id));
+  const knownIds = new Set(Object.keys(definitions.parameters ?? {}));
 
   let filesScanned = 0;
   let filesChanged = 0;
