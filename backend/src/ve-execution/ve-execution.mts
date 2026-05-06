@@ -439,13 +439,18 @@ export class VeExecution extends EventEmitter {
           ...(e instanceof JsonError && e.details ? { details: e.details.map((d: IJsonError) => d.message) } : {}),
         });
       }
+      // Emit the message before throwing so consumers see the real per-command
+      // exit code AND the template field. The catch in VeExecution.run will
+      // additionally emit a synthetic -1 error message; expect2fail filters
+      // those out.
+      msg.index = getNextMessageIndex();
+      msg.partial = false;
+      this.emit("message", msg);
       if (exitCode !== 0) {
         throw new Error(
           `Command "${tmplCommand.name}" failed with exit code ${exitCode}: ${stderr}`,
         );
-      } else msg.index = getNextMessageIndex();
-      msg.partial = false;
-      this.emit("message", msg);
+      }
       return msg;
     } finally {
       if (process.env.CACHE_TRACE === "1") {
@@ -565,13 +570,15 @@ export class VeExecution extends EventEmitter {
           ...(e instanceof JsonError && e.details ? { details: e.details.map((d: IJsonError) => d.message) } : {}),
         });
     }
+    // Emit before throwing — see runOnVeHost rationale.
+    msg.index = getNextMessageIndex();
+    msg.partial = false;
+    this.emit("message", msg);
     if (exitCode !== 0) {
       throw new Error(
         `Command "${tmplCommand.name}" failed with exit code ${exitCode}: ${stderr}`,
       );
-    } else msg.index = getNextMessageIndex();
-    msg.partial = false;
-    this.emit("message", msg);
+    }
     return msg;
   }
 

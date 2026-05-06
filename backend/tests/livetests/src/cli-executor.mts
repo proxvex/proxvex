@@ -24,6 +24,9 @@ export interface CliMessage {
   partial?: boolean;
   vmId?: number;
   redirectUrl?: string;
+  /** Filename of the template this command was loaded from. Used by the
+   *  livetest runner's expect2fail logic to identify per-template results. */
+  template?: string;
 }
 
 export interface CliJsonResult {

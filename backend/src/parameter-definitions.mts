@@ -1,18 +1,21 @@
 import fs from "fs";
 import path from "path";
 import { IParameter } from "./types.mjs";
+import { MarkdownReader } from "./markdown-reader.mjs";
 
 /**
  * Loads json/shared/parameter-definitions.json — the canonical definition
  * for every parameter ID referenced from templates / addons / applications.
  *
- * Templates carry only `parameters: string[]` (a list of IDs); the registry
- * expands them into full IParameter objects so downstream code keeps the
- * shape it had before the migration.
+ * On-disk format is `{ parameters: { <id>: { …definition… } } }` — the id
+ * lives in the object key (intrinsic uniqueness, no Custom-Keyword needed
+ * for JSON-Schema validation). The registry exposes the id as part of the
+ * IParameter (synthesised from the key) so consumers see the same shape
+ * they had with the previous array form.
  *
- * Bootstrap files (parameter-definitions.json itself, addon files written
- * before the registry exists) may still ship inline IParameter objects;
- * `expand` accepts either form.
+ * Templates carry `parameters: string[]` (a list of IDs); `expand` looks
+ * each id up in the registry and returns full IParameter objects. Inline
+ * object entries are still accepted as a legacy/migration fallback.
  */
 export class ParameterDefinitionsRegistry {
   private byId = new Map<string, IParameter>();
@@ -33,11 +36,28 @@ export class ParameterDefinitionsRegistry {
     const stat = fs.statSync(this.filePath);
     if (this.loaded && stat.mtimeMs === this.mtime) return;
     const raw = fs.readFileSync(this.filePath, "utf8");
-    const parsed = JSON.parse(raw) as { parameters?: IParameter[] };
+    const parsed = JSON.parse(raw) as {
+      parameters?: Record<string, Omit<IParameter, "id">>;
+    };
     this.byId.clear();
-    if (Array.isArray(parsed.parameters)) {
-      for (const p of parsed.parameters) {
-        if (p && typeof p.id === "string") this.byId.set(p.id, p);
+    if (parsed.parameters && typeof parsed.parameters === "object") {
+      // Read the parallel parameter-definitions.md once. Fallback path:
+      // for each parameter without a JSON `description`, look up the
+      // `## <id>` section. Same precedence rule as the template loader
+      // (see template-validator.mts:116-138): JSON wins, MD is fallback.
+      const mdPath = MarkdownReader.getMarkdownPath(this.filePath);
+      const mdExists = fs.existsSync(mdPath);
+      for (const [id, def] of Object.entries(parsed.parameters)) {
+        if (!def || typeof def !== "object") continue;
+        const merged: IParameter = { ...(def as Omit<IParameter, "id">), id };
+        if (
+          mdExists &&
+          (typeof merged.description !== "string" || merged.description.trim() === "")
+        ) {
+          const section = MarkdownReader.extractSection(mdPath, id);
+          if (section) merged.description = section;
+        }
+        this.byId.set(id, merged);
       }
     }
     this.mtime = stat.mtimeMs;

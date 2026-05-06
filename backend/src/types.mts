@@ -189,6 +189,7 @@ export interface IVeExecuteMessage {
   vmId?: number; // Container VMID (available in final success message)
   redirectUrl?: string; // Redirect URL for deployer self-reconfigure (new instance URL)
   completionInfo?: ICompletionInfo; // Optional structured completion info from application
+  template?: string; // Filename of the template this command was loaded from (e.g. "342-post-install-acme-renew-on-start.json")
 }
 
 export interface ICompletionInfo {
@@ -212,6 +213,8 @@ export interface IParameter {
   advanced?: boolean;
   /** Internal parameter — never rendered in the UI. Set by backend, app properties, or addons. */
   internal?: boolean;
+  /** Marks parameters typically set once globally per project (DNS, mirrors, registry credentials, …). Pure documentation hint, no runtime effect. */
+  project?: boolean;
   upload?: boolean;
   certtype?: CertType;
   default?: string | number | boolean;
@@ -462,6 +465,9 @@ export interface ITestScenarioResponse {
   stackIds?: string[];
   uploads?: { name: string; content: string }[];
   cleanup?: Record<string, string>;
+  /** Per-template expected failure exit codes for livetests. Keys are
+   *  template filenames, values are the required non-zero exit code. */
+  expect2fail?: Record<string, number>;
 }
 
 export interface ITestScenariosResponse {

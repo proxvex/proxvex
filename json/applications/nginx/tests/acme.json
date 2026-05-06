@@ -6,5 +6,8 @@
   ],
   "selectedAddons": ["addon-acme"],
   "wait_seconds": 120,
-  "description": "ACME addon - verifies hookscript and dispatcher setup. With acme_staging=true and the fake CF_TOKEN, the test reaches Let's Encrypt staging but DNS challenge fails (expected); the test only verifies the wiring up to that point."
+  "expect2fail": {
+    "945-host-check-cert-issuer.json": 1
+  },
+  "description": "ACME addon wiring smoke-test. With acme_staging=true and a fake CF_TOKEN, acme.sh reaches Let's Encrypt staging but the DNS challenge fails. The bootstrap placeholder cert (CN=bootstrap-placeholder, written by template 166) keeps the container booting, so the install pipeline runs to completion. The 945 cert-issuer check then notices the issuer does NOT match the addon-acme default pattern 'Let.s Encrypt' and exits 1 ('mismatch: ...'). expect2fail asserts exactly this: 945 must exit with code 1. A real LE issuance would make 945 pass — and that would (correctly) fail this test, telling us the marker is stale. For real cert issuance see nginx/acme-real."
 }

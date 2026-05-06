@@ -2,12 +2,16 @@
   "$id": "parameter-definitions",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "parameter-definitions",
-  "description": "Central registry of all UI/template parameter definitions. Templates reference parameters by id only; the canonical definition lives here.",
+  "description": "Central registry of all UI/template parameter definitions. Templates reference parameters by id only; the canonical definition lives here. The id is the object key under `parameters` — uniqueness is intrinsic.",
   "type": "object",
   "properties": {
     "parameters": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/parameterDefinition" }
+      "type": "object",
+      "description": "Map of parameter id → definition. Keys must match ^[A-Za-z_][A-Za-z0-9_.-]*$ and are intrinsically unique.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/parameterDefinition" }
     }
   },
   "required": ["parameters"],
@@ -16,18 +20,13 @@
     "parameterDefinition": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$",
-          "description": "Stable identifier referenced from templates."
-        },
         "name": {
           "type": "string",
           "description": "Human-readable label shown in the UI."
         },
         "description": {
           "type": "string",
-          "description": "Help text shown as tooltip or expandable help panel."
+          "description": "Help text shown as tooltip or expandable help panel. Optional in JSON; if missing, the loader falls back to the matching `## <id>` section in parameter-definitions.md (parallel file)."
         },
         "type": {
           "enum": ["string", "number", "boolean", "enum"]
@@ -39,6 +38,10 @@
         "internal": {
           "type": "boolean",
           "description": "Never shown in the UI. Resolved by backend, by application properties, or by addons."
+        },
+        "project": {
+          "type": "boolean",
+          "description": "Marks parameters that are typically set once globally per project (DNS, mirrors, registry credentials, …) rather than per application. Pure documentation hint — no runtime effect, used by the project-settings doc generator."
         },
         "advanced": {
           "type": "boolean",
@@ -96,14 +99,9 @@
           "description": "Sort order within the group. Lower = higher up. Default 100."
         }
       },
-      "required": ["id", "name", "description", "type"],
+      "required": ["name", "type"],
       "additionalProperties": false,
       "allOf": [
-        {
-          "$comment": "internal parameters skip the group requirement",
-          "if": { "not": { "required": ["internal"] } },
-          "then": { "required": ["id", "name", "description", "type"] }
-        },
         {
           "$comment": "internal and advanced are mutually exclusive",
           "not": {

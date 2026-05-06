@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 /**
  * Cross-checks templates / addons / applications against
- * json/shared/parameter-definitions.json.
+ * json/shared/parameter-definitions.json + parameter-definitions.md.
  *
  * Reports:
  *   - templates with non-string entries in parameters[]
  *   - parameter IDs referenced from templates that aren't defined in the registry
  *   - parameter IDs in the registry that aren't referenced anywhere (warning only)
+ *   - parameters with no description anywhere (registry-side error)
+ *   - parameters with description in BOTH JSON and MD (registry-side error)
+ *   - MD sections for ids that don't exist in the registry (registry-side error)
  */
 
 import { readdir, readFile } from "node:fs/promises";
@@ -19,6 +22,7 @@ const JSON_ROOT = join(REPO_ROOT, "json");
 const EXAMPLES_ROOT = join(REPO_ROOT, "examples");
 const WALK_ROOTS = [JSON_ROOT, EXAMPLES_ROOT];
 const DEFINITIONS_PATH = join(JSON_ROOT, "shared", "parameter-definitions.json");
+const MD_PATH = join(JSON_ROOT, "shared", "parameter-definitions.md");
 const SKIP_DIRS = new Set(["applications-backup"]);
 const SKIP_FILES = new Set([
   "json/shared/parameter-definitions.json",
@@ -42,14 +46,56 @@ async function* walkJson(dir) {
   }
 }
 
+async function loadMarkdownSectionIds() {
+  let raw;
+  try {
+    raw = await readFile(MD_PATH, "utf8");
+  } catch {
+    return new Set();
+  }
+  const ids = new Set();
+  // Same heading rule as MarkdownReader.extractSection: lines that start
+  // with `## <text>` (no nested headings).
+  const re = /^##\s+([A-Za-z_][A-Za-z0-9_.-]*)\s*$/gm;
+  let m;
+  while ((m = re.exec(raw)) !== null) ids.add(m[1]);
+  return ids;
+}
+
 async function main() {
   const definitions = JSON.parse(await readFile(DEFINITIONS_PATH, "utf8"));
-  const knownIds = new Set(definitions.parameters.map((p) => p.id));
+  const params = definitions.parameters ?? {};
+  const knownIds = new Set(Object.keys(params));
+  const mdSectionIds = await loadMarkdownSectionIds();
 
   const referencedIds = new Set();
   const errors = [];
   let scanned = 0;
   let withParams = 0;
+
+  // Registry-side checks: each parameter must have exactly one description
+  // source (JSON or MD), and every MD section must reference a known id.
+  for (const id of knownIds) {
+    const def = params[id];
+    const hasJson = typeof def?.description === "string" && def.description.trim() !== "";
+    const hasMd = mdSectionIds.has(id);
+    if (hasJson && hasMd) {
+      errors.push(
+        `parameter-definitions.json: "${id}" has description in BOTH JSON and parameter-definitions.md — keep only the MD section.`,
+      );
+    } else if (!hasJson && !hasMd) {
+      errors.push(
+        `parameter-definitions.json: "${id}" has no description — add one in JSON or as a "## ${id}" section in parameter-definitions.md.`,
+      );
+    }
+  }
+  for (const id of mdSectionIds) {
+    if (!knownIds.has(id)) {
+      errors.push(
+        `parameter-definitions.md: orphan section "## ${id}" — no matching id in the registry.`,
+      );
+    }
+  }
 
   for (const root of WALK_ROOTS) {
     let exists = true;

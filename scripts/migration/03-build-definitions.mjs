@@ -33,7 +33,9 @@ const JSON_ROOT = join(REPO_ROOT, "json");
 const EXAMPLES_ROOT = join(REPO_ROOT, "examples");
 const WALK_ROOTS = [JSON_ROOT, EXAMPLES_ROOT];
 const OUT_FILE = join(REPO_ROOT, "json", "shared", "parameter-definitions.json");
+const MD_FILE = join(REPO_ROOT, "json", "shared", "parameter-definitions.md");
 const GROUPS_OVERRIDES_PATH = join(SCRIPT_DIR, "parameter-groups-overrides.json");
+const PROJECTS_OVERRIDES_PATH = join(SCRIPT_DIR, "parameter-projects-overrides.json");
 
 // Keep in sync with 01-list-parameters.mjs.
 const SKIP_DIRS = new Set(["applications-backup"]);
@@ -86,10 +88,20 @@ async function loadStackVarsByName() {
   return map;
 }
 
-/** Collect parameter definitions for stack-var IDs from any template. */
+/**
+ * Collect references to stack-var IDs from any template / addon /
+ * application. Accepts both legacy inline-object form and the current
+ * string-id form. For string-id form we have no per-occurrence metadata,
+ * so we just record an empty occurrence list — the caller falls back to
+ * stacktype info to synthesise the definition.
+ */
 async function collectStackVarParamDefs(stackVarIds) {
-  // id -> { occurrences: [{name, description, type, secure, ...}] }
+  // id -> [{ name?, description?, type?, secure?, multiline? }, …]
   const found = new Map();
+  const note = (id, meta) => {
+    if (!found.has(id)) found.set(id, []);
+    if (meta) found.get(id).push(meta);
+  };
   for (const root of WALK_ROOTS) {
     let exists = true;
     try {
@@ -108,10 +120,11 @@ async function collectStackVarParamDefs(stackVarIds) {
       const params = parsed?.parameters;
       if (!Array.isArray(params)) continue;
       for (const p of params) {
-        if (!p || typeof p.id !== "string") continue;
-        if (!stackVarIds.has(p.id)) continue;
-        if (!found.has(p.id)) found.set(p.id, []);
-        found.get(p.id).push(p);
+        if (typeof p === "string") {
+          if (stackVarIds.has(p)) note(p, null);
+        } else if (p && typeof p.id === "string" && stackVarIds.has(p.id)) {
+          note(p.id, p);
+        }
       }
     }
   }
@@ -200,8 +213,9 @@ function suggestGroup(id) {
   return "Other";
 }
 
+// Field order inside each parameter object. The id is the surrounding object
+// key, so it doesn't appear here.
 const ORDER_FIELDS = [
-  "id",
   "name",
   "description",
   "type",
@@ -219,6 +233,7 @@ const ORDER_FIELDS = [
   "order",
   "advanced",
   "internal",
+  "project",
 ];
 
 async function readJson(file) {
@@ -332,25 +347,71 @@ async function loadGroupOverrides() {
   }
 }
 
+async function loadProjectOverrides() {
+  try {
+    const raw = await readJson(PROJECTS_OVERRIDES_PATH);
+    const set = new Set();
+    for (const [k, v] of Object.entries(raw)) {
+      if (k.startsWith("_")) continue;
+      // Any non-comment entry counts as project: true.
+      if (v && typeof v === "object") set.add(k);
+    }
+    return set;
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Returns a Set of parameter ids that have a `## <id>` section in
+ * json/shared/parameter-definitions.md. Used by the build to drop the
+ * JSON `description` for those ids — the loader merges the MD section in
+ * at runtime (single source of truth, no drift).
+ */
+async function loadMarkdownSectionIds() {
+  let raw;
+  try {
+    raw = await readFile(MD_FILE, "utf8");
+  } catch {
+    return new Set();
+  }
+  // Same heading rule as MarkdownReader.extractSection: lines that start
+  // with `## <text>` (no nested headings). We just need the id (heading
+  // text), case-sensitive.
+  const ids = new Set();
+  const re = /^##\s+([A-Za-z_][A-Za-z0-9_.-]*)\s*$/gm;
+  let m;
+  while ((m = re.exec(raw)) !== null) ids.add(m[1]);
+  return ids;
+}
+
 async function main() {
   const inventory = await readJson(INVENTORY);
   const classification = await readJson(CLASSIFICATION);
   const groupOverrides = await loadGroupOverrides();
+  const projectIds = await loadProjectOverrides();
+  const mdSectionIds = await loadMarkdownSectionIds();
 
   const ids = Object.keys(inventory).sort();
-  const definitions = [];
+  /** id → ordered definition object (no `id` field — id is the surrounding key). */
+  const definitionsMap = {};
   const warnings = [];
 
   for (const id of ids) {
     const entry = inventory[id];
     const cls = classification[id];
 
-    const def = { id };
+    const def = {};
     const name = pickMajorityName(entry);
     if (name) def.name = name;
 
-    const description = pickLongestDescription(entry);
-    if (description) def.description = description;
+    // Description goes into JSON only when there is no MD section for this
+    // id. Otherwise the MD content is the single source of truth and the
+    // backend loader picks it up via MarkdownReader.extractSection.
+    if (!mdSectionIds.has(id)) {
+      const description = pickLongestDescription(entry);
+      if (description) def.description = description;
+    }
 
     const type = pickMajorityType(entry);
     def.type = type ?? "string";
@@ -391,6 +452,12 @@ async function main() {
       def.group = groupOverrides.get(id) ?? suggestGroup(id);
     }
 
+    // Project-Settings flag — pure documentation hint, orthogonal to
+    // internal/advanced/visible. Used by the project-settings doc generator.
+    if (projectIds.has(id)) {
+      def.project = true;
+    }
+
     // Order keys for readability.
     const ordered = {};
     for (const k of ORDER_FIELDS) {
@@ -405,7 +472,7 @@ async function main() {
     if (!ordered.name) warnings.push(`${id}: no name`);
     if (!ordered.description) warnings.push(`${id}: no description`);
 
-    definitions.push(ordered);
+    definitionsMap[id] = ordered;
   }
 
   // Add stack-var IDs that templates reference but the inventory excluded.
@@ -416,23 +483,30 @@ async function main() {
   );
   let stackVarsAdded = 0;
   for (const [id, occurrences] of stackVarsAlsoInTemplates) {
-    if (definitions.some((d) => d.id === id)) continue;
+    if (id in definitionsMap) continue;
     // Pick best name/description from the template occurrences.
-    const names = occurrences.map((p) => p.name).filter((n) => typeof n === "string");
-    const descs = occurrences.map((p) => p.description).filter((d) => typeof d === "string");
-    const types = occurrences.map((p) => p.type).filter((t) => typeof t === "string");
+    const names = occurrences.map((p) => p?.name).filter((n) => typeof n === "string");
+    const descs = occurrences.map((p) => p?.description).filter((d) => typeof d === "string");
+    const types = occurrences.map((p) => p?.type).filter((t) => typeof t === "string");
     const def = {
-      id,
       name: names[0] ?? id,
-      description:
-        descs.sort((a, b) => b.length - a.length)[0] ??
-        `Stack-managed value (provided by ${stackVars.get(id)?.stack} stack).`,
       type: types[0] ?? "string",
       internal: true,
     };
-    if (occurrences.some((p) => p.secure === true)) def.secure = true;
-    if (occurrences.some((p) => p.multiline === true)) def.multiline = true;
-    definitions.push(def);
+    if (!mdSectionIds.has(id)) {
+      def.description =
+        descs.sort((a, b) => b.length - a.length)[0] ??
+        `Stack-managed value (provided by ${stackVars.get(id)?.stack} stack).`;
+    }
+    if (occurrences.some((p) => p?.secure === true)) def.secure = true;
+    if (occurrences.some((p) => p?.multiline === true)) def.multiline = true;
+    // Stack-var IDs aren't in inventory, so re-order via ORDER_FIELDS so
+    // their key order matches everything else.
+    const ordered = {};
+    for (const k of ORDER_FIELDS) {
+      if (def[k] !== undefined) ordered[k] = def[k];
+    }
+    definitionsMap[id] = ordered;
     stackVarsAdded++;
   }
   if (stackVarsAdded > 0) {
@@ -440,16 +514,20 @@ async function main() {
   }
 
   // Sort by id for stable diffs.
-  definitions.sort((a, b) => a.id.localeCompare(b.id));
+  const sortedDefinitionsMap = {};
+  for (const id of Object.keys(definitionsMap).sort((a, b) => a.localeCompare(b))) {
+    sortedDefinitionsMap[id] = definitionsMap[id];
+  }
 
-  const out = { parameters: definitions };
+  const out = { parameters: sortedDefinitionsMap };
   await writeFile(OUT_FILE, JSON.stringify(out, null, 2) + "\n");
 
-  console.log(`Wrote ${definitions.length} parameter definitions to`);
+  const definitionList = Object.values(sortedDefinitionsMap);
+  console.log(`Wrote ${definitionList.length} parameter definitions to`);
   console.log(`  ${OUT_FILE.replace(REPO_ROOT + "/", "")}`);
   console.log("");
   const counts = { internal: 0, advanced: 0, visible: 0 };
-  for (const d of definitions) {
+  for (const d of definitionList) {
     if (d.internal) counts.internal++;
     else if (d.advanced) counts.advanced++;
     else counts.visible++;

@@ -1,0 +1,14 @@
+{
+  "_comment": "IDs marked here become `project: true` in parameter-definitions.json. Pure documentation hint — used by the project-settings doc generator. Keep the list to global / cluster-level settings (DNS, mirrors, registry credentials, …). The flag does NOT change runtime behavior.",
+  "alpine_mirror":      { "reason": "Alpine APK mirror; einmal global gesetzt." },
+  "debian_mirror":      { "reason": "Debian APT mirror; einmal global gesetzt." },
+  "searchdomain":       { "reason": "DNS-Search-Domain für alle Container des Projekts." },
+  "registry_username":  { "reason": "Registry-Auth nur via Mirror — Project-Setting." },
+  "registry_password":  { "reason": "Wie registry_username." },
+  "registry_token":     { "reason": "Wie registry_username." },
+  "vm_id_start":        { "reason": "Untergrenze für VMID-Auto-Vergabe." },
+  "oidc_issuer_url":    { "reason": "Zentraler Zitadel-Issuer für das ganze Projekt." },
+  "acme_email":         { "reason": "Let's-Encrypt-Account-E-Mail; pro Projekt einmal." },
+  "acme_san":           { "reason": "ACME Subject Alternative Names; Projekt-Defaults." },
+  "domain_suffix":      { "reason": "FQDN-Suffix; Projekt-weit konsistent." }
+}

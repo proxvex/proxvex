@@ -6,12 +6,24 @@
 #
 # Template variables ({{ ... }}) are substituted by the Spoke at deploy
 # time, so no outer wrapper / heredoc trickery is needed.
+#
+# Exit codes:
+#   0 - hook deployed + best-effort issuance attempted; renewal loop started
+#   1 - setup failure: tooling install (apk/apt) failed before issuance
+#
+# Note: success/failure of the actual ACME issuance is NOT reflected in the
+# exit code. The system carries a self-signed bootstrap placeholder
+# (CN=bootstrap-placeholder) at $CERT_DIR/fullchain.pem so apps with
+# listen … ssl can start before LE has issued. Verification that a real
+# Let's Encrypt cert was issued belongs in the check phase
+# (945-host-check-cert-issuer compares the issuer against an expected pattern).
 
 CF_API_TOKEN="{{ CF_TOKEN }}"
 ACME_DOMAIN="{{ acme_domain }}"
 ACME_EMAIL="{{ acme_email }}"
 CERT_DIR="{{ acme.cert_dir }}"
 NEEDS_CA_CERT="{{ acme.needs_ca_cert }}"
+ACME_STAGING="{{ acme_staging }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
 
@@ -69,7 +81,7 @@ MIRROREOF
         echo "apk install attempt $_try failed, retrying..." >&2
         sleep 3
       done
-      [ "$_ok" -eq 1 ] || echo "apk install of curl/openssl failed after 5 attempts" >&2
+      [ "$_ok" -eq 1 ] || { echo "ERROR: apk install of curl/openssl failed after 5 attempts" >&2; exit 1; }
       ;;
     debian|ubuntu)
       if [ -n "$DEBIAN_MIRROR" ] && [ "$DEBIAN_MIRROR" != "NOT_DEFINED" ]; then
@@ -93,7 +105,7 @@ MIRROREOF
         echo "apt install attempt $_try failed, retrying..." >&2
         sleep 3
       done
-      [ "$_ok" -eq 1 ] || echo "apt install of curl/openssl failed after 5 attempts" >&2
+      [ "$_ok" -eq 1 ] || { echo "ERROR: apt install of curl/openssl failed after 5 attempts" >&2; exit 1; }
       ;;
   esac
 fi
@@ -118,6 +130,9 @@ acme_issue_or_renew() {
   export CF_Token="$CF_API_TOKEN"
 
   ACME_ARGS="--dns dns_cf -d $ACME_DOMAIN"
+  if [ "$ACME_STAGING" = "true" ]; then
+    ACME_ARGS="$ACME_ARGS --server letsencrypt_test"
+  fi
 
   # Always install server cert (privkey/cert/fullchain). Optionally also the CA chain.
   INSTALL_ARGS="--key-file ${CERT_DIR}/privkey.pem --cert-file ${CERT_DIR}/cert.pem --fullchain-file ${CERT_DIR}/fullchain.pem"
@@ -157,8 +172,12 @@ acme_issue_or_renew() {
   return 0
 }
 
-# --- Initial certificate issuance (synchronous) ---
-acme_issue_or_renew
+# --- Initial certificate issuance (synchronous, best-effort) ---
+# Failure here is not fatal: the bootstrap placeholder at $CERT_DIR/fullchain.pem
+# keeps the app booting, the renewal loop will retry, and the check phase
+# (945-host-check-cert-issuer) is where "did ACME actually succeed?" is
+# verified against the expected issuer pattern.
+acme_issue_or_renew || true
 
 # --- Start background renewal loop ---
 (

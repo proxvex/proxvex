@@ -1,0 +1,22 @@
+{
+  "execute_on": "ve",
+  "name": "Check Cert Issuer",
+  "description": "Verifies that the certificate at cert_check_path inside the container is issued by an issuer matching cert_expected_issuer_pattern (grep -E regex against `openssl x509 -issuer -noout`). Used by addon-acme to confirm that ACME issuance produced a real Let's Encrypt cert (production or staging) and not a self-signed placeholder.",
+  "skip_if_all_missing": [
+    "cert_check_path",
+    "cert_expected_issuer_pattern"
+  ],
+  "parameters": [
+    "cert_check_path",
+    "cert_expected_issuer_pattern"
+  ],
+  "commands": [
+    {
+      "name": "Check Cert Issuer",
+      "script": "host-check-cert-issuer.sh",
+      "outputs": [
+        "check_cert_issuer"
+      ]
+    }
+  ]
+}

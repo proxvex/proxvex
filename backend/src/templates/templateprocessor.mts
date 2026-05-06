@@ -583,6 +583,13 @@ export class TemplateProcessor extends EventEmitter {
     // Add commands or process nested templates
 
     for (const cmd of tmplData.commands ?? []) {
+      // Annotate command with the source template filename so downstream
+      // consumers (e.g. the live-test runner's expect2fail logic) can
+      // identify which template a result came from. Tracked as an internal
+      // field — not part of the schema, set fresh on every processing pass.
+      (cmd as unknown as { _sourceTemplate?: string })._sourceTemplate =
+        templateName;
+
       // Set command name from template name if command name is missing or empty
       // This applies to all command types: script, command, template, and properties
       // This is especially important for properties-only commands which often don't have a name field
