@@ -8,10 +8,20 @@
   "oidc_roles": [
     { "key": "admin", "display_name": "Administrator" }
   ],
+  "properties": [
+    { "id": "https_port", "default": "8006" },
+    { "id": "ssl_mode", "default": "native" },
+    { "id": "oidc_callback_path", "default": "" }
+  ],
   "reconfigure": {
     "pre_start": [
       "090-host-detect-pve-hostname.json",
       "185-host-resolve-dependency-hosts.json"
+    ]
+  },
+  "check": {
+    "check": [
+      "945-check-https-cert.json"
     ]
   }
 }

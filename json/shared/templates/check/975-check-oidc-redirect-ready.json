@@ -1,0 +1,24 @@
+{
+  "execute_on": "lxc",
+  "name": "Check OIDC Redirect Ready",
+  "description": "From the consumer container, hit Zitadel's authorization_endpoint with the same client_id + redirect_uri the app will use at login time. A 200/302 means client is registered and the redirect_uri is whitelisted. 400 with invalid_client / redirect_uri_mismatch pinpoints which side is wrong without needing a real browser roundtrip.",
+  "skip_if_all_missing": ["has_addon_oidc"],
+  "parameters": [
+    "ZITADEL_HOST",
+    "ZITADEL_PORT",
+    "ZITADEL_PROTO",
+    "oidc_client_id",
+    "hostname",
+    "domain_suffix",
+    "oidc_callback_path",
+    "ssl_mode"
+  ],
+  "commands": [
+    {
+      "name": "Check OIDC Redirect Ready",
+      "script": "check-oidc-redirect-ready.sh",
+      "library": "pkg-common.sh",
+      "outputs": ["check_oidc_redirect_ready"]
+    }
+  ]
+}

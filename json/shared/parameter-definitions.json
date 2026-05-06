@@ -1507,6 +1507,20 @@
       "internal": true
     },
     {
+      "id": "ZITADEL_PORT",
+      "name": "Zitadel Port",
+      "description": "Zitadel API port (provided by oidc stack).",
+      "type": "string",
+      "internal": true
+    },
+    {
+      "id": "ZITADEL_PROTO",
+      "name": "Zitadel Protocol",
+      "description": "Protocol for Zitadel API: http or https (provided by oidc stack).",
+      "type": "string",
+      "internal": true
+    },
+    {
       "id": "ZITADEL_PAT",
       "name": "Zitadel PAT",
       "description": "Short-lived Zitadel access token (injected by backend in zero-secret mode). Falls back to admin-client.pat file if not set.",

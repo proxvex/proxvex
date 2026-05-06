@@ -1,0 +1,19 @@
+{
+  "execute_on": "lxc",
+  "name": "Check OIDC Discovery",
+  "description": "From inside the consumer container, fetch Zitadel's /.well-known/openid-configuration and assert authorization_endpoint, token_endpoint, userinfo_endpoint exist. Verifies the container's network can reach the OIDC provider — most common cause of redirect failure.",
+  "skip_if_all_missing": ["has_addon_oidc"],
+  "parameters": [
+    "ZITADEL_HOST",
+    "ZITADEL_PORT",
+    "ZITADEL_PROTO"
+  ],
+  "commands": [
+    {
+      "name": "Check OIDC Discovery",
+      "script": "check-oidc-discovery.sh",
+      "library": "pkg-common.sh",
+      "outputs": ["check_oidc_discovery"]
+    }
+  ]
+}
