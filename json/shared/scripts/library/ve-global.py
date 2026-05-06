@@ -32,12 +32,23 @@ def _find_pct() -> str:
 
 
 def find_vmid_by_hostname(hostname: str) -> str | None:
-    """Look up the first VMID that matches <hostname> in `pct list`.
+    """Look up the unique VMID that matches <hostname> in `pct list`.
 
     Useful for cross-container scripts (e.g. an OIDC client that needs to
     write into the Zitadel container's volume) that have a hostname but no
-    vmid in their template variables. Prefers running containers; falls
-    back to the first match. Returns None if nothing matches.
+    vmid in their template variables.
+
+    Returns:
+        VMID string on exactly one match (running preferred over stopped).
+        None if no container matches.
+
+    Raises:
+        RuntimeError if multiple containers share the hostname.
+
+    Why fail loudly on multi-match: previously this returned the lowest-VMID
+    match silently, which masked leftover containers from earlier runs and
+    produced wrong-credential downstream failures (e.g. zitadel resolving to
+    a stale postgres VMID and pulling the wrong POSTGRES_PASSWORD secret).
     """
     if not hostname:
         return None
@@ -50,8 +61,8 @@ def find_vmid_by_hostname(hostname: str) -> str | None:
         return None
     if result.returncode != 0:
         return None
-    running = None
-    first = None
+    running: list[str] = []
+    others: list[str] = []
     for line in result.stdout.splitlines()[1:]:  # skip header
         parts = line.split()
         if len(parts) < 3:
@@ -61,12 +72,24 @@ def find_vmid_by_hostname(hostname: str) -> str | None:
         status = parts[1]
         if name != hostname:
             continue
-        if first is None:
-            first = parts[0]
-        if status == "running" and running is None:
-            running = parts[0]
-            break
-    return running or first
+        (running if status == "running" else others).append(parts[0])
+
+    if len(running) > 1:
+        raise RuntimeError(
+            f"find_vmid_by_hostname: multiple running containers match hostname "
+            f"{hostname!r}: {', '.join(running)} — remove duplicates before retrying"
+        )
+    if len(running) == 1:
+        return running[0]
+
+    if len(others) > 1:
+        raise RuntimeError(
+            f"find_vmid_by_hostname: multiple containers match hostname "
+            f"{hostname!r}: {', '.join(others)} — remove duplicates before retrying"
+        )
+    if len(others) == 1:
+        return others[0]
+    return None
 
 
 def _attached_volids(vmid: str) -> list[str]:

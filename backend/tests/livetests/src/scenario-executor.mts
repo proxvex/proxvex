@@ -164,6 +164,45 @@ async function findExistingVm(
   return null;
 }
 
+/** Return VMIDs (other than `excludeVmId`) whose hostname matches `hostname`.
+ *
+ * Pre-flight guard against leftover containers from previous runs. If a stale
+ * postgres-default at VMID 219 lingers when a fresh run installs at VMID 220,
+ * the deployer's dependency-resolver picks the lowest VMID (219) but DNS
+ * resolves to the new container (220) — yielding silent password mismatches
+ * downstream. Catching the duplicate up-front turns the symptom into a clear
+ * fail with a `--fresh` hint. */
+function findHostnameCollisions(
+  pveHost: string,
+  sshPort: number,
+  hostname: string,
+  excludeVmId: number,
+): number[] {
+  try {
+    // pct list columns: VMID Status [Lock] Name. Name (last token) carries
+    // the hostname for proxvex-managed containers.
+    const out = nestedSsh(
+      pveHost, sshPort,
+      `pct list 2>/dev/null | tail -n +2 | awk '{print $1, $NF}'`,
+      10000,
+    );
+    const collisions: number[] = [];
+    for (const line of out.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const parts = trimmed.split(/\s+/);
+      if (parts.length < 2) continue;
+      const vmid = parseInt(parts[0]!, 10);
+      if (Number.isNaN(vmid)) continue;
+      if (vmid === excludeVmId) continue;
+      if (parts[parts.length - 1] === hostname) collisions.push(vmid);
+    }
+    return collisions;
+  } catch {
+    return [];
+  }
+}
+
 export async function executeScenarios(
   planned: PlannedScenario[],
   config: {
@@ -286,6 +325,30 @@ export async function executeScenarios(
         } catch { /* fall back to step.hostname */ }
       }
       const isReplaceCt = REPLACE_CT_TASKS.includes(task);
+
+      // Pre-flight: refuse to install on top of a leftover container that
+      // already owns the target hostname. replace_ct (upgrade/reconfigure)
+      // legitimately reuses the source's hostname, and hidden apps don't
+      // create an LXC at all, so both are excluded.
+      if (!isReplaceCt && !isHiddenApp) {
+        const collisions = findHostnameCollisions(
+          config.pveHost, config.portPveSsh, effectiveHostname, step.vmId,
+        );
+        if (collisions.length > 0) {
+          const errMsg =
+            `Hostname '${effectiveHostname}' already in use by VMID(s) ${collisions.join(", ")}. ` +
+            `Leftover from a previous run — re-run the livetest with --fresh to wipe.`;
+          logFail(errMsg);
+          result.errors.push(errMsg);
+          result.failed++;
+          result.steps.push({
+            vmId: step.vmId, hostname: effectiveHostname,
+            application: scenario.application, scenarioId: scenario.id,
+          });
+          continue;
+        }
+      }
+
       const baseParams = [
         { name: "hostname", value: effectiveHostname },
         { name: "bridge", value: "vmbr1" },
