@@ -28,6 +28,21 @@ function readSanExtension(certB64: string): string {
   }
 }
 
+/** Read the subject line from a base64-encoded PEM cert. */
+function readCertSubject(certB64: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "ca-test-subj-"));
+  try {
+    const certPath = path.join(dir, "cert.pem");
+    writeFileSync(certPath, Buffer.from(certB64, "base64"), "utf-8");
+    return execSync(
+      `openssl x509 -in "${certPath}" -noout -subject`,
+      { encoding: "utf-8" },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 describe("CertificateAuthorityService", () => {
   let env: TestEnvironment;
   let ctx: ContextManager;
@@ -158,7 +173,7 @@ describe("CertificateAuthorityService", () => {
   });
 
   describe("generateSelfSignedCert()", () => {
-    it("should generate CA-signed server cert and store it", () => {
+    it("should generate CA-signed server cert", () => {
       const cert = service.generateSelfSignedCert(veContextKey, "myhost");
       expect(cert.key).toBeTruthy();
       expect(cert.cert).toBeTruthy();
@@ -169,14 +184,6 @@ describe("CertificateAuthorityService", () => {
       expect(certPem).toContain("-----BEGIN CERTIFICATE-----");
     });
 
-    it("should store cert retrievable by hostname", () => {
-      service.generateSelfSignedCert(veContextKey, "myhost");
-      expect(service.hasServerCert("myhost")).toBe(true);
-      const retrieved = service.getServerCert("myhost");
-      expect(retrieved).not.toBeNull();
-      expect(retrieved!.key).toBeTruthy();
-    });
-
     it("should auto-generate CA if none exists", () => {
       expect(service.hasCA(veContextKey)).toBe(false);
       service.generateSelfSignedCert(veContextKey, "myhost");
@@ -185,67 +192,44 @@ describe("CertificateAuthorityService", () => {
     });
 
     it("cert subject should contain hostname", () => {
-      service.generateSelfSignedCert(veContextKey, "myhost");
-      const info = service.getServerCertInfo("myhost");
-      expect(info.exists).toBe(true);
-      expect(info.subject).toContain("myhost");
+      const generated = service.generateSelfSignedCert(veContextKey, "myhost");
+      const subject = readCertSubject(generated.cert);
+      expect(subject).toContain("myhost");
+    });
+
+    it("each call signs fresh material — server certs are not persisted", () => {
+      // The on-disk cert (in the container's certs volume) is the source of
+      // truth. The backend signs fresh on every call; the container-side
+      // script (`conf-generate-certificates.sh` + `cert_should_skip_write`)
+      // decides whether to commit. Two calls therefore produce different
+      // key+cert material.
+      const first = service.generateSelfSignedCert(veContextKey, "stable-host");
+      const second = service.generateSelfSignedCert(veContextKey, "stable-host");
+      expect(second.key).not.toBe(first.key);
+      expect(second.cert).not.toBe(first.cert);
+    });
+
+    it("does not write a stored cert into the context manager", () => {
+      service.generateSelfSignedCert(veContextKey, "no-store-host");
+      // Legacy storage key — must remain absent under the new contract.
+      expect(ctx.get("ssl_no-store-host")).toBeUndefined();
     });
   });
 
   describe("ensureServerCert()", () => {
-    it("should generate if not exists", () => {
-      expect(service.hasServerCert("newhost")).toBe(false);
-      const cert = service.ensureServerCert(veContextKey, "newhost");
+    it("delegates to generateSelfSignedCert (no caching, fresh material per call)", () => {
+      const cert = service.ensureServerCert(veContextKey, "ensure-host");
       expect(cert.key).toBeTruthy();
-      expect(service.hasServerCert("newhost")).toBe(true);
+      expect(cert.cert).toBeTruthy();
+      const subject = readCertSubject(cert.cert);
+      expect(subject).toContain("ensure-host");
     });
 
-    it("should return existing cert on repeated calls", () => {
-      const cert1 = service.ensureServerCert(veContextKey, "newhost");
-      const cert2 = service.ensureServerCert(veContextKey, "newhost");
-      expect(cert1.key).toBe(cert2.key);
-      expect(cert1.cert).toBe(cert2.cert);
-    });
-  });
-
-  describe("getServerCertInfo()", () => {
-    it("should return exists=false when no cert", () => {
-      const info = service.getServerCertInfo("unknown");
-      expect(info.exists).toBe(false);
-    });
-
-    it("should return subject and expiry when cert exists", () => {
-      service.generateSelfSignedCert(veContextKey, "infohost");
-      const info = service.getServerCertInfo("infohost");
-      expect(info.exists).toBe(true);
-      expect(info.subject).toBeTruthy();
-      expect(info.expiry_date).toBeTruthy();
-      expect(info.days_remaining).toBeGreaterThan(800); // 825 days
-    });
-  });
-
-  describe("setServerCert() / getServerCert()", () => {
-    it("should store and retrieve server cert", () => {
-      const generated = service.generateSelfSignedCert(veContextKey, "storehost");
-      // Store for a different hostname
-      service.setServerCert("otherhost", generated.key, generated.cert);
-      const retrieved = service.getServerCert("otherhost");
-      expect(retrieved).not.toBeNull();
-      expect(retrieved!.key).toBe(generated.key);
-    });
-
-    it("should return null for non-existent hostname", () => {
-      expect(service.getServerCert("nope")).toBeNull();
-    });
-
-    it("should be independent per hostname", () => {
-      service.generateSelfSignedCert(veContextKey, "host-a");
-      service.generateSelfSignedCert(veContextKey, "host-b");
-      const a = service.getServerCert("host-a");
-      const b = service.getServerCert("host-b");
-      expect(a).not.toBeNull();
-      expect(b).not.toBeNull();
-      expect(a!.key).not.toBe(b!.key);
+    it("returns different material on repeated calls", () => {
+      const first = service.ensureServerCert(veContextKey, "repeat-host");
+      const second = service.ensureServerCert(veContextKey, "repeat-host");
+      expect(second.key).not.toBe(first.key);
+      expect(second.cert).not.toBe(first.cert);
     });
   });
 
@@ -276,7 +260,7 @@ describe("CertificateAuthorityService", () => {
       expect(san).toContain("localhost");
     });
 
-    it("ensureServerCert regenerates when extraSans change", () => {
+    it("ensureServerCert reflects updated extraSans on the next call", () => {
       const first = service.ensureServerCert(veContextKey, "san-host", ["a.example"]);
       const sanFirst = readSanExtension(first.cert);
       expect(sanFirst).toContain("a.example");
@@ -285,13 +269,12 @@ describe("CertificateAuthorityService", () => {
         "a.example",
         "b.example",
       ]);
-      expect(second.cert).not.toBe(first.cert);
       const sanSecond = readSanExtension(second.cert);
       expect(sanSecond).toContain("a.example");
       expect(sanSecond).toContain("b.example");
     });
 
-    it("ensureServerCert returns cached cert when extraSans match (any order)", () => {
+    it("ensureServerCert SAN list is order-independent (normalizeExtraSans)", () => {
       const first = service.ensureServerCert(veContextKey, "stable-host", [
         "DNS:b.example",
         "DNS:a.example",
@@ -300,7 +283,15 @@ describe("CertificateAuthorityService", () => {
         "a.example",
         "b.example",
       ]);
-      expect(second.cert).toBe(first.cert);
+      // Two separate signings → distinct material, but the SAN identity is
+      // the same. The container-side cert_should_skip_write decides whether
+      // to commit the new pair to disk.
+      const sanFirst = readSanExtension(first.cert);
+      const sanSecond = readSanExtension(second.cert);
+      expect(sanFirst).toContain("a.example");
+      expect(sanFirst).toContain("b.example");
+      expect(sanSecond).toContain("a.example");
+      expect(sanSecond).toContain("b.example");
     });
 
     it("DNS: prefix is accepted and stripped (matches application.json format)", () => {

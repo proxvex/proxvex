@@ -206,22 +206,6 @@ export class RemoteCaProvider implements ICaProvider {
     return signed;
   }
 
-  getServerCert(hostname: string): { key: string; cert: string } | null {
-    return this.serverCertCache.get(this.cacheKey(hostname, [])) ?? null;
-  }
-
-  hasServerCert(hostname: string): boolean {
-    return this.serverCertCache.has(this.cacheKey(hostname, []));
-  }
-
-  setServerCert(hostname: string, key: string, cert: string, extraSans?: string[]): void {
-    this.serverCertCache.set(this.cacheKey(hostname, normalizeSans(extraSans)), { key, cert });
-  }
-
-  getServerCertInfo(hostname: string): ICaInfoResponse {
-    return { exists: this.hasServerCert(hostname) };
-  }
-
   // --- Internal helpers ---
 
   private cachedCaCert: string | null = null;

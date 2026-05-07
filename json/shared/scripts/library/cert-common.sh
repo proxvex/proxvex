@@ -17,7 +17,9 @@
 #   4. cert_write_ca           - Write CA key+cert
 #   5. cert_check_validity     - Check if cert is valid for N days
 #   6. cert_check_fqdn_match   - Check if cert CN matches expected FQDN
-#   7. cert_output_result      - Generate JSON output
+#   7. cert_identity_of        - Print CN+SAN identity line for a cert file
+#   8. cert_should_skip_write  - Decide whether existing on-disk cert may be kept
+#   9. cert_output_result      - Generate JSON output
 #
 # Global state variables:
 #   CERT_FILES_WRITTEN - Counter for cert files written
@@ -230,6 +232,105 @@ cert_write_ca() {
   echo "$_ca_cert_b64" | base64 -d > "$_target_dir/chain.pem"
   CERT_FILES_WRITTEN=$((CERT_FILES_WRITTEN + 2))
   echo "Wrote CA key+cert to ${_target_dir}" >&2
+  return 0
+}
+
+# ============================================================================
+# cert_identity_of()
+# Print a normalized identity line for a server certificate, consisting of
+# its CN and the sorted, deduplicated list of subjectAltName entries.
+# Used by cert_should_skip_write() to decide whether an on-disk cert and a
+# candidate replacement describe the same logical identity.
+#
+# Output format (single line, components separated by "|"):
+#   CN=<cn>|<san1>|<san2>|...
+#
+# DNS:foo and IP:1.2.3.4 entries are normalized; openssl's "IP Address:" is
+# rewritten to "IP:" so the format is stable across openssl versions.
+#
+# Arguments:
+#   $1 - cert_path: Path to PEM-encoded certificate file
+# Returns: 0 if a non-empty identity could be extracted, 1 otherwise
+# ============================================================================
+cert_identity_of() {
+  _cert_path="$1"
+  [ -f "$_cert_path" ] || return 1
+
+  _cn=$(openssl x509 -in "$_cert_path" -noout -subject 2>/dev/null \
+    | sed -n 's/.*CN *= *\([^,]*\).*/CN=\1/p' \
+    | sed 's/ *$//')
+
+  _sans=$(openssl x509 -in "$_cert_path" -noout -ext subjectAltName 2>/dev/null \
+    | tr -d '\n' \
+    | sed 's/.*X509v3 Subject Alternative Name://' \
+    | sed 's/ *critical *//' \
+    | sed 's/IP Address:/IP:/g' \
+    | tr ',' '\n' \
+    | sed 's/^ *//;s/ *$//' \
+    | grep -v '^$' \
+    | sort -u \
+    | tr '\n' '|' \
+    | sed 's/|$//')
+
+  if [ -z "$_cn" ] && [ -z "$_sans" ]; then
+    return 1
+  fi
+
+  if [ -n "$_sans" ]; then
+    printf '%s|%s\n' "$_cn" "$_sans"
+  else
+    printf '%s\n' "$_cn"
+  fi
+  return 0
+}
+
+# ============================================================================
+# cert_should_skip_write()
+# Decide whether the existing on-disk cert can be kept instead of being
+# overwritten by a candidate replacement. The existing cert is kept iff ALL
+# of the following hold:
+#   1. Both files exist and parse as certificates,
+#   2. Their identities (CN + SAN list, see cert_identity_of) match exactly,
+#   3. The existing cert is still valid for at least min_days (default 30),
+#   4. If a CA file is provided: the existing cert verifies against it
+#      (catches CA rotation — same DN+SAN but old issuing CA).
+#
+# This makes cert deployment idempotent on the disk, the source of truth
+# for what the container actually serves. The backend signs fresh material
+# on every call; this helper decides whether to commit it.
+#
+# Arguments:
+#   $1 - existing_cert_path: Path to currently-deployed cert.pem
+#   $2 - new_cert_path:      Path to freshly-signed candidate cert PEM
+#   $3 - min_days:           Minimum remaining validity to keep existing
+#                            (default 30)
+#   $4 - ca_cert_path:       Optional path to PEM-encoded CA cert. When set,
+#                            the existing cert MUST verify against it; a
+#                            verification failure forces a rewrite. Pass an
+#                            empty string to skip this check.
+# Returns: 0 = keep existing (skip write), 1 = write new
+# ============================================================================
+cert_should_skip_write() {
+  _existing="$1"
+  _new="$2"
+  _min_days="${3:-30}"
+  _ca_cert="${4:-}"
+
+  [ -f "$_existing" ] || return 1
+  [ -f "$_new" ]      || return 1
+
+  _existing_id=$(cert_identity_of "$_existing") || return 1
+  _new_id=$(cert_identity_of "$_new")           || return 1
+
+  [ -n "$_existing_id" ] || return 1
+  [ "$_existing_id" = "$_new_id" ] || return 1
+
+  cert_check_validity "$_existing" "$_min_days" || return 1
+
+  if [ -n "$_ca_cert" ] && [ -f "$_ca_cert" ]; then
+    openssl verify -CAfile "$_ca_cert" "$_existing" >/dev/null 2>&1 || return 1
+  fi
+
   return 0
 }
 

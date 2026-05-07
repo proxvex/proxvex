@@ -24,10 +24,13 @@ export interface ICaProvider {
   setSharedVolpath(veContextKey: string, path: string): void;
 
   // Server certificates
+  //
+  // Server certs are NOT persisted by the provider. The container-side
+  // `conf-generate-certificates.sh` keeps the on-disk cert when its identity
+  // (CN+SAN) matches the freshly-signed candidate, so the disk is the source
+  // of truth. The Hub provider always signs fresh; the Spoke provider uses
+  // an in-process cache to coalesce redundant Hub round-trips within one
+  // Reconfigure flow, but does not persist anything across restarts.
   generateSelfSignedCert(veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string };
   ensureServerCert(veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string };
-  getServerCert(hostname: string): { key: string; cert: string } | null;
-  hasServerCert(hostname: string): boolean;
-  setServerCert(hostname: string, key: string, cert: string, extraSans?: string[]): void;
-  getServerCertInfo(hostname: string): ICaInfoResponse;
 }
