@@ -164,6 +164,72 @@ async function findExistingVm(
   return null;
 }
 
+/** Round-trip a Spoke→Hub call to verify the Hub is reachable.
+ *
+ * After `qm rollback` the nested VM and the Hub LXC inside it are restarting.
+ * `waitForNestedVm` only checks SSH, but the Hub HTTP API needs additional
+ * seconds before it accepts requests. The Spoke proxies stack and CA-sign
+ * calls to the Hub via curl with a 15s timeout — if the next scenario starts
+ * before the Hub is listening, those calls fail with curl rc=7. This helper
+ * polls the Spoke's /api/applications endpoint, which (in Spoke mode) forces
+ * a Hub round-trip, until it succeeds or the timeout elapses. */
+async function waitForHubViaSpoke(apiUrl: string, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  let lastError = "";
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const resp = await fetch(`${apiUrl}/api/applications`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (resp.ok) return;
+      lastError = `HTTP ${resp.status}`;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  logInfo(`Warning: Hub did not respond via Spoke within ${timeoutMs / 1000}s (last: ${lastError}) — continuing anyway`);
+}
+
+/** Return VMIDs (other than `excludeVmId`) whose hostname matches `hostname`.
+ *
+ * Pre-flight guard against leftover containers from previous runs. If a stale
+ * postgres-default at VMID 219 lingers when a fresh run installs at VMID 220,
+ * the deployer's dependency-resolver picks the lowest VMID (219) but DNS
+ * resolves to the new container (220) — yielding silent password mismatches
+ * downstream. Catching the duplicate up-front turns the symptom into a clear
+ * fail with a `--fresh` hint. */
+function findHostnameCollisions(
+  pveHost: string,
+  sshPort: number,
+  hostname: string,
+  excludeVmId: number,
+): number[] {
+  try {
+    // pct list columns: VMID Status [Lock] Name. Name (last token) carries
+    // the hostname for proxvex-managed containers.
+    const out = nestedSsh(
+      pveHost, sshPort,
+      `pct list 2>/dev/null | tail -n +2 | awk '{print $1, $NF}'`,
+      10000,
+    );
+    const collisions: number[] = [];
+    for (const line of out.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const parts = trimmed.split(/\s+/);
+      if (parts.length < 2) continue;
+      const vmid = parseInt(parts[0]!, 10);
+      if (Number.isNaN(vmid)) continue;
+      if (vmid === excludeVmId) continue;
+      if (parts[parts.length - 1] === hostname) collisions.push(vmid);
+    }
+    return collisions;
+  } catch {
+    return [];
+  }
+}
+
 export async function executeScenarios(
   planned: PlannedScenario[],
   config: {
@@ -286,6 +352,30 @@ export async function executeScenarios(
         } catch { /* fall back to step.hostname */ }
       }
       const isReplaceCt = REPLACE_CT_TASKS.includes(task);
+
+      // Pre-flight: refuse to install on top of a leftover container that
+      // already owns the target hostname. replace_ct (upgrade/reconfigure)
+      // legitimately reuses the source's hostname, and hidden apps don't
+      // create an LXC at all, so both are excluded.
+      if (!isReplaceCt && !isHiddenApp) {
+        const collisions = findHostnameCollisions(
+          config.pveHost, config.portPveSsh, effectiveHostname, step.vmId,
+        );
+        if (collisions.length > 0) {
+          const errMsg =
+            `Hostname '${effectiveHostname}' already in use by VMID(s) ${collisions.join(", ")}. ` +
+            `Leftover from a previous run — re-run the livetest with --fresh to wipe.`;
+          logFail(errMsg);
+          result.errors.push(errMsg);
+          result.failed++;
+          result.steps.push({
+            vmId: step.vmId, hostname: effectiveHostname,
+            application: scenario.application, scenarioId: scenario.id,
+          });
+          continue;
+        }
+      }
+
       const baseParams = [
         { name: "hostname", value: effectiveHostname },
         { name: "bridge", value: "vmbr1" },
@@ -514,6 +604,12 @@ export async function executeScenarios(
         if (snapMgr && !step.isDependency && !keepForDebug && snapMgr.exists("dep-stacks-ready")) {
           try {
             snapMgr.rollbackHostSnapshot("dep-stacks-ready");
+            // After qm rollback the nested VM (and Hub LXC inside it) is
+            // restarting. The Spoke proxies all stack/CA-sign requests to the
+            // Hub, so the next scenario's POST /api/stacks or /api/hub/ca/sign
+            // will fail with curl rc=7 if Hub isn't listening yet. Round-trip
+            // a Spoke→Hub call here to wait until the Hub answers.
+            await waitForHubViaSpoke(apiUrl, 60000);
             checkVolumeConsistency(
               config.pveHost, config.portPveSsh, projectRoot,
               `rollback to dep-stacks-ready`,

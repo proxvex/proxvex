@@ -3,24 +3,48 @@
 # Provides volume path resolution for managed volumes
 
 # find_vmid_by_hostname <hostname>
-# Print the first VMID that matches <hostname> in pct list. Empty + return 1
-# if no match. Useful for cross-container scripts (e.g. an OIDC client that
-# needs to write into the Zitadel container's volume) that have a hostname
-# but no vmid in their template variables.
+# Print the unique VMID that matches <hostname> in pct list.
+# Return codes:
+#   0 — exactly one match (running preferred over stopped); VMID on stdout
+#   1 — no match; empty stdout
+#   2 — multiple matches; empty stdout, error on stderr
+#
+# Useful for cross-container scripts (e.g. an OIDC client that needs to write
+# into the Zitadel container's volume) that have a hostname but no vmid in
+# their template variables.
+#
+# Why fail loudly on multi-match: previously this returned the lowest-VMID
+# match silently, which masked leftover containers from earlier runs and
+# produced wrong-credential downstream failures (e.g. zitadel resolving to a
+# stale postgres VMID and pulling the wrong POSTGRES_PASSWORD secret).
 find_vmid_by_hostname() {
   _fvbh_host="$1"
   [ -z "$_fvbh_host" ] && return 1
   command -v pct >/dev/null 2>&1 || return 1
   # pct list columns: VMID Status Lock Name. Match Name (= hostname).
   _fvbh_running=$(pct list 2>/dev/null \
-    | awk -v h="$_fvbh_host" 'NR>1 && $NF==h && $2=="running" {print $1; exit}')
-  if [ -n "$_fvbh_running" ]; then
+    | awk -v h="$_fvbh_host" 'NR>1 && $NF==h && $2=="running" {print $1}')
+  # Trailing \n via printf forces the last entry to count as a line under any grep.
+  _fvbh_running_count=$(printf '%s\n' "$_fvbh_running" | grep -c .)
+
+  if [ "$_fvbh_running_count" -gt 1 ]; then
+    echo "ERROR: find_vmid_by_hostname: multiple running containers match hostname '$_fvbh_host': $(echo $_fvbh_running | tr '\n' ' ')— remove duplicates before retrying" >&2
+    return 2
+  fi
+  if [ "$_fvbh_running_count" -eq 1 ]; then
     printf '%s' "$_fvbh_running"
     return 0
   fi
+
   _fvbh_any=$(pct list 2>/dev/null \
-    | awk -v h="$_fvbh_host" 'NR>1 && $NF==h {print $1; exit}')
-  if [ -n "$_fvbh_any" ]; then
+    | awk -v h="$_fvbh_host" 'NR>1 && $NF==h {print $1}')
+  _fvbh_any_count=$(printf '%s\n' "$_fvbh_any" | grep -c .)
+
+  if [ "$_fvbh_any_count" -gt 1 ]; then
+    echo "ERROR: find_vmid_by_hostname: multiple containers match hostname '$_fvbh_host': $(echo $_fvbh_any | tr '\n' ' ')— remove duplicates before retrying" >&2
+    return 2
+  fi
+  if [ "$_fvbh_any_count" -eq 1 ]; then
     printf '%s' "$_fvbh_any"
     return 0
   fi

@@ -1,0 +1,61 @@
+name: Build debian-docker base image
+
+# Pre-baked Debian + Docker base image for proxvex docker-compose apps.
+# Replaces the runtime `apt-get install docker.io` step that hits SSH
+# timeouts on loaded nested-VMs. See oci/debian-docker/Dockerfile for
+# context.
+#
+# Manually triggered via the Actions UI (or `gh workflow run …`) so we
+# control when the published image rolls forward.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: latest)'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/debian-docker
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ inputs.tag }}
+            type=sha
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: ./oci/debian-docker
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Container Registry Link
+        run: |
+          echo "::notice title=debian-docker::Image available at: https://github.com/${{ github.repository }}/pkgs/container/debian-docker"
