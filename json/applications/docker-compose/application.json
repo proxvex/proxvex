@@ -51,6 +51,7 @@
     ],
     "post_start": [
       "305-post-set-pkg-mirror.json",
+      "307-post-start-dockerd.json",
       "320-post-upload-docker-compose-files.json",
       "330-svc-start-docker-compose.json",
       "335-post-update-version-from-docker.json",
@@ -92,6 +93,7 @@
     ],
     "post_start": [
       "305-post-set-pkg-mirror.json",
+      "307-post-start-dockerd.json",
       "320-post-upload-docker-compose-files.json",
       "330-svc-start-docker-compose.json",
       "335-post-update-version-from-docker.json",

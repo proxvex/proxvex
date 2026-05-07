@@ -1,0 +1,11 @@
+{
+  "execute_on": "lxc",
+  "name": "Start Dockerd",
+  "description": "Launch dockerd via nohup. The pre-baked debian-docker LXC base has docker installed but no init system, so we start the daemon directly. 330-svc-start-docker-compose polls for readiness afterwards.",
+  "commands": [
+    {
+      "name": "Start Dockerd",
+      "script": "post-start-dockerd.sh"
+    }
+  ]
+}
