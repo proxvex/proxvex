@@ -27,6 +27,7 @@ import {
   determineExecutionMode,
   ExecutionMode,
 } from "@src/ve-execution/ve-execution-constants.mjs";
+import { listManagedContainers } from "@src/services/container-list-service.mjs";
 
 /**
  * Route handler logic for VE configuration endpoints.
@@ -107,6 +108,49 @@ export class WebAppVeRouteHandlers {
       // Persist via StackProvider so Spoke pushes the update to the Hub.
       stackProvider.addStack(stack);
       this.logger.info("Stack provides updated", { stack: firstStackId, provides: provides.map((p) => p.name) });
+    }
+  }
+
+  /**
+   * Reconfigure tasks send `previous_vm_id` instead of `hostname` because the
+   * hostname is owned by the existing container (and the user has no reason
+   * to retype it). The certificate injector needs the hostname *before* the
+   * pipeline runs (templates produce the hostname output later), so resolve
+   * it here from the existing managed container and inject it into
+   * `processedParams` so downstream consumers see a consistent name.
+   *
+   * No-op when hostname is already present, or when previous_vm_id is missing,
+   * or when the container list cannot be fetched. The cert injector falls back
+   * to "localhost" only if both routes fail; that fallback is then a real
+   * misconfiguration signal rather than a silent reconfigure regression.
+   */
+  private async resolveHostnameFromPreviousVmId(
+    processedParams: Array<{ id: string; value: string | number | boolean }>,
+    veContext: IVEContext,
+  ): Promise<void> {
+    if (processedParams.some((p) => p.id === "hostname" && p.value !== "" && p.value !== null && p.value !== undefined)) {
+      return;
+    }
+    const prevVmIdParam = processedParams.find((p) => p.id === "previous_vm_id");
+    if (!prevVmIdParam || prevVmIdParam.value === "" || prevVmIdParam.value === undefined || prevVmIdParam.value === null) {
+      return;
+    }
+    const previousVmId = String(prevVmIdParam.value);
+    try {
+      const containers = await listManagedContainers(this.pm, veContext);
+      const match = containers.find((c) => String(c.vm_id) === previousVmId);
+      if (match?.hostname) {
+        processedParams.push({ id: "hostname", value: match.hostname });
+        this.logger.info("Resolved hostname from previous_vm_id", {
+          previousVmId,
+          hostname: match.hostname,
+        });
+      }
+    } catch (err) {
+      this.logger.warn("Failed to resolve hostname from previous_vm_id", {
+        previousVmId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -675,6 +719,12 @@ export class WebAppVeRouteHandlers {
           } catch { /* addon not found, skip */ }
         }
       }
+
+      // Reconfigure tasks send only previous_vm_id; hostname must be resolved
+      // from the existing managed container so the cert injector below signs
+      // for the right name (otherwise it falls back to "localhost" and the
+      // disk cert never rotates because of the script-side identity check).
+      await this.resolveHostnameFromPreviousVmId(processedParams, veCtxToUse);
 
       // Auto-generate certificate parameters for certtype params without user upload.
       // Hub mode → CertificateAuthorityService (signs locally with on-disk CA key).

@@ -847,7 +847,7 @@
       "name": "Stack Secret Names",
       "type": "string",
       "required": false,
-      "group": "Authentication"
+      "internal": true
     },
     "startup_down": {
       "name": "Startup Down Delay",
