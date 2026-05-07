@@ -41,8 +41,7 @@
     "smb_user",
     "smtp_mail_domain",
     "smtp_mx_target",
-    "smtp_own_domain",
-    "stack_secret_names"
+    "smtp_own_domain"
   ],
 
   "_visible_network": [
@@ -89,7 +88,6 @@
   "smtp_mail_domain":                      { "group": "Authentication" },
   "smtp_mx_target":                        { "group": "Authentication" },
   "smtp_own_domain":                       { "group": "Authentication" },
-  "stack_secret_names":                    { "group": "Authentication" },
 
   "hostname":                              { "group": "Network" },
 
