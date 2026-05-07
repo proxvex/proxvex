@@ -18,18 +18,22 @@
 # the systemd service wiring at first start — `systemctl enable` at
 # build time is unreliable inside an LXC, so we deliberately don't run
 # it here.
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# docker.io + docker-compose-v2 are the Debian-packaged versions; that's
+# docker.io + docker-compose are the Debian-packaged versions; that's
 # enough for our compose-up / pull / down workflow and avoids pulling in
 # docker.com's apt repo (one fewer trust dependency at build time).
+# trixie is required because bookworm's `docker-compose` is the legacy
+# v1 (Python) which lacks the `docker compose` (subcommand-with-space)
+# CLI that the proxvex svc-templates use. trixie ships v2.26+ as a
+# Docker CLI plugin under /usr/libexec/docker/cli-plugins/.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
       docker.io \
-      docker-compose-v2 \
+      docker-compose \
       iptables \
  && rm -rf /var/lib/apt/lists/*
 
