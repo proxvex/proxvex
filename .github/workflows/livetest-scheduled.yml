@@ -112,6 +112,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Materialize e2e/config.json from secret
+        env:
+          E2E_CONFIG: ${{ secrets.E2E_CONFIG }}
+        run: |
+          if [ -z "$E2E_CONFIG" ]; then
+            echo "::error::Missing GitHub secret E2E_CONFIG (full e2e/config.json content)"
+            exit 1
+          fi
+          printf '%s' "$E2E_CONFIG" > e2e/config.json
+          jq -e '.instances["github-action"]' e2e/config.json >/dev/null \
+            || { echo "::error::E2E_CONFIG does not contain a github-action instance"; exit 1; }
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

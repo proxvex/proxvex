@@ -156,13 +156,24 @@ success "Docker image ${DOCKER_TAG} built"
 # Step 4: Convert local Docker image to an OCI-archive tarball (pct create
 # accepts the oci-archive format directly — same path the production flow
 # takes via host-get-oci-image.py).
+#
+# Two-stage conversion: docker save → docker-archive → oci-archive. Going
+# directly from `docker-daemon:` requires skopeo to use the live Docker
+# Engine API, and on Ubuntu 24.04 the bundled skopeo (Engine API 1.41) is
+# too old for the bundled dockerd (requires ≥1.44). docker save produces
+# a self-contained tarball that skopeo reads via docker-archive: without
+# touching the daemon, so the version skew goes away.
 OCI_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-local.oci.tar"
-info "Exporting via skopeo to $OCI_TARBALL..."
-rm -f "$OCI_TARBALL"
+DOCKER_SAVE_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-docker.tar"
+info "Exporting via docker save → skopeo to $OCI_TARBALL..."
+rm -f "$OCI_TARBALL" "$DOCKER_SAVE_TARBALL"
+docker save "$DOCKER_TAG" -o "$DOCKER_SAVE_TARBALL" \
+    || error "docker save failed"
 skopeo copy \
-    "docker-daemon:${DOCKER_TAG}" \
+    "docker-archive:${DOCKER_SAVE_TARBALL}" \
     "oci-archive:${OCI_TARBALL}:latest" >&2 \
     || error "skopeo copy failed"
+rm -f "$DOCKER_SAVE_TARBALL"
 success "OCI-archive: $(ls -l "$OCI_TARBALL" | awk '{print $5}') bytes"
 
 # Step 5: Upload tarball directly into the nested VM /tmp via the
