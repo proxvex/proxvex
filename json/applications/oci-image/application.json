@@ -3,6 +3,16 @@
   "description": "Base application for OCI image based services",
   "icon": "icon.png",
   "supported_addons": ["addon-ssl", "addon-acme", "samba-shares"],
+  "properties": [
+    {
+      "id": "oidc_redirect_uri",
+      "default": "https://{{hostname}}{{project_domain_suffix}}/api/auth/callback"
+    },
+    {
+      "id": "oidc_post_logout_uri",
+      "default": "https://{{hostname}}{{project_domain_suffix}}"
+    }
+  ],
   "installation": {
     "image": [
       "011-host-get-oci-image.json"

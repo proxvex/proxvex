@@ -13,7 +13,7 @@
     { "id": "uid", "value": "0" },
     { "id": "username", "value": "root" },
     { "id": "http_port", "value": "5000" },
-    { "id": "oidc_callback_path", "value": "/oidc/callback" }
+    { "id": "oidc_redirect_uri", "value": "https://{{hostname}}{{project_domain_suffix}}/oidc/callback" }
   ],
   "installation": {},
   "tags": [

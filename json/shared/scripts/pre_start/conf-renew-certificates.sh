@@ -10,7 +10,7 @@
 #   ca_key_b64          - Base64-encoded CA private key PEM
 #   ca_cert_b64         - Base64-encoded CA certificate PEM
 #   shared_volpath      - Base path for volumes
-#   domain_suffix       - FQDN suffix (default: .local)
+#   project_domain_suffix       - FQDN suffix (default: .local)
 
 # Library functions are prepended automatically:
 # - cert_generate_server(), cert_write_ca_pub()
@@ -19,11 +19,11 @@
 CERT_RENEW_REQUESTS="{{ cert_renew_requests }}"
 CA_KEY_B64="{{ ca_key_b64 }}"
 CA_CERT_B64="{{ ca_cert_b64 }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
+PROJECT_DOMAIN_SUFFIX="{{ project_domain_suffix }}"
 
 
-if [ -z "$DOMAIN_SUFFIX" ] || [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then
-  DOMAIN_SUFFIX=".local"
+if [ -z "$PROJECT_DOMAIN_SUFFIX" ] || [ "$PROJECT_DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then
+  PROJECT_DOMAIN_SUFFIX=".local"
 fi
 
 echo "Renewing certificates..." >&2
@@ -31,7 +31,7 @@ echo "Renewing certificates..." >&2
 echo "$CERT_RENEW_REQUESTS" | while IFS= read -r HOSTNAME; do
   [ -z "$HOSTNAME" ] && continue
 
-  FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
+  FQDN="${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
   SAFE_HOST=$(echo "$HOSTNAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
   TARGET_VMID=$(find_vmid_by_hostname "$HOSTNAME") || {
     echo "Warning: container '$HOSTNAME' not found in pct list, skipping renewal" >&2

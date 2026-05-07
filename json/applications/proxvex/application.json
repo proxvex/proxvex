@@ -49,7 +49,7 @@
       "value": "3080"
     },
     {
-      "id": "https_port",
+      "id": "local_https_port",
       "value": "3443"
     },
     {
@@ -65,8 +65,16 @@
       "value": "native"
     },
     {
-      "id": "oidc_callback_path",
-      "value": "/api/auth/callback"
+      "id": "project_domain_suffix",
+      "value": ""
+    },
+    {
+      "id": "oidc_redirect_uri",
+      "value": "https://{{hostname}}:{{local_https_port}}/api/auth/callback"
+    },
+    {
+      "id": "oidc_post_logout_uri",
+      "value": "https://{{hostname}}:{{local_https_port}}"
     },
     {
       "id": "oidc_required_role",

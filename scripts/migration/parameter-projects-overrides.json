@@ -10,5 +10,5 @@
   "oidc_issuer_url":    { "reason": "Zentraler Zitadel-Issuer für das ganze Projekt." },
   "acme_email":         { "reason": "Let's-Encrypt-Account-E-Mail; pro Projekt einmal." },
   "acme_san":           { "reason": "ACME Subject Alternative Names; Projekt-Defaults." },
-  "domain_suffix":      { "reason": "FQDN-Suffix; Projekt-weit konsistent." }
+  "project_domain_suffix":      { "reason": "FQDN-Suffix; Projekt-weit konsistent." }
 }

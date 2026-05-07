@@ -164,7 +164,7 @@ function getZitadelMock(task: string): IApplicationOverviewResponse {
         sourceType: 'value',
       },
       {
-        id: 'https_port',
+        id: 'local_https_port',
         name: 'HTTPS Port',
         type: 'string',
         required: false,

@@ -10,11 +10,7 @@
 #   oidc_issuer_url    - Zitadel issuer URL
 #   oidc_client_id     - OIDC client ID
 #   oidc_client_secret - OIDC client secret
-#   oidc_callback_path - Callback path (from addon parameter)
-#   ssl_mode           - SSL mode (proxy, native, certs, or empty)
-#   https_port         - HTTPS port
-#   domain_suffix      - Domain suffix
-#   http_port          - HTTP port
+#   oidc_redirect_uri  - Full OIDC redirect URI
 #
 # Output: JSON to stdout
 
@@ -23,11 +19,7 @@ SHARED_VOLPATH="{{ shared_volpath }}"
 OIDC_ISSUER_URL="{{ oidc_issuer_url }}"
 OIDC_CLIENT_ID="{{ oidc_client_id }}"
 OIDC_CLIENT_SECRET="{{ oidc_client_secret }}"
-OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
-SSL_MODE="{{ ssl_mode }}"
-HTTPS_PORT="{{ https_port }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
-HTTP_PORT="{{ http_port }}"
+OIDC_REDIRECT_URI="{{ oidc_redirect_uri }}"
 
 SETTINGS_FILE="${SHARED_VOLPATH}/volumes/${HOSTNAME}/data/settings.js"
 
@@ -44,21 +36,11 @@ if grep -q "adminAuth" "$SETTINGS_FILE"; then
   exit 0
 fi
 
-# Build callback URL
-PROTOCOL="http"
-PORT="$HTTP_PORT"
-if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "NOT_DEFINED" ] && [ "$SSL_MODE" != "none" ]; then
-  PROTOCOL="https"
-  if [ -n "$HTTPS_PORT" ] && [ "$HTTPS_PORT" != "NOT_DEFINED" ]; then
-    PORT="$HTTPS_PORT"
-  fi
+if [ "$OIDC_REDIRECT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_REDIRECT_URI" ]; then
+  echo "ERROR: oidc_redirect_uri is required" >&2
+  exit 1
 fi
-
-if [ -n "$PORT" ] && [ "$PORT" != "NOT_DEFINED" ]; then
-  CALLBACK_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}:${PORT}${OIDC_CALLBACK_PATH}"
-else
-  CALLBACK_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}${OIDC_CALLBACK_PATH}"
-fi
+CALLBACK_URL="$OIDC_REDIRECT_URI"
 
 echo "Configuring Node-RED OIDC in settings.js" >&2
 echo "  Issuer: $OIDC_ISSUER_URL" >&2

@@ -11,7 +11,7 @@ nginx reverse proxy terminates TLS. The application runs on HTTP internally.
 ```
 ssl_mode = proxy
 http_port = 8080
-https_port = 443
+local_https_port = 443
 ```
 
 Best for most applications — no app-specific TLS configuration needed.
@@ -50,7 +50,7 @@ ssl_mode = certs
 
 The HTTP port of the application to be proxied. Only relevant for `proxy` mode.
 
-### `https_port` (advanced)
+### `local_https_port` (advanced)
 
 The HTTPS port to listen on. Only relevant for `proxy` mode.
 

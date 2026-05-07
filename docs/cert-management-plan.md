@@ -10,7 +10,7 @@ Applications deployed via proxvex often need TLS certificates (MQTT brokers, web
 - CA: Shared per PVE host, stored **encrypted** in `storagecontext.json`
 - CA provisioning: Auto-generate OR upload via Certificate Management Dialog (Web UI)
 - CA private key never stored unencrypted on disk
-- FQDN suffix: `domain_suffix` parameter with default `.local`
+- FQDN suffix: `project_domain_suffix` parameter with default `.local`
 - Scope: Both parameter definitions AND uploadfiles (FrameworkLoader)
 - Validity check: Certs expiring within 30 days are regenerated
 - Bulk renewal via Web UI from installed-list
@@ -177,7 +177,7 @@ cert_output_result(output_id, files_written)
     { "id": "ca_cert_b64", "name": "CA Cert", "type": "string", "internal": true },
     { "id": "shared_volpath", "name": "Shared Volume Path", "type": "string", "required": true },
     { "id": "hostname", "name": "Hostname", "type": "string", "required": true },
-    { "id": "domain_suffix", "name": "Domain Suffix", "type": "string", "default": ".local", "advanced": true, "description": "FQDN = hostname + domain_suffix" },
+    { "id": "project_domain_suffix", "name": "Domain Suffix", "type": "string", "default": ".local", "advanced": true, "description": "FQDN = hostname + project_domain_suffix" },
     { "id": "uid", "name": "UID", "type": "string", "default": "0", "advanced": true },
     { "id": "gid", "name": "GID", "type": "string", "default": "0", "advanced": true },
     { "id": "mapped_uid", "name": "Mapped UID", "type": "string", "advanced": true },
@@ -195,7 +195,7 @@ cert_output_result(output_id, files_written)
 ### 4b. NEW: `json/shared/scripts/pre_start/conf-generate-certificates.sh`
 
 1. Parse `cert_requests` line by line (format: `paramId|certtype|volumeKey`)
-2. Compute FQDN: `hostname + domain_suffix`
+2. Compute FQDN: `hostname + project_domain_suffix`
 3. For each request:
    - Target dir: `${shared_volpath}/volumes/${hostname}/${volumeKey}/`
    - Check validity via `cert_check_validity` (skip if valid for >30 days)
@@ -336,12 +336,12 @@ Opened from installed-list (new "Certificates" button).
   - Write key → `/etc/pve/local/pve-ssl.key`
   - Write CA cert → `/etc/pve/pve-root-ca.pem`
   - `systemctl restart pveproxy`
-- PVE host FQDN derived from VE context hostname + `domain_suffix`
+- PVE host FQDN derived from VE context hostname + `project_domain_suffix`
 - Confirmation dialog before overwriting (warns about pveproxy restart)
 
 ### 8f. NEW: `json/shared/scripts/host-provision-pve-certificate.sh`
 
-Runs on PVE host via SSH. Receives `ca_key_b64`, `ca_cert_b64`, `fqdn`, `domain_suffix` as parameters.
+Runs on PVE host via SSH. Receives `ca_key_b64`, `ca_cert_b64`, `fqdn`, `project_domain_suffix` as parameters.
 1. Generate server cert for PVE FQDN using CA (via `cert-common.sh` library)
 2. Backup existing certs: `cp /etc/pve/local/pve-ssl.pem /etc/pve/local/pve-ssl.pem.bak`
 3. Write new cert + key to `/etc/pve/local/`

@@ -49,7 +49,7 @@ SOURCE_VMID="{{ previous_vm_id }}"
 TARGET_VMID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
 HTTP_PORT="{{ http_port }}"
-HTTPS_PORT="{{ https_port }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 DEPLOYER_BASE_URL="{{ deployer_base_url }}"
 
 log() { echo "$@" >&2; }
@@ -66,7 +66,7 @@ if [ "$SOURCE_VMID" = "$TARGET_VMID" ]; then
   fail "previous_vm_id ($SOURCE_VMID) must differ from vm_id ($TARGET_VMID)"
 fi
 if [ "$HTTP_PORT" = "NOT_DEFINED" ]; then HTTP_PORT="3000"; fi
-if [ "$HTTPS_PORT" = "NOT_DEFINED" ]; then HTTPS_PORT="3443"; fi
+if [ "$LOCAL_HTTPS_PORT" = "NOT_DEFINED" ]; then LOCAL_HTTPS_PORT="3443"; fi
 
 # ─── Step 2: Start new container if not running ──────────────────────────────
 target_status=$(pct status "$TARGET_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
@@ -108,7 +108,7 @@ else
     HAS_SSL=1
   fi
   if [ "$HAS_SSL" -eq 1 ]; then
-    REDIRECT_URL="https://${HOSTNAME}:${HTTPS_PORT}"
+    REDIRECT_URL="https://${HOSTNAME}:${LOCAL_HTTPS_PORT}"
   else
     REDIRECT_URL="http://${HOSTNAME}:${HTTP_PORT}"
   fi

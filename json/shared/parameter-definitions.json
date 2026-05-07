@@ -325,7 +325,7 @@
       "required": false,
       "group": "Application"
     },
-    "domain_suffix": {
+    "project_domain_suffix": {
       "name": "Domain Suffix",
       "type": "string",
       "default": ".local",
@@ -415,7 +415,7 @@
       "required": false,
       "internal": true
     },
-    "https_port": {
+    "local_https_port": {
       "name": "HTTPS Port",
       "type": "string",
       "default": "1443",
@@ -524,11 +524,20 @@
       "group": "Authentication",
       "tasks": ["installation"]
     },
-    "oidc_callback_path": {
-      "name": "Callback Path",
+    "oidc_redirect_uri": {
+      "name": "OIDC Redirect URI",
+      "description": "Full OIDC redirect/callback URL the application sends to Zitadel and that Zitadel registers as the only valid redirectUri for this client. Apps inherit a default from oci-image (https://{{hostname}}{{project_domain_suffix}}/api/auth/callback) and can override per app.",
       "type": "string",
-      "default": "/auth/strategy/callback",
-      "required": false,
+      "required": true,
+      "group": "Authentication",
+      "advanced": true,
+      "tasks": ["installation"]
+    },
+    "oidc_post_logout_uri": {
+      "name": "OIDC Post-Logout URI",
+      "description": "Full OIDC post-logout URL the application uses after sign-out and that Zitadel registers as the only valid postLogoutRedirectUri.",
+      "type": "string",
+      "required": true,
       "group": "Authentication",
       "advanced": true,
       "tasks": ["installation"]
@@ -687,7 +696,7 @@
     "rest_url": {
       "name": "REST Base URL",
       "type": "string",
-      "default": "https://localhost:{{ https_port }}",
+      "default": "https://localhost:{{ local_https_port }}",
       "group": "Other",
       "advanced": true
     },

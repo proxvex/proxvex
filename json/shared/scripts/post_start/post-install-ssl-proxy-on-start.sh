@@ -10,7 +10,7 @@
 # Requires:
 #   - ssl_mode: "proxy", "native", or "certs"
 #   - http_port: Application HTTP port
-#   - https_port: HTTPS port for nginx proxy
+#   - local_https_port: HTTPS port for nginx proxy
 #   - alpine_mirror: (optional) Alpine mirror URL
 #   - debian_mirror: (optional) Debian mirror URL
 #
@@ -18,7 +18,7 @@
 
 SSL_MODE="{{ ssl_mode }}"
 HTTP_PORT="{{ http_port }}"
-HTTPS_PORT="{{ https_port }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 ALPINE_MIRROR="{{ alpine_mirror }}"
 DEBIAN_MIRROR="{{ debian_mirror }}"
 
@@ -34,7 +34,7 @@ cat > "$SCRIPT_PATH" <<EOF
 
 SSL_MODE="$SSL_MODE"
 HTTP_PORT="$HTTP_PORT"
-HTTPS_PORT="$HTTPS_PORT"
+LOCAL_HTTPS_PORT="$LOCAL_HTTPS_PORT"
 ALPINE_MIRROR="$ALPINE_MIRROR"
 DEBIAN_MIRROR="$DEBIAN_MIRROR"
 EOF
@@ -158,7 +158,7 @@ fi
 # --- Write nginx SSL config ---
 cat > "${NGINX_CONF_DIR}/ssl-proxy.conf" <<NGINXEOF
 server {
-    listen ${HTTPS_PORT} ssl;
+    listen ${LOCAL_HTTPS_PORT} ssl;
     server_name _;
 
     ssl_certificate ${CERT_DIR}/fullchain.pem;
@@ -227,7 +227,7 @@ RELOADEOF
 chmod 755 "$RELOAD_SCRIPT"
 echo "Created certificate reload hook: $RELOAD_SCRIPT" >&2
 
-echo "SSL proxy setup complete (HTTPS on port ${HTTPS_PORT})" >&2
+echo "SSL proxy setup complete (HTTPS on port ${LOCAL_HTTPS_PORT})" >&2
 SSLEOF
 
 chmod 700 "$SCRIPT_PATH"

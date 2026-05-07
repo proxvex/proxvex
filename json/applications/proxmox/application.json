@@ -9,9 +9,10 @@
     { "key": "admin", "display_name": "Administrator" }
   ],
   "properties": [
-    { "id": "https_port", "default": "8006" },
+    { "id": "local_https_port", "default": "8006" },
     { "id": "ssl_mode", "default": "native" },
-    { "id": "oidc_callback_path", "default": "" }
+    { "id": "oidc_redirect_uri", "default": "https://{{hostname}}{{project_domain_suffix}}:{{local_https_port}}" },
+    { "id": "oidc_post_logout_uri", "default": "https://{{hostname}}{{project_domain_suffix}}:{{local_https_port}}" }
   ],
   "reconfigure": {
     "pre_start": [

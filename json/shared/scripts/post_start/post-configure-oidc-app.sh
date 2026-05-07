@@ -10,7 +10,7 @@
 #   oidc_issuer_url   - Zitadel issuer URL
 #   oidc_client_id    - OIDC client ID
 #   oidc_client_secret - OIDC client secret
-#   domain_suffix     - Domain suffix
+#   project_domain_suffix     - Domain suffix
 
 echo "No application-specific OIDC configuration needed" >&2
 echo '[]'

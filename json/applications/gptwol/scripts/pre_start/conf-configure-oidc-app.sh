@@ -6,22 +6,16 @@
 #
 # Template variables:
 #   vm_id              - Container VMID
-#   hostname           - Container hostname
 #   oidc_issuer_url    - Zitadel issuer URL
 #   oidc_client_id     - OIDC client ID
 #   oidc_client_secret - OIDC client secret
-#   oidc_callback_path - Callback path (from addon parameter)
-#   http_port          - HTTP port
-#   domain_suffix      - Domain suffix
+#   oidc_redirect_uri  - Full OIDC redirect URI
 
 VM_ID="{{ vm_id }}"
-HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_ISSUER_URL="{{ oidc_issuer_url }}"
 OIDC_CLIENT_ID="{{ oidc_client_id }}"
 OIDC_CLIENT_SECRET="{{ oidc_client_secret }}"
-OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
-HTTP_PORT="{{ http_port }}"
+OIDC_REDIRECT_URI="{{ oidc_redirect_uri }}"
 
 CONF_FILE="/etc/pve/lxc/${VM_ID}.conf"
 
@@ -30,11 +24,14 @@ if [ ! -f "$CONF_FILE" ]; then
   exit 1
 fi
 
-CALLBACK_URL="http://${HOSTNAME}${DOMAIN_SUFFIX}:${HTTP_PORT}${OIDC_CALLBACK_PATH}"
+if [ "$OIDC_REDIRECT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_REDIRECT_URI" ]; then
+  echo "ERROR: oidc_redirect_uri is required" >&2
+  exit 1
+fi
 
 echo "Configuring OIDC for GPTWOL (VM $VM_ID, pre-start)" >&2
 echo "  Issuer: $OIDC_ISSUER_URL" >&2
-echo "  Callback: $CALLBACK_URL" >&2
+echo "  Callback: $OIDC_REDIRECT_URI" >&2
 
 # Remove any existing OIDC environment entries
 sed -i '/^lxc\.environment:\s*OIDC_/d' "$CONF_FILE"
@@ -46,7 +43,7 @@ lxc.environment: OIDC_ENABLED=true
 lxc.environment: OIDC_ISSUER=${OIDC_ISSUER_URL}
 lxc.environment: OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
 lxc.environment: OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
-lxc.environment: OIDC_REDIRECT_URI=${CALLBACK_URL}
+lxc.environment: OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI}
 lxc.environment: ENABLE_LOGIN=true
 EOF
 

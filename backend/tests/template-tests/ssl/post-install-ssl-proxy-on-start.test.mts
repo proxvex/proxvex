@@ -33,7 +33,7 @@ describe.skipIf(!hostReachable)(
         inputs: {
           ssl_mode: "proxy",
           http_port: "3000",
-          https_port: "3443",
+          local_https_port: "3443",
           alpine_mirror: "",
           debian_mirror: "",
         },
@@ -118,7 +118,7 @@ describe.skipIf(!hostReachable)(
         inputs: {
           ssl_mode: "native",
           http_port: "3000",
-          https_port: "3443",
+          local_https_port: "3443",
           alpine_mirror: "",
           debian_mirror: "",
         },

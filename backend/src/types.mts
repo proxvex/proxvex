@@ -1065,7 +1065,7 @@ export interface ICaInfoResponse {
   issued_date?: string;
   expiry_date?: string;
   days_remaining?: number;
-  domain_suffix?: string;
+  project_domain_suffix?: string;
 }
 
 export interface IPostGenerateCertBody {

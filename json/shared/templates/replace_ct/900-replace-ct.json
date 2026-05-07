@@ -7,7 +7,7 @@
     "vm_id",
     "hostname",
     "http_port",
-    "https_port",
+    "local_https_port",
     "deployer_base_url"
   ],
   "commands": [

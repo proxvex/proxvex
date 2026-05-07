@@ -12,7 +12,7 @@
     "oidc_issuer_url",
     "oidc_client_id",
     "oidc_client_secret",
-    "domain_suffix",
+    "project_domain_suffix",
     "GITEA_ADMIN_PASSWORD"
   ],
   "commands": [

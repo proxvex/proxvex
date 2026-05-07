@@ -50,7 +50,7 @@ EOF'`,
           compose_project: composeProject,
           ssl_mode: "proxy",
           http_port: "3000",
-          https_port: "3443",
+          local_https_port: "3443",
         },
         vmId,
       });
@@ -94,7 +94,7 @@ EOF'`,
           compose_project: composeProject,
           ssl_mode: "native",
           http_port: "3000",
-          https_port: "3443",
+          local_https_port: "3443",
         },
         vmId,
       });
@@ -109,7 +109,7 @@ EOF'`,
       expect(composeContent.stdout).toContain('"3000:3000"');
     });
 
-    it("should error when https_port conflicts", async () => {
+    it("should error when local_https_port conflicts", async () => {
       // Create compose file with service using the same HTTPS port
       await stateManager.execOnHost(
         `pct exec ${vmId} -- sh -c 'cat > /opt/docker-compose/${composeProject}/docker-compose.yml << EOF
@@ -128,7 +128,7 @@ EOF'`,
           compose_project: composeProject,
           ssl_mode: "proxy",
           http_port: "3000",
-          https_port: "3443",
+          local_https_port: "3443",
         },
         vmId,
       });

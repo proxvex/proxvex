@@ -9,7 +9,7 @@ Web UI and API for deploying and managing OCI containers on Proxmox VE. This app
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `http_port` | `3080` | HTTP port for the web interface |
-| `https_port` | `3443` | HTTPS port (when SSL enabled) |
+| `local_https_port` | `3443` | HTTPS port (when SSL enabled) |
 | `oci_image_tag` | `latest` | Image tag, allows pinning to specific versions |
 
 The container runs as UID 1001.

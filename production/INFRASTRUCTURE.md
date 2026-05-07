@@ -109,7 +109,7 @@ This ensures `https://auth.ohnewarum.de` (port 443) works identically from LAN a
 
 ### HTTPS Port Convention
 
-Rootless LXC containers cannot bind port 443. All proxy-mode apps use **port 1443** for HTTPS (`https_port` default in addon-ssl).
+Rootless LXC containers cannot bind port 443. All proxy-mode apps use **port 1443** for HTTPS (`local_https_port` default in addon-ssl).
 
 | App | HTTPS Port | Mode |
 |-----|-----------|------|

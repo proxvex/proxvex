@@ -10,7 +10,7 @@
     "server_cert_b64",
     "ca_cert_b64",
     "hostname",
-    "domain_suffix",
+    "project_domain_suffix",
     "ssl.needs_server_cert",
     "ssl.needs_ca_cert",
     "uid",

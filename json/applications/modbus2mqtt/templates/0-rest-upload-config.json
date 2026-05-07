@@ -12,7 +12,7 @@
     "rest_payload_b64",
     "rest_content_type",
     "rest_health_path",
-    "https_port",
+    "local_https_port",
     "oidc_issuer_url",
     "oidc_client_id",
     "oidc_client_secret"

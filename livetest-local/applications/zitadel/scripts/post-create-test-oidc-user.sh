@@ -14,15 +14,15 @@
 # Inputs:
 #   hostname       - Zitadel hostname
 #   compose_project - Docker Compose project name
-#   domain_suffix  - Domain suffix
+#   project_domain_suffix  - Domain suffix
 #   ssl_mode       - SSL mode for protocol detection
 
 HOSTNAME="{{ hostname }}"
 COMPOSE_PROJECT="{{ compose_project }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
+PROJECT_DOMAIN_SUFFIX="{{ project_domain_suffix }}"
 SSL_MODE="{{ ssl_mode }}"
 
-[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=""
+[ "$PROJECT_DOMAIN_SUFFIX" = "NOT_DEFINED" ] && PROJECT_DOMAIN_SUFFIX=""
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
 
 CRED_FILE="/bootstrap/test-deployer.json"
@@ -138,7 +138,7 @@ PROTOCOL="http"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
 fi
-ISSUER_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
+ISSUER_URL="${PROTOCOL}://${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
 
 # --- 5. Store credentials ---
 cat > "$CRED_FILE" <<ENDOFCRED

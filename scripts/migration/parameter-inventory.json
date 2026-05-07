@@ -111,7 +111,7 @@
   },
   "ZITADEL_EXTERNALDOMAIN": {
     "name": "Zitadel External Domain",
-    "description": "Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+domain_suffix.",
+    "description": "Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+project_domain_suffix.",
     "type": "string",
     "default": "{{ hostname }}",
     "required": false,
@@ -720,7 +720,7 @@
       }
     ]
   },
-  "domain_suffix": {
+  "project_domain_suffix": {
     "name": "Domain Suffix",
     "description": "Global DNS domain suffix — provided by 150-conf-setup-oidc-client.",
     "type": "string",
@@ -909,7 +909,7 @@
       }
     ]
   },
-  "https_port": {
+  "local_https_port": {
     "name": "HTTPS Port",
     "description": "The HTTPS port to listen on (default: 1443, rootless containers cannot bind 443).",
     "type": "string",
@@ -1397,7 +1397,7 @@
     "name": "REST Base URL",
     "description": "Base URL of the application REST API (relative to the container).",
     "type": "string",
-    "default": "https://localhost:{{ https_port }}",
+    "default": "https://localhost:{{ local_https_port }}",
     "advanced": true,
     "occurrences": [
       {

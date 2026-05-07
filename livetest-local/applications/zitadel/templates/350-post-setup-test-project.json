@@ -11,7 +11,7 @@
       "description": "Hostname of this Zitadel instance"
     },
     {
-      "id": "domain_suffix",
+      "id": "project_domain_suffix",
       "name": "Domain Suffix",
       "type": "string",
       "required": false,

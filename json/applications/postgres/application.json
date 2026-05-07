@@ -11,7 +11,7 @@
     { "id": "uid", "value": "70" },
     { "id": "username", "value": "postgres" },
     { "id": "ssl_mode", "value": "certs" },
-    { "id": "https_port", "value": "5432" },
+    { "id": "local_https_port", "value": "5432" },
     { "id": "ssl.addon_volumes", "value": "certs=/certs,0700,70:70\nproxvex=/etc/proxvex,0755,0:0" },
     { "id": "startup_order", "value": "10" },
     { "id": "startup_up", "value": "15" }

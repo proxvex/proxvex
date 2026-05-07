@@ -6,26 +6,18 @@
 #
 # Template variables:
 #   vm_id              - Container VMID
-#   hostname           - Container hostname
 #   oidc_issuer_url    - Zitadel issuer URL
 #   oidc_client_id     - OIDC client ID
 #   oidc_client_secret - OIDC client secret
 #   oidc_required_role - Required Zitadel project role
-#   oidc_callback_path - Callback path (from addon parameter)
-#   http_port          - HTTP port
-#   domain_suffix      - Domain suffix
+#   oidc_redirect_uri  - Full OIDC redirect URI
 
 VM_ID="{{ vm_id }}"
-HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_ISSUER_URL="{{ oidc_issuer_url }}"
 OIDC_CLIENT_ID="{{ oidc_client_id }}"
 OIDC_CLIENT_SECRET="{{ oidc_client_secret }}"
 OIDC_REQUIRED_ROLE="{{ oidc_required_role }}"
-OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
-HTTP_PORT="{{ http_port }}"
-SSL_MODE="{{ ssl_mode }}"
-HTTPS_PORT="{{ https_port }}"
+OIDC_REDIRECT_URI="{{ oidc_redirect_uri }}"
 
 CONF_FILE="/etc/pve/lxc/${VM_ID}.conf"
 
@@ -34,20 +26,14 @@ if [ ! -f "$CONF_FILE" ]; then
   exit 1
 fi
 
-# Detect protocol and port based on SSL addon
-PROTOCOL="http"
-PORT="$HTTP_PORT"
-if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "NOT_DEFINED" ] && [ "$SSL_MODE" != "none" ]; then
-  PROTOCOL="https"
-  if [ -n "$HTTPS_PORT" ] && [ "$HTTPS_PORT" != "NOT_DEFINED" ]; then
-    PORT="$HTTPS_PORT"
-  fi
+if [ "$OIDC_REDIRECT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_REDIRECT_URI" ]; then
+  echo "ERROR: oidc_redirect_uri is required" >&2
+  exit 1
 fi
-CALLBACK_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}:${PORT}${OIDC_CALLBACK_PATH}"
 
-echo "Configuring OIDC for $HOSTNAME (VM $VM_ID, pre-start)" >&2
+echo "Configuring OIDC (VM $VM_ID, pre-start)" >&2
 echo "  Issuer: $OIDC_ISSUER_URL" >&2
-echo "  Callback: $CALLBACK_URL" >&2
+echo "  Callback: $OIDC_REDIRECT_URI" >&2
 
 # Generate a stable OIDC_SESSION_SECRET
 OIDC_SESSION_SECRET=$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')
@@ -62,7 +48,7 @@ lxc.environment: OIDC_ENABLED=true
 lxc.environment: OIDC_ISSUER_URL=${OIDC_ISSUER_URL}
 lxc.environment: OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
 lxc.environment: OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
-lxc.environment: OIDC_CALLBACK_URL=${CALLBACK_URL}
+lxc.environment: OIDC_CALLBACK_URL=${OIDC_REDIRECT_URI}
 lxc.environment: OIDC_SESSION_SECRET=${OIDC_SESSION_SECRET}
 EOF
 

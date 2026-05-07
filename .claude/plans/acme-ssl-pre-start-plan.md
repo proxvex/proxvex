@@ -56,7 +56,7 @@ Update all script references: `acme.domain` -> `acme.san`, `ACME_DOMAIN` -> `ACM
 ### Template: `json/shared/templates/pre_start/166-conf-write-on-start-scripts.json`
 
 - `execute_on: "ve"` (runs on host)
-- Parameters: `shared_volpath`, `hostname`, `ssl.mode`, `http_port`, `https_port`, `acme.cf_api_token`, `acme.san`, `acme.email`, `acme.cert_dir`, `acme.needs_server_cert`, `acme.needs_ca_cert`, `alpine_mirror`, `debian_mirror`, `compose_project`, `compose_file`, `uid`, `gid`
+- Parameters: `shared_volpath`, `hostname`, `ssl.mode`, `http_port`, `local_https_port`, `acme.cf_api_token`, `acme.san`, `acme.email`, `acme.cert_dir`, `acme.needs_server_cert`, `acme.needs_ca_cert`, `alpine_mirror`, `debian_mirror`, `compose_project`, `compose_file`, `uid`, `gid`
 - After: `150-conf-create-storage-volumes-for-lxc.json`
 
 ### Script: `json/shared/scripts/pre_start/conf-write-on-start-scripts.sh`
@@ -215,7 +215,7 @@ Bestehende Datei erweitern:
   - Proxy-Modus: nginx terminiert TLS, App laeuft auf HTTP
   - Native-Modus: App konfiguriert HTTPS selbst (PostgreSQL, Gitea)
   - Certs-only: Nur Zertifikate bereitstellen
-- **Parameter-Hilfe** fuer `ssl.mode`, `http_port`, `https_port`
+- **Parameter-Hilfe** fuer `ssl.mode`, `http_port`, `local_https_port`
 
 ---
 

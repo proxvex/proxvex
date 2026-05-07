@@ -15,6 +15,14 @@
     {
       "id": "oci_image",
       "value": "ghcr.io/proxvex/debian-docker:latest"
+    },
+    {
+      "id": "oidc_redirect_uri",
+      "default": "https://{{hostname}}{{project_domain_suffix}}/api/auth/callback"
+    },
+    {
+      "id": "oidc_post_logout_uri",
+      "default": "https://{{hostname}}{{project_domain_suffix}}"
     }
   ],
   "installation": {

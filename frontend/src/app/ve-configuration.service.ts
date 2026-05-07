@@ -466,8 +466,8 @@ export class VeConfigurationService {
     return this.post<{ success: boolean }, object>(ApiUri.CertificatePveProvision, {});
   }
 
-  postDomainSuffix(suffix: string): Observable<{ success: boolean; domain_suffix: string }> {
-    return this.post<{ success: boolean; domain_suffix: string }, object>(ApiUri.CertificateDomainSuffix, { domain_suffix: suffix });
+  postDomainSuffix(suffix: string): Observable<{ success: boolean; project_domain_suffix: string }> {
+    return this.post<{ success: boolean; project_domain_suffix: string }, object>(ApiUri.CertificateDomainSuffix, { project_domain_suffix: suffix });
   }
 
   downloadCaCert(): Observable<Blob> {

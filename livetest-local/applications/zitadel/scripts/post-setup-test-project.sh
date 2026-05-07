@@ -12,17 +12,17 @@
 #
 # Inputs:
 #   hostname      - Zitadel hostname
-#   domain_suffix - Domain suffix
+#   project_domain_suffix - Domain suffix
 #   ssl_mode      - SSL mode for protocol detection
 
 HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
+PROJECT_DOMAIN_SUFFIX="{{ project_domain_suffix }}"
 SSL_MODE="{{ ssl_mode }}"
 
-[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=""
+[ "$PROJECT_DOMAIN_SUFFIX" = "NOT_DEFINED" ] && PROJECT_DOMAIN_SUFFIX=""
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
 
-# Build Host header: must match ZITADEL_EXTERNALDOMAIN (= hostname, without domain_suffix)
+# Build Host header: must match ZITADEL_EXTERNALDOMAIN (= hostname, without project_domain_suffix)
 PROTOCOL="http"
 ZITADEL_HOST="${HOSTNAME}"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then

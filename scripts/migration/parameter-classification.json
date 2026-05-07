@@ -796,7 +796,7 @@
       "required": 0
     }
   },
-  "domain_suffix": {
+  "project_domain_suffix": {
     "recommended": "internal",
     "confidence": "override",
     "reasoning": [
@@ -957,7 +957,7 @@
     },
     "original_recommendation": "internal"
   },
-  "https_port": {
+  "local_https_port": {
     "recommended": "internal",
     "confidence": "override",
     "reasoning": [

@@ -9,9 +9,9 @@
     "bootstrap_zitadel",
     "ZITADEL_HOST",
     "hostname",
-    "domain_suffix",
     "oidc_issuer_url",
-    "oidc_callback_path"
+    "oidc_redirect_uri",
+    "oidc_post_logout_uri"
   ],
   "commands": [
     {

@@ -14,8 +14,8 @@ set -eu
 HOSTNAME="{{ hostname }}"
 VM_ID="{{ vm_id }}"
 COMPOSE_B64="{{ compose_file }}"
-HTTPS_PORT="{{ https_port }}"
-[ -z "$HTTPS_PORT" ] || [ "$HTTPS_PORT" = "NOT_DEFINED" ] && HTTPS_PORT="1443"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
+[ -z "$LOCAL_HTTPS_PORT" ] || [ "$LOCAL_HTTPS_PORT" = "NOT_DEFINED" ] && LOCAL_HTTPS_PORT="1443"
 
 # Decode compose to temp file
 TMPFILE=$(mktemp)
@@ -37,11 +37,11 @@ sed -i 's/source: traefik-dynamic-http$/source: traefik-dynamic-https/' "$TMPFIL
 sed -i "/--entrypoints.web.address=:8080/a\\
       - \"--entrypoints.web.http.redirections.entryPoint.to=websecure\"\\
       - \"--entrypoints.web.http.redirections.entryPoint.scheme=https\"\\
-      - \"--entrypoints.websecure.address=:${HTTPS_PORT}\"" "$TMPFILE"
+      - \"--entrypoints.websecure.address=:${LOCAL_HTTPS_PORT}\"" "$TMPFILE"
 
 # 3. Add HTTPS port mapping after HTTP port
 sed -i "/"8080:8080"/a\\
-      - \"${HTTPS_PORT}:${HTTPS_PORT}\"" "$TMPFILE"
+      - \"${LOCAL_HTTPS_PORT}:${LOCAL_HTTPS_PORT}\"" "$TMPFILE"
 
 # 4. Add cert volume to traefik (before configs section)
 sed -i '/^    configs:$/i\

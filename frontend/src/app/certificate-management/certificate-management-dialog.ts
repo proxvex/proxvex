@@ -117,9 +117,9 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                 <mat-card-content>
                   <mat-form-field class="domain-suffix-field" appearance="outline">
                     <mat-label>Domain Suffix</mat-label>
-                    <input matInput [ngModel]="domainSuffix()" (ngModelChange)="domainSuffix.set($event)"
+                    <input matInput [ngModel]="projectDomainSuffix()" (ngModelChange)="projectDomainSuffix.set($event)"
                       (blur)="saveDomainSuffix()" placeholder=".local">
-                    <mat-hint>FQDN = hostname + suffix (e.g. myhost{{ domainSuffix() }})</mat-hint>
+                    <mat-hint>FQDN = hostname + suffix (e.g. myhost{{ projectDomainSuffix() }})</mat-hint>
                   </mat-form-field>
                 </mat-card-content>
               </mat-card>
@@ -143,7 +143,7 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                     <mat-label>Hostname</mat-label>
                     <input matInput [ngModel]="generateHostname()" (ngModelChange)="generateHostname.set($event)"
                       placeholder="external-host">
-                    <mat-hint>FQDN: {{ generateHostname() || 'hostname' }}{{ domainSuffix() }}</mat-hint>
+                    <mat-hint>FQDN: {{ generateHostname() || 'hostname' }}{{ projectDomainSuffix() }}</mat-hint>
                   </mat-form-field>
                   <button mat-flat-button color="primary" (click)="generateCert()"
                     [disabled]="!generateHostname() || !caInfo()?.exists || generatingCert()">
@@ -669,7 +669,7 @@ export class CertificateManagementDialog implements OnInit {
   private errorHandler = inject(ErrorHandlerService);
 
   caInfo = signal<ICaInfoResponse | null>(null);
-  domainSuffix = signal('.local');
+  projectDomainSuffix = signal('.local');
   pveStatus = signal<ICertificateStatus | null>(null);
   certificates = signal<ICertificateStatus[]>([]);
 
@@ -761,8 +761,8 @@ export class CertificateManagementDialog implements OnInit {
     this.configService.getCaInfo().subscribe({
       next: (info) => {
         this.caInfo.set(info);
-        if (info.domain_suffix) {
-          this.domainSuffix.set(info.domain_suffix);
+        if (info.project_domain_suffix) {
+          this.projectDomainSuffix.set(info.project_domain_suffix);
         }
         this.loadingCa.set(false);
       },
@@ -977,7 +977,7 @@ export class CertificateManagementDialog implements OnInit {
   }
 
   saveDomainSuffix(): void {
-    const suffix = this.domainSuffix();
+    const suffix = this.projectDomainSuffix();
     if (!suffix) return;
     this.configService.postDomainSuffix(suffix).subscribe({
       error: (err) => this.errorHandler.handleError('Failed to save domain suffix', err)

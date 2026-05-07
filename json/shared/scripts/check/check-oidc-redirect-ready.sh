@@ -11,19 +11,15 @@ ZITADEL_HOST="{{ ZITADEL_HOST }}"
 ZITADEL_PORT="{{ ZITADEL_PORT }}"
 ZITADEL_PROTO="{{ ZITADEL_PROTO }}"
 CLIENT_ID="{{ oidc_client_id }}"
-HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
-CALLBACK_PATH="{{ oidc_callback_path }}"
-SSL_MODE="{{ ssl_mode }}"
+REDIRECT_URI="{{ oidc_redirect_uri }}"
 
 [ "$ZITADEL_PROTO"  = "NOT_DEFINED" ] && ZITADEL_PROTO="http"
 [ "$ZITADEL_PORT"   = "NOT_DEFINED" ] && ZITADEL_PORT="8080"
-[ "$DOMAIN_SUFFIX"  = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
-[ "$CALLBACK_PATH"  = "NOT_DEFINED" ] && CALLBACK_PATH="/auth/strategy/callback"
 
 if [ -z "$ZITADEL_HOST" ] || [ "$ZITADEL_HOST" = "NOT_DEFINED" ] \
-   || [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "NOT_DEFINED" ]; then
-  echo "CHECK: oidc_redirect_ready FAILED (ZITADEL_HOST or oidc_client_id missing)" >&2
+   || [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "NOT_DEFINED" ] \
+   || [ -z "$REDIRECT_URI" ] || [ "$REDIRECT_URI" = "NOT_DEFINED" ]; then
+  echo "CHECK: oidc_redirect_ready FAILED (ZITADEL_HOST, oidc_client_id, or oidc_redirect_uri missing)" >&2
   printf '[{"id":"check_oidc_redirect_ready","value":"missing inputs"}]'
   exit 1
 fi
@@ -34,13 +30,6 @@ if ! command -v curl >/dev/null 2>&1; then
     exit 1
   }
 fi
-
-# Match the protocol selection in conf-setup-oidc-client.sh exactly.
-APP_PROTO="http"
-if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "NOT_DEFINED" ] && [ "$SSL_MODE" != "none" ]; then
-  APP_PROTO="https"
-fi
-REDIRECT_URI="${APP_PROTO}://${HOSTNAME}${DOMAIN_SUFFIX}${CALLBACK_PATH}"
 
 # URL-encode the redirect_uri (sed-portable: replace : / with %3A %2F).
 ENC_REDIRECT=$(printf '%s' "$REDIRECT_URI" | sed 's|:|%3A|g; s|/|%2F|g')

@@ -634,5 +634,5 @@ export interface ICaInfoResponse {
     subject?: string;
     expiry_date?: string;
     days_remaining?: number;
-    domain_suffix?: string;
+    project_domain_suffix?: string;
 }

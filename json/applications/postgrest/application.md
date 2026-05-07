@@ -15,7 +15,7 @@ Automatic RESTful API from any PostgreSQL database. PostgREST introspects the da
 |-----------|---------|-------------|
 | `hostname` | `postgrest` | Container hostname |
 | `http_port` | `3000` | HTTP port (advanced) |
-| `https_port` | `3443` | HTTPS port (advanced) |
+| `local_https_port` | `3443` | HTTPS port (advanced) |
 
 The compose file is pre-configured with template variables for the PostgreSQL connection (`POSTGRES_HOST`, `POSTGRES_PASSWORD`). These are resolved automatically from the stack.
 

@@ -11,10 +11,9 @@
 #   ZITADEL_HOST           - Hostname of the Zitadel container
 #   hostname               - Hostname of this PVE node (used for project name)
 #   shared_volpath         - Shared volume path on PVE host
-#   domain_suffix          - Domain suffix for URL construction
 #   oidc_issuer_url        - External issuer URL override (optional)
-#   oidc_callback_path     - OIDC callback path (default: /api/auth/callback)
-#   ssl_mode               - SSL mode for protocol detection
+#   oidc_redirect_uri      - Full OIDC redirect URI (required from app or addon-oidc default)
+#   oidc_post_logout_uri   - Full OIDC post-logout URI (required)
 #
 # Outputs (JSON to stdout):
 #   oidc_issuer_url           - Zitadel issuer URL
@@ -30,18 +29,20 @@ ZITADEL_PORT_INPUT="{{ ZITADEL_PORT }}"
 # Resolve Zitadel's VMID for cross-container volume lookups.
 ZITADEL_VMID=$(find_vmid_by_hostname "$ZITADEL_HOST") || ZITADEL_VMID=""
 HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
 OIDC_ISSUER_URL_INPUT="{{ oidc_issuer_url }}"
-OIDC_CALLBACK_PATH="{{ oidc_callback_path }}"
-SSL_MODE="{{ ssl_mode }}"
+OIDC_REDIRECT_URI="{{ oidc_redirect_uri }}"
+OIDC_POST_LOGOUT_URI="{{ oidc_post_logout_uri }}"
 
-# Guard against NOT_DEFINED
-if [ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ]; then DOMAIN_SUFFIX=""; fi
-if [ "$OIDC_CALLBACK_PATH" = "NOT_DEFINED" ]; then OIDC_CALLBACK_PATH="/api/auth/callback"; fi
-
-# Default callback path
-if [ -z "$OIDC_CALLBACK_PATH" ]; then
-  OIDC_CALLBACK_PATH="/api/auth/callback"
+# Guard against NOT_DEFINED — both URIs are required
+if [ "$OIDC_REDIRECT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_REDIRECT_URI" ]; then
+  echo "ERROR: oidc_redirect_uri is required (set via application.json property or oci-image default)" >&2
+  echo '[]'
+  exit 1
+fi
+if [ "$OIDC_POST_LOGOUT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_POST_LOGOUT_URI" ]; then
+  echo "ERROR: oidc_post_logout_uri is required" >&2
+  echo '[]'
+  exit 1
 fi
 
 PROJECT_NAME="pve-${HOSTNAME}"
@@ -249,15 +250,9 @@ CLIENT_SECRET=""
 
 if [ -z "$APP_ID" ]; then
   echo "Creating OIDC app '${OIDC_APP_NAME}'..." >&2
-  PROTOCOL="http"
-  if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "NOT_DEFINED" ] && [ "$SSL_MODE" != "none" ]; then
-    PROTOCOL="https"
-  fi
-  CALLBACK_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}${OIDC_CALLBACK_PATH}"
-  LOGOUT_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
 
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
-    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"]}")
+    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]}")
 
   APP_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p' | head -1)
   CLIENT_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"clientId":"\([^"]*\)".*/\1/p' | head -1)

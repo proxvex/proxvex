@@ -1514,7 +1514,7 @@ Docker Hub username for authenticated pulls (200 pulls/6h instead of 100). Leave
 - docker-registry-mirror
 <!-- used-by:end -->
 
-## domain_suffix
+## project_domain_suffix
 
 Global DNS domain suffix — provided by 150-conf-setup-oidc-client.<!--
 Templates / frameworks referencing this parameter:
@@ -2304,7 +2304,7 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/replace_ct/900-replace-ct.json (via docker-compose, oci-image)
 -->
 
-## https_port
+## local_https_port
 
 The HTTPS port to listen on (default: 1443, rootless containers cannot bind 443).<!--
 Templates / frameworks referencing this parameter:
@@ -6186,7 +6186,7 @@ Templates / frameworks referencing this parameter:
 
 ## ZITADEL_EXTERNALDOMAIN
 
-Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+domain_suffix.<!--
+Public FQDN Zitadel is exposed under. When set, used as Host header and issuer-URL base instead of hostname+project_domain_suffix.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/zitadel/templates/340-post-setup-deployer-in-zitadel.json (via zitadel)
 - json/applications/zitadel/templates/380-post-show-admin-credentials.json (via zitadel)

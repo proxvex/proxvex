@@ -716,7 +716,7 @@ describe("AddonService", () => {
 
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
-            { id: "https_port", name: "HTTPS Port", type: "string", required: true },
+            { id: "local_https_port", name: "HTTPS Port", type: "string", required: true },
             { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true, default: "proxy" },
             { id: "ssl.cert", name: "Certificate", type: "string" },
             { id: "ssl.key", name: "Key", type: "string" },
@@ -729,7 +729,7 @@ describe("AddonService", () => {
         supported_addons: ["ssl-filter"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string" },
-          { id: "https_port", name: "HTTPS Port", type: "string" },
+          { id: "local_https_port", name: "HTTPS Port", type: "string" },
         ],
         properties: [
           { id: "ssl.mode", value: "native" },
@@ -739,9 +739,9 @@ describe("AddonService", () => {
       const result = service.getCompatibleAddonsWithParameters(app);
       expect(result).toHaveLength(1);
       const paramIds = result[0].parameters?.map((p) => p.id) ?? [];
-      // http_port, https_port filtered because app defines them as parameters
+      // http_port, local_https_port filtered because app defines them as parameters
       expect(paramIds).not.toContain("http_port");
-      expect(paramIds).not.toContain("https_port");
+      expect(paramIds).not.toContain("local_https_port");
       // ssl.mode filtered because app defines it as property with value
       expect(paramIds).not.toContain("ssl.mode");
       // These remain because the app doesn't define them
@@ -759,7 +759,7 @@ describe("AddonService", () => {
 
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
-            { id: "https_port", name: "HTTPS Port", type: "string", required: true },
+            { id: "local_https_port", name: "HTTPS Port", type: "string", required: true },
             { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
             { id: "ssl.cert", name: "Certificate", type: "string" },
           ],
@@ -771,16 +771,16 @@ describe("AddonService", () => {
         supported_addons: ["ssl-nofilter"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string" },
-          { id: "https_port", name: "HTTPS Port", type: "string" },
+          { id: "local_https_port", name: "HTTPS Port", type: "string" },
         ],
       });
 
       const result = service.getCompatibleAddonsWithParameters(app);
       expect(result).toHaveLength(1);
       const paramIds = result[0].parameters?.map((p) => p.id) ?? [];
-      // http_port, https_port filtered because app already defines them
+      // http_port, local_https_port filtered because app already defines them
       expect(paramIds).not.toContain("http_port");
-      expect(paramIds).not.toContain("https_port");
+      expect(paramIds).not.toContain("local_https_port");
       // These remain because app doesn't define them
       expect(paramIds).toContain("ssl.mode");
       expect(paramIds).toContain("ssl.cert");
@@ -796,7 +796,7 @@ describe("AddonService", () => {
 
           parameters: [
             { id: "http_port", name: "HTTP Port", type: "string", required: true },
-            { id: "https_port", name: "HTTPS Port", type: "string", required: true },
+            { id: "local_https_port", name: "HTTPS Port", type: "string", required: true },
             { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
           ],
         }),
@@ -813,7 +813,7 @@ describe("AddonService", () => {
       const paramIds = result[0].parameters?.map((p) => p.id) ?? [];
       // All addon parameters shown because app doesn't define any of them
       expect(paramIds).toContain("http_port");
-      expect(paramIds).toContain("https_port");
+      expect(paramIds).toContain("local_https_port");
       expect(paramIds).toContain("ssl.mode");
     });
 
@@ -848,7 +848,7 @@ describe("AddonService", () => {
 
   describe("getCompatibleAddonsWithParameters() - installed addons inclusion", () => {
     it("should include installed addons even if not compatible", () => {
-      // SSL addon requires http_port/https_port
+      // SSL addon requires http_port/local_https_port
       persistenceHelper.writeJsonSync(
         Volume.JsonAddons,
         "ssl-installed.json",
@@ -856,7 +856,7 @@ describe("AddonService", () => {
           name: "SSL Addon",
           notes_key: "ssl-installed",
 
-          required_parameters: ["http_port", "https_port"],
+          required_parameters: ["http_port", "local_https_port"],
           parameters: [
             { id: "ssl.mode", name: "SSL Mode", type: "enum", required: true },
           ],
@@ -921,11 +921,11 @@ describe("AddonService", () => {
         Volume.JsonAddons,
         "ssl-test.json",
         createAddonJson({
-          required_parameters: ["http_port", "https_port"],
+          required_parameters: ["http_port", "local_https_port"],
         }),
       );
       const addon = service.getAddon("ssl-test");
-      expect(addon.required_parameters).toEqual(["http_port", "https_port"]);
+      expect(addon.required_parameters).toEqual(["http_port", "local_https_port"]);
     });
 
     it("should return required_parameters as undefined when not set", () => {
@@ -940,14 +940,14 @@ describe("AddonService", () => {
 
     it("should be compatible when app has supported_addons and required_parameters met", () => {
       const addon = createInlineAddon("test-addon", {
-        required_parameters: ["http_port", "https_port"],
+        required_parameters: ["http_port", "local_https_port"],
       });
       const app = createApplication({
         id: "proxvex",
         supported_addons: ["test-addon"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string", default: "3000" },
-          { id: "https_port", name: "HTTPS Port", type: "string", default: "3443" },
+          { id: "local_https_port", name: "HTTPS Port", type: "string", default: "3443" },
         ],
       });
 
@@ -956,14 +956,14 @@ describe("AddonService", () => {
 
     it("should be compatible when app defines required_parameters as properties", () => {
       const addon = createInlineAddon("test-addon", {
-        required_parameters: ["http_port", "https_port"],
+        required_parameters: ["http_port", "local_https_port"],
       });
       const app = createApplication({
         id: "proxvex",
         supported_addons: ["test-addon"],
         properties: [
           { id: "http_port", value: "{{http_port}}" },
-          { id: "https_port", value: "{{https_port}}" },
+          { id: "local_https_port", value: "{{local_https_port}}" },
         ],
       });
 
@@ -972,7 +972,7 @@ describe("AddonService", () => {
 
     it("should be incompatible when app is missing a required parameter", () => {
       const addon = createInlineAddon("test-addon", {
-        required_parameters: ["http_port", "https_port"],
+        required_parameters: ["http_port", "local_https_port"],
       });
       const app = createApplication({
         id: "simple-app",
@@ -1004,7 +1004,7 @@ describe("AddonService", () => {
         createAddonJson({
           name: "SSL Addon",
           notes_key: "ssl-addon",
-          required_parameters: ["http_port", "https_port"],
+          required_parameters: ["http_port", "local_https_port"],
         }),
       );
       persistenceHelper.writeJsonSync(
@@ -1016,7 +1016,7 @@ describe("AddonService", () => {
         }),
       );
 
-      // App supports both addons but lacks http_port/https_port - SSL filtered by required_parameters
+      // App supports both addons but lacks http_port/local_https_port - SSL filtered by required_parameters
       const simpleApp = createApplication({
         id: "simple-app",
         supported_addons: ["ssl-addon", "basic-addon"],
@@ -1035,7 +1035,7 @@ describe("AddonService", () => {
           name: "SSL Addon",
           notes_key: "ssl-addon",
 
-          required_parameters: ["http_port", "https_port"],
+          required_parameters: ["http_port", "local_https_port"],
         }),
       );
 
@@ -1044,7 +1044,7 @@ describe("AddonService", () => {
         supported_addons: ["ssl-addon"],
         parameters: [
           { id: "http_port", name: "HTTP Port", type: "string" },
-          { id: "https_port", name: "HTTPS Port", type: "string" },
+          { id: "local_https_port", name: "HTTPS Port", type: "string" },
         ],
       });
       const result = service.getCompatibleAddons(app);

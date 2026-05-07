@@ -42,7 +42,7 @@ export function registerCertificateRoutes(
 
       const caService = new CertificateAuthorityService(storageContext);
       const info: ICaInfoResponse = caService.getCaInfo(veContextKey);
-      info.domain_suffix = caService.getDomainSuffix(veContextKey);
+      info.project_domain_suffix = caService.getDomainSuffix(veContextKey);
       res.status(200).json(info);
     } catch (err: any) {
       sendErrorResponse(res, err);
@@ -235,7 +235,7 @@ export function registerCertificateRoutes(
         { id: "cert_renew_requests", value: body.hostnames.join("\n") },
         { id: "ca_key_b64", value: ca.key },
         { id: "ca_cert_b64", value: ca.cert },
-        { id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) },
+        { id: "project_domain_suffix", value: caService.getDomainSuffix(veContextKey) },
         ...(sharedVolpath ? [{ id: "shared_volpath", value: sharedVolpath }] : []),
       ];
 
@@ -340,15 +340,15 @@ export function registerCertificateRoutes(
         return;
       }
 
-      const suffix = (req.body as any)?.domain_suffix;
+      const suffix = (req.body as any)?.project_domain_suffix;
       if (typeof suffix !== "string" || suffix.length === 0) {
-        res.status(400).json({ error: "Missing or invalid domain_suffix" });
+        res.status(400).json({ error: "Missing or invalid project_domain_suffix" });
         return;
       }
 
       const caService = new CertificateAuthorityService(storageContext);
       caService.setDomainSuffix(veContextKey, suffix);
-      res.status(200).json({ success: true, domain_suffix: suffix });
+      res.status(200).json({ success: true, project_domain_suffix: suffix });
     } catch (err: any) {
       sendErrorResponse(res, err);
     }
@@ -402,8 +402,8 @@ export function registerCertificateRoutes(
       }
 
       const hostname = body.hostname.trim();
-      const domainSuffix = caService.getDomainSuffix(veContextKey);
-      const fqdn = `${hostname}${domainSuffix}`;
+      const projectDomainSuffix = caService.getDomainSuffix(veContextKey);
+      const fqdn = `${hostname}${projectDomainSuffix}`;
 
       const generated = caService.generateSelfSignedCert(veContextKey, hostname);
       const ca = caService.getCA(veContextKey)!;
@@ -447,8 +447,8 @@ export function registerCertificateRoutes(
       }
 
       const ca = caService.getCA(veContextKey)!;
-      const domainSuffix = caService.getDomainSuffix(veContextKey);
-      const fqdn = `${veContext.host}${domainSuffix}`;
+      const projectDomainSuffix = caService.getDomainSuffix(veContextKey);
+      const fqdn = `${veContext.host}${projectDomainSuffix}`;
 
       const repositories = pm.getRepositories();
       const scriptContent = repositories.getScript({
@@ -481,7 +481,7 @@ export function registerCertificateRoutes(
         { id: "ca_cert_b64", value: ca.cert },
         { id: "fqdn", value: fqdn },
         { id: "hostname", value: veContext.host },
-        { id: "domain_suffix", value: domainSuffix },
+        { id: "project_domain_suffix", value: projectDomainSuffix },
       ];
 
       const ve = new VeExecution(
