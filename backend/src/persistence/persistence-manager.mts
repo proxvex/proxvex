@@ -23,6 +23,10 @@ import { CertificateAuthorityService } from "../services/certificate-authority-s
 import { LocalStackProvider } from "../services/local-stack-provider.mjs";
 import { RemoteCaProvider } from "../services/remote-ca-provider.mjs";
 import { RemoteStackProvider } from "../services/remote-stack-provider.mjs";
+import {
+  ApplicationDependencyResolver,
+  IDependencyDataSource,
+} from "../services/application-dependency-resolver.mjs";
 import { createLogger } from "../logger/index.mjs";
 import { getBearerToken } from "../services/bearer-token-store.mjs";
 
@@ -36,6 +40,12 @@ const baseSchemas: string[] = [
 /**
  * Derive test scenario dependencies from stacktype and addon definitions.
  * Pure function — no filesystem access, fully testable.
+ *
+ * Delegates the App+Stacktype+Addons resolution to ApplicationDependencyResolver
+ * (the single source of truth shared with the webapp dep-check routes), then
+ * maps the deduped applications to scenario ids `<app>/<scenarioName>`. The
+ * livetest path intentionally skips `app.dependencies` (`includeAppDeps: false`)
+ * to preserve historical scenario-derivation semantics.
  */
 export function deriveTestDependencies(
   appId: string,
@@ -45,19 +55,20 @@ export function deriveTestDependencies(
   getStacktypeDeps: (st: string) => IStacktypeDependency[],
   getAddonDeps: (addonId: string) => IStacktypeDependency[],
 ): string[] {
-  const derived: string[] = [];
-  for (const st of stacktypes) {
-    for (const dep of getStacktypeDeps(st)) {
-      if (dep.application !== appId) derived.push(dep.application);
-    }
-  }
-  for (const addonId of new Set(scenarioAddons)) {
-    for (const dep of getAddonDeps(addonId)) {
-      if (dep.application !== appId) derived.push(dep.application);
-    }
-  }
-  if (derived.length === 0) return [];
-  return [...new Set(derived)].map(app => `${app}/${scenarioName}`);
+  const source: IDependencyDataSource = {
+    getApplication: (name) => (name === appId ? { stacktype: stacktypes } : null),
+    getStacktype: (name) => ({ dependencies: getStacktypeDeps(name) }),
+    getAddon: (id) => ({ dependencies: getAddonDeps(id) }),
+    getStack: () => null,
+  };
+  const resolved = new ApplicationDependencyResolver(source).resolve(
+    appId,
+    scenarioAddons,
+    [],
+    { includeAppDeps: false },
+  );
+  if (resolved.length === 0) return [];
+  return resolved.map((d) => `${d.application}/${scenarioName}`);
 }
 
 /**
@@ -266,6 +277,41 @@ export class PersistenceManager {
     return this.repositories;
   }
 
+  /**
+   * Single-source resolver for the question "given this app + addons +
+   * stacks, which dependency apps must already be running?". Replaces three
+   * inline duplicates in the webapp routes. Lazily constructed so it picks
+   * up the current StackProvider (Spoke/Standalone-aware).
+   */
+  private _dependencyResolver: ApplicationDependencyResolver | null = null;
+  getApplicationDependencyResolver(): ApplicationDependencyResolver {
+    if (!this._dependencyResolver) {
+      const stacktypes = this.getStacktypes();
+      const stacktypeMap = new Map<string, IStacktypeEntry>();
+      for (const st of stacktypes) stacktypeMap.set(st.name, st);
+      const stackProvider = this.getStackProvider();
+      const repos = this.repositories;
+      const addonSvc = this.addonService;
+      const source: IDependencyDataSource = {
+        getApplication: (name) => {
+          try {
+            const cfg = repos.getApplication(name) as { dependencies?: IStacktypeDependency[]; stacktype?: string | string[] };
+            return cfg ?? null;
+          } catch { return null; }
+        },
+        getStacktype: (name) => stacktypeMap.get(name) ?? null,
+        getAddon: (id) => {
+          try { return addonSvc.getAddon(id) ?? null; } catch { return null; }
+        },
+        getStack: (id) => {
+          try { return stackProvider.getStack(id) ?? null; } catch { return null; }
+        },
+      };
+      this._dependencyResolver = new ApplicationDependencyResolver(source);
+    }
+    return this._dependencyResolver;
+  }
+
   private _caProvider: ICaProvider | null = null;
   private _stackProvider: IStackProvider | null = null;
 
@@ -278,6 +324,8 @@ export class PersistenceManager {
   resetProviders(): void {
     this._caProvider = null;
     this._stackProvider = null;
+    // Drop the cached dependency resolver too — it captures the StackProvider.
+    this._dependencyResolver = null;
   }
 
   /**
