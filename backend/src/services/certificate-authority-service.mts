@@ -15,15 +15,6 @@ interface StoredCA {
   created: string;
 }
 
-interface StoredServerCert {
-  key: string;    // Base64 PEM
-  cert: string;   // Base64 PEM
-  hostname: string;
-  created: string;
-  /** Sorted, normalized list of extra SANs the cert was signed with. */
-  extraSans?: string[];
-}
-
 /**
  * Normalize an extra-SAN list to a sorted, deduped, lowercase array.
  * Accepts either the parsed array form or the raw `ssl_additional_san` string
@@ -179,72 +170,22 @@ export class CertificateAuthorityService implements ICaProvider {
     logger.info("Shared volpath stored", { veContextKey, path });
   }
 
-  // --- Server SSL certificate management (stored by hostname) ---
-
-  private serverCertKey(hostName: string): string {
-    return `ssl_${hostName}`;
-  }
-
-  getServerCert(hostName: string): { key: string; cert: string } | null {
-    const stored = this.contextManager.get<StoredServerCert>(this.serverCertKey(hostName));
-    if (!stored || !stored.key || !stored.cert) return null;
-    return { key: stored.key, cert: stored.cert };
-  }
-
-  hasServerCert(hostName: string): boolean {
-    return this.getServerCert(hostName) !== null;
-  }
-
-  setServerCert(hostName: string, key: string, cert: string, extraSans?: string[]): void {
-    const stored: StoredServerCert = {
-      key,
-      cert,
-      hostname: hostName,
-      created: new Date().toISOString(),
-      extraSans: normalizeExtraSans(extraSans),
-    };
-    this.contextManager.set(this.serverCertKey(hostName), stored);
-    logger.info("Server certificate stored", { hostname: hostName });
-  }
-
-  /** Read the stored cert plus the SAN list it was signed with. */
-  private getStoredServerCert(hostName: string): StoredServerCert | null {
-    const stored = this.contextManager.get<StoredServerCert>(this.serverCertKey(hostName));
-    if (!stored || !stored.key || !stored.cert) return null;
-    return stored;
-  }
-
-  getServerCertInfo(hostName: string): ICaInfoResponse {
-    const cert = this.getServerCert(hostName);
-    if (!cert) return { exists: false };
-
-    const tmpDir = mkdtempSync(path.join(tmpdir(), "srv-cert-info-"));
-    try {
-      const certPath = path.join(tmpDir, "server.crt");
-      writeFileSync(certPath, Buffer.from(cert.cert, "base64"), "utf-8");
-
-      const subjectOut = execSync(`openssl x509 -in "${certPath}" -noout -subject`, { encoding: "utf-8" }).trim();
-      const endDateOut = execSync(`openssl x509 -in "${certPath}" -noout -enddate`, { encoding: "utf-8" }).trim();
-
-      const subject = subjectOut.replace(/^subject\s*=\s*/, "");
-      const endDateStr = endDateOut.replace(/^notAfter\s*=\s*/, "");
-      const endDate = new Date(endDateStr);
-      const daysRemaining = Math.floor((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-
-      return {
-        exists: true,
-        subject,
-        expiry_date: endDate.toISOString(),
-        days_remaining: daysRemaining,
-      };
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  }
+  // --- Server SSL certificate signing ---
+  //
+  // Server certificates are NOT persisted by the backend. The on-disk cert
+  // in the container's certs volume is the source of truth — see
+  // `conf-generate-certificates.sh` + `cert_should_skip_write` in cert-common.sh
+  // which decide whether a freshly-signed candidate is committed to disk.
+  //
+  // Each call to generateSelfSignedCert / ensureServerCert signs new material
+  // from the persistent CA. The container-side script keeps the existing
+  // key+cert pair when the candidate's identity (CN+SAN) matches what is
+  // already deployed, so callers do not pay a TLS-rotation penalty for
+  // unchanged identities.
 
   /**
-   * Generate a CA-signed server certificate and store it in StorageContext.
-   * Cert validity: 825 days, RSA 2048-bit, includes SAN for the hostname.
+   * Generate a CA-signed server certificate. Cert validity: 825 days,
+   * RSA 2048-bit, includes SAN for the hostname.
    *
    * `extraSans` adds extra DNS names to the SAN extension. Used by apps that
    * are reached via a redirected hostname (e.g. docker-registry-mirror is
@@ -321,8 +262,7 @@ export class CertificateAuthorityService implements ICaProvider {
       const keyB64 = Buffer.from(keyPem).toString("base64");
       const certB64 = Buffer.from(certPem).toString("base64");
 
-      this.setServerCert(effectiveHostname, keyB64, certB64, sans);
-      logger.info("Server certificate generated (CA-signed) and stored", {
+      logger.info("Server certificate signed (CA-signed)", {
         hostname: effectiveHostname,
         veContextKey,
         extraSans: sans,
@@ -335,27 +275,17 @@ export class CertificateAuthorityService implements ICaProvider {
   }
 
   /**
-   * Ensure server cert exists for hostname: return existing or generate new one.
-   * If `extraSans` differs from the SAN list the stored cert was signed with,
-   * the cert is regenerated so app-declared aliases (e.g. registry-1.docker.io)
-   * stay in sync with `ssl_additional_san` changes.
+   * Sign a server cert for the given hostname. Always produces fresh material;
+   * the container-side script (`conf-generate-certificates.sh`) decides whether
+   * to commit it to disk by comparing identity against the existing cert.pem.
+   *
+   * Kept as a thin wrapper around `generateSelfSignedCert` for ICaProvider
+   * symmetry with the Spoke `RemoteCaProvider`, where the implementations
+   * legitimately differ (the Hub-fetch path uses an in-process cache to avoid
+   * redundant network round-trips inside one Reconfigure flow).
    */
   ensureServerCert(veContextKey: string, hostName?: string, extraSans?: string[]): { key: string; cert: string } {
-    const effectiveHostname = hostName || hostname();
-    const wanted = normalizeExtraSans(extraSans);
-    const stored = this.getStoredServerCert(effectiveHostname);
-    if (stored) {
-      const have = normalizeExtraSans(stored.extraSans);
-      if (have.length === wanted.length && have.every((v, i) => v === wanted[i])) {
-        return { key: stored.key, cert: stored.cert };
-      }
-      logger.info("Regenerating server cert: SAN list changed", {
-        hostname: effectiveHostname,
-        had: have,
-        wants: wanted,
-      });
-    }
-    return this.generateSelfSignedCert(veContextKey, effectiveHostname, wanted);
+    return this.generateSelfSignedCert(veContextKey, hostName, extraSans);
   }
 
   /**

@@ -91,15 +91,48 @@ mkdir -p "$CERT_DIR"
 
 GENERATED=false
 
-# Server certificate (default: true) — write pre-signed key+cert from backend
+# Server certificate (default: true) — write pre-signed key+cert from backend.
+#
+# The backend always signs fresh material; we decide here whether to commit
+# it to disk. The on-disk cert is the source of truth for what the container
+# actually serves. Idempotency rule: keep the existing cert if its identity
+# (CN + SAN list) matches the candidate AND it still has at least 30 days
+# of validity remaining. Otherwise, overwrite key+cert atomically as a pair.
 if [ "$NEEDS_SERVER_CERT" != "false" ]; then
   if [ -z "$SERVER_KEY_B64" ] || [ "$SERVER_KEY_B64" = "NOT_DEFINED" ] \
      || [ -z "$SERVER_CERT_B64" ] || [ "$SERVER_CERT_B64" = "NOT_DEFINED" ]; then
     echo "Error: server_key_b64 / server_cert_b64 not provided by backend" >&2
     exit 1
   fi
-  cert_write_server "$SERVER_KEY_B64" "$SERVER_CERT_B64" "$CA_CERT_B64" "$CERT_DIR"
-  GENERATED=true
+
+  _NEW_CERT_TMP=$(mktemp)
+  if ! echo "$SERVER_CERT_B64" | base64 -d > "$_NEW_CERT_TMP" 2>/dev/null; then
+    rm -f "$_NEW_CERT_TMP"
+    echo "Error: failed to decode server_cert_b64" >&2
+    exit 1
+  fi
+
+  # Decode CA cert too so cert_should_skip_write can verify the existing
+  # disk cert was signed by the *current* CA. Without this, a CA rotation
+  # (regenerated CA with same or different DN) would silently keep an
+  # existing server cert that nobody trusts anymore.
+  _NEW_CA_TMP=""
+  if [ -n "$CA_CERT_B64" ] && [ "$CA_CERT_B64" != "NOT_DEFINED" ]; then
+    _NEW_CA_TMP=$(mktemp)
+    if ! echo "$CA_CERT_B64" | base64 -d > "$_NEW_CA_TMP" 2>/dev/null; then
+      rm -f "$_NEW_CA_TMP"
+      _NEW_CA_TMP=""
+    fi
+  fi
+
+  if cert_should_skip_write "$CERT_DIR/cert.pem" "$_NEW_CERT_TMP" 30 "$_NEW_CA_TMP"; then
+    echo "Server cert identity+chain unchanged and still valid — keeping existing key+cert pair on disk" >&2
+  else
+    cert_write_server "$SERVER_KEY_B64" "$SERVER_CERT_B64" "$CA_CERT_B64" "$CERT_DIR"
+    GENERATED=true
+  fi
+  rm -f "$_NEW_CERT_TMP"
+  [ -n "$_NEW_CA_TMP" ] && rm -f "$_NEW_CA_TMP"
 fi
 
 # CA certificate (default: false) — write public CA cert from backend

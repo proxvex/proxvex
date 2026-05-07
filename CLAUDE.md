@@ -65,6 +65,22 @@ Use for all package installation tasks:
 | `pkg_install <pkgs>` | Install packages (auto-detects OS) |
 | `pkg_add_alpine_community` | Enable Alpine community repo |
 
+## On-Start Hooks
+
+Container-Lifecycle-Hooks liegen auf dem Host in `${VOLUME_DIR}/on_start.d/*.sh` und werden via Bind-Mount unter `/etc/proxvex/on_start.d/` im Container sichtbar. Der Dispatcher `/etc/proxvex/on_start_container` wird von Proxmox bei jedem Container-Start aufgerufen.
+
+**Erzeugung:**
+- `pre_start/166-conf-write-on-start-scripts` schreibt Dispatcher, `ssl-proxy.sh`, `smbd.sh`
+- `post_start/342-post-install-acme-renew-on-start` schreibt `acme-renew.sh`
+
+Beide Templates überschreiben die Dateien bei jeder Ausführung.
+
+**Update einer Hook nach Code-Änderung:**
+Reconfigure der betroffenen Application auslösen. Addons mit `has_on_start_hooks` (`addon-ssl`, `addon-acme`) führen ihre Hook-erzeugenden Templates bei Reconfigure erneut aus und überschreiben die Dateien im managed Volume. Reines Upgrade reicht für `acme-renew.sh` nicht (addon-acmes Upgrade-Phase enthält 342 nicht).
+
+**Variablen-Update ohne Hook-Rewrite:**
+Stack-Refresh mit Methode `on-start-env` patcht eine einzelne Shell-Variable in einem bestehenden Hook-Skript, ohne das Skript neu zu schreiben.
+
 ## Templates
 
 - Templates must validate against `schemas/template.schema.json`
