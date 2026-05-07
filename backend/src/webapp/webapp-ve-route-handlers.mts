@@ -387,53 +387,25 @@ export class WebAppVeRouteHandlers {
         } catch { /* best-effort */ }
       }
 
-      // Read application + addon dependencies for dependency-host-discovery
+      // Read application + addon dependencies for dependency-host-discovery.
+      // Single source of truth: ApplicationDependencyResolver. The same
+      // resolver is used by webapp-dependency-check-routes (UI pre-check)
+      // and the execution path below, so all three converge on identical
+      // results for the same inputs.
       let appConfig: any = null;
       try {
         appConfig = this.pm.getRepositories().getApplication(application);
-        const appDeps = (appConfig as any)?.dependencies as { application: string }[] | undefined;
-        const allDeps = [...(appDeps ?? [])];
-
-        // Merge stacktype dependencies (e.g. postgres stacktype → postgres app)
-        const appStacktype = (appConfig as any)?.stacktype;
-        const stacktypes = appStacktype ? (Array.isArray(appStacktype) ? appStacktype : [appStacktype]) : [];
-        if (stacktypes.length > 0) {
-          const stacktypeData = this.pm.getStacktypes();
-          for (const stName of stacktypes) {
-            const st = stacktypeData.find((s: any) => s.name === stName);
-            if (st?.dependencies) {
-              for (const dep of st.dependencies) {
-                if (dep.application !== application && !allDeps.some(d => d.application === dep.application)) {
-                  allDeps.push(dep);
-                }
-              }
-            }
-          }
-        }
-
-        // Merge addon dependencies
-        const addonIds = body.selectedAddons ?? [];
-        if (addonIds.length > 0) {
-          const addonSvc = this.pm.getAddonService();
-          for (const addonId of addonIds) {
-            try {
-              const addon = addonSvc.getAddon(addonId);
-              if (addon?.dependencies) {
-                for (const dep of addon.dependencies) {
-                  if (!allDeps.some(d => d.application === dep.application)) {
-                    allDeps.push(dep);
-                  }
-                }
-              }
-            } catch { /* ignore unknown addon */ }
-          }
-        }
-
-        if (allDeps.length > 0) {
-          initialInputs.push({ id: "app_dependencies", value: JSON.stringify(allDeps) });
-        }
-      } catch {
-        // Ignore - getApplication may fail for some apps
+      } catch { /* getApplication may fail for some apps */ }
+      const allDeps = this.pm
+        .getApplicationDependencyResolver()
+        .resolve(
+          application,
+          body.selectedAddons ?? [],
+          allStackIds,
+        )
+        .map((d) => ({ application: d.application }));
+      if (allDeps.length > 0) {
+        initialInputs.push({ id: "app_dependencies", value: JSON.stringify(allDeps) });
       }
 
       // Pre-inject ca_key_b64 marker so skip_if_all_missing in template 156
@@ -577,41 +549,14 @@ export class WebAppVeRouteHandlers {
         }
       }
 
-      // Inject application + addon dependencies for dependency-host-discovery script
+      // Inject application + addon dependencies for dependency-host-discovery
+      // script. Same source-of-truth as the preview-task path above and the
+      // /api/dependency-check route — see ApplicationDependencyResolver.
       {
-        const appDependencies = (loaded.application as any)?.dependencies as { application: string }[] | undefined;
-        const allDeps = [...(appDependencies ?? [])];
-        // Merge stacktype dependencies
-        const loadedStacktype = (loaded.application as any)?.stacktype;
-        const loadedStacktypes = loadedStacktype ? (Array.isArray(loadedStacktype) ? loadedStacktype : [loadedStacktype]) : [];
-        if (loadedStacktypes.length > 0) {
-          const stacktypeData = this.pm.getStacktypes();
-          for (const stName of loadedStacktypes) {
-            const st = stacktypeData.find((s: any) => s.name === stName);
-            if (st?.dependencies) {
-              for (const dep of st.dependencies) {
-                if (dep.application !== application && !allDeps.some(d => d.application === dep.application)) {
-                  allDeps.push(dep);
-                }
-              }
-            }
-          }
-        }
-        if (selectedAddons.length > 0) {
-          const addonSvc = this.pm.getAddonService();
-          for (const addonId of selectedAddons) {
-            try {
-              const addon = addonSvc.getAddon(addonId);
-              if (addon?.dependencies) {
-                for (const dep of addon.dependencies) {
-                  if (!allDeps.some(d => d.application === dep.application)) {
-                    allDeps.push(dep);
-                  }
-                }
-              }
-            } catch { /* ignore */ }
-          }
-        }
+        const allDeps = this.pm
+          .getApplicationDependencyResolver()
+          .resolve(application, selectedAddons, allStackIds)
+          .map((d) => ({ application: d.application }));
         if (allDeps.length > 0) {
           defaults.set("app_dependencies", JSON.stringify(allDeps));
         }
