@@ -131,7 +131,7 @@
       "name": "Application ID",
       "type": "string",
       "required": true,
-      "group": "Application"
+      "internal": true
     },
     "application_name": {
       "name": "Application Name",
