@@ -215,6 +215,12 @@ export interface IParameter {
   internal?: boolean;
   /** Marks parameters typically set once globally per project (DNS, mirrors, registry credentials, …). Pure documentation hint, no runtime effect. */
   project?: boolean;
+  /**
+   * Restricts UI visibility to the listed tasks. When unset the parameter is
+   * visible for every task. Use `["installation"]` for fields that are set
+   * once at install and inherited unchanged on reconfigure/upgrade.
+   */
+  tasks?: string[];
   upload?: boolean;
   certtype?: CertType;
   default?: string | number | boolean;
@@ -477,7 +483,15 @@ export interface ITestScenariosResponse {
 export interface IDependencyStatus {
   application: string;
   source: string; // "application" or addon ID like "addon-oidc"
-  status: "running" | "stopped" | "not_found";
+  /**
+   * - `running` — definitely up; install can proceed
+   * - `stopped` — definitely down; install must block until user starts the dep
+   * - `not_found` — no managed container with this application_id exists
+   * - `unknown` — couldn't determine status (pct status timeout / lock /
+   *   transient failure even after retry). Surface as a warning, not a
+   *   blocker — install MAY proceed at the user's discretion.
+   */
+  status: "running" | "stopped" | "not_found" | "unknown";
   hostname?: string;
   vmId?: number;
 }

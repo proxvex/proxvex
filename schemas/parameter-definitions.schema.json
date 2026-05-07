@@ -47,6 +47,14 @@
           "type": "boolean",
           "description": "Hidden behind the Advanced toggle in the UI."
         },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "If set, the parameter only appears in the UI form for these tasks. Default (unset): visible for every task. Use 'installation' to mark fields that are configured once at install and inherited unchanged on reconfigure/upgrade."
+        },
         "multiline": { "type": "boolean" },
         "upload": {
           "type": "boolean",

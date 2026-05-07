@@ -18,6 +18,7 @@ and must be at the very beginning of the combined file.
 import json
 import os
 import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -26,13 +27,13 @@ from pathlib import Path
 # - is_managed_container(conf_text) -> bool
 
 
-def get_status(vmid: int) -> str | None:
+def _get_status_once(vmid: int, timeout: float) -> str | None:
     try:
         result = subprocess.run(
             ["pct", "status", str(vmid)],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=timeout,
         )
         if result.returncode != 0:
             return None
@@ -43,6 +44,24 @@ def get_status(vmid: int) -> str | None:
         return out or None
     except Exception:
         return None
+
+
+def get_status(vmid: int) -> str | None:
+    """Retry `pct status` a couple of times before giving up.
+
+    Transient failures (lock from a parallel pct command, brief cluster-state
+    refresh, slow disk) clear within a few hundred ms, so a quick retry is
+    much more reliable than a single longer call. Total wall time stays bounded
+    (~5s) so a stuck container does not block the whole listing.
+    """
+    delays = (0.0, 0.4, 1.0)  # 3 attempts, ~1.4s of sleep + up to 3*1.5s of pct = bounded
+    for delay in delays:
+        if delay:
+            time.sleep(delay)
+        status = _get_status_once(vmid, timeout=1.5)
+        if status:
+            return status
+    return None
 
 
 def main() -> None:
@@ -135,9 +154,12 @@ def main() -> None:
         vmids = [item["vm_id"] for item in containers]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             statuses = list(executor.map(get_status, vmids))
+        # Always set a status so consumers (dep-check matching, UI) can
+        # distinguish "really stopped" from "couldn't determine". "unknown"
+        # signals a transient failure (pct status timeout, locked container,
+        # unexpected output) — must not be treated as "stopped".
         for item, status in zip(containers, statuses):
-            if status:
-                item["status"] = status
+            item["status"] = status or "unknown"
 
     # Return output in VeExecution format: IOutput[]
     print(json.dumps([{"id": "containers", "value": json.dumps(containers)}]))

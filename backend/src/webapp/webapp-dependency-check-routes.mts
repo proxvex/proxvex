@@ -92,7 +92,15 @@ export function registerDependencyCheckRoutes(
           };
         }
 
-        // Prefer running containers
+        // Status priority for picking the representative container:
+        //   running  > unknown > stopped (anything else)
+        // - "running" is reported as-is.
+        // - "unknown" is surfaced honestly (the listing script returned
+        //   "unknown" because `pct status` failed even after retry —
+        //   transient lock/timeout). The frontend renders this as a
+        //   warning, not a blocking error.
+        // - Otherwise the container is reported as "stopped" so the
+        //   user knows to start it before installing the consumer.
         const running = matching.find((c) => c.status === "running");
         if (running) {
           const result: IDependencyStatus = {
@@ -102,6 +110,17 @@ export function registerDependencyCheckRoutes(
             vmId: running.vm_id,
           };
           if (running.hostname) result.hostname = running.hostname;
+          return result;
+        }
+        const indeterminate = matching.find((c) => c.status === "unknown");
+        if (indeterminate) {
+          const result: IDependencyStatus = {
+            application: dep.application,
+            source: displaySource,
+            status: "unknown",
+            vmId: indeterminate.vm_id,
+          };
+          if (indeterminate.hostname) result.hostname = indeterminate.hostname;
           return result;
         }
 

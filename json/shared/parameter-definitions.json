@@ -249,7 +249,7 @@
       "type": "string",
       "required": true,
       "upload": true,
-      "group": "Application"
+      "internal": true
     },
     "compose_key": {
       "name": "Env Key in docker-compose.yml",
@@ -339,7 +339,8 @@
       "required": false,
       "upload": true,
       "group": "Storage",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "envs": {
       "name": "Environment Variables",
@@ -352,7 +353,7 @@
       "name": "Expected Versions",
       "type": "string",
       "required": false,
-      "group": "Application"
+      "internal": true
     },
     "flow_password": {
       "name": "Credential Password",
@@ -520,7 +521,8 @@
       "name": "OIDC Application Name",
       "type": "string",
       "required": false,
-      "group": "Authentication"
+      "group": "Authentication",
+      "tasks": ["installation"]
     },
     "oidc_callback_path": {
       "name": "Callback Path",
@@ -528,14 +530,16 @@
       "default": "/auth/strategy/callback",
       "required": false,
       "group": "Authentication",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "oidc_client_id": {
       "name": "OIDC Client ID",
       "type": "string",
       "required": false,
       "group": "Authentication",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "oidc_client_secret": {
       "name": "OIDC Client Secret",
@@ -543,7 +547,8 @@
       "required": false,
       "secure": true,
       "group": "Authentication",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "oidc_issuer_url": {
       "name": "OIDC Issuer URL",
@@ -557,7 +562,8 @@
       "name": "Zitadel Project Name",
       "type": "string",
       "required": false,
-      "group": "Authentication"
+      "group": "Authentication",
+      "tasks": ["installation"]
     },
     "oidc_required_role": {
       "name": "OIDC Required Role",
@@ -764,7 +770,8 @@
       "default": "",
       "required": false,
       "if": "smtp_own_domain",
-      "group": "Authentication"
+      "group": "Authentication",
+      "tasks": ["installation"]
     },
     "smtp_mx_target": {
       "name": "MX target",
@@ -772,14 +779,16 @@
       "default": "",
       "required": false,
       "if": "smtp_own_domain",
-      "group": "Authentication"
+      "group": "Authentication",
+      "tasks": ["installation"]
     },
     "smtp_own_domain": {
       "name": "Own mail domain (configure Cloudflare DNS)",
       "type": "boolean",
       "default": false,
       "required": true,
-      "group": "Authentication"
+      "group": "Authentication",
+      "tasks": ["installation"]
     },
     "SMTP_PASSWORD": {
       "name": "SMTP_PASSWORD",
@@ -807,7 +816,8 @@
       "required": false,
       "if": "smtp_own_domain",
       "group": "Authentication",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "SMTP_USER": {
       "name": "SMTP User",
@@ -903,7 +913,8 @@
       "type": "string",
       "default": "local",
       "group": "Other",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "storage_selection": {
       "name": "Storage Selection",
@@ -911,13 +922,14 @@
       "required": false,
       "enumValuesTemplate": "list-available-storage.json",
       "group": "Storage",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "target_versions": {
       "name": "Target Versions",
       "type": "string",
       "required": false,
-      "group": "Application"
+      "internal": true
     },
     "template_path": {
       "name": "Path to the LXC template",
@@ -1101,14 +1113,14 @@
       "type": "boolean",
       "default": false,
       "group": "Storage",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "volume_size": {
       "name": "Volume Size",
       "type": "string",
       "default": "4M",
-      "group": "Storage",
-      "advanced": true
+      "internal": true
     },
     "volume_storage": {
       "name": "Volume Storage",
@@ -1149,7 +1161,8 @@
       "default": "{{ hostname }}",
       "required": false,
       "group": "Other",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "ZITADEL_EXTERNALPORT": {
       "name": "External Port",
@@ -1157,7 +1170,8 @@
       "default": "8080",
       "required": false,
       "group": "Other",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "ZITADEL_EXTERNALSECURE": {
       "name": "External Secure",
@@ -1165,7 +1179,8 @@
       "default": "false",
       "required": false,
       "group": "Other",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "ZITADEL_FORWARDED_PROTO": {
       "name": "Forwarded Proto",
@@ -1173,7 +1188,8 @@
       "default": "http",
       "required": false,
       "group": "Other",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     },
     "ZITADEL_HOST": {
       "name": "ZITADEL_HOST",
@@ -1210,7 +1226,8 @@
       "default": "http://{{ ZITADEL_EXTERNALDOMAIN }}:8080",
       "required": false,
       "group": "Other",
-      "advanced": true
+      "advanced": true,
+      "tasks": ["installation"]
     }
   }
 }
