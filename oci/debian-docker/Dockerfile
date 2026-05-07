@@ -12,11 +12,12 @@
 #     post-trust-oci-ca-in-system.sh on Alpine LXC)
 #   - glibc — fewer musl edge cases for long-running docker daemons
 #
-# proxvex pulls this image via host-get-oci-image.py, which converts the
-# OCI rootfs into an LXC template tarball. systemd in the LXC reads the
-# enable-symlinks below and auto-starts dockerd + containerd at first
-# boot — equivalent to `systemctl enable` but without needing systemd
-# running at build time (which is unreliable inside an LXC build).
+# proxvex pulls this image via host-get-oci-image.py, which converts
+# the OCI rootfs into an LXC template tarball. The LXC inherits the
+# image without an init system — debian:trixie-slim is too minimal for
+# systemd and OCI-derived rootfs aren't designed to run init anyway —
+# so dockerd is launched at first boot by post_start template
+# 307-post-start-dockerd via nohup.
 FROM debian:trixie-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -40,25 +41,14 @@ RUN apt-get update \
 # Configure dockerd: overlay2 is the standard storage driver for LXC
 # rootfs, userland-proxy=false reduces overhead. Same settings the old
 # 307-post-install-docker-rootless template wrote at runtime.
+# 307-post-start-dockerd.sh re-creates this file if missing, so the
+# bake here is a fast-path optimization, not a hard requirement.
 RUN mkdir -p /etc/docker \
  && printf '%s\n' \
       '{' \
       '  "storage-driver": "overlay2",' \
       '  "userland-proxy": false' \
       '}' > /etc/docker/daemon.json
-
-# Pre-enable docker + containerd so systemd starts them at first boot.
-# Equivalent to `systemctl enable docker containerd` but works without a
-# running systemd. The previous template ran systemctl at first start;
-# baking the symlinks here keeps post_start free of service-management.
-RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
-              /etc/systemd/system/sockets.target.wants \
- && ln -sf /lib/systemd/system/docker.service \
-      /etc/systemd/system/multi-user.target.wants/docker.service \
- && ln -sf /lib/systemd/system/containerd.service \
-      /etc/systemd/system/multi-user.target.wants/containerd.service \
- && ln -sf /lib/systemd/system/docker.socket \
-      /etc/systemd/system/sockets.target.wants/docker.socket
 
 LABEL org.proxvex.framework=docker-compose
 LABEL org.proxvex.purpose="LXC base for docker-compose apps — docker pre-installed"
