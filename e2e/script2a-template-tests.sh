@@ -37,12 +37,9 @@ success() { echo -e "${GREEN}[OK]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
 header() { echo -e "\n${BLUE}═══════════════════════════════════════════════════════${NC}"; echo -e "${BLUE}  $1${NC}"; echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}\n"; }
 
-# SSH wrapper for nested VM (via port forwarding on PVE host)
-nested_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR \
-        -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
-}
+# nested_ssh comes from lib/nested-ssh.sh — pinned ed25519 host key + StrictHostKeyChecking=yes.
+# shellcheck source=lib/nested-ssh.sh
+. "$SCRIPT_DIR/lib/nested-ssh.sh"
 
 SMOKE_VMID=9999
 

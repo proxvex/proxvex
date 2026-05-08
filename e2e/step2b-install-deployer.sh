@@ -70,9 +70,9 @@ header() {
     echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}\n"
 }
 
-nested_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
-}
+# nested_ssh / nested_scp_to / nested_scp_from come from lib/nested-ssh.sh.
+# shellcheck source=lib/nested-ssh.sh
+. "$SCRIPT_DIR/lib/nested-ssh.sh"
 
 # Source the pve-ops abstraction so qm calls go through PVE_USE_API toggle.
 # After Phase A2 step2b has no outer-host SSH at all — qm via API, scp
@@ -181,9 +181,7 @@ success "OCI-archive: $(ls -l "$OCI_TARBALL" | awk '{print $5}') bytes"
 # same path as nested_ssh()). No outer-host hop, no outer-host SSH.
 REMOTE_TARBALL="/tmp/${TMP_OCI_NAME}"
 info "Uploading $OCI_TARBALL → $NESTED_IP:$REMOTE_TARBALL ..."
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -P "$PORT_PVE_SSH" \
-    "$OCI_TARBALL" "root@$PVE_HOST:${REMOTE_TARBALL}" \
+nested_scp_to "$OCI_TARBALL" "${REMOTE_TARBALL}" \
     || error "scp to nested VM failed"
 success "Tarball uploaded to $REMOTE_TARBALL (install-proxvex.sh will stage to cache)"
 
@@ -192,16 +190,12 @@ success "Tarball uploaded to $REMOTE_TARBALL (install-proxvex.sh will stage to c
 # local fix under test is what runs).
 LOCAL_SCRIPT_PATH="/tmp/proxvex-scripts-${E2E_INSTANCE}"
 header "Copying install script + shared scripts to nested VM"
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -P "$PORT_PVE_SSH" \
-    "$PROJECT_ROOT/install-proxvex.sh" "root@$PVE_HOST:/tmp/${TMP_INSTALL_NAME}" \
+nested_scp_to "$PROJECT_ROOT/install-proxvex.sh" "/tmp/${TMP_INSTALL_NAME}" \
     || error "Failed to copy install-proxvex.sh to nested VM"
 
 tar -czf "$LOCAL_SCRIPTS_TARBALL" -C "$PROJECT_ROOT" json/shared/scripts \
     || error "Failed to create scripts tarball"
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -P "$PORT_PVE_SSH" \
-    "$LOCAL_SCRIPTS_TARBALL" "root@$PVE_HOST:/tmp/${TMP_SCRIPTS_NAME}" \
+nested_scp_to "$LOCAL_SCRIPTS_TARBALL" "/tmp/${TMP_SCRIPTS_NAME}" \
     || error "Failed to copy scripts tarball to nested VM"
 nested_ssh "mkdir -p $LOCAL_SCRIPT_PATH && tar -xzf /tmp/${TMP_SCRIPTS_NAME} -C $LOCAL_SCRIPT_PATH" \
     || error "Failed to extract shared scripts on nested VM"

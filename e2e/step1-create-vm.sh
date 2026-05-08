@@ -44,16 +44,26 @@ success() { echo -e "${GREEN}[OK]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
 header() { echo -e "\n${BLUE}═══════════════════════════════════════════════════════${NC}"; echo -e "${BLUE}  $1${NC}"; echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}\n"; }
 
-# SSH wrapper for pve1
-# Uses /dev/null for known_hosts to avoid host key conflicts during E2E testing
+# step1 is the install/bootstrap phase: it polls sshd before first-boot has
+# pinned the per-instance ed25519 key and SSH may briefly serve the
+# installer-generated key. Using StrictHostKeyChecking=yes here would race
+# with that transition, so step1 keeps its own permissive wrappers and
+# does NOT source lib/nested-ssh.sh. After step1 completes (first-boot
+# verified active), step2a / step2b / start-livetest source the strict
+# helper from lib/nested-ssh.sh.
+#
+# LogLevel=ERROR suppresses the noisy "Permanently added" warnings that
+# come with UserKnownHostsFile=/dev/null + StrictHostKeyChecking=no.
 pve_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 "root@$PVE_HOST" "$@"
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout=10 \
+        "root@$PVE_HOST" "$@"
 }
 
-# SSH wrapper for nested VM via port forwarding on PVE host
-# Connects directly through PVE_HOST:PORT_PVE_SSH -> nested VM:22
 nested_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout=10 \
+        -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
 }
 
 # Store nested VM IP for later steps
@@ -133,9 +143,10 @@ info "This typically takes 5-10 minutes..."
 info "The VM will reboot automatically after installation."
 info "Network: $VM_BRIDGE - Static IP: $NESTED_STATIC_IP"
 
-# Clean up any old known_hosts entries for the nested VM
-# (VM was recreated, so host key has changed)
-ssh-keygen -R "[$PVE_HOST]:$PORT_PVE_SSH" 2>/dev/null || true
+# Note: no longer cleaning ~/.ssh/known_hosts here. nested_ssh from
+# lib/nested-ssh.sh uses a per-instance e2e/.known_hosts-<instance>
+# file regenerated from the pinned ed25519 public key on every call,
+# so global known_hosts is never consulted on the nested-VM path.
 
 # Ensure SSH port forwarding exists BEFORE polling
 # (step0 may have used different ports, or rules may have been cleared)
@@ -156,7 +167,7 @@ info "Polling SSH: root@$PVE_HOST:$PORT_PVE_SSH"
 
 while [ $WAITED -lt $MAX_WAIT ]; do
     # Try SSH via port forwarding (keys were injected via ISO answer file)
-    SSH_OUTPUT=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o BatchMode=yes -p "$PORT_PVE_SSH" "root@$PVE_HOST" 'echo SSH_OK' 2>&1) || true
+    SSH_OUTPUT=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 -o BatchMode=yes -p "$PORT_PVE_SSH" "root@$PVE_HOST" 'echo SSH_OK' 2>&1) || true
     if echo "$SSH_OUTPUT" | grep -q "SSH_OK"; then
         echo ""
         success "Installation complete - SSH accessible at $PVE_HOST:$PORT_PVE_SSH"
@@ -563,7 +574,7 @@ REBOOT_WAITED=0
 sleep 10  # Give it time to actually shut down
 
 while [ $REBOOT_WAITED -lt $REBOOT_TIMEOUT ]; do
-    if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o BatchMode=yes -p "$PORT_PVE_SSH" "root@$PVE_HOST" 'echo SSH_OK' 2>/dev/null | grep -q "SSH_OK"; then
+    if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 -o BatchMode=yes -p "$PORT_PVE_SSH" "root@$PVE_HOST" 'echo SSH_OK' 2>/dev/null | grep -q "SSH_OK"; then
         break
     fi
     sleep 5

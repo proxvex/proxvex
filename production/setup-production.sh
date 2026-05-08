@@ -153,10 +153,10 @@ Options:
                         In step 18, if a 'docker-mirror-test' container
                         already exists on ubuntupve, destroy it before
                         re-deploying. Without this flag the step is skipped
-                        with a warning to preserve the cached image volume
-                        (loss of cache will trigger Docker Hub rate limits on
-                        the next step2a pre-pull — restore via
-                        production/reseed-docker-mirror-test.sh).
+                        with a warning to preserve the cached image volume —
+                        a fresh redeploy means each test image gets pulled
+                        through once, which is fine but optional to avoid
+                        via production/reseed-docker-mirror-test.sh.
   -h, --help            Show this help and exit
 
 Without arguments, this help is shown and nothing is executed.
@@ -833,16 +833,18 @@ fi
 #   test/CI path (nested-VM + mirror) sits on a single physical host —
 #   tests no longer depend on pve1 being up or on inter-host routing.
 #
-#   Clients (nested-VM docker daemon + skopeo) reach this mirror by hostname
-#   `docker-mirror-test` configured via /etc/docker/daemon.json
-#   ("registry-mirrors") and /etc/containers/registries.conf — wired up
-#   by e2e/step2a-setup-mirrors.sh. The cert SAN therefore only needs the
-#   container hostname (default), not DNS:registry-1.docker.io.
+#   Clients (nested-VM skopeo) reach this mirror by hostname
+#   `docker-mirror-test` configured via /etc/containers/registries.conf
+#   plus a dnsmasq A-record — wired up by e2e/step2a-setup-mirrors.sh.
+#   The cert SAN only needs the container hostname (default), not
+#   DNS:registry-1.docker.io.
 #
 #   Idempotency: skip if container exists. --force-docker-mirror-test
-#   destroys + redeploys (purges the cache volume — restore via
-#   production/reseed-docker-mirror-test.sh to avoid rate-limit storms on
-#   the next step2a pre-pull).
+#   destroys + redeploys (purges the cache volume). After redeploy the
+#   mirror caches each image organically on first request (~30 unique
+#   tags in versions.sh, well under Docker Hub's 100/6h anonymous limit).
+#   For paranoid avoidance of any Docker-Hub traffic, optionally run
+#   production/reseed-docker-mirror-test.sh to clone the cache from pve1.
 # ================================================================
 if should_run 18; then
   drmt_target=$(host_for_app docker-mirror-test)
@@ -856,7 +858,7 @@ if should_run 18; then
     echo "  (VMID: ${drmt_existing}). Skipping step 18 to preserve the"
     echo "  cached image volume."
     echo "  Force redeploy: $0 --force-docker-mirror-test --step 18"
-    echo "  Then reseed:    $SCRIPT_DIR/reseed-docker-mirror-test.sh"
+    echo "  Optional cache restore: $SCRIPT_DIR/reseed-docker-mirror-test.sh"
     echo "  ============================================================"
     echo ""
   else

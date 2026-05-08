@@ -1,5 +1,6 @@
 {
   "_comment": "Template for e2e/config.json. Copy to config.json (gitignored) and replace YOUR_* placeholders. In CI, the workflow materializes config.json from the E2E_CONFIG GitHub secret — no local file needed there.",
+  "_hostKey_comment": "Each instance has an optional hostKey.{ed25519PrivB64,ed25519PubB64} pair (base64-encoded SSH host key for the nested VM). Leave empty on first run — step0-create-iso.sh auto-generates and writes the values back here. The pinned key keeps dev-machine known_hosts valid across snapshot rollbacks and step1 rebuilds, so nested_ssh can use StrictHostKeyChecking=yes.",
   "default": "green",
   "instances": {
     "green": {
@@ -15,6 +16,7 @@
       "deployerPort": "${DEPLOYER_PORT:-3201}",
       "snapshot": { "enabled": true },
       "registryMirror": { "dnsForwarder": "YOUR_UPSTREAM_DNS" },
+      "hostKey": { "ed25519PrivB64": "", "ed25519PubB64": "" },
       "portForwarding": [
         { "port": 1808, "hostname": "zitadel-default", "ip": "10.0.0.226", "containerPort": 1443 },
         { "port": 1809, "hostname": "gitea-default",   "ip": "10.0.0.203", "containerPort": 3000 }
@@ -33,6 +35,7 @@
       "deployerPort": "${DEPLOYER_PORT:-3301}",
       "snapshot": { "enabled": true },
       "registryMirror": { "dnsForwarder": "YOUR_UPSTREAM_DNS" },
+      "hostKey": { "ed25519PrivB64": "", "ed25519PubB64": "" },
       "portForwarding": [
         { "port": 2808, "hostname": "zitadel-default", "ip": "10.0.0.226", "containerPort": 1443 },
         { "port": 2809, "hostname": "gitea-default",   "ip": "10.0.0.203", "containerPort": 3000 }
@@ -46,7 +49,8 @@
       "portOffset": 1000,
       "subnet": "10.99.2",
       "bridge": "vmbr2",
-      "filesystem": "ext4"
+      "filesystem": "ext4",
+      "hostKey": { "ed25519PrivB64": "", "ed25519PubB64": "" }
     }
   },
   "defaults": {

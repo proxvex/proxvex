@@ -71,3 +71,4 @@ oci*.tgz
 scripts/replace_oci_lxc_deployer_changes.json
 e2e/.current-instance
 e2e/.nested-vm-ip
+e2e/.known_hosts-*

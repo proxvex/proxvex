@@ -3,35 +3,40 @@
 #
 # This script:
 # 1. Rolls back to step1 'baseline' snapshot (clean state)
-# 2. Repoints apt to a fast EU mirror (mirror.23m.com) so the skopeo
-#    install in step 5 is fast. No Docker daemon is installed in the
-#    nested VM — apps are LXCs (deployer-managed), not docker-compose
-#    services here.
-# 3. Verifies the test Docker Hub mirror (docker-mirror-test on ubuntupve,
+# 2. Verifies the test Docker Hub mirror (docker-mirror-test on ubuntupve,
 #    192.168.4.49) is reachable; the proxvex CA was baked into the nested
 #    VM trust store at baseline so TLS just works.
-# 4. Verifies the ghcr.io mirror (ghcr-mirror on ubuntupve, 192.168.4.48)
+# 3. Verifies the ghcr.io mirror (ghcr-mirror on ubuntupve, 192.168.4.48)
 #    is reachable.
-# 5. Wires registry routing in the nested VM:
+# 4. Wires registry routing in the nested VM:
 #      - dnsmasq adds A-record `docker-mirror-test → 192.168.4.49` and
 #        keeps the DNS-redirect `ghcr.io → 192.168.4.48` (Docker Hub
 #        registry-mirrors only spiegelt Docker Hub, not ghcr).
-#      - skopeo is installed; /etc/containers/registries.conf points
-#        docker.io at `${TEST_MIRROR_HOST}` for any pull through skopeo
-#        (used by step2b-install-deployer.sh, install-ci.sh, and the
-#        deployer's own image pipeline once it's installed in step2b).
-# 6. Smoketests:
+#      - /etc/containers/registries.conf points docker.io at
+#        `${TEST_MIRROR_HOST}` for any pull through skopeo (used by
+#        step2b-install-deployer.sh, install-ci.sh, and the deployer's
+#        own image pipeline once it's installed in step2b). Skopeo itself
+#        ships with Proxmox VE 9.1+ as a pve-manager dependency — no
+#        install needed.
+# 5. Smoketests:
 #      a) curl https://${TEST_MIRROR_HOST}/v2/ via dnsmasq (proves DNS+TLS).
 #      b) skopeo inspect docker://docker.io/library/alpine:latest (proves
-#         registries.conf routing — alpine is in versions.sh, so it's
-#         already in the mirror's cache after reseed).
-# 7. Creates the 'mirrors-ready' snapshot so step2b can roll back to a
+#         registries.conf routing). On a cold mirror this triggers ONE
+#         pull-through to Docker Hub for alpine — well within the 100/6h
+#         anonymous limit. On a warm mirror it's a cache hit.
+# 6. Creates the 'mirrors-ready' snapshot so step2b can roll back to a
 #    clean environment with the mirror routing already wired.
 #
-# No images are pulled by this script. The test mirror's cache is filled
-# by production/reseed-docker-mirror-test.sh (ZFS replication from the
-# prod mirror on pve1) — that's the only place where Docker Hub pulls
-# happen, and only when reseed is invoked.
+# No bulk pulls by this script. ~30 distinct images live in versions.sh;
+# each gets cached in the mirror on first request (single Docker-Hub pull
+# per tag, then permanent cache hits). That's well below 100/6h and
+# happens organically over the first test runs.
+#
+# OPTIONAL: production/reseed-docker-mirror-test.sh fills the mirror's
+# cache via ZFS replication from the prod mirror on pve1 — useful when
+# iterating on docker-mirror-test with --force-docker-mirror-test (each
+# destroy purges the cache volume), or for paranoid avoidance of any
+# Docker-Hub traffic. Steady-state operation does NOT need it.
 #
 # Prerequisites:
 #   - production/setup-pve-host.sh <PVE_HOST> must have run so the proxvex CA
@@ -41,8 +46,6 @@
 #     reachable from the nested VM. (production/setup-production.sh --step 5
 #     on pve1 is no longer required by this script — the prod mirror stays
 #     for production workloads but is unused by the test path.)
-#   - production/reseed-docker-mirror-test.sh has run at least once so the
-#     test mirror has alpine:latest cached for the smoketest.
 #
 # Idempotency:
 #   The 'mirrors-ready' snapshot description carries a short hash of
@@ -107,9 +110,12 @@ header() {
     echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}\n"
 }
 
-nested_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
-}
+# nested_ssh / nested_scp_to / nested_scp_from come from lib/nested-ssh.sh.
+# They use a per-instance pinned ed25519 host key (config.json.hostKey ↔
+# first-boot.sh.template) with StrictHostKeyChecking=yes — no more
+# "Permanently added ..." warnings, real MITM protection.
+# shellcheck source=lib/nested-ssh.sh
+. "$SCRIPT_DIR/lib/nested-ssh.sh"
 
 # Source the pve-ops abstraction so qm calls go through PVE_USE_API toggle.
 # After Phase A2 step2a has no outer-host SSH at all — qm via API, CA was
@@ -214,30 +220,7 @@ if [ -n "$missing" ]; then
 fi
 success "step1 prerequisites OK (dnsmasq installed + e2e-nat.conf present)"
 
-# Step 3: Repoint apt to a European Debian mirror so the skopeo install
-# below is fast — same sed as step1, idempotent, applied here too so VMs
-# from older baselines (pre-step1-fix) don't fall back to the slow default
-# deb.debian.org. Docker itself is NOT installed in the nested VM anymore:
-# the deployer creates LXCs (no docker daemon needed at this layer), and
-# pull-through caching is handled by the docker-mirror-test LXC on ubuntupve
-# whose cache is bootstrapped via production/reseed-docker-mirror-test.sh
-# from the prod mirror — no per-image pulls from Docker Hub during step2a,
-# so no rate-limit risk on iteration.
-header "Configuring apt mirror on nested VM"
-nested_ssh '
-    if [ -f /etc/apt/sources.list.d/debian.sources ] && \
-       grep -q "URIs:[[:space:]]*http://deb.debian.org/debian" /etc/apt/sources.list.d/debian.sources; then
-        sed -i "s|URIs: http://deb.debian.org/debian|URIs: http://mirror.23m.com/debian|g" /etc/apt/sources.list.d/debian.sources
-        echo "  Switched debian.sources -> mirror.23m.com" >&2
-    fi
-    if [ -s /etc/apt/sources.list ] && grep -q "deb.debian.org" /etc/apt/sources.list; then
-        sed -i "s|deb.debian.org|mirror.23m.com|g" /etc/apt/sources.list
-        echo "  Switched sources.list -> mirror.23m.com" >&2
-    fi
-'
-success "apt repointed to mirror.23m.com"
-
-# Step 3.5: Verify the test Docker Hub mirror (docker-mirror-test on ubuntupve)
+# Step 3: Verify the test Docker Hub mirror (docker-mirror-test on ubuntupve)
 # is reachable from the nested VM. As of schema v4-registry-mirrors the prod
 # mirror on pve1 (192.168.4.45) is no longer used by the test path — everything
 # for tests sits on a single physical host (ubuntupve). The test mirror at
@@ -311,9 +294,10 @@ success "Outer ghcr.io mirror reachable at $GHCR_MIRROR_IP (TLS via proxvex CA)"
 #
 # Note: the nested VM does NOT run a Docker daemon — apps deployed by the
 # proxvex deployer are LXCs, not docker-compose services here. The test
-# mirror's cache is populated via production/reseed-docker-mirror-test.sh
-# from the prod mirror, so no per-image pulls happen during step2a (zero
-# Docker Hub rate-limit cost on iteration).
+# mirror caches each image on first request (cache miss → upstream fetch →
+# stored, then cache hits forever). Optional ZFS reseed from the prod
+# mirror (production/reseed-docker-mirror-test.sh) skips the first-pull
+# burst — useful when iterating with --force-docker-mirror-test.
 #
 # Idempotent replace: BEGIN/END fence lets re-runs or schema migrations
 # rewrite the block in place; legacy un-fenced lines from older schemas
@@ -347,16 +331,18 @@ DNS
 "
 success "dnsmasq configured (${TEST_MIRROR_HOST} -> ${TEST_MIRROR_IP}, ghcr.io -> $GHCR_MIRROR_IP)"
 
-# Step 5c: install skopeo + write /etc/containers/registries.conf so that
-# skopeo (used by step2b-install-deployer.sh, install-ci.sh, and the
-# end-of-script smoketest) routes docker.io pulls through the same mirror.
-# Skopeo doesn't read /etc/docker/daemon.json — it has its own conf format.
-header "Installing skopeo + writing /etc/containers/registries.conf"
+# Step 5b: write /etc/containers/registries.conf so skopeo routes
+# docker.io pulls through the test mirror. Skopeo itself ships with
+# Proxmox VE 9.1+ as a dependency of pve-manager (pct uses it for OCI
+# image operations) — no install needed, just verify it's on PATH and
+# fail loudly if the baseline somehow lacks it.
+header "Writing /etc/containers/registries.conf"
+nested_ssh "command -v skopeo >/dev/null 2>&1" \
+    || error "skopeo not found on nested VM — expected to be present in
+    Proxmox VE 9.1+ (pulled in via pve-manager). Verify the baseline:
+        ssh -p $PORT_PVE_SSH root@$PVE_HOST 'pveversion && dpkg -l skopeo'"
 nested_ssh "
     set -e
-    if ! command -v skopeo >/dev/null 2>&1; then
-        DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y -qq skopeo >&2
-    fi
     mkdir -p /etc/containers
     cat > /etc/containers/registries.conf <<REG
 unqualified-search-registries = ['docker.io']
@@ -364,25 +350,27 @@ unqualified-search-registries = ['docker.io']
 [[registry]]
 location = 'docker.io'
 
+# containers-image canonical-hostname rule: a mirror location without
+# a dot AND without a :port is interpreted as a path component on
+# docker.io (\"rewriting reference: repository name must be canonical\").
+# Pin :443 explicitly so '${TEST_MIRROR_HOST}' is parsed as a hostname.
+# TLS handshake still validates the cert SAN against the bare hostname.
 [[registry.mirror]]
-location = '${TEST_MIRROR_HOST}'
+location = '${TEST_MIRROR_HOST}:443'
 REG
 "
-success "skopeo + /etc/containers/registries.conf wired (docker.io -> ${TEST_MIRROR_HOST})"
+success "/etc/containers/registries.conf wired (docker.io -> ${TEST_MIRROR_HOST})"
 
-# Step 6: Smoketests — three orthogonal checks that the test mirror is wired
-# up correctly. No per-image pulls; the mirror's cache is filled by the
-# reseed script (production/reseed-docker-mirror-test.sh) so we don't pay
-# Docker Hub rate-limit for these probes either.
+# Step 6: Smoketests — two orthogonal checks that the mirror routing
+# is wired up correctly.
 #
-# 1. Direct TLS handshake against the mirror (already done in Step 3.5 above
-#    via --resolve, so we just probe via dnsmasq this time — proves DNS works).
-# 2. Skopeo inspect of an Image already in the prod mirror cache (alpine:latest
-#    is part of versions.sh and was reseeded). Proves registries.conf routes
-#    docker.io to ${TEST_MIRROR_HOST}.
-# 3. Skopeo inspect of an Image NOT necessarily in cache — pull-through still
-#    works (mirror fetches from upstream, caches, returns). Optional; skip
-#    if it costs a Docker Hub pull. Comment out to enable.
+# 1. curl https://${TEST_MIRROR_HOST}/v2/ via dnsmasq (proves DNS+TLS;
+#    a Step 3.5 probe earlier in this script used --resolve to bypass DNS).
+# 2. skopeo inspect docker://docker.io/library/alpine:latest (proves
+#    registries.conf routing). Alpine is in versions.sh, so on a warm
+#    mirror this is a cache hit. On a cold mirror this triggers exactly
+#    one Docker Hub pull-through (the mirror fetches alpine, caches it,
+#    answers) — well below the 100/6h anonymous limit.
 header "Smoketest: mirror reachability via dnsmasq"
 nested_ssh "curl -sf --connect-timeout 5 https://${TEST_MIRROR_HOST}/v2/ >/dev/null" \
     || error "https://${TEST_MIRROR_HOST}/v2/ unreachable via dnsmasq.
@@ -395,10 +383,13 @@ nested_ssh "skopeo inspect docker://docker.io/library/alpine:latest >/dev/null" 
     || error "skopeo inspect docker://docker.io/library/alpine:latest failed.
     - Inspect /etc/containers/registries.conf in the nested VM.
     - Check ${TEST_MIRROR_HOST} resolves: nslookup ${TEST_MIRROR_HOST}
-    - Check the mirror has the image (cache):
-        ssh root@ubuntupve 'pct exec \$(pct list | awk \"\\\$NF==\\\"${TEST_MIRROR_HOST}\\\"{print \\\$1}\") -- ls /var/lib/registry/docker/registry/v2/repositories/library/alpine 2>/dev/null'
-      If empty, run: ./production/reseed-docker-mirror-test.sh"
-success "Skopeo routes docker.io through ${TEST_MIRROR_HOST} (cache hit)"
+    - Probe the mirror directly:
+        curl -sf https://${TEST_MIRROR_HOST}/v2/library/alpine/manifests/latest \\
+          -H 'Accept: application/vnd.oci.image.index.v1+json'
+    - Last resort if the mirror's pull-through to Docker Hub is broken
+      (e.g. credentials expired, upstream rate-limited): seed the cache
+      from the prod mirror via ./production/reseed-docker-mirror-test.sh"
+success "Skopeo routes docker.io through ${TEST_MIRROR_HOST}"
 
 # Step 7: Snapshot — VM must be stopped for a clean snapshot.
 header "Creating 'mirrors-ready' snapshot"
