@@ -1256,6 +1256,7 @@
     },
     "zot_config": {
       "name": "Zot Config (config.json)",
+      "description": "Full zot daemon config, written verbatim to /etc/zot/config.json before container start. The default proxies ghcr.io with on-demand sync. Edit to add upstreams (e.g. registry-1.docker.io for Phase B) — the cert SAN already covers DNS:ghcr.io,DNS:registry-1.docker.io,DNS:index.docker.io.",
       "type": "string",
       "required": false,
       "advanced": true

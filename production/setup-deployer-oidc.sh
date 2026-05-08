@@ -13,10 +13,23 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+. "$SCRIPT_DIR/_lib.sh"
 
 PVE_HOST="${PVE_HOST:-pve1.cluster}"
 DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 CLI="npx tsx $PROJECT_ROOT/cli/src/oci-lxc-cli.mts"
+
+# Pull deployer OIDC client credentials from Zitadel → exports
+# OIDC_ISSUER_URL/OIDC_CLI_CLIENT_ID/OIDC_CLI_CLIENT_SECRET. The CLI does its
+# own client_credentials grant against Zitadel and gets a JWS that the
+# deployer's jwtVerify middleware accepts. A Zitadel PAT (opaque, no dots)
+# would fail that JWS check with "Invalid Compact JWS" once OIDC enforcement
+# kicks in mid-reconfigure.
+init_oidc_creds "$PVE_HOST"
+# If a previous run left a non-JWS PAT in OCI_DEPLOYER_TOKEN, drop it —
+# CliApiClient.authenticateOidc() short-circuits when token is already set
+# (cli/src/cli-api-client.mts:104), so a stale PAT would block the grant.
+unset OCI_DEPLOYER_TOKEN
 
 # --- Step 1: Detect deployer API (HTTP or HTTPS) ---
 echo "=== Step 1: Detect deployer API ==="

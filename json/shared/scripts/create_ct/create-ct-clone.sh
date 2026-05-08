@@ -34,6 +34,14 @@ if [ ! -f "$SOURCE_CONF" ]; then
   fail "Source container config not found: $SOURCE_CONF"
 fi
 
+# Refuse if source carries any pct lock (migrate, backup, snapshot, …).
+# pct snapshot/set would fail later anyway, but by then we've already
+# stripped bind mounts from the source config — leaving it half-modified.
+SOURCE_LOCK=$(awk '/^lock:/ {print $2; exit}' "$SOURCE_CONF" 2>/dev/null || true)
+if [ -n "$SOURCE_LOCK" ]; then
+  fail "Source container $SOURCE_VMID is locked ($SOURCE_LOCK). Confirm no related operation is still running on the host, then 'pct unlock $SOURCE_VMID' and retry."
+fi
+
 # Verify source was created by proxvex
 SOURCE_DESC=$(extract_description "$SOURCE_CONF")
 SOURCE_CONF_TEXT=$(cat "$SOURCE_CONF" 2>/dev/null || echo "")
