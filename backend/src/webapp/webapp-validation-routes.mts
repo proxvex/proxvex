@@ -5,6 +5,7 @@ import { ParameterValidator } from "../parameter-validator.mjs";
 import type { TaskType } from "../types.mjs";
 import { VEConfigurationError } from "../backend-types.mjs";
 import { validateAllJson, ValidationError } from "../validateAllJson.mjs";
+import { getParameterDefinitionsRegistry } from "../parameter-definitions.mjs";
 
 const validator = new ParameterValidator();
 
@@ -132,6 +133,17 @@ export function registerValidationRoutes(app: Application): void {
         }
         for (const id of ["application_id", "vm_id", "previous_vm_id", "ve_context_key", "deployer_base_url"]) {
           knownPropertyIds.add(id);
+        }
+        // Any parameter declared in the shared registry is a valid identifier,
+        // even if the current task's unresolved-parameters list filtered it out
+        // (e.g. project-default parameters like `vm_id_start`).
+        try {
+          const jsonPath = pm.getPathes().jsonPath;
+          for (const id of getParameterDefinitionsRegistry(jsonPath).getAllIds()) {
+            knownPropertyIds.add(id);
+          }
+        } catch {
+          /* registry unavailable — fall back to existing knownPropertyIds */
         }
 
         // Inject backend-provided parameters that are always available at runtime

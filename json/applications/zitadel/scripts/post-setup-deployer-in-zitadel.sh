@@ -270,14 +270,68 @@ if [ -z "$CLIENT_SECRET" ]; then
   fi
 fi
 
-# --- 4. Store credentials in bootstrap volume ---
+# --- 4. Find or create machine user "deployer-cli" for client_credentials ---
+# The OIDC app above is a Web app (auth_code flow) used by the browser login.
+# Zitadel rejects client_credentials against it ("client not found"), so the
+# CLI needs a separate Machine User. Without this, every CLI call to the
+# OIDC-enforced deployer fails with HTTP 401 / "Authentication required".
+MACHINE_USERNAME="deployer-cli"
+echo "Searching for machine user '${MACHINE_USERNAME}'..." >&2
+MACHINE_SEARCH=$(zitadel_api POST "/management/v1/users/_search" \
+  "{\"queries\":[{\"userNameQuery\":{\"userName\":\"${MACHINE_USERNAME}\",\"method\":\"TEXT_QUERY_METHOD_EQUALS\"}}]}")
+MACHINE_USER_ID=$(echo "$MACHINE_SEARCH" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
+
+if [ -z "$MACHINE_USER_ID" ]; then
+  echo "Creating machine user '${MACHINE_USERNAME}'..." >&2
+  MACHINE_RESPONSE=$(zitadel_api POST "/management/v1/users/machine" \
+    "{\"userName\":\"${MACHINE_USERNAME}\",\"name\":\"Deployer CLI\",\"accessTokenType\":\"ACCESS_TOKEN_TYPE_JWT\"}")
+  MACHINE_USER_ID=$(echo "$MACHINE_RESPONSE" | sed -n 's/.*"userId":"\([^"]*\)".*/\1/p' | head -1)
+  if [ -z "$MACHINE_USER_ID" ]; then
+    echo "ERROR: Failed to create machine user '${MACHINE_USERNAME}'" >&2
+    echo "Response: ${MACHINE_RESPONSE}" >&2
+    echo '[]'
+    exit 1
+  fi
+  echo "Created machine user with ID ${MACHINE_USER_ID}" >&2
+else
+  echo "Found machine user with ID ${MACHINE_USER_ID}" >&2
+fi
+
+# Generate (or rotate) the client secret. PUT /secret returns clientId+clientSecret.
+# On re-runs this rotates the secret — fine, since deployer-oidc.json is the
+# single source of truth and gets overwritten below.
+echo "Generating client secret for machine user..." >&2
+MACHINE_SECRET_RESPONSE=$(zitadel_api PUT "/management/v1/users/${MACHINE_USER_ID}/secret")
+MACHINE_CLIENT_ID=$(echo "$MACHINE_SECRET_RESPONSE" | sed -n 's/.*"clientId":"\([^"]*\)".*/\1/p' | head -1)
+MACHINE_CLIENT_SECRET=$(echo "$MACHINE_SECRET_RESPONSE" | sed -n 's/.*"clientSecret":"\([^"]*\)".*/\1/p' | head -1)
+if [ -z "$MACHINE_CLIENT_ID" ] || [ -z "$MACHINE_CLIENT_SECRET" ]; then
+  echo "ERROR: Failed to generate machine user secret" >&2
+  echo "Response: ${MACHINE_SECRET_RESPONSE}" >&2
+  echo '[]'
+  exit 1
+fi
+
+# Grant the project's "admin" role so the JWT carries
+# urn:zitadel:iam:org:project:${PROJECT_ID}:roles.admin — the deployer's
+# auth middleware (webapp-auth-middleware.mts) requires this role.
+# Idempotent: 409/AlreadyExists on re-run is fine.
+echo "Granting 'admin' role on project ${PROJECT_ID} to machine user..." >&2
+zitadel_api POST "/management/v1/users/${MACHINE_USER_ID}/grants" \
+  "{\"projectId\":\"${PROJECT_ID}\",\"roleKeys\":[\"admin\"]}" >/dev/null 2>&1 || true
+
+# --- 5. Store credentials in bootstrap volume ---
+# Schema:
+#   client_id/client_secret           — Web app (browser auth_code flow)
+#   machine_client_id/machine_client_secret — Machine user (CLI client_credentials)
 echo "Storing credentials in ${CRED_FILE}..." >&2
 cat > "$CRED_FILE" <<ENDOFCRED
 {
   "issuer_url": "${ISSUER_URL}",
   "project_id": "${PROJECT_ID}",
   "client_id": "${CLIENT_ID}",
-  "client_secret": "${CLIENT_SECRET}"
+  "client_secret": "${CLIENT_SECRET}",
+  "machine_client_id": "${MACHINE_CLIENT_ID}",
+  "machine_client_secret": "${MACHINE_CLIENT_SECRET}"
 }
 ENDOFCRED
 chmod 0600 "$CRED_FILE"
@@ -290,6 +344,8 @@ cat <<ENDOFOUTPUT
   {"id": "oidc_issuer_url", "value": "${ISSUER_URL}"},
   {"id": "zitadel_project_id", "value": "${PROJECT_ID}"},
   {"id": "oidc_client_id", "value": "${CLIENT_ID}"},
-  {"id": "oidc_client_secret", "value": "${CLIENT_SECRET}"}
+  {"id": "oidc_client_secret", "value": "${CLIENT_SECRET}"},
+  {"id": "oidc_machine_client_id", "value": "${MACHINE_CLIENT_ID}"},
+  {"id": "oidc_machine_client_secret", "value": "${MACHINE_CLIENT_SECRET}"}
 ]
 ENDOFOUTPUT

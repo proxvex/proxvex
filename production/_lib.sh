@@ -76,3 +76,50 @@ auth_curl() {
     curl "$@"
   fi
 }
+
+# Read /bootstrap/deployer-oidc.json from the Zitadel LXC and export the OIDC
+# client_credentials env vars consumed by oci-lxc-cli.mts:158-160 — namely
+# OIDC_ISSUER_URL, OIDC_CLI_CLIENT_ID, OIDC_CLI_CLIENT_SECRET. The CLI uses
+# them to fetch a real Zitadel-signed JWT (cli-api-client.mts:102-134).
+#
+# Why not the admin PAT? Zitadel PATs are opaque (no dots) and the deployer's
+# auth middleware does jwtVerify(token, jwks) — it requires JWS format, so a
+# PAT as Bearer fails with "Invalid Compact JWS" → HTTP 401 once OIDC is
+# enforced. The client_credentials grant returns a JWS that validates.
+init_oidc_creds() {
+  local pve_host="${1:-${PVE_HOST:-pve1.cluster}}"
+  local vmid blob
+  if command -v pct >/dev/null 2>&1; then
+    vmid=$(pct list 2>/dev/null | awk '$NF=="zitadel"{print $1; exit}')
+    [ -z "$vmid" ] && return 0
+    blob=$(pct exec "$vmid" -- cat /bootstrap/deployer-oidc.json 2>/dev/null)
+  else
+    vmid=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${pve_host}" \
+      "pct list 2>/dev/null | awk '\$NF==\"zitadel\"{print \$1; exit}'" 2>/dev/null)
+    [ -z "$vmid" ] && return 0
+    blob=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${pve_host}" \
+      "pct exec ${vmid} -- cat /bootstrap/deployer-oidc.json 2>/dev/null" 2>/dev/null)
+  fi
+  if [ -z "$blob" ]; then
+    echo "  deployer-oidc.json not available on ${pve_host} — proceeding without OIDC creds" >&2
+    return 0
+  fi
+  # Read machine_client_id/secret — these are the credentials for the
+  # "deployer-cli" machine user that supports client_credentials. The
+  # client_id/client_secret fields are for the Web app (auth_code flow,
+  # browser login) and would fail client_credentials with "client not found".
+  local issuer client_id client_secret
+  issuer=$(printf '%s' "$blob" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("issuer_url",""))' 2>/dev/null)
+  client_id=$(printf '%s' "$blob" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("machine_client_id",""))' 2>/dev/null)
+  client_secret=$(printf '%s' "$blob" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("machine_client_secret",""))' 2>/dev/null)
+  if [ -z "$issuer" ] || [ -z "$client_id" ] || [ -z "$client_secret" ]; then
+    echo "  deployer-oidc.json is missing machine_client_* fields — Zitadel" >&2
+    echo "  bootstrap (post-setup-deployer-in-zitadel.sh) was not re-run after" >&2
+    echo "  the machine-user fix. Re-deploy Zitadel to provision 'deployer-cli'." >&2
+    return 0
+  fi
+  export OIDC_ISSUER_URL="$issuer"
+  export OIDC_CLI_CLIENT_ID="$client_id"
+  export OIDC_CLI_CLIENT_SECRET="$client_secret"
+  echo "  OIDC machine credentials loaded from Zitadel deployer-oidc.json (machine_client_id=${client_id})" >&2
+}

@@ -24,7 +24,8 @@
     ],
     "pre_start": [
       "108-host-push-ca-to-container.json",
-      "107-conf-oci-lxc-configuration.json"
+      "107-conf-oci-lxc-configuration.json",
+      "190-host-write-lxc-notes.json"
     ],
     "pre_start_finalize": [
       "100-conf-unmount-volumes.json"
@@ -49,7 +50,8 @@
     "pre_start": [
       "108-host-push-ca-to-container.json",
       "101-conf-restore-settings.json",
-      "107-conf-oci-lxc-configuration.json"
+      "107-conf-oci-lxc-configuration.json",
+      "190-host-write-lxc-notes.json"
     ],
     "pre_start_finalize": [
       "100-conf-unmount-volumes.json"
