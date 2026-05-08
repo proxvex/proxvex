@@ -55,13 +55,17 @@ _nested_ssh_known_hosts() {
     # The .pub file's content has the form:
     #   ssh-ed25519 AAAA…BASE64… nested-vm-<instance>
     # known_hosts entry needs:
-    #   [host]:port keytype keymaterial [comment]
+    #   <hostspec> keytype keymaterial [comment]
+    # We use the bare $PVE_HOST as <hostspec> (no `[host]:port` wrapping).
+    # ssh callers pass `-o HostKeyAlias=$PVE_HOST` so the lookup happens
+    # under that exact string, regardless of any HostName-rewrite in the
+    # user's ~/.ssh/config or the non-default port.
     local pubkey entry tmp
     pubkey=$(printf '%s' "$HOST_KEY_ED25519_PUB_B64" | base64 -d 2>/dev/null) || {
         echo "nested-ssh: HOST_KEY_ED25519_PUB_B64 is not valid base64" >&2
         return 1
     }
-    entry="[${PVE_HOST}]:${PORT_PVE_SSH} ${pubkey}"
+    entry="${PVE_HOST} ${pubkey}"
 
     # Atomic replace via tmpfile so a concurrent ssh in another step
     # cannot read a half-written file.
@@ -77,11 +81,18 @@ _nested_ssh_known_hosts() {
 # Falls back to permissive mode (UserKnownHostsFile=/dev/null,
 # StrictHostKeyChecking=no, LogLevel=ERROR) when the host key has not
 # been generated yet (HOST_KEY_ED25519_PUB_B64 empty).
+#
+# HostKeyAlias=$PVE_HOST forces the known_hosts lookup to use the bare
+# hostname under which we wrote the entry, regardless of any
+# `Host ubuntupve / HostName 192.168.4.24` rewrite in the user's
+# ~/.ssh/config — without it, ssh canonicalises to the IP and reports
+# "no ED25519 host key is known for [192.168.4.24]:1022".
 nested_ssh() {
     local kh
     kh=$(_nested_ssh_known_hosts) || return 1
     if [ -n "$kh" ]; then
         ssh -o UserKnownHostsFile="$kh" -o StrictHostKeyChecking=yes \
+            -o HostKeyAlias="$PVE_HOST" \
             -o BatchMode=yes -o ConnectTimeout=10 \
             -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
     else
@@ -101,6 +112,7 @@ nested_scp_to() {
     kh=$(_nested_ssh_known_hosts) || return 1
     if [ -n "$kh" ]; then
         scp -o UserKnownHostsFile="$kh" -o StrictHostKeyChecking=yes \
+            -o HostKeyAlias="$PVE_HOST" \
             -o BatchMode=yes -o ConnectTimeout=10 \
             -P "$PORT_PVE_SSH" \
             "$src" "root@$PVE_HOST:$dst"
@@ -122,6 +134,7 @@ nested_scp_from() {
     kh=$(_nested_ssh_known_hosts) || return 1
     if [ -n "$kh" ]; then
         scp -o UserKnownHostsFile="$kh" -o StrictHostKeyChecking=yes \
+            -o HostKeyAlias="$PVE_HOST" \
             -o BatchMode=yes -o ConnectTimeout=10 \
             -P "$PORT_PVE_SSH" \
             "root@$PVE_HOST:$src" "$dst"
