@@ -23,6 +23,15 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Shared helpers: auth_curl + init_admin_pat. /api/reload is OIDC-protected
+# after Step 11, so the call needs the Zitadel admin PAT as Bearer.
+# read_zitadel_admin_pat auto-detects local pct (this script runs on pve1)
+# vs ssh.
+. "$SCRIPT_DIR/_lib.sh"
+init_admin_pat
+
 DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-proxvex}"
 GHCR_MIRROR_HOST="${GHCR_MIRROR_HOST:-ubuntupve}"
 
@@ -98,9 +107,10 @@ echo "App definition written to ${APP_DIR}/application.json"
 # 2. Reload the deployer so it picks up the new application.
 #    Try HTTPS first (production deployer post-Step 6) and fall back to HTTP
 #    (which is what's available right after Step 5 / before ACME).
-if curl -sk --connect-timeout 5 -X POST "https://${DEPLOYER_HOSTNAME}:3443/api/reload" -o /dev/null; then
+#    auth_curl injects the Zitadel admin PAT as Bearer when set (post-OIDC).
+if auth_curl -sk --connect-timeout 5 -X POST "https://${DEPLOYER_HOSTNAME}:3443/api/reload" -o /dev/null; then
   echo "Deployer reloaded via HTTPS"
-elif curl -sf --connect-timeout 5 -X POST "http://${DEPLOYER_HOSTNAME}:3080/api/reload" -o /dev/null; then
+elif auth_curl -sf --connect-timeout 5 -X POST "http://${DEPLOYER_HOSTNAME}:3080/api/reload" -o /dev/null; then
   echo "Deployer reloaded via HTTP"
 else
   echo "WARN: deployer reload call failed — continuing; deploy.sh will fail clearly if reload was needed"

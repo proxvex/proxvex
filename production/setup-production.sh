@@ -20,6 +20,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Shared helpers: read_zitadel_admin_pat, init_admin_pat, auth_curl.
+# init_admin_pat is invoked in pre-flight after PVE_HOST is resolved.
+. "$SCRIPT_DIR/_lib.sh"
+
 # --- Production Configuration ---
 export DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 export DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-$DEPLOYER_HOST}"
@@ -38,6 +42,7 @@ ROUTER_HOST="${ROUTER_HOST:-router-kg}"
 APP_HOST_MAP="
 github-runner=ubuntupve
 ghcr-registry-mirror=ubuntupve
+docker-mirror-test=ubuntupve
 "
 
 host_for_app() {
@@ -101,6 +106,7 @@ print_steps() {
     15  Deploy node-red
     16  Deploy modbus2mqtt
     17  Deploy ghcr-registry-mirror (target: $(host_for_app ghcr-registry-mirror)) [test/CI infra; optional]
+    18  Deploy docker-mirror-test (target: $(host_for_app docker-mirror-test)) [test infra; parallel to step 5]
 STEPS
 }
 
@@ -143,6 +149,14 @@ Options:
                         avoid hitting Let's Encrypt rate limits via acme.sh.
                         setup-nginx.sh (vhost config) still runs — it is
                         idempotent.
+  --force-docker-mirror-test
+                        In step 18, if a 'docker-mirror-test' container
+                        already exists on ubuntupve, destroy it before
+                        re-deploying. Without this flag the step is skipped
+                        with a warning to preserve the cached image volume
+                        (loss of cache will trigger Docker Hub rate limits on
+                        the next step2a pre-pull — restore via
+                        production/reseed-docker-mirror-test.sh).
   -h, --help            Show this help and exit
 
 Without arguments, this help is shown and nothing is executed.
@@ -178,6 +192,7 @@ BOOTSTRAP=0
 JSON_DEV_SYNC=0
 FORCE_DRM=0
 FORCE_NGINX=0
+FORCE_DRM_TEST=0
 SCOPE_FLAGS=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -195,6 +210,7 @@ while [ $# -gt 0 ]; do
     --json-dev-sync) JSON_DEV_SYNC=1; shift ;;
     --force-docker-registry-mirror) FORCE_DRM=1; shift ;;
     --force-nginx) FORCE_NGINX=1; shift ;;
+    --force-docker-mirror-test) FORCE_DRM_TEST=1; shift ;;
     *) echo "Unknown argument: $1" >&2; echo "" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -299,6 +315,11 @@ handle_existing_container() {
 # Runs before --retry destroy so the deployer has the updated template/script
 # logic when the subsequent redeploy happens.
 if [ "$JSON_DEV_SYNC" -eq 1 ]; then
+  # /api/reload below requires the Zitadel admin PAT once OIDC is enabled
+  # (post-Step 11). init_admin_pat runs again later in pre-flight; this call
+  # is idempotent and just makes the PAT available before --json-dev-sync's
+  # curl POSTs.
+  init_admin_pat "$PVE_HOST"
   JSON_SRC="$(cd "$SCRIPT_DIR/.." && pwd)/json"
   if [ ! -d "$JSON_SRC" ]; then
     echo "ERROR: --json-dev-sync: json directory not found at $JSON_SRC" >&2
@@ -357,12 +378,13 @@ if [ "$JSON_DEV_SYNC" -eq 1 ]; then
   echo "  json/ synced into deployer container"
 
   # Reload the deployer's PersistenceManager. Try HTTPS first, fall back to HTTP.
-  reload_code=$(curl -sk --max-time 10 -X POST \
+  # auth_curl injects the Zitadel admin PAT as Bearer when set (post-OIDC).
+  reload_code=$(auth_curl -sk --max-time 10 -X POST \
     "https://${DEPLOYER_HOST}:3443/api/reload" \
     -o /tmp/reload-resp.json -w '%{http_code}' 2>/dev/null || echo "000")
   reload_url="https://${DEPLOYER_HOST}:3443/api/reload"
   if [ "$reload_code" != "200" ]; then
-    reload_code=$(curl -s --max-time 10 -X POST \
+    reload_code=$(auth_curl -s --max-time 10 -X POST \
       "http://${DEPLOYER_HOST}:3080/api/reload" \
       -o /tmp/reload-resp.json -w '%{http_code}' 2>/dev/null || echo "000")
     reload_url="http://${DEPLOYER_HOST}:3080/api/reload"
@@ -433,6 +455,15 @@ fi
 echo "  Deployer hostname: ${DEPLOYER_HOST}"
 echo "  Starting from step: ${START_STEP}"
 echo ""
+
+# Note: the Zitadel admin PAT (created during Step 10 at FirstInstance init,
+# json/applications/zitadel/Zitadel.docker-compose.yml:44, persists in
+# /bootstrap/admin-client.pat) is the bearer for the deployer API once OIDC
+# is enforced (post-Step 11). It does NOT exist before Step 10, so we don't
+# call init_admin_pat globally here. Each entry-point script that talks to
+# the deployer (deploy.sh, setup-ghcr-mirror.sh, setup-pve-host.sh, plus
+# the --json-dev-sync block below) calls init_admin_pat itself when its
+# code path actually runs — only then is Zitadel guaranteed to be up.
 
 # ================================================================
 # Step 0 (only with --bootstrap): tabula rasa + install deployer
@@ -796,6 +827,53 @@ if should_run 17; then
 fi
 
 # ================================================================
+# Step 18: Deploy docker-mirror-test on the test/CI host (parallel to step 5)
+#   The prod docker-registry-mirror on pve1 (step 5, 192.168.4.45) stays.
+#   This second instance lives on ubuntupve (192.168.4.49) so the entire
+#   test/CI path (nested-VM + mirror) sits on a single physical host —
+#   tests no longer depend on pve1 being up or on inter-host routing.
+#
+#   Clients (nested-VM docker daemon + skopeo) reach this mirror by hostname
+#   `docker-mirror-test` configured via /etc/docker/daemon.json
+#   ("registry-mirrors") and /etc/containers/registries.conf — wired up
+#   by e2e/step2a-setup-mirrors.sh. The cert SAN therefore only needs the
+#   container hostname (default), not DNS:registry-1.docker.io.
+#
+#   Idempotency: skip if container exists. --force-docker-mirror-test
+#   destroys + redeploys (purges the cache volume — restore via
+#   production/reseed-docker-mirror-test.sh to avoid rate-limit storms on
+#   the next step2a pre-pull).
+# ================================================================
+if should_run 18; then
+  drmt_target=$(host_for_app docker-mirror-test)
+  banner 18 "Deploy docker-mirror-test (${drmt_target})"
+  drmt_existing=$(pve_ssh_at "$drmt_target" \
+    "pct list | awk '\$NF==\"docker-mirror-test\"{print \$1}'" 2>/dev/null || true)
+  if [ -n "$drmt_existing" ] && [ "$FORCE_DRM_TEST" -ne 1 ]; then
+    echo ""
+    echo "  ============================================================"
+    echo "  Container 'docker-mirror-test' already exists on ${drmt_target}"
+    echo "  (VMID: ${drmt_existing}). Skipping step 18 to preserve the"
+    echo "  cached image volume."
+    echo "  Force redeploy: $0 --force-docker-mirror-test --step 18"
+    echo "  Then reseed:    $SCRIPT_DIR/reseed-docker-mirror-test.sh"
+    echo "  ============================================================"
+    echo ""
+  else
+    if [ -n "$drmt_existing" ]; then
+      echo "  --force-docker-mirror-test: destroying existing container(s) [${drmt_existing}]..."
+      for vmid in $drmt_existing; do
+        pve_ssh_at "$drmt_target" "pct stop ${vmid} 2>/dev/null; pct destroy ${vmid} --purge --force" || {
+          echo "ERROR: failed to destroy VM ${vmid} (docker-mirror-test) on ${drmt_target}" >&2
+          exit 1
+        }
+      done
+    fi
+    "$SCRIPT_DIR/deploy.sh" --host "$drmt_target" docker-mirror-test.json
+  fi
+fi
+
+# ================================================================
 # Done
 # ================================================================
 echo ""
@@ -809,7 +887,9 @@ echo "  Nginx:       192.168.4.41 (ohnewarum.de, auth, git, nebenkosten)"
 echo "  Zitadel:     192.168.4.42 (auth.ohnewarum.de)"
 echo "  Gitea:       192.168.4.43 (git.ohnewarum.de)"
 echo "  Mosquitto:   192.168.4.44 (mqtt.ohnewarum.de)"
-echo "  Registry:    192.168.4.45 (docker-registry-mirror)"
+echo "  Registry:    192.168.4.45 (docker-registry-mirror, pve1)"
 echo "  Node-RED:    192.168.4.46 (node-red.local)"
 echo "  Modbus2MQTT: 192.168.4.47 (modbus2mqtt.local)"
+echo "  GHCR Mirror: 192.168.4.48 (ghcr-mirror, ubuntupve, test infra)"
+echo "  Test Mirror: 192.168.4.49 (docker-mirror-test, ubuntupve, test infra)"
 echo ""
