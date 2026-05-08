@@ -270,6 +270,19 @@ if [ -z "$CLIENT_SECRET" ]; then
   fi
 fi
 
+# Ensure role-assertion flags are enabled on the OIDC app config. Without
+# these the ID/Access token does not carry urn:zitadel:iam:org:project:roles
+# claims, and the deployer's role check (webapp-auth-middleware.mts:70-93)
+# rejects every login with "missing role 'admin'". projectRoleAssertion on
+# the project alone is not enough — the OIDC app itself must opt in.
+# UpdateOIDCAppConfig replaces the config wholesale, so we re-send the same
+# values used at creation time. Idempotent on re-runs.
+echo "Enabling idTokenRoleAssertion + accessTokenRoleAssertion on app ${APP_ID}..." >&2
+CALLBACK_URL="https://proxvex:3443/api/auth/callback"
+LOGOUT_URL="https://proxvex:3443"
+zitadel_api PUT "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config" \
+  "{\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"],\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}" >/dev/null
+
 # --- 4. Find or create machine user "deployer-cli" for client_credentials ---
 # The OIDC app above is a Web app (auth_code flow) used by the browser login.
 # Zitadel rejects client_credentials against it ("client not found"), so the
