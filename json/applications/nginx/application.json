@@ -16,6 +16,7 @@
     { "id": "username", "value": "root" },
     { "id": "http_port", "value": "8080" },
     { "id": "oidc_redirect_uri", "value": "https://{{hostname}}{{project_domain_suffix}}/oauth2/callback" },
+    { "id": "oidc_post_logout_uri", "value": "https://{{hostname}}{{project_domain_suffix}}/" },
     { "id": "oidc_required_role", "value": "" }
   ],
   "installation": {
