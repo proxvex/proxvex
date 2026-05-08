@@ -1,0 +1,19 @@
+{
+  "name": "Write Zot Config",
+  "description": "Render the zot_config parameter into /etc/zot/config.json on the host-side path of the LXC's `config` volume before zot starts. zot reads /etc/zot/config.json by default — no entrypoint override needed.",
+  "execute_on": "ve",
+  "parameters": [
+    "hostname",
+    "vm_id",
+    "zot_config"
+  ],
+  "commands": [
+    {
+      "name": "Write zot config.json",
+      "script": "conf-write-zot-config.sh",
+      "outputs": [
+        "zot_config_written"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "execute_on": "ve",
+  "name": "Check Zot Mirror",
+  "description": "Verifies the Zot Registry Mirror is working: DNS resolves locally, CA is trusted, /etc/hosts has the ghcr.io override, and skopeo can inspect a ghcr.io image through the mirror.",
+  "parameters": [
+    "hostname"
+  ],
+  "commands": [
+    {
+      "name": "Check Zot Mirror",
+      "script": "check-zot-mirror.sh"
+    }
+  ]
+}
