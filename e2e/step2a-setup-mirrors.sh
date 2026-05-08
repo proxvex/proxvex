@@ -1,5 +1,11 @@
 #!/bin/bash
-# step2a-setup-mirrors.sh - Install Docker + registry mirrors on the nested VM
+# step2a-setup-mirrors.sh — wire registry mirrors into the nested VM.
+#
+# No software is installed by this script. Skopeo ships with PVE 9.1+, the
+# proxvex CA is baked into the nested VM trust store at baseline, and the
+# nested VM does not run a Docker daemon (deployer apps are LXCs, not
+# docker-compose services). The script just rewires DNS + skopeo's
+# registries.conf to route registry traffic through the test mirrors.
 #
 # This script:
 # 1. Rolls back to step1 'baseline' snapshot (clean state)
@@ -123,7 +129,7 @@ header() {
 # shellcheck source=lib/pve-ops.sh
 . "$SCRIPT_DIR/lib/pve-ops.sh"
 
-header "Step 2a: Install Docker + registry mirrors on nested VM"
+header "Step 2a: Wire registry mirrors on nested VM"
 echo "Instance:   $E2E_INSTANCE"
 echo "Connection: $PVE_HOST:$PORT_PVE_SSH -> $NESTED_IP:22"
 echo "Test VMID:  $TEST_VMID"

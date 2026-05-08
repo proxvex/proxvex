@@ -4,11 +4,19 @@
 # script that needs to drive `qm` against the outer PVE host. Two backends:
 #
 #   PVE_USE_API=1  HTTPS calls to the PVE REST API using a scoped token.
-#                  This is the Phase A1 path — no SSH to the PVE host for
-#                  qm operations.
-#   PVE_USE_API=0  (default) ssh ${PVE_SSH_USER:-root}@${PVE_HOST} "qm ..."
-#                  Legacy path. Default for backwards compatibility; the
-#                  runner LXC entrypoint flips this on.
+#                  This is the Phase A1+A2 path — no SSH to the PVE host
+#                  for qm operations, no host-key warnings, no
+#                  StrictHostKeyChecking=no bypass.
+#   PVE_USE_API=0  ssh ${PVE_SSH_USER:-root}@${PVE_HOST} "qm ..."
+#                  Legacy path, kept as fallback for first-boot and for
+#                  developers who haven't yet run setup-pve-api-token.sh.
+#
+# Auto-detection: when PVE_USE_API is unset/empty AND a sourceable token
+# file exists at ${PVE_API_TOKEN_FILE:-$HOME/.config/proxvex/pve-api-token},
+# this file is read and PVE_USE_API flips to 1 automatically. Run
+# e2e/setup-pve-api-token.sh once to populate it. The runner LXC's
+# entrypoint sets PVE_USE_API=1 explicitly, so auto-detection is a no-op
+# there.
 #
 # Required env (API path):
 #   PVE_HOST              PVE node hostname (e.g. ubuntupve)
@@ -16,6 +24,7 @@
 #   PVE_API_TOKEN_ID      e.g. "proxvex-runner@pam!runner-token"
 #   PVE_API_TOKEN_SECRET  the UUID secret printed by `pveum user token add`
 #   PVE_API_CA            path to PVE root CA cert; default
+#                          $HOME/.config/proxvex/pve-root-ca.pem (dev) or
 #                          /etc/pve/pve-root-ca.pem (PVE host) or whatever
 #                          the operator distributed to the runner LXC.
 #
@@ -26,6 +35,22 @@
 # All public functions exit 0 on success, non-zero otherwise. Long-running
 # operations (start/stop/snapshot/rollback) wait for the underlying PVE task
 # to finish before returning.
+
+# Auto-load API credentials from the standard config location when the
+# caller hasn't pinned PVE_USE_API explicitly. This is what flips the dev
+# machine onto the API path after a single `setup-pve-api-token.sh` run.
+if [ -z "${PVE_USE_API:-}" ]; then
+    _PVEOPS_TOKEN_FILE="${PVE_API_TOKEN_FILE:-$HOME/.config/proxvex/pve-api-token}"
+    if [ -f "$_PVEOPS_TOKEN_FILE" ]; then
+        # shellcheck disable=SC1090
+        . "$_PVEOPS_TOKEN_FILE"
+        export PVE_API_TOKEN_ID PVE_API_TOKEN_SECRET
+        PVE_USE_API=1
+        : "${PVE_API_CA:=$HOME/.config/proxvex/pve-root-ca.pem}"
+    else
+        PVE_USE_API=0
+    fi
+fi
 
 PVE_USE_API="${PVE_USE_API:-0}"
 PVE_NODE="${PVE_NODE:-$PVE_HOST}"
@@ -77,7 +102,14 @@ _pveops_wait_task() {
 }
 
 _pveops_ssh() {
+    # LogLevel=ERROR suppresses the "Permanently added '<host>' to the list
+    # of known hosts" line that ssh emits on every connect when
+    # UserKnownHostsFile=/dev/null. The legacy path stays disable-by-default
+    # for security review (no host-key validation) but at least it stops
+    # spamming step2a's output. The recommended path is the API token
+    # branch above — see setup-pve-api-token.sh.
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR \
         -o BatchMode=yes -o ConnectTimeout=10 \
         "${PVE_SSH_USER}@${PVE_HOST}" "$@"
 }

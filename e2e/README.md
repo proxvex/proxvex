@@ -189,31 +189,56 @@ Creates a nested Proxmox VM from the custom ISO:
 
 ### step2a-setup-mirrors.sh
 
-Rolls back to `baseline` and prepares the nested VM for tests:
-- Installs Docker inside the nested VM
-- Pushes the proxvex CA from the PVE host into the nested-VM trust store, so
-  TLS to the production Docker Hub mirror at `192.168.4.45` validates
-- Starts the local `ghcr.io` pull-through mirror (`distribution/distribution:3.0.0`)
-  on `10.0.0.2` (no Docker Hub mirror — that comes from production)
-- Wires dnsmasq so LXC containers resolve `registry-1.docker.io`/`index.docker.io`
-  to `192.168.4.45` and `ghcr.io` to `10.0.0.2`
-- Pre-pulls all images referenced by `json/shared/scripts/library/versions.sh`
-  through the mirrors (Docker Hub via the production cache, ghcr.io via the
-  local cache)
+Rolls back to `baseline` and rewires registry routing in the nested VM (no
+software install — skopeo ships with PVE 9.1+, the proxvex CA was baked
+into the trust store at baseline, the nested VM does not run a Docker
+daemon):
+- Verifies the test Docker Hub mirror (`docker-mirror-test` LXC on
+  `ubuntupve`, `192.168.4.49`) is reachable and TLS validates via the
+  baked-in proxvex CA.
+- Verifies the `ghcr.io` mirror (`ghcr-registry-mirror` LXC on `ubuntupve`,
+  `192.168.4.48`) is reachable.
+- Adds dnsmasq A-records: `docker-mirror-test → 192.168.4.49` and
+  `ghcr.io → 192.168.4.48`. Docker-Hub uses skopeo's
+  `[[registry.mirror]]` (hostname-based), ghcr.io uses dnsmasq DNS-redirect
+  (registry-mirrors only spiegelt Docker Hub).
+- Writes `/etc/containers/registries.conf` so skopeo routes `docker.io`
+  through `docker-mirror-test:443`.
+- Smoketests both routes (curl + `skopeo inspect alpine:latest`).
 - Creates the `mirrors-ready` snapshot, tagged with a schema version that
-  forces a rebuild when the topology changes
+  forces a rebuild when the topology changes.
 
 Run once per environment; step2b requires `mirrors-ready` and aborts if missing.
 
 **Prerequisites:**
-- `production/setup-pve-host.sh <PVE_HOST>` must have run on the PVE host
-  hosting the nested VM (places `/usr/local/share/ca-certificates/proxvex-ca.crt`
-  for step2a to copy).
-- `production/setup-production.sh --step 5` must have completed so the
-  `docker-registry-mirror` LXC at `192.168.4.45` is up and reachable. The
-  first cold pull through the production mirror will populate its cache from
-  Docker Hub once — every subsequent pull (any instance) is a hit, which is
-  the whole point.
+- `production/setup-pve-host.sh <PVE_HOST>` must have run so the proxvex CA
+  is in the PVE host's trust store at baseline-creation time (step1 bakes
+  it into the nested VM from there).
+- `production/setup-production.sh --step 17` (ghcr-mirror) and `--step 18`
+  (docker-mirror-test) must have completed on the host owning those LXCs
+  (`ubuntupve` in the default topology — see `APP_HOST_MAP` in
+  `setup-production.sh`).
+- `e2e/setup-pve-api-token.sh <PVE_HOST>` (recommended, see below) so qm
+  operations go through the REST API instead of SSH.
+
+### setup-pve-api-token.sh
+
+One-time bootstrap so the dev machine can drive `qm` operations against a
+PVE host through the REST API instead of SSH. After one run, lib/pve-ops.sh
+auto-detects the staged token and step2a/step2b stop emitting
+`"Permanently added '<host>' to the list of known hosts"` warnings.
+
+```
+./setup-pve-api-token.sh ubuntupve
+```
+
+Creates `proxvex-runner@pam!dev-<short-hostname>` on the PVE host (with
+PVEVMAdmin on `/`), saves the token + root CA to `~/.config/proxvex/`, and
+verifies the token works against `/api2/json/version`. Idempotent on
+re-runs (refreshes ACL + CA, keeps the existing token); pass `--rotate` to
+delete and recreate the token. Phase A2 in the runner-isolation work — the
+CI runner LXC has its own equivalent wired up by `install-ci.sh`, this is
+the operator-side counterpart.
 
 ### step2b-install-deployer.sh
 
