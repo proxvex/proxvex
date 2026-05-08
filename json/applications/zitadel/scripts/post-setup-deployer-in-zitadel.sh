@@ -68,10 +68,25 @@ if [ -n "$COMPOSE_PROJECT" ] && [ -d "$COMPOSE_DIR" ]; then
   cd "$COMPOSE_DIR"
 fi
 
-# Read PAT via /proc filesystem — the Zitadel distroless image has no shell tools
-# (no cat, no sh), so docker exec cannot be used to read files.
+PAT=""
 ZITADEL_CONTAINER_ID=$(docker ps -q -f name=zitadel-api 2>/dev/null | head -1)
-if [ -n "$ZITADEL_CONTAINER_ID" ]; then
+
+# Source 1 (preferred): the persistent volume on the LXC. /bootstrap is a
+# bind-mount into the docker container as /zitadel/bootstrap, so the PAT
+# Zitadel writes during FirstInstance survives container/compose restarts
+# and is directly readable on the LXC. This is the only path that works on
+# a Zitadel reconfigure (existing DB → FirstInstance does not re-run, the
+# tmpfs PAT path inside docker would be empty, but the persistent file is
+# still there).
+if [ -f "/bootstrap/admin-client.pat" ]; then
+  PAT=$(cat /bootstrap/admin-client.pat 2>/dev/null)
+fi
+
+# Source 2 (fallback): read via /proc namespace of the running zitadel-api
+# container. Useful only when the persistent file was removed by hardening
+# but the container is still up with the original PAT in tmpfs (rare).
+# Distroless image has no shell, so /proc/<pid>/root is the only way in.
+if [ -z "$PAT" ] && [ -n "$ZITADEL_CONTAINER_ID" ]; then
   GO_PID_FMT=$(printf '%s.State.Pid%s' '{{' '}}')
   CONTAINER_PID=$(docker inspect -f "$GO_PID_FMT" "$ZITADEL_CONTAINER_ID" 2>/dev/null)
   if [ -n "$CONTAINER_PID" ] && [ -f "/proc/${CONTAINER_PID}/root/zitadel/bootstrap/admin-client.pat" ]; then

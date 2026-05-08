@@ -260,11 +260,20 @@ export class VeExecutionSshExecutor {
         },
       });
 
-      // Exit 255 = SSH or lxc-attach connection issue, retry only for real SSH connections
-      // In test environments, don't retry as there's no real network connection
+      // Exit 255 = SSH or lxc-attach connection issue, retry only for real SSH connections.
+      // In test environments, don't retry as there's no real network connection.
+      // Heuristic: if the marker line appears in stdout, the remote shell already ran our
+      // script — the connection was up and the 255 came from the script itself (e.g. a
+      // remote command that legitimately returned 255). Retrying that just amplifies an
+      // unrelated failure and was the cause of 600s+ stalls in long-running checks
+      // (host-check-volume-consistency.sh streams to stderr while pvesm/zfs sometimes
+      // return 255 on transient lock contention).
+      const remoteShellStarted =
+        !!proc.stdout && proc.stdout.includes(marker);
       if (
         proc.exitCode === VeExecutionConstants.SSH_EXIT_CODE_CONNECTION_ERROR &&
-        this.executionMode === ExecutionMode.PRODUCTION
+        this.executionMode === ExecutionMode.PRODUCTION &&
+        !remoteShellStarted
       ) {
         retryCount++;
         if (retryCount < maxRetries) {

@@ -323,11 +323,12 @@ handle_existing_container() {
 # Runs before --retry destroy so the deployer has the updated template/script
 # logic when the subsequent redeploy happens.
 if [ "$JSON_DEV_SYNC" -eq 1 ]; then
-  # /api/reload below requires the Zitadel admin PAT once OIDC is enabled
-  # (post-Step 11). init_admin_pat runs again later in pre-flight; this call
-  # is idempotent and just makes the PAT available before --json-dev-sync's
-  # curl POSTs.
+  # /api/reload below requires a JWT once OIDC is enabled (post-Step 11).
+  # init_oidc_jwt fetches it via client_credentials and exports
+  # OCI_DEPLOYER_TOKEN consumed by auth_curl. init_admin_pat keeps the PAT
+  # available for any direct Zitadel calls. Both are idempotent.
   init_admin_pat "$PVE_HOST"
+  init_oidc_jwt "$PVE_HOST"
   JSON_SRC="$(cd "$SCRIPT_DIR/.." && pwd)/json"
   if [ ! -d "$JSON_SRC" ]; then
     echo "ERROR: --json-dev-sync: json directory not found at $JSON_SRC" >&2

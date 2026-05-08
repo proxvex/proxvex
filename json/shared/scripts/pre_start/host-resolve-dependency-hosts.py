@@ -53,6 +53,38 @@ def get_status(vmid: int) -> str | None:
         return None
 
 
+def get_running_ip(vmid: int) -> str | None:
+    """Resolve the live IPv4 of a running container via pct exec.
+
+    Used as a fallback for DHCP containers where the LXC config has no
+    static IP — we still want to expose <APP>_IP so docker-compose
+    `extra_hosts:` can pin a hostname-to-IP mapping (Docker's embedded DNS
+    at 127.0.0.11 intermittently drops upstream forwarding, breaking
+    cross-LXC name resolution from inside dockerized services).
+    """
+    try:
+        result = subprocess.run(
+            ["pct", "exec", str(vmid), "--", "ip", "-4", "-o", "addr", "show", "eth0"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+        # `ip -4 -o addr show eth0` → "2: eth0    inet 192.168.4.40/24 brd ..."
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if "inet" in parts:
+                idx = parts.index("inet")
+                if idx + 1 < len(parts):
+                    addr = parts[idx + 1].split("/", 1)[0]
+                    if addr:
+                        return addr
+        return None
+    except Exception:
+        return None
+
+
 def main() -> None:
     # Parse dependencies
     if not DEPS_RAW or DEPS_RAW == "NOT_DEFINED":
@@ -149,14 +181,16 @@ def main() -> None:
                 continue
 
             # Strip CIDR suffix (e.g. "192.168.4.40/24" → "192.168.4.40").
-            # static_ip can also be "dhcp" — in that case there's no usable IP
-            # to share, so leave it empty and let downstream callers fall back
-            # to the hostname.
+            # static_ip can also be "dhcp" — in that case fall back to the
+            # live IP via pct exec, so DHCP containers still expose <APP>_IP
+            # for docker-compose `extra_hosts:` consumers.
             ip_value = ""
             if config.static_ip and "/" in config.static_ip:
                 ip_value = config.static_ip.split("/", 1)[0]
             elif config.static_ip and config.static_ip != "dhcp":
                 ip_value = config.static_ip
+            if not ip_value:
+                ip_value = get_running_ip(int(vmid_str)) or ""
 
             found[config.application_id] = {
                 "vm_id": int(vmid_str),

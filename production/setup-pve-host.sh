@@ -36,6 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # correct host (DEPLOYER_PVE_HOST hosts the deployer; Zitadel sits there too).
 . "$SCRIPT_DIR/_lib.sh"
 init_admin_pat "$DEPLOYER_PVE_HOST"
+init_oidc_jwt "$DEPLOYER_PVE_HOST"
 
 # Auto-detect deployer endpoint (HTTPS first, HTTP fallback)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then

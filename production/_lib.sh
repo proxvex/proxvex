@@ -51,8 +51,14 @@ read_zitadel_admin_pat() {
   printf '%s' "$pat" | tr -d '\r\n'
 }
 
-# Read the PAT once and export it for subsequent curl + CLI calls. Re-runs
-# are no-ops once ZITADEL_ADMIN_PAT is set.
+# Read the PAT once and export it as ZITADEL_ADMIN_PAT for direct Zitadel
+# API calls. Re-runs are no-ops once ZITADEL_ADMIN_PAT is set.
+#
+# IMPORTANT: PATs are opaque (no dots, ~71 chars). The deployer's auth
+# middleware does jwtVerify(token, jwks) and rejects opaque tokens with
+# "Invalid Compact JWS" → HTTP 401 once OIDC enforcement is active. So we do
+# NOT export PAT as OCI_DEPLOYER_TOKEN anymore — for deployer Bearer auth use
+# init_oidc_jwt below, which fetches a real JWT via client_credentials grant.
 init_admin_pat() {
   if [ -n "${ZITADEL_ADMIN_PAT:-}" ]; then
     return 0
@@ -61,16 +67,68 @@ init_admin_pat() {
   pat=$(read_zitadel_admin_pat "$@")
   if [ -n "$pat" ]; then
     export ZITADEL_ADMIN_PAT="$pat"
-    export OCI_DEPLOYER_TOKEN="$pat"
-    echo "  Zitadel admin PAT loaded (${#pat} chars) — using as Bearer for deployer API + CLI" >&2
+    echo "  Zitadel admin PAT loaded (${#pat} chars) — using as Bearer for direct Zitadel API calls" >&2
   else
-    echo "  Zitadel admin PAT not available — proceeding unauthenticated (pre-OIDC or PAT removed)" >&2
+    echo "  Zitadel admin PAT not available (pre-Zitadel deploy or PAT removed by hardening)" >&2
   fi
 }
 
-# curl wrapper that adds "Authorization: Bearer $ZITADEL_ADMIN_PAT" when set.
+# Obtain a JWS access token from Zitadel via the OIDC client_credentials
+# grant and export it as OCI_DEPLOYER_TOKEN. This is what the deployer's
+# jwtVerify auth middleware accepts (signed by Zitadel's JWKS, contains the
+# 'admin' role claim from the deployer-cli machine user).
+#
+# Both the CLI (oci-lxc-cli reads OCI_DEPLOYER_TOKEN at oci-lxc-cli.mts:155
+# and skips its own grant when set, see cli-api-client.mts:104) and
+# auth_curl below pick this up. Idempotent: re-runs are no-ops once
+# OCI_DEPLOYER_TOKEN is set.
+#
+# Pre-Zitadel-deploy deployer-oidc.json does not exist yet → init_oidc_creds
+# logs a notice and returns; the function is a no-op so callers can run
+# unconditionally before any deploy step.
+init_oidc_jwt() {
+  if [ -n "${OCI_DEPLOYER_TOKEN:-}" ]; then
+    return 0
+  fi
+  init_oidc_creds "$@"
+  if [ -z "${OIDC_ISSUER_URL:-}" ] || [ -z "${OIDC_CLI_CLIENT_ID:-}" ] || [ -z "${OIDC_CLI_CLIENT_SECRET:-}" ]; then
+    return 0
+  fi
+  # Zitadel-specific scopes: project audience + roles. Without
+  # urn:zitadel:iam:org:project:id:${PROJECT_ID}:aud the JWT is not bound to
+  # the proxvex project and carries no role claims, so the deployer's role
+  # check (webapp-auth-middleware.mts:70-93) rejects with HTTP 403.
+  local scope="openid"
+  if [ -n "${OIDC_PROJECT_ID:-}" ]; then
+    scope="openid urn:zitadel:iam:org:project:id:${OIDC_PROJECT_ID}:aud urn:zitadel:iam:org:projects:roles"
+  fi
+  local response token
+  response=$(curl -sk -X POST "${OIDC_ISSUER_URL}/oauth/v2/token" \
+    -u "${OIDC_CLI_CLIENT_ID}:${OIDC_CLI_CLIENT_SECRET}" \
+    --data-urlencode "grant_type=client_credentials" \
+    --data-urlencode "scope=${scope}" 2>/dev/null)
+  token=$(printf '%s' "$response" | python3 -c 'import sys,json
+try:
+  print(json.load(sys.stdin).get("access_token",""))
+except Exception:
+  pass' 2>/dev/null)
+  if [ -z "$token" ]; then
+    echo "  Failed to obtain OIDC JWT from Zitadel (response: $(printf '%s' "$response" | head -c 200))" >&2
+    return 0
+  fi
+  export OCI_DEPLOYER_TOKEN="$token"
+  echo "  OIDC JWT acquired via client_credentials grant (${#token} chars) — using as Bearer for deployer API + CLI" >&2
+}
+
+# curl wrapper that adds "Authorization: Bearer ..." for deployer API calls.
+# Prefers OCI_DEPLOYER_TOKEN (JWS from client_credentials, accepted by
+# deployer post-OIDC). Falls back to ZITADEL_ADMIN_PAT only if no JWT is
+# available — that fallback is fine pre-OIDC (deployer auth middleware off,
+# any Bearer header is ignored) but will fail post-OIDC with 401.
 auth_curl() {
-  if [ -n "${ZITADEL_ADMIN_PAT:-}" ]; then
+  if [ -n "${OCI_DEPLOYER_TOKEN:-}" ]; then
+    curl -H "Authorization: Bearer ${OCI_DEPLOYER_TOKEN}" "$@"
+  elif [ -n "${ZITADEL_ADMIN_PAT:-}" ]; then
     curl -H "Authorization: Bearer ${ZITADEL_ADMIN_PAT}" "$@"
   else
     curl "$@"
@@ -108,10 +166,14 @@ init_oidc_creds() {
   # "deployer-cli" machine user that supports client_credentials. The
   # client_id/client_secret fields are for the Web app (auth_code flow,
   # browser login) and would fail client_credentials with "client not found".
-  local issuer client_id client_secret
+  # project_id is needed below for the Zitadel-specific audience scope —
+  # without it the JWT carries no role claims and the deployer's role check
+  # rejects the call with HTTP 403.
+  local issuer client_id client_secret project_id
   issuer=$(printf '%s' "$blob" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("issuer_url",""))' 2>/dev/null)
   client_id=$(printf '%s' "$blob" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("machine_client_id",""))' 2>/dev/null)
   client_secret=$(printf '%s' "$blob" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("machine_client_secret",""))' 2>/dev/null)
+  project_id=$(printf '%s' "$blob" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("project_id",""))' 2>/dev/null)
   if [ -z "$issuer" ] || [ -z "$client_id" ] || [ -z "$client_secret" ]; then
     echo "  deployer-oidc.json is missing machine_client_* fields — Zitadel" >&2
     echo "  bootstrap (post-setup-deployer-in-zitadel.sh) was not re-run after" >&2
@@ -121,5 +183,6 @@ init_oidc_creds() {
   export OIDC_ISSUER_URL="$issuer"
   export OIDC_CLI_CLIENT_ID="$client_id"
   export OIDC_CLI_CLIENT_SECRET="$client_secret"
+  export OIDC_PROJECT_ID="$project_id"
   echo "  OIDC machine credentials loaded from Zitadel deployer-oidc.json (machine_client_id=${client_id})" >&2
 }
