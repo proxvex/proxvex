@@ -1,0 +1,18 @@
+{
+  "application": "docker-registry-mirror",
+  "task": "installation",
+  "params": [
+    { "name": "vm_id_start", "value": 600 },
+    { "name": "hostname", "value": "docker-mirror-test" },
+    { "name": "static_ip", "value": "192.168.4.49/24" },
+    { "name": "static_gw", "value": "192.168.4.1" },
+    { "name": "nameserver4", "value": "192.168.4.1" },
+    { "name": "nameserver6", "value": "2606:4700:4700::1111" },
+    { "name": "oci_image_tag", "value": "3.0.0" },
+    { "name": "DOCKER_HUB_USERNAME", "value": "" },
+    { "name": "volumes", "value": "data=/var/lib/registry,size=50G" },
+    { "name": "ssl_additional_san", "value": "" },
+    { "name": "envs", "value": "REGISTRY_HTTP_ADDR=:443\nREGISTRY_HTTP_TLS_CERTIFICATE=/etc/ssl/addon/fullchain.pem\nREGISTRY_HTTP_TLS_KEY=/etc/ssl/addon/privkey.pem\nREGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io\nREGISTRY_PROXY_USERNAME={{ DOCKER_HUB_USERNAME }}\nREGISTRY_PROXY_PASSWORD={{ DOCKER_HUB_PASSWORD }}\nOTEL_SDK_DISABLED=true\nREGISTRY_LOG_LEVEL=info\nREGISTRY_LOG_FIELDS_ENVIRONMENT=production" }
+  ],
+  "selectedAddons": ["addon-ssl"]
+}

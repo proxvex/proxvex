@@ -34,6 +34,12 @@ CONFIG_FILE="$SCRIPT_DIR/config.json"
 # shellcheck source=config.sh
 source "$SCRIPT_DIR/config.sh"
 
+# nested_ssh / nested_scp_to come from lib/nested-ssh.sh — they use the
+# per-instance pinned ed25519 host key with StrictHostKeyChecking=yes.
+# This file is loaded after config.sh so HOST_KEY_ED25519_PUB_B64 is set.
+# shellcheck source=lib/nested-ssh.sh
+. "$SCRIPT_DIR/lib/nested-ssh.sh"
+
 INSTANCE_ARG=""
 REFRESH_HUB=false
 while [ "$#" -gt 0 ]; do
@@ -86,10 +92,7 @@ fi
 
 # 2. Ensure proxvex-LXC (Hub) is running inside nested VM
 info "Ensuring Hub (proxvex-LXC $DEPLOYER_VMID) is running"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -o BatchMode=yes -o ConnectTimeout=10 \
-    -p "$PORT_PVE_SSH" "root@$PVE_HOST" \
-    "pct status $DEPLOYER_VMID 2>/dev/null | grep -q running || pct start $DEPLOYER_VMID" \
+nested_ssh "pct status $DEPLOYER_VMID 2>/dev/null | grep -q running || pct start $DEPLOYER_VMID" \
   || err "Failed to start proxvex-LXC $DEPLOYER_VMID inside nested VM"
 
 # 2b. (--refresh-hub) Push current workspace json/ + backend/dist into the
@@ -124,16 +127,13 @@ if [ "$REFRESH_HUB" = "true" ]; then
   REMOTE_TARBALL="/tmp/proxvex-${E2E_INSTANCE}-redeploy.oci.tar"
   REMOTE_INSTALLER="/tmp/install-proxvex-${E2E_INSTANCE}.sh"
   info "Uploading OCI tarball + installer to ${PVE_HOST}:${PORT_PVE_SSH}"
-  scp -o StrictHostKeyChecking=no -P "$PORT_PVE_SSH" \
-      "$OCI_TARBALL" "root@$PVE_HOST:$REMOTE_TARBALL" \
+  nested_scp_to "$OCI_TARBALL" "$REMOTE_TARBALL" \
     || err "scp of OCI tarball failed"
-  scp -o StrictHostKeyChecking=no -P "$PORT_PVE_SSH" \
-      "$PROJECT_ROOT/install-proxvex.sh" "root@$PVE_HOST:$REMOTE_INSTALLER" \
+  nested_scp_to "$PROJECT_ROOT/install-proxvex.sh" "$REMOTE_INSTALLER" \
     || err "scp of install-proxvex.sh failed"
 
   info "Redeploying proxvex-LXC $DEPLOYER_VMID via install-proxvex.sh --tarball"
-  ssh -o StrictHostKeyChecking=no -p "$PORT_PVE_SSH" "root@$PVE_HOST" \
-      "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --tarball $REMOTE_TARBALL --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL && rm -f $REMOTE_TARBALL $REMOTE_INSTALLER" \
+  nested_ssh "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --tarball $REMOTE_TARBALL --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL && rm -f $REMOTE_TARBALL $REMOTE_INSTALLER" \
     || err "install-proxvex.sh --tarball failed inside nested VM"
 
   ok "Hub redeployed; proxvex-LXC $DEPLOYER_VMID running with fresh image"

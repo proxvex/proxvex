@@ -30,6 +30,13 @@ DEPLOYER_PVE_HOST="${DEPLOYER_PVE_HOST:-$PVE_HOST}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Shared helpers: auth_curl + init_admin_pat. /api/sshconfig, /api/sshconfigs
+# and the CA download endpoint are OIDC-protected after Step 11. The PAT
+# lives on the Zitadel LXC's bootstrap volume; init_admin_pat resolves the
+# correct host (DEPLOYER_PVE_HOST hosts the deployer; Zitadel sits there too).
+. "$SCRIPT_DIR/_lib.sh"
+init_admin_pat "$DEPLOYER_PVE_HOST"
+
 # Auto-detect deployer endpoint (HTTPS first, HTTP fallback)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then
   DEPLOYER_URL="https://${DEPLOYER_HOST}:3443"
@@ -109,8 +116,9 @@ ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "root@${PVE_HOST}" \
 }
 
 # Step 3: Register the PVE host in the deployer's SSH config.
+# auth_curl injects the Zitadel admin PAT as Bearer when set (post-OIDC).
 echo "  Registering ${PVE_HOST} in deployer..."
-http_code=$(curl -sk --max-time 10 -X POST "${DEPLOYER_URL}/api/sshconfig" \
+http_code=$(auth_curl -sk --max-time 10 -X POST "${DEPLOYER_URL}/api/sshconfig" \
   -H "Content-Type: application/json" \
   -d "{\"host\":\"${PVE_HOST}\",\"port\":${SSH_PORT}}" \
   -o /tmp/sshconfig-resp.json -w '%{http_code}' 2>/dev/null || echo "000")
@@ -123,7 +131,7 @@ fi
 echo "  Registered (HTTP $http_code)"
 
 # Step 4: Verify by reading it back via /api/sshconfigs.
-if curl -sk --max-time 10 "${DEPLOYER_URL}/api/sshconfigs" 2>/dev/null \
+if auth_curl -sk --max-time 10 "${DEPLOYER_URL}/api/sshconfigs" 2>/dev/null \
    | grep -q "\"host\":\"${PVE_HOST}\""; then
   echo "  Verified: ${PVE_HOST} known to deployer"
 else
@@ -140,7 +148,7 @@ echo "  Installing deployer CA on ${PVE_HOST}..."
 CA_TMP=$(mktemp)
 trap 'rm -f "$CA_TMP"' EXIT
 CA_DOWNLOAD_URL="${DEPLOYER_URL}/api/ve_${PVE_HOST}/ve/certificates/ca/download"
-if curl -fsSL -k --max-time 10 -o "$CA_TMP" "$CA_DOWNLOAD_URL" && [ -s "$CA_TMP" ]; then
+if auth_curl -fsSL -k --max-time 10 -o "$CA_TMP" "$CA_DOWNLOAD_URL" && [ -s "$CA_TMP" ]; then
   CA_B64=$(base64 < "$CA_TMP" | tr -d '\n')
   ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "root@${PVE_HOST}" \
     "CA_TARGET=/usr/local/share/ca-certificates/proxvex-ca.crt; \

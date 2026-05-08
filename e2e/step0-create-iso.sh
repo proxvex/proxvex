@@ -192,10 +192,50 @@ for file in create-iso.sh first-boot.sh.template; do
 done
 success "All required files present"
 
-# Generate first-boot.sh with host-specific IP
+# Pinned ed25519 host key for the nested VM. On first run for this instance
+# both fields in config.json are empty — generate the keypair, base64-encode
+# it, and write the values back into config.json (jq in-place via tmpfile).
+# Subsequent runs reuse the stored key, so snapshot rollbacks and step1
+# rebuilds keep the same host identity. lib/nested-ssh.sh later derives the
+# per-instance known_hosts entry from HOST_KEY_ED25519_PUB_B64 and runs ssh
+# with StrictHostKeyChecking=yes (proper MITM protection on the test path).
+if [ -z "$HOST_KEY_ED25519_PRIV_B64" ] || [ -z "$HOST_KEY_ED25519_PUB_B64" ]; then
+    info "No pinned host key for instance '$E2E_INSTANCE' — generating ed25519 keypair..."
+    KEY_TMP=$(mktemp -d)
+    trap 'rm -rf "$KEY_TMP"' EXIT
+    ssh-keygen -t ed25519 -N '' -C "nested-vm-$E2E_INSTANCE" -f "$KEY_TMP/k" >/dev/null \
+        || error "ssh-keygen failed"
+    if base64 --version 2>&1 | grep -qi gnu; then
+        priv_b64=$(base64 -w0 < "$KEY_TMP/k")
+        pub_b64=$(base64 -w0 < "$KEY_TMP/k.pub")
+    else
+        # macOS BSD base64 emits a single line by default
+        priv_b64=$(base64 < "$KEY_TMP/k" | tr -d '\n')
+        pub_b64=$(base64 < "$KEY_TMP/k.pub" | tr -d '\n')
+    fi
+    rm -rf "$KEY_TMP"
+    trap - EXIT
+
+    # Persist back into config.json — atomic via tmpfile.
+    CFG_TMP=$(mktemp)
+    jq --arg priv "$priv_b64" --arg pub "$pub_b64" --arg inst "$E2E_INSTANCE" \
+        '.instances[$inst].hostKey = {ed25519PrivB64: $priv, ed25519PubB64: $pub}' \
+        "$CONFIG_FILE" > "$CFG_TMP" || { rm -f "$CFG_TMP"; error "jq failed to update config.json"; }
+    mv "$CFG_TMP" "$CONFIG_FILE"
+    export HOST_KEY_ED25519_PRIV_B64="$priv_b64"
+    export HOST_KEY_ED25519_PUB_B64="$pub_b64"
+    success "ed25519 host key generated and saved to $CONFIG_FILE"
+else
+    success "Reusing pinned ed25519 host key from $CONFIG_FILE"
+fi
+
+# Generate first-boot.sh with host-specific IP + pinned host-key blobs.
+# Using a 'pipe (|)' sed delimiter because base64 strings can contain '/'.
 info "Generating first-boot.sh with IP $NESTED_STATIC_IP..."
-sed -e "s/{{STATIC_IP}}/$NESTED_STATIC_IP/g" \
-    -e "s/{{GATEWAY}}/$GATEWAY/g" \
+sed -e "s|{{STATIC_IP}}|$NESTED_STATIC_IP|g" \
+    -e "s|{{GATEWAY}}|$GATEWAY|g" \
+    -e "s|{{HOST_KEY_ED25519_PRIV_B64}}|$HOST_KEY_ED25519_PRIV_B64|g" \
+    -e "s|{{HOST_KEY_ED25519_PUB_B64}}|$HOST_KEY_ED25519_PUB_B64|g" \
     "$HOST_SCRIPTS/first-boot.sh.template" > "$LOCAL_FIRSTBOOT"
 success "first-boot.sh generated"
 

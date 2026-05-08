@@ -17,8 +17,18 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Shared helpers: auth_curl + init_admin_pat. After Step 11 the deployer
+# enforces OIDC on /api/*; init_admin_pat reads /bootstrap/admin-client.pat
+# from the Zitadel LXC and exports OCI_DEPLOYER_TOKEN (CLI bearer) plus
+# ZITADEL_ADMIN_PAT (auth_curl bearer).
+. "$SCRIPT_DIR/_lib.sh"
+
 PVE_HOST="${PVE_HOST:-pve1.cluster}"
 DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
+
+# Pull the PAT once so both ensure_stack's curl and the CLI invocation below
+# carry valid auth post-OIDC. No-op if Zitadel is not yet up.
+init_admin_pat "$PVE_HOST"
 
 # Optional per-call host override
 if [ "$1" = "--host" ] || [ "$1" = "--ve" ]; then
@@ -85,15 +95,15 @@ fi
 
 ensure_stack() {
   echo "=== Ensuring production stacks exist ==="
-  # Each stacktype has its own stack with ID: {type}_production
+  # Each stacktype has its own stack with ID: {type}_production.
+  # auth_curl injects the Zitadel admin PAT as Bearer when set (post-OIDC).
   for TYPE in postgres oidc cloudflare; do
     STACK_ID="${TYPE}_production"
-    # Check if stack exists by listing stacks of this type and grepping for the ID
-    if curl -sk "$SERVER/api/stacks?stacktype=${TYPE}" 2>/dev/null | grep -q "\"${STACK_ID}\""; then
+    if auth_curl -sk "$SERVER/api/stacks?stacktype=${TYPE}" 2>/dev/null | grep -q "\"${STACK_ID}\""; then
       echo "  Stack '${STACK_ID}' exists."
     else
       echo "  Creating stack '${STACK_ID}'..."
-      curl -sk -X POST "$SERVER/api/stacks" \
+      auth_curl -sk -X POST "$SERVER/api/stacks" \
         -H "Content-Type: application/json" \
         -d "{\"name\":\"production\",\"stacktype\":\"${TYPE}\",\"entries\":[]}" \
         -o /dev/null -w "HTTP %{http_code}\n" || true

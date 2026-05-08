@@ -95,6 +95,14 @@ load_config() {
     export PORT_DEPLOYER=$((base_deployer + PORT_OFFSET))
     export PORT_DEPLOYER_HTTPS=$((base_deployer_https + PORT_OFFSET))
 
+    # Per-instance pinned SSH host key for the nested VM (ed25519, base64).
+    # Empty on first run — step0-create-iso.sh auto-generates and writes
+    # both fields back into config.json. Consumed by step0 (substituted
+    # into first-boot.sh) and by lib/nested-ssh.sh (per-instance
+    # known_hosts → StrictHostKeyChecking=yes).
+    export HOST_KEY_ED25519_PRIV_B64=$(jq -r ".instances[\"$instance\"].hostKey.ed25519PrivB64 // \"\"" "$CONFIG_FILE")
+    export HOST_KEY_ED25519_PUB_B64=$(jq -r ".instances[\"$instance\"].hostKey.ed25519PubB64 // \"\"" "$CONFIG_FILE")
+
     # Calculated values
     export NESTED_STATIC_IP="${SUBNET}.10"
     export DEPLOYER_URL="http://${PVE_HOST}:${PORT_DEPLOYER}"

@@ -68,6 +68,33 @@ echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
 echo "Static IP configured: $STATIC_IP" >&2
 
+# ============================================
+# Pin SSH ed25519 host key (per-instance fixed)
+# ============================================
+# Substituted by step0-create-iso.sh from
+# e2e/config.json.instances.<instance>.hostKey.{ed25519PrivB64,ed25519PubB64}.
+# Pinning the key here means dev-machine known_hosts stays valid across
+# snapshot rollbacks (the snapshot already contains this key) and across
+# step1 rebuilds (first-boot writes it again). Clients use this single
+# fixed identity → StrictHostKeyChecking=yes works on the test path.
+# RSA host key is left as Proxmox installer generates — clients prefer
+# ed25519 anyway.
+HOST_KEY_ED25519_PRIV_B64='{{HOST_KEY_ED25519_PRIV_B64}}'
+HOST_KEY_ED25519_PUB_B64='{{HOST_KEY_ED25519_PUB_B64}}'
+if [ -n "$HOST_KEY_ED25519_PRIV_B64" ] && [ -n "$HOST_KEY_ED25519_PUB_B64" ]; then
+    echo "Pinning ed25519 host key from instance config..." >&2
+    printf '%s' "$HOST_KEY_ED25519_PRIV_B64" | base64 -d > /etc/ssh/ssh_host_ed25519_key
+    chmod 600 /etc/ssh/ssh_host_ed25519_key
+    chown root:root /etc/ssh/ssh_host_ed25519_key
+    printf '%s' "$HOST_KEY_ED25519_PUB_B64" | base64 -d > /etc/ssh/ssh_host_ed25519_key.pub
+    chmod 644 /etc/ssh/ssh_host_ed25519_key.pub
+    chown root:root /etc/ssh/ssh_host_ed25519_key.pub
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+    echo "ed25519 host key pinned" >&2
+else
+    echo "No pinned host key in template — using installer-generated keys" >&2
+fi
+
 # Enable QEMU guest agent for VM introspection from PVE host
 systemctl enable qemu-guest-agent 2>/dev/null || true
 systemctl start qemu-guest-agent 2>/dev/null || true

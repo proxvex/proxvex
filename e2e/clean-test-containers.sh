@@ -40,10 +40,9 @@ info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
 success() { echo -e "${GREEN}[OK]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
 
-# SSH wrapper for nested VM
-nested_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
-}
+# nested_ssh comes from lib/nested-ssh.sh — pinned ed25519 host key + StrictHostKeyChecking=yes.
+# shellcheck source=lib/nested-ssh.sh
+. "$SCRIPT_DIR/lib/nested-ssh.sh"
 
 echo "Clean Test Containers"
 echo "Instance: $E2E_INSTANCE"

@@ -18,6 +18,10 @@
       "registryMirror": {
         "dnsForwarder": "192.168.4.1"
       },
+      "hostKey": {
+        "ed25519PrivB64": "LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0KYjNCbGJuTnphQzFyWlhrdGRqRUFBQUFBQkc1dmJtVUFBQUFFYm05dVpRQUFBQUFBQUFBQkFBQUFNd0FBQUF0emMyZ3RaVwpReU5UVXhPUUFBQUNBaS9ReERxcktHaG5jMS96aUxreHBrTUMwSFhNUGVObnIwU3VRN1RDcnhIQUFBQUpqNkcyK2craHR2Cm9BQUFBQXR6YzJndFpXUXlOVFV4T1FBQUFDQWkvUXhEcXJLR2huYzEvemlMa3hwa01DMEhYTVBlTm5yMFN1UTdUQ3J4SEEKQUFBRUNnNWVCc1dUUFpFTVY3cmp5a3ZOakRPNWUxQ1dSSlY0OVVTMTZiNXRqY2lTTDlERU9xc29hR2R6WC9PSXVUR21RdwpMUWRjdzk0MmV2Uks1RHRNS3ZFY0FBQUFEMjVsYzNSbFpDMTJiUzFuY21WbGJnRUNBd1FGQmc9PQotLS0tLUVORCBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0K",
+        "ed25519PubB64": "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUNMOURFT3Fzb2FHZHpYL09JdVRHbVF3TFFkY3c5NDJldlJLNUR0TUt2RWMgbmVzdGVkLXZtLWdyZWVuCg=="
+      },
       "portForwarding": [
         {
           "port": 1808,
@@ -50,6 +54,10 @@
       "registryMirror": {
         "dnsForwarder": "192.168.4.1"
       },
+      "hostKey": {
+        "ed25519PrivB64": "",
+        "ed25519PubB64": ""
+      },
       "portForwarding": [
         {
           "port": 2808,
@@ -75,7 +83,11 @@
       "bridge": "vmbr2",
       "filesystem": "ext4",
       "veHost": "10.0.0.1",
-      "veSshPort": 22
+      "veSshPort": 22,
+      "hostKey": {
+        "ed25519PrivB64": "",
+        "ed25519PubB64": ""
+      }
     }
   },
   "defaults": {

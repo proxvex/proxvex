@@ -3,27 +3,49 @@
 #
 # This script:
 # 1. Rolls back to step1 'baseline' snapshot (clean state)
-# 2. Installs Docker inside the nested VM
-# 3. Pushes the proxvex CA from the PVE host into the nested VM trust store
-#    so TLS to the production Docker Hub mirror (192.168.4.45) validates
-# 4. Tears down any obsolete local dockerhub-mirror container, then starts
-#    only the local ghcr.io pull-through mirror (10.0.0.2). Docker Hub pulls
-#    are routed via DNS to the production mirror at 192.168.4.45.
-# 5. Pre-pulls all images referenced by json/shared/scripts/library/versions.sh
-#    transparently through the mirrors (Docker Hub via the production cache,
-#    ghcr.io via the local cache)
-# 6. Wires up dnsmasq so LXC containers resolve registry hostnames to the
-#    correct mirrors (registry-1.docker.io/index.docker.io -> 192.168.4.45;
-#    ghcr.io -> 10.0.0.2)
-# 7. Creates the 'mirrors-ready' snapshot so step2b can roll back to a clean
-#    environment with pre-filled / cached mirrors
+# 2. Verifies the test Docker Hub mirror (docker-mirror-test on ubuntupve,
+#    192.168.4.49) is reachable; the proxvex CA was baked into the nested
+#    VM trust store at baseline so TLS just works.
+# 3. Verifies the ghcr.io mirror (ghcr-mirror on ubuntupve, 192.168.4.48)
+#    is reachable.
+# 4. Wires registry routing in the nested VM:
+#      - dnsmasq adds A-record `docker-mirror-test → 192.168.4.49` and
+#        keeps the DNS-redirect `ghcr.io → 192.168.4.48` (Docker Hub
+#        registry-mirrors only spiegelt Docker Hub, not ghcr).
+#      - /etc/containers/registries.conf points docker.io at
+#        `${TEST_MIRROR_HOST}` for any pull through skopeo (used by
+#        step2b-install-deployer.sh, install-ci.sh, and the deployer's
+#        own image pipeline once it's installed in step2b). Skopeo itself
+#        ships with Proxmox VE 9.1+ as a pve-manager dependency — no
+#        install needed.
+# 5. Smoketests:
+#      a) curl https://${TEST_MIRROR_HOST}/v2/ via dnsmasq (proves DNS+TLS).
+#      b) skopeo inspect docker://docker.io/library/alpine:latest (proves
+#         registries.conf routing). On a cold mirror this triggers ONE
+#         pull-through to Docker Hub for alpine — well within the 100/6h
+#         anonymous limit. On a warm mirror it's a cache hit.
+# 6. Creates the 'mirrors-ready' snapshot so step2b can roll back to a
+#    clean environment with the mirror routing already wired.
+#
+# No bulk pulls by this script. ~30 distinct images live in versions.sh;
+# each gets cached in the mirror on first request (single Docker-Hub pull
+# per tag, then permanent cache hits). That's well below 100/6h and
+# happens organically over the first test runs.
+#
+# OPTIONAL: production/reseed-docker-mirror-test.sh fills the mirror's
+# cache via ZFS replication from the prod mirror on pve1 — useful when
+# iterating on docker-mirror-test with --force-docker-mirror-test (each
+# destroy purges the cache volume), or for paranoid avoidance of any
+# Docker-Hub traffic. Steady-state operation does NOT need it.
 #
 # Prerequisites:
-#   - production/setup-pve-host.sh <PVE_HOST> must have run on the PVE host so
-#     /usr/local/share/ca-certificates/proxvex-ca.crt is in place.
-#   - production/setup-production.sh --step 5 must have completed so the
-#     docker-registry-mirror LXC at 192.168.4.45 is running and reachable from
-#     the nested VM.
+#   - production/setup-pve-host.sh <PVE_HOST> must have run so the proxvex CA
+#     ends up in the nested VM trust store at baseline creation time.
+#   - production/setup-production.sh --step 18 must have completed so the
+#     docker-mirror-test LXC at 192.168.4.49 (ubuntupve) is running and
+#     reachable from the nested VM. (production/setup-production.sh --step 5
+#     on pve1 is no longer required by this script — the prod mirror stays
+#     for production workloads but is unused by the test path.)
 #
 # Idempotency:
 #   The 'mirrors-ready' snapshot description carries a short hash of
@@ -88,9 +110,12 @@ header() {
     echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}\n"
 }
 
-nested_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=10 -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
-}
+# nested_ssh / nested_scp_to / nested_scp_from come from lib/nested-ssh.sh.
+# They use a per-instance pinned ed25519 host key (config.json.hostKey ↔
+# first-boot.sh.template) with StrictHostKeyChecking=yes — no more
+# "Permanently added ..." warnings, real MITM protection.
+# shellcheck source=lib/nested-ssh.sh
+. "$SCRIPT_DIR/lib/nested-ssh.sh"
 
 # Source the pve-ops abstraction so qm calls go through PVE_USE_API toggle.
 # After Phase A2 step2a has no outer-host SSH at all — qm via API, CA was
@@ -120,12 +145,19 @@ echo ""
 
 # Schema tag for the mirrors-ready snapshot. Bump when changing topology in a
 # way that requires a forced rebuild (e.g. switching the Docker Hub source).
-# v1               = local dockerhub-mirror + local ghcr-mirror
-# v2-prod-mirror   = production mirror for Docker Hub + local ghcr-mirror
-# v3-ghcr-on-outer = production mirror for Docker Hub + ghcr-mirror LXC on
-#                    the outer PVE host (no nested ghcr-mirror container,
-#                    no `insecure-registries`, valid TLS via proxvex CA)
-SCHEMA_VERSION="v3-ghcr-on-outer"
+# v1                       = local dockerhub-mirror + local ghcr-mirror
+# v2-prod-mirror           = production mirror for Docker Hub + local ghcr-mirror
+# v3-ghcr-on-outer         = production mirror for Docker Hub + ghcr-mirror LXC on
+#                            the outer PVE host (no nested ghcr-mirror container,
+#                            no `insecure-registries`, valid TLS via proxvex CA)
+# v4-registry-mirrors      = test mirror (docker-mirror-test on ubuntupve, 192.168.4.49)
+#                            replaces the prod mirror for Docker Hub. Clients use
+#                            standard `registry-mirrors` (daemon.json) +
+#                            `[[registry.mirror]]` (registries.conf) by hostname
+#                            instead of dnsmasq DNS-redirect on docker.io. ghcr.io
+#                            keeps its DNS-redirect (Docker registry-mirrors only
+#                            spiegelt Docker Hub).
+SCHEMA_VERSION="v4-registry-mirrors"
 
 # Step 0: idempotency check — only skip when BOTH versions-hash AND schema match.
 # A schema mismatch forces a rebuild even if versions.sh is unchanged, so a
@@ -188,57 +220,29 @@ if [ -n "$missing" ]; then
 fi
 success "step1 prerequisites OK (dnsmasq installed + e2e-nat.conf present)"
 
-# Step 3: Install Docker on the nested VM (runtime for the mirror containers).
-# Repoint apt to a European Debian mirror first — same sed as step1, but
-# idempotent and applied here too so VMs created before the step1 fix (or
-# from older snapshots) don't suffer through the slow default deb.debian.org
-# during `apt-get install docker.io`. No-op when already pointing at
-# mirror.23m.com.
-header "Installing Docker on nested VM"
-nested_ssh '
-    if [ -f /etc/apt/sources.list.d/debian.sources ] && \
-       grep -q "URIs:[[:space:]]*http://deb.debian.org/debian" /etc/apt/sources.list.d/debian.sources; then
-        sed -i "s|URIs: http://deb.debian.org/debian|URIs: http://mirror.23m.com/debian|g" /etc/apt/sources.list.d/debian.sources
-        echo "  Switched debian.sources -> mirror.23m.com" >&2
-    fi
-    if [ -s /etc/apt/sources.list ] && grep -q "deb.debian.org" /etc/apt/sources.list; then
-        sed -i "s|deb.debian.org|mirror.23m.com|g" /etc/apt/sources.list
-        echo "  Switched sources.list -> mirror.23m.com" >&2
-    fi
-'
-nested_ssh "command -v docker >/dev/null 2>&1 || {
-    set -e
-    # Drain background apt-daily / unattended-upgrades that may still hold
-    # the lock — fail loud after 120s rather than collide silently.
-    for i in \$(seq 1 120); do
-        pgrep -f 'apt-get|dpkg|unattended-upgrade|apt.systemd.daily' >/dev/null || break
-        sleep 1
-    done
-    DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 update -qq >&2
-    DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y -qq docker.io >&2
-}"
-success "Docker available on nested VM"
-
-# Pre-pull the registry image itself (used for the local ghcr-mirror, and as
-# a small first-pull warm-up before any dnsmasq redirect is in place)
-nested_ssh "docker image inspect distribution/distribution:3.0.0 >/dev/null 2>&1 || \
-    docker pull distribution/distribution:3.0.0 >&2"
-success "Mirror image available"
-
-# Step 3.5: Verify production Docker Hub mirror reachability from the nested
-# VM. The production mirror at 192.168.4.45 presents a TLS cert signed by
-# the proxvex CA. The CA was baked into the nested VM's trust store at
-# baseline creation time (step1-create-vm.sh, Phase A2), so no runtime CA
-# distribution from the outer host is needed here.
-header "Verifying production Docker Hub mirror"
-PROD_MIRROR_IP="192.168.4.45"
-nested_ssh "curl -ksf --connect-timeout 5 https://$PROD_MIRROR_IP/v2/ >/dev/null" \
-    || error "Production Docker Hub mirror at $PROD_MIRROR_IP unreachable from nested VM.
-    - Check pve1.cluster's docker-registry-mirror LXC is running:
-        ssh root@pve1.cluster 'pct list | grep docker-registry-mirror'
-    - Verify routing from nested VM to 192.168.4.0/24 (POSTROUTING MASQUERADE
-      on PVE host should cover this — see step1-create-vm.sh).
-    - production/setup-production.sh --step 5 must have completed."
+# Step 3: Verify the test Docker Hub mirror (docker-mirror-test on ubuntupve)
+# is reachable from the nested VM. As of schema v4-registry-mirrors the prod
+# mirror on pve1 (192.168.4.45) is no longer used by the test path — everything
+# for tests sits on a single physical host (ubuntupve). The test mirror at
+# 192.168.4.49 presents a TLS cert signed by the proxvex CA (baked into the
+# nested VM trust store at baseline creation, step1-create-vm.sh Phase A2).
+# Routing 10.99.X.0/24 → 192.168.4.0/24 is handled by POSTROUTING MASQUERADE
+# on the outer PVE host (step1-create-vm.sh).
+TEST_MIRROR_IP="${TEST_MIRROR_IP:-192.168.4.49}"
+TEST_MIRROR_HOST="${TEST_MIRROR_HOST:-docker-mirror-test}"
+header "Verifying test Docker Hub mirror (${TEST_MIRROR_HOST} @ ${TEST_MIRROR_IP})"
+nested_ssh "curl -sf --connect-timeout 5 \
+    --resolve ${TEST_MIRROR_HOST}:443:${TEST_MIRROR_IP} \
+    https://${TEST_MIRROR_HOST}/v2/ >/dev/null" \
+    || error "Test Docker Hub mirror ${TEST_MIRROR_HOST} (${TEST_MIRROR_IP}) unreachable from nested VM.
+    - Deploy it: ./production/setup-production.sh --step 18
+      (target host ubuntupve; see APP_HOST_MAP in setup-production.sh).
+    - Check the LXC is running:
+        ssh root@ubuntupve 'pct list | grep ${TEST_MIRROR_HOST}'
+    - Verify routing 10.99.X.0/24 → 192.168.4.0/24 (POSTROUTING MASQUERADE
+      on the outer PVE host — see step1-create-vm.sh).
+    - Cert SAN must include 'DNS:${TEST_MIRROR_HOST}' (default for
+      addon-ssl when ssl_additional_san is left empty)."
 
 # Validate the proxvex CA is in the nested VM trust store (set up at
 # baseline). If it's missing the baseline pre-dates Phase A2 — re-run
@@ -246,22 +250,15 @@ nested_ssh "curl -ksf --connect-timeout 5 https://$PROD_MIRROR_IP/v2/ >/dev/null
 #   ssh root@$PVE_HOST "base64 < $CA_HOST_PATH" | nested_ssh "base64 -d > /usr/local/share/ca-certificates/proxvex-ca.crt && update-ca-certificates"
 nested_ssh "[ -f /usr/local/share/ca-certificates/proxvex-ca.crt ]" \
     || error "proxvex CA missing in nested VM trust store. Re-run step1-create-vm.sh or manually patch the baseline."
-nested_ssh "
-    if systemctl is-active --quiet docker; then
-        # docker caches the system CA pool at daemon start — make sure the
-        # baseline-installed CA is loaded before any pull through the mirror.
-        update-ca-certificates >/dev/null 2>&1 || true
-    fi
-"
-success "Production mirror reachable; proxvex CA already trusted in nested VM"
+success "Test mirror reachable; proxvex CA already trusted in nested VM"
 
 # Step 4: Verify the ghcr.io mirror on the outer PVE host is reachable.
 # As of schema v3-ghcr-on-outer the ghcr-mirror lives outside the nested VM
 # (a proxvex-managed LXC on ubuntupve, deployed by
 # production/setup-ghcr-mirror.sh — i.e. setup-production.sh Step 17). It
-# has a TLS cert signed by the proxvex CA (already imported above), so the
-# nested VM's docker daemon can talk to it via plain HTTPS — no
-# `insecure-registries` hack, no per-LXC daemon.json.
+# has a TLS cert signed by the proxvex CA (already imported into the nested
+# VM trust store at baseline). Skopeo + the deployer's pull pipeline use
+# this hostname → IP mapping via dnsmasq (configured below).
 header "Verifying outer ghcr.io mirror"
 GHCR_MIRROR_IP="${GHCR_MIRROR_IP:-192.168.4.48}"
 for i in $(seq 1 10); do
@@ -280,123 +277,119 @@ nested_ssh "curl -sf --resolve ghcr.io:443:$GHCR_MIRROR_IP \
     - Check the LXC's TLS cert SAN includes 'DNS:ghcr.io'."
 success "Outer ghcr.io mirror reachable at $GHCR_MIRROR_IP (TLS via proxvex CA)"
 
-# Tear down any leftovers from the older v2-prod-mirror schema (local
-# ghcr-mirror container on 10.0.0.2, vmbr1 alias service, dockerhub-mirror).
-# Idempotent — silently no-ops on a clean nested VM.
-header "Cleaning up legacy local mirrors (v2-prod-mirror leftovers)"
-nested_ssh "
-    set -e
-    if docker ps -aq -f name='^ghcr-mirror\$' | grep -q .; then
-        docker rm -f ghcr-mirror >/dev/null 2>&1 || true
-        echo '  Removed local ghcr-mirror container (now lives on outer PVE host)'
-    fi
-    docker volume rm ghcr-mirror-data 2>/dev/null && \
-        echo '  Removed obsolete ghcr-mirror-data volume' || true
-
-    if docker ps -aq -f name='^dockerhub-mirror\$' | grep -q .; then
-        docker rm -f dockerhub-mirror >/dev/null 2>&1 || true
-        echo '  Removed obsolete dockerhub-mirror container'
-    fi
-    docker volume rm dockerhub-mirror-data 2>/dev/null && \
-        echo '  Removed obsolete dockerhub-mirror-data volume' || true
-
-    if systemctl list-unit-files vmbr1-ghcr-alias.service 2>/dev/null | grep -q vmbr1-ghcr-alias; then
-        systemctl disable --now vmbr1-ghcr-alias.service 2>/dev/null || true
-        rm -f /etc/systemd/system/vmbr1-ghcr-alias.service
-        systemctl daemon-reload
-        echo '  Removed vmbr1-ghcr-alias.service'
-    fi
-    ip addr show vmbr1 2>/dev/null | grep -q '10.0.0.2/' && \
-        ip addr del 10.0.0.2/24 dev vmbr1 2>/dev/null && \
-        echo '  Removed 10.0.0.2/24 alias from vmbr1' || true
-
-    # daemon.json: drop the insecure-registries entry (no longer needed —
-    # outer mirror has valid proxvex-CA TLS). Empty file or absence is fine.
-    if [ -f /etc/docker/daemon.json ] \
-       && grep -q 'insecure-registries' /etc/docker/daemon.json 2>/dev/null; then
-        rm -f /etc/docker/daemon.json
-        systemctl restart docker >/dev/null 2>&1 || true
-        for i in \$(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
-        echo '  Removed daemon.json (insecure-registries no longer needed)'
-    fi
-"
-success "Legacy local mirrors cleaned up"
-
-info "Waiting for mirrors to be healthy..."
-# Production Docker Hub mirror via TLS-correct hostname (--resolve sidesteps
-# dnsmasq, which is not yet writing the redirect at this point in the script).
-for i in $(seq 1 10); do
-    nested_ssh "curl -sf --resolve registry-1.docker.io:443:$PROD_MIRROR_IP \
-        https://registry-1.docker.io/v2/ >/dev/null 2>&1" && break
-    sleep 1
-done
-success "Mirrors healthy (ghcr.io @ $GHCR_MIRROR_IP, Docker Hub @ $PROD_MIRROR_IP)"
-
-# Step 5: dnsmasq redirects so LXC containers AND the nested-VM Docker daemon
-# resolve registry hostnames to the right mirror.
-#  - registry-1.docker.io / index.docker.io -> 192.168.4.45 (production mirror,
-#    TLS via proxvex CA already in trust store)
-#  - ghcr.io                                -> $GHCR_MIRROR_IP (proxvex-managed
-#    LXC on outer PVE host, TLS via proxvex CA)
-# Block AAAA for these hosts so Go's net-resolver cannot bypass via IPv6.
+# Step 5: dnsmasq + skopeo registries.conf so the nested VM (and any inner
+# LXCs that inherit DNS via DHCP) routes registry traffic through the test
+# mirror.
 #
-# Idempotent replace: a BEGIN/END fence lets re-runs (or schema migrations)
-# rewrite the block in place, instead of leaving stale 10.0.0.2 lines behind.
-header "Wiring dnsmasq registry redirects"
+# Two complementary mechanisms — each registry uses the one that fits:
+#  - Docker Hub: skopeo's [[registry.mirror]] in /etc/containers/registries.conf
+#    pointing at `${TEST_MIRROR_HOST}` by hostname — cert SAN matches the
+#    hostname (default addon-ssl behaviour; ssl_additional_san is empty in
+#    production/docker-mirror-test.json).
+#  - ghcr.io: dnsmasq DNS-redirect of `ghcr.io` directly to the ghcr-mirror
+#    LXC IP. Cert SAN includes 'DNS:ghcr.io' on that LXC.
+#
+# Hostname resolution for `${TEST_MIRROR_HOST}` is added to dnsmasq so both
+# the nested VM and inner LXCs (point at 10.0.0.1 for DNS) can resolve it.
+#
+# Note: the nested VM does NOT run a Docker daemon — apps deployed by the
+# proxvex deployer are LXCs, not docker-compose services here. The test
+# mirror caches each image on first request (cache miss → upstream fetch →
+# stored, then cache hits forever). Optional ZFS reseed from the prod
+# mirror (production/reseed-docker-mirror-test.sh) skips the first-pull
+# burst — useful when iterating with --force-docker-mirror-test.
+#
+# Idempotent replace: BEGIN/END fence lets re-runs or schema migrations
+# rewrite the block in place; legacy un-fenced lines from older schemas
+# are also stripped.
+header "Wiring dnsmasq registry redirects + test-mirror hostname"
 nested_ssh "
     cfg=/etc/dnsmasq.d/e2e-nat.conf
     if [ -f \"\$cfg\" ]; then
-        # Drop any previous block — both fenced and legacy un-fenced lines.
+        # Drop any previous block — fenced and legacy un-fenced lines.
         sed -i '/# === proxvex E2E registry redirects BEGIN ===/,/# === proxvex E2E registry redirects END ===/d' \"\$cfg\"
         sed -i '/^# Registry mirror redirects/d' \"\$cfg\"
         sed -i '/^address=\\/registry-1\\.docker\\.io\\//d' \"\$cfg\"
         sed -i '/^address=\\/index\\.docker\\.io\\//d' \"\$cfg\"
         sed -i '/^address=\\/ghcr\\.io\\//d' \"\$cfg\"
+        sed -i '/^address=\\/${TEST_MIRROR_HOST}\\//d' \"\$cfg\"
     fi
     cat >> \"\$cfg\" <<DNS
 # === proxvex E2E registry redirects BEGIN ===
-# Docker Hub -> production mirror (TLS validated via proxvex CA)
-address=/registry-1.docker.io/$PROD_MIRROR_IP
-address=/index.docker.io/$PROD_MIRROR_IP
-# ghcr.io -> proxvex-managed mirror on outer PVE host (TLS via proxvex CA)
+# Test Docker Hub mirror (LXC on ubuntupve). Resolved by hostname so the
+# daemon.json registry-mirrors + skopeo registries.conf entries below
+# match the mirror's TLS cert SAN.
+address=/${TEST_MIRROR_HOST}/${TEST_MIRROR_IP}
+address=/${TEST_MIRROR_HOST}/::
+# ghcr.io -> proxvex-managed mirror on outer PVE host (TLS via proxvex CA).
+# Docker registry-mirrors only spiegelt Docker Hub, so ghcr stays on DNS-redirect.
 address=/ghcr.io/$GHCR_MIRROR_IP
-# Block IPv6 so Go's net-resolver cannot bypass the redirect via AAAA
-address=/registry-1.docker.io/::
-address=/index.docker.io/::
 address=/ghcr.io/::
 # === proxvex E2E registry redirects END ===
 DNS
     systemctl restart dnsmasq
 "
-success "dnsmasq registry redirects configured (Docker Hub -> $PROD_MIRROR_IP, ghcr.io -> $GHCR_MIRROR_IP)"
+success "dnsmasq configured (${TEST_MIRROR_HOST} -> ${TEST_MIRROR_IP}, ghcr.io -> $GHCR_MIRROR_IP)"
 
-# Step 6: Pre-pull images through the mirrors (the expensive part; ~15 min on
-# a first cold run, near-instant on warm cache). Pulls go transparently via
-# dnsmasq: Docker Hub through $PROD_MIRROR_IP, ghcr.io through $GHCR_MIRROR_IP.
-# Both mirrors present TLS certs signed by the proxvex CA (already in the
-# nested VM's trust store), so docker pull validates without any per-image
-# special-casing. The first time a tag is pulled in the whole fleet, the
-# upstream mirror fetches it once — every subsequent pull (any instance) is
-# a hit.
-header "Pre-pulling images through mirrors"
-VERSIONS_FILE="$PROJECT_ROOT/json/shared/scripts/library/versions.sh"
-if [ -f "$VERSIONS_FILE" ]; then
-    . "$VERSIONS_FILE"
-    grep '_TAG=.*#' "$VERSIONS_FILE" | while IFS= read -r line; do
-        var=$(echo "$line" | sed 's/=.*//')
-        image=$(echo "$line" | sed 's/.*# *//')
-        tag=$(eval echo "\$$var")
-        [ -z "$tag" ] && continue
-        full="${image}:${tag}"
-        info "  Pulling $full ..."
-        # dnsmasq + proxvex-CA TLS cover both registries — no per-host branch.
-        nested_ssh "docker pull '$full'" < /dev/null 2>&1 \
-            || echo "    Warning: $full failed"
-    done
-    success "Image pre-pull complete"
-else
-    info "versions.sh not found, skipping pre-pull"
-fi
+# Step 5b: write /etc/containers/registries.conf so skopeo routes
+# docker.io pulls through the test mirror. Skopeo itself ships with
+# Proxmox VE 9.1+ as a dependency of pve-manager (pct uses it for OCI
+# image operations) — no install needed, just verify it's on PATH and
+# fail loudly if the baseline somehow lacks it.
+header "Writing /etc/containers/registries.conf"
+nested_ssh "command -v skopeo >/dev/null 2>&1" \
+    || error "skopeo not found on nested VM — expected to be present in
+    Proxmox VE 9.1+ (pulled in via pve-manager). Verify the baseline:
+        ssh -p $PORT_PVE_SSH root@$PVE_HOST 'pveversion && dpkg -l skopeo'"
+nested_ssh "
+    set -e
+    mkdir -p /etc/containers
+    cat > /etc/containers/registries.conf <<REG
+unqualified-search-registries = ['docker.io']
+
+[[registry]]
+location = 'docker.io'
+
+# containers-image canonical-hostname rule: a mirror location without
+# a dot AND without a :port is interpreted as a path component on
+# docker.io (\"rewriting reference: repository name must be canonical\").
+# Pin :443 explicitly so '${TEST_MIRROR_HOST}' is parsed as a hostname.
+# TLS handshake still validates the cert SAN against the bare hostname.
+[[registry.mirror]]
+location = '${TEST_MIRROR_HOST}:443'
+REG
+"
+success "/etc/containers/registries.conf wired (docker.io -> ${TEST_MIRROR_HOST})"
+
+# Step 6: Smoketests — two orthogonal checks that the mirror routing
+# is wired up correctly.
+#
+# 1. curl https://${TEST_MIRROR_HOST}/v2/ via dnsmasq (proves DNS+TLS;
+#    a Step 3.5 probe earlier in this script used --resolve to bypass DNS).
+# 2. skopeo inspect docker://docker.io/library/alpine:latest (proves
+#    registries.conf routing). Alpine is in versions.sh, so on a warm
+#    mirror this is a cache hit. On a cold mirror this triggers exactly
+#    one Docker Hub pull-through (the mirror fetches alpine, caches it,
+#    answers) — well below the 100/6h anonymous limit.
+header "Smoketest: mirror reachability via dnsmasq"
+nested_ssh "curl -sf --connect-timeout 5 https://${TEST_MIRROR_HOST}/v2/ >/dev/null" \
+    || error "https://${TEST_MIRROR_HOST}/v2/ unreachable via dnsmasq.
+    - Check the dnsmasq A-record: ssh -p $PORT_PVE_SSH root@$PVE_HOST 'getent hosts ${TEST_MIRROR_HOST}'
+    - Verify the dnsmasq block was rewritten: grep ${TEST_MIRROR_HOST} /etc/dnsmasq.d/e2e-nat.conf"
+success "Test mirror reachable via dnsmasq (TLS validated, hostname resolved)"
+
+header "Smoketest: skopeo inspect via test mirror"
+nested_ssh "skopeo inspect docker://docker.io/library/alpine:latest >/dev/null" \
+    || error "skopeo inspect docker://docker.io/library/alpine:latest failed.
+    - Inspect /etc/containers/registries.conf in the nested VM.
+    - Check ${TEST_MIRROR_HOST} resolves: nslookup ${TEST_MIRROR_HOST}
+    - Probe the mirror directly:
+        curl -sf https://${TEST_MIRROR_HOST}/v2/library/alpine/manifests/latest \\
+          -H 'Accept: application/vnd.oci.image.index.v1+json'
+    - Last resort if the mirror's pull-through to Docker Hub is broken
+      (e.g. credentials expired, upstream rate-limited): seed the cache
+      from the prod mirror via ./production/reseed-docker-mirror-test.sh"
+success "Skopeo routes docker.io through ${TEST_MIRROR_HOST}"
 
 # Step 7: Snapshot — VM must be stopped for a clean snapshot.
 header "Creating 'mirrors-ready' snapshot"
@@ -410,7 +403,7 @@ pve_qm_is_stopped "$TEST_VMID" \
     || error "VM $TEST_VMID did not shut down cleanly — cannot create reliable snapshot"
 
 pve_qm_snapshot_delete "$TEST_VMID" mirrors-ready
-pve_qm_snapshot_create "$TEST_VMID" mirrors-ready "Nested VM with Docker + production-mirror trust + ghcr.io mirror; versions-hash=${VERSIONS_HASH}; schema=${SCHEMA_VERSION}"
+pve_qm_snapshot_create "$TEST_VMID" mirrors-ready "Nested VM with skopeo + registries.conf + dnsmasq pointing at docker-mirror-test/ghcr-mirror; versions-hash=${VERSIONS_HASH}; schema=${SCHEMA_VERSION}"
 success "Snapshot 'mirrors-ready' created (versions-hash=${VERSIONS_HASH}, schema=${SCHEMA_VERSION})"
 
 pve_qm_start "$TEST_VMID"

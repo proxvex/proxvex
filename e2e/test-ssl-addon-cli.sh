@@ -77,17 +77,16 @@ header()  {
     echo -e "${BLUE}-----------------------------------------------------------${NC}"
 }
 
-# SSH wrapper for nested VM (via PVE host port forwarding)
-nested_ssh() {
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -o BatchMode=yes -o ConnectTimeout=10 \
-        -p "$PORT_PVE_SSH" "root@$PVE_HOST" "$@"
-}
+# nested_ssh comes from lib/nested-ssh.sh — pinned ed25519 host key + StrictHostKeyChecking=yes.
+# shellcheck source=lib/nested-ssh.sh
+. "$SCRIPT_DIR/lib/nested-ssh.sh"
 
-# SSH wrapper for PVE host directly (VM management)
+# SSH wrapper for the OUTER PVE host directly (VM management). The outer
+# host's key is the user's ~/.ssh/known_hosts concern; we suppress the
+# auto-add warning that StrictHostKeyChecking=no triggers via LogLevel=ERROR.
 pve_ssh() {
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -o BatchMode=yes -o ConnectTimeout=10 \
+        -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout=10 \
         "root@$PVE_HOST" "$@"
 }
 
