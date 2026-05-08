@@ -1,0 +1,98 @@
+{
+  "name": "Zot Registry Mirror",
+  "description": "Pull-through cache built on project-zot/zot. Default config mirrors ghcr.io; the SSL cert SAN already includes Docker Hub names so a second upstream can be added later by editing zot_config alone.",
+  "extends": "oci-image",
+  "icon": "icon.svg",
+  "properties": [
+    {
+      "id": "hostname",
+      "default": "zot-mirror"
+    },
+    {
+      "id": "oci_image",
+      "value": "ghcr.io/project-zot/zot-linux-amd64:{{oci_image_tag}}"
+    },
+    {
+      "id": "oci_image_tag",
+      "default": "v2.1.5"
+    },
+    {
+      "id": "uid",
+      "value": "0"
+    },
+    {
+      "id": "gid",
+      "value": "0"
+    },
+    {
+      "id": "username",
+      "value": "root"
+    },
+    {
+      "id": "volumes",
+      "default": "data=/var/lib/registry,size=10G\nconfig=/etc/zot,size=4M"
+    },
+    {
+      "id": "zot_config",
+      "name": "Zot Config (config.json)",
+      "description": "Full zot daemon config, written verbatim to /etc/zot/config.json before container start. The default proxies ghcr.io with on-demand sync. Edit to add upstreams (e.g. registry-1.docker.io for Phase B) — the cert SAN already covers DNS:ghcr.io,DNS:registry-1.docker.io,DNS:index.docker.io.",
+      "type": "string",
+      "advanced": true,
+      "default": "{\n  \"distSpecVersion\": \"1.1.0\",\n  \"storage\": {\n    \"rootDirectory\": \"/var/lib/registry\"\n  },\n  \"http\": {\n    \"address\": \"0.0.0.0\",\n    \"port\": \"443\",\n    \"tls\": {\n      \"cert\": \"/etc/ssl/addon/fullchain.pem\",\n      \"key\": \"/etc/ssl/addon/privkey.pem\"\n    }\n  },\n  \"log\": {\n    \"level\": \"info\"\n  },\n  \"extensions\": {\n    \"sync\": {\n      \"enable\": true,\n      \"registries\": [\n        {\n          \"urls\": [\"https://ghcr.io\"],\n          \"onDemand\": true,\n          \"tlsVerify\": true,\n          \"content\": [\n            { \"prefix\": \"**\" }\n          ]\n        }\n      ]\n    }\n  }\n}\n"
+    },
+    {
+      "id": "ssl_mode",
+      "value": "native"
+    },
+    {
+      "id": "local_https_port",
+      "value": "443"
+    },
+    {
+      "id": "ssl.needs_server_cert",
+      "value": "true"
+    },
+    {
+      "id": "ssl.needs_ca_cert",
+      "value": "false"
+    },
+    {
+      "id": "ssl_additional_san",
+      "value": "DNS:ghcr.io,DNS:registry-1.docker.io,DNS:index.docker.io"
+    },
+    {
+      "id": "wait_for_network",
+      "value": "true"
+    },
+    {
+      "id": "startup_order",
+      "value": "5"
+    },
+    {
+      "id": "startup_up",
+      "value": "10"
+    }
+  ],
+  "installation": {
+    "pre_start": [
+      "100-conf-write-zot-config.json"
+    ]
+  },
+  "check": {
+    "check": [
+      "check-zot-mirror.json"
+    ]
+  },
+  "supported_addons": [
+    "addon-ssl"
+  ],
+  "required_addons": [
+    "addon-ssl"
+  ],
+  "tags": [
+    "infrastructure"
+  ],
+  "url": "https://zotregistry.dev/",
+  "documentation": "https://zotregistry.dev/v2.1/",
+  "source": "https://github.com/project-zot/zot"
+}

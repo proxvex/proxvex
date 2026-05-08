@@ -43,6 +43,7 @@ APP_HOST_MAP="
 github-runner=ubuntupve
 ghcr-registry-mirror=ubuntupve
 docker-mirror-test=ubuntupve
+zot-mirror=ubuntupve
 "
 
 host_for_app() {
@@ -107,6 +108,7 @@ print_steps() {
     16  Deploy modbus2mqtt
     17  Deploy ghcr-registry-mirror (target: $(host_for_app ghcr-registry-mirror)) [test/CI infra; optional]
     18  Deploy docker-mirror-test (target: $(host_for_app docker-mirror-test)) [test infra; parallel to step 5]
+    19  Deploy zot-mirror (target: $(host_for_app zot-mirror)) [pull-through cache for ghcr.io; cert SAN already covers Docker Hub for Phase B]
 STEPS
 }
 
@@ -157,6 +159,10 @@ Options:
                         a fresh redeploy means each test image gets pulled
                         through once, which is fine but optional to avoid
                         via production/reseed-docker-mirror-test.sh.
+  --force-zot-mirror    In step 19, if a 'zot-mirror' container already
+                        exists, destroy it before re-deploying. Without
+                        this flag the step is skipped with a warning to
+                        preserve the cached image volume.
   -h, --help            Show this help and exit
 
 Without arguments, this help is shown and nothing is executed.
@@ -193,6 +199,7 @@ JSON_DEV_SYNC=0
 FORCE_DRM=0
 FORCE_NGINX=0
 FORCE_DRM_TEST=0
+FORCE_ZOT=0
 SCOPE_FLAGS=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -211,6 +218,7 @@ while [ $# -gt 0 ]; do
     --force-docker-registry-mirror) FORCE_DRM=1; shift ;;
     --force-nginx) FORCE_NGINX=1; shift ;;
     --force-docker-mirror-test) FORCE_DRM_TEST=1; shift ;;
+    --force-zot-mirror) FORCE_ZOT=1; shift ;;
     *) echo "Unknown argument: $1" >&2; echo "" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -876,6 +884,52 @@ if should_run 18; then
 fi
 
 # ================================================================
+# Step 19: Deploy zot-mirror — project-zot/zot pull-through cache
+#   Phase A: ghcr.io upstream only (zot_config default in
+#   json/applications/zot-mirror/application.json). Phase B can extend
+#   to multi-upstream by editing the zot_config param — cert SAN already
+#   covers DNS:ghcr.io,DNS:registry-1.docker.io,DNS:index.docker.io so
+#   no cert reissue needed.
+#
+#   Hostname `zot-mirror` is added to OpenWrt dnsmasq by Step 1 (see
+#   production/dns.sh). Inside docker-compose-style apps, end-users
+#   pick the mirror up by setting project param `ghcr_registry_mirror`
+#   to `https://zot-mirror` — post-start-dockerd.sh writes an
+#   /etc/hosts redirect so client `docker pull ghcr.io/...` lands here.
+#
+#   Idempotency: skip if container exists. --force-zot-mirror destroys
+#   + redeploys (purges the cache volume; the cache fills on demand
+#   from ghcr.io's anonymous-friendly pull-through, no rate-limit pain).
+# ================================================================
+if should_run 19; then
+  zot_target=$(host_for_app zot-mirror)
+  banner 19 "Deploy zot-mirror (${zot_target})"
+  zot_existing=$(pve_ssh_at "$zot_target" \
+    "pct list | awk '\$NF==\"zot-mirror\"{print \$1}'" 2>/dev/null || true)
+  if [ -n "$zot_existing" ] && [ "$FORCE_ZOT" -ne 1 ]; then
+    echo ""
+    echo "  ============================================================"
+    echo "  Container 'zot-mirror' already exists on ${zot_target}"
+    echo "  (VMID: ${zot_existing}). Skipping step 19 to preserve the"
+    echo "  cached image volume."
+    echo "  Force redeploy: $0 --force-zot-mirror --step 19"
+    echo "  ============================================================"
+    echo ""
+  else
+    if [ -n "$zot_existing" ]; then
+      echo "  --force-zot-mirror: destroying existing container(s) [${zot_existing}]..."
+      for vmid in $zot_existing; do
+        pve_ssh_at "$zot_target" "pct stop ${vmid} 2>/dev/null; pct destroy ${vmid} --purge --force" || {
+          echo "ERROR: failed to destroy VM ${vmid} (zot-mirror) on ${zot_target}" >&2
+          exit 1
+        }
+      done
+    fi
+    "$SCRIPT_DIR/deploy.sh" --host "$zot_target" zot-mirror.json
+  fi
+fi
+
+# ================================================================
 # Done
 # ================================================================
 echo ""
@@ -894,4 +948,5 @@ echo "  Node-RED:    192.168.4.46 (node-red.local)"
 echo "  Modbus2MQTT: 192.168.4.47 (modbus2mqtt.local)"
 echo "  GHCR Mirror: 192.168.4.48 (ghcr-mirror, ubuntupve, test infra)"
 echo "  Test Mirror: 192.168.4.49 (docker-mirror-test, ubuntupve, test infra)"
+echo "  Zot Mirror:  192.168.4.50 (zot-mirror, ubuntupve, ghcr.io pull-through)"
 echo ""
