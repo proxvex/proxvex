@@ -1253,6 +1253,12 @@
       "group": "Other",
       "advanced": true,
       "tasks": ["installation"]
+    },
+    "zot_config": {
+      "name": "Zot Config (config.json)",
+      "type": "string",
+      "required": false,
+      "advanced": true
     }
   }
 }

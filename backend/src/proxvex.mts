@@ -352,18 +352,39 @@ async function main() {
       args.secretsFilePath || path.join(localPath, "secret.txt");
     await startWebApp(localPath, storageContextFilePath, secretFilePath);
   } catch (err: any) {
-    console.error("Unexpected error:", err?.message || err);
-    if (err?.stack) {
-      console.error("Stack trace:", err.stack);
-    }
+    reportFatalError("Unexpected error", err);
     process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error("Unhandled promise rejection:", err?.message || err);
-  if (err?.stack) {
+function reportFatalError(label: string, err: any): void {
+  console.error(`${label}:`, err?.message || err);
+  if (err?.filename) {
+    console.error("File:", err.filename);
+  }
+  if (err?.name === "JsonError" && Array.isArray(err.details)) {
+      dumpJsonErrorDetails(err.details, "  ");
+  }
+  else if (err?.stack) {
     console.error("Stack trace:", err.stack);
   }
+}
+
+function dumpJsonErrorDetails(details: any[], indent: string): void {
+  console.error(`${indent}Details (${details.length}):`);
+  for (const d of details) {
+    if (!d) continue;
+    const msg = d.message ?? d.passed_message ?? String(d);
+    console.error(`${indent}- ${msg}`);
+    if (d.filename) console.error(`${indent}  file: ${d.filename}`);
+    if (typeof d.line === "number") console.error(`${indent}  line: ${d.line}`);
+    if (Array.isArray(d.details) && d.details.length > 0) {
+      dumpJsonErrorDetails(d.details, indent + "  ");
+    } 
+  }
+}
+
+main().catch((err) => {
+  reportFatalError("Unhandled promise rejection", err);
   process.exit(1);
 });
