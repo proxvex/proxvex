@@ -185,6 +185,10 @@ export class RemoteCli {
           if (v == null || v === "") continue;
           paramsInput.params.push({ name: paramId, value: String(v) });
         }
+        // (vm_id propagation for replace_ct flows lives in scenario-executor —
+        // it has the framework context to differentiate in-place upgrade
+        // (docker-compose) from clone-replace (oci-image upgrade, all
+        // reconfigures), which the CLI cannot tell apart.)
         if (!this.options.quiet) {
           process.stderr.write(`Using previous container ${previousVmId.value} config as defaults.\n`);
         }

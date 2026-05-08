@@ -32,6 +32,20 @@ export interface TestScenario {
    * code (including 0) or "never ran" both fail the test.
    */
   expect2fail?: Record<string, number>;
+  /**
+   * Templates that MAY fail with a specific exit code without breaking the
+   * scenario. Keys are template filenames, values are the tolerated non-zero
+   * exit code. Unlike `expect2fail` (which *requires* the template to fail),
+   * `allowed2fail` only relaxes a failure: if the template exits 0 the
+   * scenario continues normally; if it exits with the listed code the
+   * scenario still passes; any other non-zero exit is a real failure.
+   *
+   * Use case: an early gate template that fails when an env-driven
+   * precondition isn't met (e.g. CF_TOKEN_TEST unset for nginx/acme-real),
+   * so the scenario green-passes in unconfigured environments but exercises
+   * the full pipeline when the env is set.
+   */
+  allowed2fail?: Record<string, number>;
 }
 
 /** Discovered scenario with resolved identity */

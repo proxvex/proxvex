@@ -474,6 +474,10 @@ export interface ITestScenarioResponse {
   /** Per-template expected failure exit codes for livetests. Keys are
    *  template filenames, values are the required non-zero exit code. */
   expect2fail?: Record<string, number>;
+  /** Per-template tolerated failure exit codes. Unlike expect2fail (which
+   *  *requires* the failure), allowed2fail only relaxes a failure: pass-or-
+   *  exit-with-listed-code is OK. */
+  allowed2fail?: Record<string, number>;
 }
 
 export interface ITestScenariosResponse {
