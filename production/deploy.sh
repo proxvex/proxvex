@@ -17,18 +17,22 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Shared helpers: auth_curl + init_admin_pat. After Step 11 the deployer
-# enforces OIDC on /api/*; init_admin_pat reads /bootstrap/admin-client.pat
-# from the Zitadel LXC and exports OCI_DEPLOYER_TOKEN (CLI bearer) plus
-# ZITADEL_ADMIN_PAT (auth_curl bearer).
+# Shared helpers: auth_curl + init_admin_pat + init_oidc_jwt. After Step 11
+# the deployer enforces OIDC on /api/* and rejects opaque tokens (e.g. PATs)
+# with HTTP 401 / "Invalid Compact JWS". init_oidc_jwt reads the deployer-cli
+# machine credentials from /bootstrap/deployer-oidc.json on the Zitadel LXC,
+# performs an OIDC client_credentials grant, and exports the resulting JWT as
+# OCI_DEPLOYER_TOKEN — picked up by both auth_curl and oci-lxc-cli.
 . "$SCRIPT_DIR/_lib.sh"
 
 PVE_HOST="${PVE_HOST:-pve1.cluster}"
 DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 
-# Pull the PAT once so both ensure_stack's curl and the CLI invocation below
-# carry valid auth post-OIDC. No-op if Zitadel is not yet up.
+# Pull credentials so both ensure_stack's curl and the CLI invocation below
+# carry valid auth post-OIDC. Both are no-ops if Zitadel/deployer-oidc.json
+# isn't ready yet (pre-Zitadel-deploy phase).
 init_admin_pat "$PVE_HOST"
+init_oidc_jwt "$PVE_HOST"
 
 # Optional per-call host override
 if [ "$1" = "--host" ] || [ "$1" = "--ve" ]; then

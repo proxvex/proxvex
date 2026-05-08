@@ -122,6 +122,56 @@ Während der Master-Lauf alles in einem Aufwasch macht, gibt es ein paar Eingrif
 `--retry` ist nur für stateless, dependency-freie Steps (5/8/13) zugelassen — alles andere lehnt das Skript ab, weil ein blindes Destroy-and-Redeploy Daten oder Folgeschritte zerstören würde.
 
 
+## Nach der Installation: Zitadel-Konfiguration
+
+Step 10/11 richtet Zitadel automatisch so ein, dass Deployer-CLI **und** Browser-Login funktionieren. Was der Bootstrap ([`post-setup-deployer-in-zitadel.sh`](../json/applications/zitadel/scripts/post-setup-deployer-in-zitadel.sh)) anlegt:
+
+| Objekt in Zitadel             | Zweck                                                              |
+|-------------------------------|--------------------------------------------------------------------|
+| Project `proxvex`             | Hält Rollen + OIDC-App                                             |
+| Role `admin`                  | Vom Deployer als Required-Role geprüft                             |
+| OIDC-App `proxvex` (Web)      | Browser-Login (Auth-Code-Flow), Client-ID/Secret in `deployer-oidc.json` |
+| Machine-User `deployer-cli`   | CLI-Login (Client-Credentials-Flow), `machine_client_*` in `deployer-oidc.json`, `admin`-Rolle gegrantet |
+| Token-Settings auf der App    | `idTokenRoleAssertion`, `accessTokenRoleAssertion`, `idTokenUserinfoAssertion` aktiviert |
+
+Was du **manuell** machen musst, sobald Step 11 durch ist:
+
+### 1. Eigenen User die `admin`-Rolle granten
+
+Der Bootstrap legt nur die Rolle an — vergibt sie an keinen Menschen. Erster Browser-Login auf `https://proxvex:3443` bekommt sonst „missing role 'admin'" (HTTP 403).
+
+```
+auth.ohnewarum.de → Authorization → User Grants → + Authorization
+  User: <dein Zitadel-User>
+  Project: proxvex
+  Role: admin
+```
+
+Erst danach lässt dich der Deployer rein.
+
+### 2. Weitere Operatoren
+
+Pro Person dasselbe Grant. Revoke = Authorization löschen, sofortige Wirkung beim nächsten JWT-Refresh.
+
+### 3. Sicherheits-Hinweis: `deployer-cli` Machine-User
+
+`deployer-oidc.json` auf der Zitadel-LXC enthält ein Client-Secret, das den Deployer mit `admin`-Rolle steuern kann. Speicherort:
+- LXC: `/bootstrap/deployer-oidc.json` (chmod 0600, root)
+- PVE-Host (ZFS-Subvolume): `/rpool/data/subvol-<vmid>-zitadel-bootstrap/deployer-oidc.json`
+
+Wer Root auf der Zitadel-LXC hat oder das ZFS-Subvolume lesen kann, kann sich als Deployer-Admin authentifizieren. Threat-Model entsprechend einplanen — separate, langlebige Credential statt PAT war ein bewusster Trade-off (Komfort + Hardening-Überleben gegen geteiltes Secret).
+
+Rotieren des Machine-User-Secrets: nur möglich, solange der Admin-PAT noch existiert (vor Hardening). Danach: User in Zitadel-UI löschen + Bootstrap auf einer frischen Zitadel-Instanz neu laufen lassen.
+
+### 4. Hardening (Template 360)
+
+`post-harden-zitadel-compose.sh` läuft beim Zitadel-Deploy automatisch und entfernt `/bootstrap/admin-client.pat`. Konsequenzen:
+
+- Kein erneuter Bootstrap-Lauf möglich (würde fehlen: Authentifizierung gegen die Zitadel-Management-API).
+- `deployer-oidc.json` bleibt intakt, CLI- und Browser-Login funktionieren weiter.
+- Reihenfolge ist wichtig: **alle Bootstrap-Korrekturen vor Hardening anwenden**. Wenn ein Code-Bug am Bootstrap später gefunden wird, hilft nur: Zitadel-DB droppen + Step 10 neu (siehe Repair-Recipe in [`setup-production.sh`](setup-production.sh) Schritt 10).
+
+
 ## Zertifikatsstrategie
 
 ### Grundregel

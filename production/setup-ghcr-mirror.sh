@@ -31,6 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # vs ssh.
 . "$SCRIPT_DIR/_lib.sh"
 init_admin_pat
+init_oidc_jwt
 
 DEPLOYER_HOSTNAME="${DEPLOYER_HOSTNAME:-proxvex}"
 GHCR_MIRROR_HOST="${GHCR_MIRROR_HOST:-ubuntupve}"

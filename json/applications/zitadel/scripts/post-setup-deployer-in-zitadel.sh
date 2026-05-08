@@ -68,10 +68,25 @@ if [ -n "$COMPOSE_PROJECT" ] && [ -d "$COMPOSE_DIR" ]; then
   cd "$COMPOSE_DIR"
 fi
 
-# Read PAT via /proc filesystem — the Zitadel distroless image has no shell tools
-# (no cat, no sh), so docker exec cannot be used to read files.
+PAT=""
 ZITADEL_CONTAINER_ID=$(docker ps -q -f name=zitadel-api 2>/dev/null | head -1)
-if [ -n "$ZITADEL_CONTAINER_ID" ]; then
+
+# Source 1 (preferred): the persistent volume on the LXC. /bootstrap is a
+# bind-mount into the docker container as /zitadel/bootstrap, so the PAT
+# Zitadel writes during FirstInstance survives container/compose restarts
+# and is directly readable on the LXC. This is the only path that works on
+# a Zitadel reconfigure (existing DB → FirstInstance does not re-run, the
+# tmpfs PAT path inside docker would be empty, but the persistent file is
+# still there).
+if [ -f "/bootstrap/admin-client.pat" ]; then
+  PAT=$(cat /bootstrap/admin-client.pat 2>/dev/null)
+fi
+
+# Source 2 (fallback): read via /proc namespace of the running zitadel-api
+# container. Useful only when the persistent file was removed by hardening
+# but the container is still up with the original PAT in tmpfs (rare).
+# Distroless image has no shell, so /proc/<pid>/root is the only way in.
+if [ -z "$PAT" ] && [ -n "$ZITADEL_CONTAINER_ID" ]; then
   GO_PID_FMT=$(printf '%s.State.Pid%s' '{{' '}}')
   CONTAINER_PID=$(docker inspect -f "$GO_PID_FMT" "$ZITADEL_CONTAINER_ID" 2>/dev/null)
   if [ -n "$CONTAINER_PID" ] && [ -f "/proc/${CONTAINER_PID}/root/zitadel/bootstrap/admin-client.pat" ]; then
@@ -269,6 +284,19 @@ if [ -z "$CLIENT_SECRET" ]; then
     exit 1
   fi
 fi
+
+# Ensure role-assertion flags are enabled on the OIDC app config. Without
+# these the ID/Access token does not carry urn:zitadel:iam:org:project:roles
+# claims, and the deployer's role check (webapp-auth-middleware.mts:70-93)
+# rejects every login with "missing role 'admin'". projectRoleAssertion on
+# the project alone is not enough — the OIDC app itself must opt in.
+# UpdateOIDCAppConfig replaces the config wholesale, so we re-send the same
+# values used at creation time. Idempotent on re-runs.
+echo "Enabling idTokenRoleAssertion + accessTokenRoleAssertion on app ${APP_ID}..." >&2
+CALLBACK_URL="https://proxvex:3443/api/auth/callback"
+LOGOUT_URL="https://proxvex:3443"
+zitadel_api PUT "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config" \
+  "{\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"],\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}" >/dev/null
 
 # --- 4. Find or create machine user "deployer-cli" for client_credentials ---
 # The OIDC app above is a Web app (auth_code flow) used by the browser login.

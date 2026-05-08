@@ -47,25 +47,53 @@ GHCR_REGISTRY_MIRROR="{{ ghcr_registry_mirror }}"
 [ "$GHCR_REGISTRY_MIRROR" = "NOT_DEFINED" ] && GHCR_REGISTRY_MIRROR=""
 
 mkdir -p /etc/docker
-if [ ! -s /etc/docker/daemon.json ]; then
-  if [ -n "$DOCKER_REGISTRY_MIRROR" ]; then
-    cat > /etc/docker/daemon.json <<EOF
-{
-  "storage-driver": "overlay2",
-  "userland-proxy": false,
-  "registry-mirrors": ["${DOCKER_REGISTRY_MIRROR}"]
-}
-EOF
-    echo "daemon.json: registry-mirrors -> ${DOCKER_REGISTRY_MIRROR}" >&2
-  else
-    cat > /etc/docker/daemon.json <<'EOF'
-{
-  "storage-driver": "overlay2",
-  "userland-proxy": false
-}
-EOF
-  fi
+
+# Build daemon.json with explicit DNS upstreams. Without `dns`, dockerd
+# captures the LXC's /etc/resolv.conf at start time and exposes it via the
+# embedded DNS resolver at 127.0.0.11. That forwarding is fragile in nested
+# LXC-Docker setups: when the upstream resolver (OpenWrt dnsmasq) takes a
+# moment to answer, or when the LXC's resolv.conf is rewritten by an init
+# system, containers begin failing with "lookup <host> on 127.0.0.11:53:
+# no such host" until dockerd restarts. Pinning DNS in daemon.json makes
+# the forwarding deterministic.
+#
+# Strategy: take every non-loopback nameserver from the LXC's
+# /etc/resolv.conf (loopbacks like 127.0.0.53 are systemd-resolved stubs,
+# unreachable from a docker container's network namespace). Always
+# rewrite daemon.json so the fix lands on existing containers on next
+# replay (the file is content-deterministic from template vars +
+# resolv.conf, so re-writing is idempotent).
+DNS_LIST=""
+if [ -r /etc/resolv.conf ]; then
+  for ns in $(awk '/^nameserver / {print $2}' /etc/resolv.conf); do
+    case "$ns" in
+      127.*|::1) continue ;;
+    esac
+    if [ -z "$DNS_LIST" ]; then
+      DNS_LIST="\"$ns\""
+    else
+      DNS_LIST="$DNS_LIST, \"$ns\""
+    fi
+  done
 fi
+
+# Compose daemon.json. registry-mirrors only when the project param is set;
+# dns only when a usable upstream was found.
+{
+  printf '{\n'
+  printf '  "storage-driver": "overlay2",\n'
+  printf '  "userland-proxy": false'
+  if [ -n "$DOCKER_REGISTRY_MIRROR" ]; then
+    printf ',\n  "registry-mirrors": ["%s"]' "$DOCKER_REGISTRY_MIRROR"
+  fi
+  if [ -n "$DNS_LIST" ]; then
+    printf ',\n  "dns": [%s]' "$DNS_LIST"
+  fi
+  printf '\n}\n'
+} > /etc/docker/daemon.json
+
+[ -n "$DOCKER_REGISTRY_MIRROR" ] && echo "daemon.json: registry-mirrors -> ${DOCKER_REGISTRY_MIRROR}" >&2
+[ -n "$DNS_LIST" ] && echo "daemon.json: dns -> [${DNS_LIST}]" >&2
 
 # /etc/hosts redirect for ghcr.io. Idempotent: the marker line lets
 # re-runs detect prior install and skip without double-adding. If the
