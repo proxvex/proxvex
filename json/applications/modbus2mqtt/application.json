@@ -24,6 +24,8 @@
     { "id": "volume_backup", "value": "true" },
     { "id": "ssl_mode", "value": "native" },
     { "id": "ssl.needs_ca_cert", "value": "true" },
+    { "id": "oidc_redirect_uri", "value": "https://{{hostname}}{{project_domain_suffix}}/api/auth/callback" },
+    { "id": "oidc_post_logout_uri", "value": "https://{{hostname}}{{project_domain_suffix}}/" },
     { "id": "oidc_required_role", "value": "admin" }
   ],
   "installation": {

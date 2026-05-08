@@ -3,7 +3,8 @@
   "name": "Check Container",
   "description": "Checks container is running and notes contain managed marker.",
   "parameters": [
-    "hostname"
+    "hostname",
+    "vm_id"
   ],
   "commands": [
     {

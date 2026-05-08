@@ -68,6 +68,7 @@
   },
   "upgrade": {
     "post_start": [
+      "307-post-start-dockerd.json",
       "315-post-update-compose-image-tags.json",
       "316-post-upgrade-system-packages.json",
       "317-svc-upgrade-docker-compose.json",

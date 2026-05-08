@@ -24,15 +24,20 @@ import { checkVolumeConsistency } from "./volume-consistency-check.mjs";
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
 
 /**
- * Evaluate expect2fail expectations against the CLI's per-template results.
+ * Evaluate expect2fail + allowed2fail expectations against per-template results.
  *
- * Three failure modes per entry, all flagged as mismatches:
- *  - template never ran: no message has matching `template` field
- *  - template ran but exited with a different code (including 0)
- *  - any OTHER template exited non-zero (i.e. an unexpected failure)
+ * Two distinct semantics:
+ *  - `expect2fail`: the template MUST fail with the listed code. Pipeline
+ *    success without the failure is a mismatch (test detects when the
+ *    expected failure path silently goes away).
+ *  - `allowed2fail`: the template MAY fail with the listed code. If it
+ *    passes, no foul. If it fails with that code, also no foul. Any other
+ *    non-zero is still a real failure.
  *
- * Returns matched=true only when every entry maps to exactly the expected
- * exit code AND no extraneous non-zero exits occurred.
+ * In both cases, OTHER non-zero exits remain real failures.
+ *
+ * Returns matched=true only when every expect2fail entry matched AND no
+ * extraneous non-zero exits occurred.
  *
  * Internal CLI errors with exitCode -1 (output validation, not a real script
  * exit) are excluded — they don't represent template-level failures.
@@ -40,6 +45,7 @@ const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
 function evaluateExpect2Fail(
   cliResult: CliJsonResult,
   expect2fail: Record<string, number>,
+  allowed2fail: Record<string, number> = {},
 ): { matched: boolean; mismatches: string[] } {
   const mismatches: string[] = [];
 
@@ -89,8 +95,8 @@ function evaluateExpect2Fail(
     }
   }
 
-  // Flag any non-zero exit that's not covered by an expect2fail entry.
-  // Exclude:
+  // Flag any non-zero exit that's not covered by an expect2fail OR
+  // allowed2fail entry. Exclude:
   //  - exitCode 0 / -1 (success / synthetic-error wrapper)
   //  - the "Failed" pipeline-abort message (command="Failed", no template) —
   //    it's the synthetic top-level wrapper VeExecution emits when an inner
@@ -104,10 +110,28 @@ function evaluateExpect2Fail(
     }
     if (!msg.template) continue;
     if (expect2fail[msg.template] !== undefined) continue;
+    if (allowed2fail[msg.template] === msg.exitCode) continue;
     mismatches.push(`unexpected failure: ${msg.template} exited ${msg.exitCode}`);
   }
 
   return { matched: mismatches.length === 0, mismatches };
+}
+
+/** True if any allowed2fail entry was actually triggered (template ran, exited
+ * with the listed code). Used to decide whether to rewrite cliResult.exitCode
+ * from non-zero to 0 (analogous to expect2fail) and to skip the post-install
+ * stability poll. */
+function allowed2failTriggered(
+  cliResult: CliJsonResult,
+  allowed2fail: Record<string, number>,
+): boolean {
+  for (const [tmpl, code] of Object.entries(allowed2fail)) {
+    const msgs = cliResult.messages.filter(
+      (m) => m.template === tmpl && !m.partial && m.exitCode !== -1,
+    );
+    if (msgs.some((m) => m.exitCode === code)) return true;
+  }
+  return false;
 }
 
 /** Find an existing managed container by application_id via the installations API.
@@ -448,6 +472,24 @@ export async function executeScenarios(
           buildResult.params.push({ name: "previous_vm_id", value: String(existingVm.vm_id) });
         }
         logInfo(`Found existing VM ${existingVm.vm_id} for ${task} (previous_vm_id)`);
+
+        // For in-place upgrade (docker-compose), also push vm_id =
+        // existingVm.vm_id so the auto-appended check templates
+        // (900-host-check-container etc.) can resolve `{{ vm_id }}`.
+        // Without this, post-upgrade verification runs with VM='' and
+        // fails. Skip for clone-replace flows (oci-image upgrade, all
+        // reconfigures): there `vm_id` is the *new* clone's id which the
+        // create_ct/replace-ct chain allocates — pushing it here makes
+        // source=target → "must differ" abort.
+        const appMetaForVmId = appMetaMap.get(scenario.application) ?? {};
+        const isDockerComposeForVmId =
+          (appMetaForVmId.framework ?? appMetaForVmId.extends) === "docker-compose";
+        if (isDockerComposeForVmId && task === "upgrade") {
+          if (!buildResult.params.some((p) => p.name === "vm_id")) {
+            buildResult.params.push({ name: "vm_id", value: String(existingVm.vm_id) });
+            logInfo(`In-place docker-compose upgrade: vm_id=${existingVm.vm_id}`);
+          }
+        }
       }
 
       resolveVolumeStorage(config.pveHost, config.portPveSsh, buildResult.params);
@@ -518,24 +560,38 @@ export async function executeScenarios(
       // 0 so the rest of the pipeline treats this as a passing scenario.
       // Skip wait_seconds in that case — the install was expected to abort,
       // so the container may legitimately be in a partial state.
+      const allowed2fail = scenario.allowed2fail ?? {};
       let expect2failApplied = false;
-      if (scenario.expect2fail && Object.keys(scenario.expect2fail).length > 0) {
-        const verdict = evaluateExpect2Fail(cliResult, scenario.expect2fail);
+      if (
+        (scenario.expect2fail && Object.keys(scenario.expect2fail).length > 0) ||
+        Object.keys(allowed2fail).length > 0
+      ) {
+        const verdict = evaluateExpect2Fail(
+          cliResult, scenario.expect2fail ?? {}, allowed2fail,
+        );
         if (verdict.matched) {
+          const e2f = scenario.expect2fail ?? {};
+          const e2fSummary = Object.keys(e2f).length > 0
+            ? `expect2fail: ${Object.entries(e2f).map(([t, c]) => `${t}→${c}`).join(", ")}`
+            : "";
+          const a2fHit = allowed2failTriggered(cliResult, allowed2fail);
+          const a2fSummary = Object.keys(allowed2fail).length > 0
+            ? `allowed2fail: ${Object.entries(allowed2fail).map(([t, c]) => `${t}→${c}${a2fHit ? " (triggered)" : ""}`).join(", ")}`
+            : "";
           logInfo(
-            `expect2fail satisfied: ${Object.entries(scenario.expect2fail)
-              .map(([t, c]) => `${t}→${c}`)
-              .join(", ")} — treating scenario as passed`,
+            `tolerated failures satisfied — ${[e2fSummary, a2fSummary].filter(Boolean).join("; ")} — treating scenario as passed`,
           );
           cliResult.exitCode = 0;
-          expect2failApplied = true;
+          // Skip wait_seconds whenever a tolerated failure short-circuited
+          // the pipeline — the container may be in a partial state on purpose.
+          expect2failApplied = Object.keys(e2f).length > 0 || a2fHit;
         } else {
           // Force failure with a clear diagnostic; preserve original
           // exit code if non-zero, otherwise synthesize 1.
           if (cliResult.exitCode === 0) cliResult.exitCode = 1;
           const mismatchBlock = verdict.mismatches.map((m) => `  - ${m}`).join("\n");
           cliResult.output =
-            `${cliResult.output}\n--- expect2fail MISMATCH ---\n${mismatchBlock}\n`;
+            `${cliResult.output}\n--- tolerated-failure MISMATCH ---\n${mismatchBlock}\n`;
         }
       }
 

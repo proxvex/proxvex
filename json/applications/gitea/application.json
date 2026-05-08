@@ -10,6 +10,8 @@
     { "id": "rootfs_storage", "default": "local-zfs" },
     { "id": "volume_storage", "default": "local-zfs", "required": true },
     { "id": "oci_image", "value": "gitea/gitea:{{oci_image_tag}}" },
+    { "id": "oidc_redirect_uri", "value": "https://{{hostname}}{{project_domain_suffix}}/api/auth/callback" },
+    { "id": "oidc_post_logout_uri", "value": "https://{{hostname}}{{project_domain_suffix}}/" },
     { "id": "wait_for_network", "value": "true" },
     { "id": "uid", "value": "1000" },
     { "id": "gid", "value": "1000" },

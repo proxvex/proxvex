@@ -38,6 +38,7 @@
   ],
   "installation": {
     "pre_start": [
+      { "name": "045-conf-check-cf-token-set.json", "position": "start" },
       { "name": "150-conf-create-storage-volumes-for-lxc.json", "position": "end" },
       { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
       { "name": "159-conf-enable-ssl-app.json", "position": "end" },
@@ -50,6 +51,7 @@
   },
   "reconfigure": {
     "pre_start": [
+      { "name": "045-conf-check-cf-token-set.json", "position": "start" },
       { "name": "150-conf-create-storage-volumes-for-lxc.json", "position": "end" },
       { "name": "166-conf-write-on-start-scripts.json", "position": "end" },
       { "name": "159-conf-enable-ssl-app.json", "position": "end" },

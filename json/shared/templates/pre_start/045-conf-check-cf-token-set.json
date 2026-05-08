@@ -1,0 +1,14 @@
+{
+  "execute_on": "ve",
+  "name": "Check CF Token Set",
+  "description": "Gate for ACME real-issuance flows. Fails fast if CF_TOKEN is the livetest placeholder (CF_TOKEN_TEST unset). Pair with allowed2fail in the fixture so the scenario passes in unconfigured environments without masking real failures when env is set.",
+  "parameters": [
+    "CF_TOKEN"
+  ],
+  "commands": [
+    {
+      "name": "Check CF Token Set",
+      "script": "conf-check-cf-token-set.sh"
+    }
+  ]
+}

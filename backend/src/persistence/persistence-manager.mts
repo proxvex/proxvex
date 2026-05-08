@@ -693,6 +693,7 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
         if (data.cli_timeout !== undefined) scenario.cli_timeout = data.cli_timeout as number;
         if (data.verify) scenario.verify = data.verify as Record<string, boolean | number | string>;
         if (data.expect2fail) scenario.expect2fail = data.expect2fail as Record<string, number>;
+        if (data.allowed2fail) scenario.allowed2fail = data.allowed2fail as Record<string, number>;
         if (data.description) scenario.description = data.description as string;
 
         // Auto-generate description if not explicitly set
