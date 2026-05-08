@@ -14,7 +14,7 @@ Web-based PostgreSQL administration and management tool.
 |-----------|---------|-------------|
 | `hostname` | `pgadmin` | Container hostname |
 | `http_port` | `5050` | HTTP port (advanced) |
-| `https_port` | `5443` | HTTPS port (advanced) |
+| `local_https_port` | `5443` | HTTPS port (advanced) |
 
 The container runs as UID 5050 (pgadmin user) using the `dpage/pgadmin4` image.
 

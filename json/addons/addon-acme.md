@@ -70,7 +70,7 @@ Email address for Let's Encrypt registration and certificate expiry notification
 | `native` | App configures HTTPS itself using the certificates | For apps with built-in TLS (PostgreSQL, Gitea) |
 | `certs` | Only provision certificates, no proxy or ports | For custom setups |
 
-### `http_port` / `https_port` (advanced)
+### `http_port` / `local_https_port` (advanced)
 
 Only relevant for `proxy` mode. The HTTP port of the application to proxy, and the HTTPS port to expose.
 

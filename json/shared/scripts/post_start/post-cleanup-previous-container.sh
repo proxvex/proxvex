@@ -9,7 +9,7 @@
 #   - vm_id: New container ID (required)
 #   - hostname: Hostname of the new container (required)
 #   - http_port: HTTP port (default 3000)
-#   - https_port: HTTPS port (default 3443)
+#   - local_https_port: HTTPS port (default 3443)
 #   - deployer_base_url: External URL (optional, e.g. https://deployer.example.com)
 
 set -eu
@@ -18,7 +18,7 @@ PREVIOUS_VMID="{{ previous_vm_id }}"
 NEW_VMID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
 HTTP_PORT="{{ http_port }}"
-HTTPS_PORT="{{ https_port }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 DEPLOYER_BASE_URL="{{ deployer_base_url }}"
 
 log() { echo "$@" >&2; }
@@ -33,7 +33,7 @@ if [ -z "$NEW_VMID" ] || [ "$NEW_VMID" = "NOT_DEFINED" ]; then
   fail "vm_id is required"
 fi
 if [ "$HTTP_PORT" = "NOT_DEFINED" ]; then HTTP_PORT="3000"; fi
-if [ "$HTTPS_PORT" = "NOT_DEFINED" ]; then HTTPS_PORT="3443"; fi
+if [ "$LOCAL_HTTPS_PORT" = "NOT_DEFINED" ]; then LOCAL_HTTPS_PORT="3443"; fi
 
 CONFIG_DIR="/etc/pve/lxc"
 NEW_CONF="${CONFIG_DIR}/${NEW_VMID}.conf"
@@ -111,7 +111,7 @@ else
   fi
 
   if [ "$HAS_SSL" -eq 1 ]; then
-    REDIRECT_URL="https://${HOSTNAME}:${HTTPS_PORT}"
+    REDIRECT_URL="https://${HOSTNAME}:${LOCAL_HTTPS_PORT}"
   else
     REDIRECT_URL="http://${HOSTNAME}:${HTTP_PORT}"
   fi

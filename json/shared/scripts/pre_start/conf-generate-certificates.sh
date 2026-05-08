@@ -18,7 +18,7 @@
 #   ca_cert_b64     - Base64-encoded CA public certificate PEM (from backend)
 #   shared_volpath  - Base path for volumes (output from template 160)
 #   hostname        - Container hostname
-#   domain_suffix   - FQDN suffix (default: .local; informational only)
+#   project_domain_suffix   - FQDN suffix (default: .local; informational only)
 #   ssl.needs_server_cert - Write server certificate
 #   ssl.needs_ca_cert     - Write CA certificate
 #   uid, gid        - File ownership
@@ -32,7 +32,7 @@ SERVER_KEY_B64="{{ server_key_b64 }}"
 SERVER_CERT_B64="{{ server_cert_b64 }}"
 CA_CERT_B64="{{ ca_cert_b64 }}"
 HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
+PROJECT_DOMAIN_SUFFIX="{{ project_domain_suffix }}"
 NEEDS_SERVER_CERT="{{ ssl.needs_server_cert }}"
 NEEDS_CA_CERT="{{ ssl.needs_ca_cert }}"
 UID_VAL="{{ uid }}"
@@ -41,12 +41,12 @@ MAPPED_UID="{{ mapped_uid }}"
 MAPPED_GID="{{ mapped_gid }}"
 CERT_DIR_OVERRIDE="{{ cert_dir_override }}"
 
-[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
+[ "$PROJECT_DOMAIN_SUFFIX" = "NOT_DEFINED" ] && PROJECT_DOMAIN_SUFFIX=".local"
 [ "$NEEDS_SERVER_CERT" = "NOT_DEFINED" ] && NEEDS_SERVER_CERT="true"
 [ "$NEEDS_CA_CERT" = "NOT_DEFINED" ] && NEEDS_CA_CERT="false"
 
 # Compute FQDN (informational; signing already done in backend)
-FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
+FQDN="${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
 echo "Writing certificates for FQDN: ${FQDN}" >&2
 
 # Calculate effective UID/GID (prefer mapped values, then read lxc.init.uid, then offset)

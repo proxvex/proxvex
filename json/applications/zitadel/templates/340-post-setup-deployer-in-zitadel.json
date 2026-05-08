@@ -4,7 +4,7 @@
   "execute_on": "lxc",
   "parameters": [
     "hostname",
-    "domain_suffix",
+    "project_domain_suffix",
     "compose_project",
     "ssl_mode",
     "ZITADEL_EXTERNALDOMAIN"

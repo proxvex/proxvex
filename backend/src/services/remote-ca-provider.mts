@@ -128,14 +128,14 @@ export class RemoteCaProvider implements ICaProvider {
 
   // --- Domain suffix (stored locally for now) ---
 
-  private domainSuffix: string = ".local";
+  private projectDomainSuffix: string = ".local";
 
   getDomainSuffix(_veContextKey: string): string {
-    return this.domainSuffix;
+    return this.projectDomainSuffix;
   }
 
   setDomainSuffix(_veContextKey: string, suffix: string): void {
-    this.domainSuffix = suffix;
+    this.projectDomainSuffix = suffix;
   }
 
   // --- Shared volume path (stored locally) ---

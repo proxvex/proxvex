@@ -7,7 +7,7 @@
 set -eu
 
 VM_ID="{{ vm_id }}"
-HTTPS_PORT="{{ https_port }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 CONFIG_DIR="/etc/pve/lxc"
 CONF_FILE="${CONFIG_DIR}/${VM_ID}.conf"
 
@@ -22,8 +22,8 @@ fi
   echo "lxc.environment: PGADMIN_CONFIG_ENABLE_TLS=True"
   echo "lxc.environment: PGADMIN_CONFIG_SERVER_CERT=/certs/server.cert"
   echo "lxc.environment: PGADMIN_CONFIG_SERVER_KEY=/certs/server.key"
-  echo "lxc.environment: PGADMIN_LISTEN_PORT=${HTTPS_PORT:-5443}"
+  echo "lxc.environment: PGADMIN_LISTEN_PORT=${LOCAL_HTTPS_PORT:-5443}"
 } >> "$CONF_FILE"
 
-echo "pgAdmin native HTTPS enabled (port ${HTTPS_PORT:-5443}, certs from /certs/)" >&2
+echo "pgAdmin native HTTPS enabled (port ${LOCAL_HTTPS_PORT:-5443}, certs from /certs/)" >&2
 echo '[{"id":"ssl_app_enabled","value":"true"}]'

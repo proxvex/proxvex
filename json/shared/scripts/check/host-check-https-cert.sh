@@ -6,19 +6,19 @@
 
 VM_ID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
-HTTPS_PORT="{{ https_port }}"
+PROJECT_DOMAIN_SUFFIX="{{ project_domain_suffix }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 SSL_MODE="{{ ssl_mode }}"
 
-[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
-[ "$HTTPS_PORT"    = "NOT_DEFINED" ] && HTTPS_PORT=""
+[ "$PROJECT_DOMAIN_SUFFIX" = "NOT_DEFINED" ] && PROJECT_DOMAIN_SUFFIX=".local"
+[ "$LOCAL_HTTPS_PORT"    = "NOT_DEFINED" ] && LOCAL_HTTPS_PORT=""
 [ "$SSL_MODE"      = "NOT_DEFINED" ] && SSL_MODE=""
 
-# Native SSL means the app speaks TLS on https_port directly. nginx-proxy modes
-# put TLS on a different port. If https_port is missing for native mode, abort
+# Native SSL means the app speaks TLS on local_https_port directly. nginx-proxy modes
+# put TLS on a different port. If local_https_port is missing for native mode, abort
 # rather than guessing (most apps set it as a property default).
-if [ -z "$HTTPS_PORT" ] || [ "$HTTPS_PORT" = "0" ]; then
-  echo "CHECK: https_cert FAILED (https_port not set)" >&2
+if [ -z "$LOCAL_HTTPS_PORT" ] || [ "$LOCAL_HTTPS_PORT" = "0" ]; then
+  echo "CHECK: https_cert FAILED (local_https_port not set)" >&2
   printf '[{"id":"check_https_cert","value":"no port"}]'
   exit 1
 fi
@@ -37,12 +37,12 @@ else
   fi
 fi
 
-EXPECTED_SAN="${HOSTNAME}${DOMAIN_SUFFIX}"
-echo "Probing ${TARGET}:${HTTPS_PORT} (SNI=${EXPECTED_SAN})" >&2
+EXPECTED_SAN="${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
+echo "Probing ${TARGET}:${LOCAL_HTTPS_PORT} (SNI=${EXPECTED_SAN})" >&2
 
 # Pull the leaf cert. -servername sends SNI so apps that route on hostname
 # (e.g. nginx with multiple vhosts) return the right cert.
-PEM=$(echo | timeout 10 openssl s_client -connect "${TARGET}:${HTTPS_PORT}" \
+PEM=$(echo | timeout 10 openssl s_client -connect "${TARGET}:${LOCAL_HTTPS_PORT}" \
       -servername "${EXPECTED_SAN}" -showcerts 2>/dev/null \
       | sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' \
       | sed -n '1,/-----END CERTIFICATE-----/p')
@@ -82,5 +82,5 @@ if ! echo "$PEM" | openssl x509 -noout -checkend 604800 >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "CHECK: https_cert PASSED (${TARGET}:${HTTPS_PORT}, SAN=${EXPECTED_SAN})" >&2
+echo "CHECK: https_cert PASSED (${TARGET}:${LOCAL_HTTPS_PORT}, SAN=${EXPECTED_SAN})" >&2
 printf '[{"id":"check_https_cert","value":"ok"}]'

@@ -13,7 +13,7 @@
 #
 # Inputs:
 #   hostname          - Zitadel hostname
-#   domain_suffix     - Domain suffix for URLs
+#   project_domain_suffix     - Domain suffix for URLs
 #   compose_project   - Docker compose project name
 #   ssl_mode          - SSL mode for protocol detection
 #
@@ -24,19 +24,18 @@
 #   oidc_client_secret - OIDC client secret
 
 HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
+PROJECT_DOMAIN_SUFFIX="{{ project_domain_suffix }}"
 COMPOSE_PROJECT="{{ compose_project }}"
 SSL_MODE="{{ ssl_mode }}"
 ZITADEL_EXTERNALDOMAIN="{{ ZITADEL_EXTERNALDOMAIN }}"
 
-[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=""
+[ "$PROJECT_DOMAIN_SUFFIX" = "NOT_DEFINED" ] && PROJECT_DOMAIN_SUFFIX=""
 [ "$COMPOSE_PROJECT" = "NOT_DEFINED" ] && COMPOSE_PROJECT=""
 [ "$SSL_MODE" = "NOT_DEFINED" ] && SSL_MODE=""
 [ "$ZITADEL_EXTERNALDOMAIN" = "NOT_DEFINED" ] && ZITADEL_EXTERNALDOMAIN=""
 
 PROJECT_NAME="proxvex"
 OIDC_APP_NAME="proxvex"
-OIDC_CALLBACK_PATH="/api/auth/callback"
 CRED_FILE="/bootstrap/deployer-oidc.json"
 
 # --- Ensure curl is available ---
@@ -113,7 +112,7 @@ fi
 # configured ExternalDomain — API calls must send that as Host or Zitadel
 # returns "Instanz nicht gefunden". If ZITADEL_EXTERNALDOMAIN is set (public
 # FQDN like auth.example.com), prefer it; otherwise fall back to the container
-# hostname (+ domain_suffix), which matches the bare-LXC use case.
+# hostname (+ project_domain_suffix), which matches the bare-LXC use case.
 PROTOCOL="http"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
@@ -123,7 +122,7 @@ if [ -n "$ZITADEL_EXTERNALDOMAIN" ]; then
   ISSUER_URL="${PROTOCOL}://${ZITADEL_EXTERNALDOMAIN}"
 else
   ZITADEL_HOST="${HOSTNAME}"
-  ISSUER_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
+  ISSUER_URL="${PROTOCOL}://${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
 fi
 
 echo "Zitadel API URL: ${ZITADEL_URL} (Host: ${ZITADEL_HOST})" >&2
@@ -193,6 +192,15 @@ else
   echo "Found project with ID ${PROJECT_ID}" >&2
 fi
 
+# Ensure projectRoleAssertion is enabled. Zitadel's CreateProject does not
+# reliably honor this field; UpdateProject is the only way to guarantee it.
+# Without this, role claims (urn:zitadel:iam:org:project:roles) are missing
+# from the ID token and proxvex's role check rejects every login with
+# "missing role 'admin'". Idempotent — safe on re-runs.
+echo "Ensuring projectRoleAssertion=true on project ${PROJECT_ID}..." >&2
+zitadel_api PUT "/management/v1/projects/${PROJECT_ID}" \
+  "{\"name\":\"${PROJECT_NAME}\",\"projectRoleAssertion\":true}" >/dev/null
+
 # --- 2. Create roles (skip all if any exist) ---
 echo "Checking existing roles..." >&2
 ROLES_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/roles/_search" "{}")
@@ -218,8 +226,11 @@ CLIENT_SECRET=""
 
 if [ -z "$APP_ID" ]; then
   echo "Creating OIDC app '${OIDC_APP_NAME}'..." >&2
-  CALLBACK_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}${OIDC_CALLBACK_PATH}"
-  LOGOUT_URL="${PROTOCOL}://${HOSTNAME}${DOMAIN_SUFFIX}"
+  # Default deployer URL — matches proxvex/application.json oidc_redirect_uri
+  # default. The actual deployer hostname/port is unknown at Zitadel-bootstrap
+  # time (proxvex isn't deployed yet); user adjusts in Zitadel UI if non-standard.
+  CALLBACK_URL="https://proxvex:3443/api/auth/callback"
+  LOGOUT_URL="https://proxvex:3443"
 
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
     "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"]}")

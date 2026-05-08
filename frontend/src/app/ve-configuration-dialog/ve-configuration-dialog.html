@@ -56,6 +56,23 @@
 				</div>
 			</div>
 		}
+		@if (dependencyWarnings().length > 0) {
+			<div class="missing-stacks-warning" role="status">
+				<mat-icon class="missing-stacks-icon">warning</mat-icon>
+				<div>
+					<strong>Dependency status unclear</strong>
+					<div>Could not determine the runtime state of the following containers (PVE status check timed out or container is locked):
+						@for (dep of dependencyWarnings(); track dep.application; let last = $last) {
+							<strong>{{ dep.application }}</strong>
+							@if (dep.source !== 'application') {
+								<span class="dep-source">(required by {{ dep.source }})</span>
+							}@if (!last) {, }
+						}.
+						Installation is allowed; verify they are running before continuing if you hit errors during install.
+					</div>
+				</div>
+			</div>
+		}
 		@if (showMissingRequiredHint) {
 			<div class="missing-required-hint" role="alert">
 				<strong>Missing required parameters detected.</strong>

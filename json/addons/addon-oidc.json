@@ -12,7 +12,8 @@
     "oidc_client_id",
     "oidc_client_secret",
     "oidc_issuer_url",
-    "oidc_callback_path"
+    "oidc_redirect_uri",
+    "oidc_post_logout_uri"
   ],
   "dependencies": [
     {

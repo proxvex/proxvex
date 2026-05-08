@@ -5,36 +5,36 @@
 # Template variables:
 #   ssl_mode     - proxy, native, or certs
 #   hostname     - Container hostname
-#   domain_suffix - FQDN suffix (default: .local)
+#   project_domain_suffix - FQDN suffix (default: .local)
 #   http_port    - Application HTTP port (optional)
-#   https_port   - Application HTTPS port (optional)
+#   local_https_port   - Application HTTPS port (optional)
 
 SSL_MODE="{{ ssl_mode }}"
 HOSTNAME="{{ hostname }}"
-DOMAIN_SUFFIX="{{ domain_suffix }}"
+PROJECT_DOMAIN_SUFFIX="{{ project_domain_suffix }}"
 HTTP_PORT="{{ http_port }}"
-HTTPS_PORT="{{ https_port }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 
-[ "$DOMAIN_SUFFIX" = "NOT_DEFINED" ] && DOMAIN_SUFFIX=".local"
+[ "$PROJECT_DOMAIN_SUFFIX" = "NOT_DEFINED" ] && PROJECT_DOMAIN_SUFFIX=".local"
 [ "$HTTP_PORT" = "NOT_DEFINED" ] && HTTP_PORT=""
-[ "$HTTPS_PORT" = "NOT_DEFINED" ] && HTTPS_PORT=""
+[ "$LOCAL_HTTPS_PORT" = "NOT_DEFINED" ] && LOCAL_HTTPS_PORT=""
 
-FQDN="${HOSTNAME}${DOMAIN_SUFFIX}"
+FQDN="${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
 
 # Determine protocol and port based on ssl_mode
 case "$SSL_MODE" in
   proxy)
     PROTO="https"
-    PORT="${HTTPS_PORT:-443}"
+    PORT="${LOCAL_HTTPS_PORT:-443}"
     ;;
   native)
     PROTO="https"
-    PORT="${HTTPS_PORT:-443}"
+    PORT="${LOCAL_HTTPS_PORT:-443}"
     ;;
   certs)
     # certs mode: app uses its own SSL config
     PROTO="https"
-    PORT="${HTTPS_PORT:-${HTTP_PORT:-443}}"
+    PORT="${LOCAL_HTTPS_PORT:-${HTTP_PORT:-443}}"
     ;;
   *)
     # No SSL or unknown mode

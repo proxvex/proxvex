@@ -8,9 +8,9 @@
   "parameters": [
     "ssl_mode",
     "hostname",
-    "domain_suffix",
+    "project_domain_suffix",
     "http_port",
-    "https_port"
+    "local_https_port"
   ],
   "commands": [
     {

@@ -9,11 +9,8 @@
     "oidc_client_id",
     "oidc_client_secret",
     "oidc_required_role",
-    "oidc_callback_path",
-    "http_port",
-    "https_port",
-    "ssl_mode",
-    "domain_suffix",
+    "oidc_redirect_uri",
+    "oidc_post_logout_uri",
     "shared_volpath"
   ],
   "commands": [

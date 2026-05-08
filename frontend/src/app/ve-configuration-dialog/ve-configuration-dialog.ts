@@ -66,8 +66,12 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   addonFormGroups = new Map<string, FormGroup>();
   addonsLoading = signal(false);
 
-  // Dependency check state
+  // Dependency check state. `dependencyErrors` blocks install (stopped /
+  // not_found). `dependencyWarnings` is informational only — surfaces
+  // status="unknown" cases (pct status timed out / locked) so the user
+  // can decide whether to proceed.
   dependencyErrors = signal<IDependencyStatus[]>([]);
+  dependencyWarnings = signal<IDependencyStatus[]>([]);
 
   // Stack selection state
   availableStacks = signal<IStack[]>([]);
@@ -877,12 +881,22 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
       stackIds.length > 0 ? stackIds : undefined,
     ).subscribe({
       next: (res) => {
-        const errors = res.dependencies.filter(d => d.status !== 'running');
-        this.dependencyErrors.set(errors);
+        // Split: real blockers (stopped / not_found) vs warnings (unknown).
+        // "running" is the happy path and gets dropped from both lists.
+        const blockers: IDependencyStatus[] = [];
+        const warnings: IDependencyStatus[] = [];
+        for (const dep of res.dependencies) {
+          if (dep.status === 'running') continue;
+          if (dep.status === 'unknown') warnings.push(dep);
+          else blockers.push(dep);
+        }
+        this.dependencyErrors.set(blockers);
+        this.dependencyWarnings.set(warnings);
       },
       error: () => {
         // Don't block UI on dependency check failure - clear errors
         this.dependencyErrors.set([]);
+        this.dependencyWarnings.set([]);
       }
     });
   }

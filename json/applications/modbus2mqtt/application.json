@@ -20,11 +20,10 @@
     { "id": "gid", "value": "1000" },
     { "id": "username", "value": "node" },
     { "id": "http_port", "value": "3000" },
-    { "id": "https_port", "value": "3443" },
+    { "id": "local_https_port", "value": "3443" },
     { "id": "volume_backup", "value": "true" },
     { "id": "ssl_mode", "value": "native" },
     { "id": "ssl.needs_ca_cert", "value": "true" },
-    { "id": "oidc_callback_path", "value": "/api/auth/callback" },
     { "id": "oidc_required_role", "value": "admin" }
   ],
   "installation": {

@@ -9,7 +9,7 @@
   ],
   "parameters": [
     "http_port",
-    "https_port"
+    "local_https_port"
   ],
   "properties": [
     {

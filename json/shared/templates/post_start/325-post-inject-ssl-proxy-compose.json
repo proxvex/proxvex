@@ -9,7 +9,7 @@
     "compose_project",
     "ssl_mode",
     "http_port",
-    "https_port",
+    "local_https_port",
     "uid",
     "gid"
   ],

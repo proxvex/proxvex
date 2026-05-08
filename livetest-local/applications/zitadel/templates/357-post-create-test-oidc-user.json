@@ -19,7 +19,7 @@
       "description": "Docker Compose project name"
     },
     {
-      "id": "domain_suffix",
+      "id": "project_domain_suffix",
       "name": "Domain Suffix",
       "type": "string",
       "required": false,

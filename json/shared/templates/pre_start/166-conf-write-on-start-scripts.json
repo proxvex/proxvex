@@ -7,7 +7,7 @@
     "vm_id",
     "ssl_mode",
     "http_port",
-    "https_port",
+    "local_https_port",
     "CF_TOKEN",
     "acme_san",
     "acme_email",

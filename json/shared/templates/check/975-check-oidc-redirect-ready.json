@@ -8,10 +8,7 @@
     "ZITADEL_PORT",
     "ZITADEL_PROTO",
     "oidc_client_id",
-    "hostname",
-    "domain_suffix",
-    "oidc_callback_path",
-    "ssl_mode"
+    "oidc_redirect_uri"
   ],
   "commands": [
     {

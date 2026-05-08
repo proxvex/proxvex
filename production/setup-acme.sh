@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # --- Configuration ---
 PVE_HOST="pve1.cluster"
 DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
-DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-.ohnewarum.de}"
+PROJECT_DOMAIN_SUFFIX="${PROJECT_DOMAIN_SUFFIX:-.ohnewarum.de}"
 # Auto-detect: HTTPS (port 3443) or HTTP (port 3080)
 if curl -sk --connect-timeout 3 "https://${DEPLOYER_HOST}:3443/api/applications" >/dev/null 2>&1; then
   DEPLOYER_API="https://${DEPLOYER_HOST}:3443"
@@ -109,11 +109,11 @@ echo ""
 echo "=== Step 3: Set domain suffix ==="
 
 suffix_resp=$(curl -sk -X POST -H "Content-Type: application/json" \
-  -d "{\"domain_suffix\":\"${DOMAIN_SUFFIX}\"}" \
+  -d "{\"project_domain_suffix\":\"${PROJECT_DOMAIN_SUFFIX}\"}" \
   "${DEPLOYER_API}/api/${ve_key}/ve/certificates/domain-suffix" 2>/dev/null || echo "")
 suffix_ok=$(printf '%s' "$suffix_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
 if [ "$suffix_ok" = "true" ]; then
-  echo "  Domain suffix set to ${DOMAIN_SUFFIX}"
+  echo "  Domain suffix set to ${PROJECT_DOMAIN_SUFFIX}"
 else
   echo "  Domain suffix: $(printf '%s' "$suffix_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")"
 fi
@@ -176,6 +176,6 @@ fi
 echo ""
 echo "=== Setup complete ==="
 echo "  Production stacks created (postgres, oidc, cloudflare)."
-echo "  Domain suffix set to ${DOMAIN_SUFFIX}"
+echo "  Domain suffix set to ${PROJECT_DOMAIN_SUFFIX}"
 echo ""
 echo "  Next: deploy nginx with addon-acme (wildcard certificate)."

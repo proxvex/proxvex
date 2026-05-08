@@ -345,7 +345,7 @@ export class CertificateAutoRenewalService {
       { id: "cert_renew_requests", value: hostnames.join("\n") },
       { id: "ca_key_b64", value: ca.key },
       { id: "ca_cert_b64", value: ca.cert },
-      { id: "domain_suffix", value: caService.getDomainSuffix(veContextKey) },
+      { id: "project_domain_suffix", value: caService.getDomainSuffix(veContextKey) },
       ...(sharedVolpath ? [{ id: "shared_volpath", value: sharedVolpath }] : []),
     ];
 

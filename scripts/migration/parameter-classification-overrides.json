@@ -16,7 +16,7 @@
     "recommended": "internal",
     "reason": "LXC-Apps haben eigenen Host-Namespace, keine Port-Kollisionen. Apps setzen via properties (modbus2mqtt=3000)."
   },
-  "https_port": {
+  "local_https_port": {
     "recommended": "internal",
     "reason": "Wie http_port. Apps setzen via properties (modbus2mqtt=3443)."
   },
@@ -28,7 +28,7 @@
     "recommended": "internal",
     "reason": "Wie mapped_uid. Endgültig: Löschen aus Template 150."
   },
-  "domain_suffix": {
+  "project_domain_suffix": {
     "recommended": "internal",
     "reason": "FQDN-Suffix; Apps die es brauchen (z. B. zitadel) setzen es spezifisch."
   },

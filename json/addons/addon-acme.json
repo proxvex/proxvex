@@ -10,7 +10,7 @@
     "acme_san",
     "acme_email",
     "http_port",
-    "https_port",
+    "local_https_port",
     "acme_needs_ca_cert",
     "acme_staging"
   ],

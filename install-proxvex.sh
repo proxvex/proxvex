@@ -237,7 +237,7 @@ deployer_url=""
 
 # HTTPS option (reconfigure with SSL addon after install)
 enable_https=""
-domain_suffix=".local"
+project_domain_suffix=".local"
 
 # Internal: holds the cache path of the OCI tarball after --tarball staging.
 # Drives the offline install branch below; never set directly via CLI.
@@ -271,7 +271,7 @@ while [ "$#" -gt 0 ]; do
     --nameserver) nameserver="$2"; shift 2 ;;
     --deployer-url) deployer_url="$2"; shift 2 ;;
     --https) enable_https="true"; shift ;;
-    --domain-suffix) domain_suffix="$2"; shift 2 ;;
+    --project-domain-suffix) project_domain_suffix="$2"; shift 2 ;;
     --update-from-tarball) update_from_tarball="$2"; shift 2 ;;
     --tarball) tarball="$2"; shift 2 ;;
     --help|-h)
@@ -295,7 +295,7 @@ Options:
   --nameserver <IP>     DNS nameserver (e.g., 10.0.0.1). Optional, defaults to host resolv.conf
   --deployer-url <URL>  External URL for deployer (e.g., http://pve1:3080 for NAT setups)
   --https               Enable HTTPS (reconfigures with SSL addon after install)
-  --domain-suffix <sfx> Domain suffix for SSL certificates (default: .local)
+  --project-domain-suffix <sfx> Project-wide domain suffix for SSL certificates and external URLs (default: .local)
   --tarball <PATH>      Install/redeploy from a pre-built OCI tarball at PATH.
                         Copies the tarball into /var/lib/vz/template/cache/,
                         destroys any existing container at --vm-id (with
@@ -1107,13 +1107,13 @@ if [ "$enable_https" = "true" ]; then
         fi
 
         # Set domain suffix for SSL certificates
-        log "Setting domain suffix to ${domain_suffix}..."
+        log "Setting domain suffix to ${project_domain_suffix}..."
         suffix_resp=$(curl -s -X POST -H "Content-Type: application/json" \
-          -d "{\"domain_suffix\":\"${domain_suffix}\"}" \
+          -d "{\"project_domain_suffix\":\"${project_domain_suffix}\"}" \
           "${deployer_api}/api/${ve_key}/ve/certificates/domain-suffix" 2>/dev/null || echo "")
         suffix_ok=$(printf '%s' "$suffix_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" 2>/dev/null || echo "false")
         if [ "$suffix_ok" = "true" ]; then
-          log "Domain suffix set to ${domain_suffix}"
+          log "Domain suffix set to ${project_domain_suffix}"
         else
           log "Domain suffix: $(printf '%s' "$suffix_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','failed'))" 2>/dev/null || echo "see response")"
         fi

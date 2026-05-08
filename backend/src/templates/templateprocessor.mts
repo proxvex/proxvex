@@ -774,6 +774,13 @@ export class TemplateProcessor extends EventEmitter {
       undefined,
       true,
     );
+    // Per-task visibility filter: a parameter with a non-empty `tasks` array
+    // is only included when the requested task is in that list. This keeps
+    // install-only fields (e.g. ZITADEL_EXTERNALDOMAIN, oidc_client_id, the
+    // storage-allocation knobs) out of the reconfigure/upgrade form.
+    const taskMatches = (param: IParameter): boolean =>
+      !param.tasks || param.tasks.length === 0 || param.tasks.includes(task);
+
     if (loaded.parameterTrace && loaded.parameterTrace.length > 0) {
       const traceById = new Map(
         loaded.parameterTrace.map((entry) => [entry.id, entry]),
@@ -781,6 +788,7 @@ export class TemplateProcessor extends EventEmitter {
       return loaded.parameters.filter((param) => {
         // Internal parameters are never user-input — keep them out of the UI feed.
         if (param.internal) return false;
+        if (!taskMatches(param)) return false;
         if (param.type === "enum") return true;
         const trace = traceById.get(param.id);
         // Include parameters that are missing OR have only a default value
@@ -794,6 +802,7 @@ export class TemplateProcessor extends EventEmitter {
     // Fallback: Only parameters whose id is not in resolvedParams.param
     return loaded.parameters.filter((param) => {
       if (param.internal) return false;
+      if (!taskMatches(param)) return false;
       return (
         undefined ==
         loaded.resolvedParams.find(

@@ -12,7 +12,7 @@ import { ICaProvider } from "@src/services/ca-provider.mjs";
  */
 export class WebAppVeCertificateInjector {
   /**
-   * Injects server_key_b64, server_cert_b64, ca_cert_b64, domain_suffix into
+   * Injects server_key_b64, server_cert_b64, ca_cert_b64, project_domain_suffix into
    * processedParams when ssl.mode has certtype="server" marker and a value is
    * set. The hostname for the server cert comes from the existing `hostname`
    * parameter (added by the runner / cli before validation).
@@ -37,8 +37,8 @@ export class WebAppVeCertificateInjector {
     const hostnameRaw = processedParams.find((p) => p.id === "hostname")?.value;
     const hostname = typeof hostnameRaw === "string" && hostnameRaw.length > 0
       ? hostnameRaw : "localhost";
-    const domainSuffix = caProvider.getDomainSuffix(veContextKey) || ".local";
-    const fqdn = hostname.includes(".") ? hostname : `${hostname}${domainSuffix}`;
+    const projectDomainSuffix = caProvider.getDomainSuffix(veContextKey) || ".local";
+    const fqdn = hostname.includes(".") ? hostname : `${hostname}${projectDomainSuffix}`;
 
     // Public CA cert — for trust store inside the container.
     const ca = caProvider.getCA(veContextKey);
@@ -72,6 +72,6 @@ export class WebAppVeCertificateInjector {
     processedParams.push({ id: "server_key_b64", value: server.key });
     processedParams.push({ id: "server_cert_b64", value: server.cert });
     processedParams.push({ id: "ca_cert_b64", value: ca.cert });
-    processedParams.push({ id: "domain_suffix", value: domainSuffix });
+    processedParams.push({ id: "project_domain_suffix", value: projectDomainSuffix });
   }
 }

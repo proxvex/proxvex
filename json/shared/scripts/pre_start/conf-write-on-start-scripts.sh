@@ -14,7 +14,7 @@
 #   - ssl_mode: proxy/native/certs
 #   - CF_TOKEN (from cloudflare stack), acme_san, acme_email, acme.cert_dir
 #   - acme.needs_ca_cert
-#   - http_port, https_port
+#   - http_port, local_https_port
 #   - alpine_mirror, debian_mirror
 #   - compose_project
 #   - uid, gid
@@ -27,7 +27,7 @@ HOSTNAME="{{ hostname }}"
 VM_ID="{{ vm_id }}"
 SSL_MODE="{{ ssl_mode }}"
 HTTP_PORT="{{ http_port }}"
-HTTPS_PORT="{{ https_port }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 CF_API_TOKEN="{{ CF_TOKEN }}"
 ACME_SAN="{{ acme_san }}"
 ACME_EMAIL="{{ acme_email }}"
@@ -438,7 +438,7 @@ if [ "$SSL_MODE" = "proxy" ]; then
 
 SSL_MODE="$SSL_MODE"
 HTTP_PORT="$HTTP_PORT"
-HTTPS_PORT="$HTTPS_PORT"
+LOCAL_HTTPS_PORT="$LOCAL_HTTPS_PORT"
 ALPINE_MIRROR="$ALPINE_MIRROR"
 DEBIAN_MIRROR="$DEBIAN_MIRROR"
 COMPOSE_PROJECT="$COMPOSE_PROJECT"
@@ -564,7 +564,7 @@ fi
 # --- Write nginx SSL config ---
 cat > "${NGINX_CONF_DIR}/ssl-proxy.conf" <<NGINXEOF
 server {
-    listen ${HTTPS_PORT} ssl;
+    listen ${LOCAL_HTTPS_PORT} ssl;
     server_name _;
 
     ssl_certificate ${CERT_DIR}/fullchain.pem;
@@ -629,7 +629,7 @@ RELOADEOF
 chmod 755 "$RELOAD_SCRIPT"
 echo "Created certificate reload hook: $RELOAD_SCRIPT" >&2
 
-echo "SSL proxy setup complete (HTTPS on port ${HTTPS_PORT})" >&2
+echo "SSL proxy setup complete (HTTPS on port ${LOCAL_HTTPS_PORT})" >&2
 SSLEOF
 
   chmod 755 "$SSL_SCRIPT"
@@ -639,14 +639,14 @@ SSLEOF
 fi
 
 # --- 4. Write docker-compose SSL injection (if compose app + proxy mode) ---
-if [ "$SSL_MODE" = "proxy" ] && is_set "$COMPOSE_PROJECT" && is_set "$HTTP_PORT" && is_set "$HTTPS_PORT"; then
+if [ "$SSL_MODE" = "proxy" ] && is_set "$COMPOSE_PROJECT" && is_set "$HTTP_PORT" && is_set "$LOCAL_HTTPS_PORT"; then
   COMPOSE_DIR="${VOLUME_DIR}/docker-compose/${COMPOSE_PROJECT}"
   mkdir -p "$COMPOSE_DIR"
 
   # Write nginx SSL config for compose
   cat > "${COMPOSE_DIR}/nginx-ssl.conf" <<NGINXEOF
 server {
-    listen ${HTTPS_PORT} ssl;
+    listen ${LOCAL_HTTPS_PORT} ssl;
     server_name _;
 
     ssl_certificate /etc/ssl/addon/fullchain.pem;

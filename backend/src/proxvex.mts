@@ -181,7 +181,7 @@ async function startWebApp(
 
   const webApp = await VEWebApp.create(contextManager);
   const httpPort = process.env.DEPLOYER_PORT || process.env.PORT || 3080;
-  const httpsPort = process.env.DEPLOYER_HTTPS_PORT || 3443;
+  const localHttpsPort = process.env.DEPLOYER_HTTPS_PORT || 3443;
 
   // Check if SSL certificates exist in the addon certs volume
   let httpsEnabled = false;
@@ -194,8 +194,8 @@ async function startWebApp(
       const key = readFileSync(keyPath, "utf-8");
       logger.info("SSL certificates loaded", { certBytes: cert.length, keyBytes: key.length });
       const httpsServer = webApp.createHttpsServer({ key, cert });
-      httpsServer.listen(httpsPort, () => {
-        logger.info("HTTPS server started", { port: httpsPort });
+      httpsServer.listen(localHttpsPort, () => {
+        logger.info("HTTPS server started", { port: localHttpsPort });
       });
       httpsEnabled = true;
     } catch (err: any) {
@@ -209,12 +209,12 @@ async function startWebApp(
     // HTTPS active: HTTP server becomes a redirect-only server
     const redirectApp = express();
     redirectApp.use((req, res) => {
-      const httpsUrl = `https://${req.hostname}:${httpsPort}${req.originalUrl}`;
+      const httpsUrl = `https://${req.hostname}:${localHttpsPort}${req.originalUrl}`;
       res.redirect(301, httpsUrl);
     });
     const redirectServer = http.createServer(redirectApp);
     redirectServer.listen(httpPort, () => {
-      logger.info("HTTP redirect server started", { port: httpPort, redirectTo: httpsPort });
+      logger.info("HTTP redirect server started", { port: httpPort, redirectTo: localHttpsPort });
     });
     // Keep reference for shutdown
     webApp.httpServer = redirectServer;

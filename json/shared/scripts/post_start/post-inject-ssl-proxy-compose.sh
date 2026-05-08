@@ -14,7 +14,7 @@
 #   - compose_project: Docker-Compose project name
 #   - ssl_mode: "proxy", "native", or "certs"
 #   - http_port: Application HTTP port
-#   - https_port: HTTPS port for nginx proxy
+#   - local_https_port: HTTPS port for nginx proxy
 #   - uid/gid: Application user (for cert file access in nginx container)
 #
 # Output: errors to stderr only
@@ -22,7 +22,7 @@
 COMPOSE_PROJECT="{{ compose_project }}"
 SSL_MODE="{{ ssl_mode }}"
 HTTP_PORT="{{ http_port }}"
-HTTPS_PORT="{{ https_port }}"
+LOCAL_HTTPS_PORT="{{ local_https_port }}"
 UID_VALUE="{{ uid }}"
 GID_VALUE="{{ gid }}"
 
@@ -103,10 +103,10 @@ fi
 echo "Detected upstream service: $UPSTREAM_SERVICE" >&2
 
 # --- Check for HTTPS port conflict ---
-if grep -q "\"${HTTPS_PORT}:" "$COMPOSE_FILE" 2>/dev/null || \
-   grep -q "'${HTTPS_PORT}:" "$COMPOSE_FILE" 2>/dev/null || \
-   grep -q "- ${HTTPS_PORT}:" "$COMPOSE_FILE" 2>/dev/null; then
-  echo "Error: HTTPS port ${HTTPS_PORT} is already used by a service in $COMPOSE_FILE" >&2
+if grep -q "\"${LOCAL_HTTPS_PORT}:" "$COMPOSE_FILE" 2>/dev/null || \
+   grep -q "'${LOCAL_HTTPS_PORT}:" "$COMPOSE_FILE" 2>/dev/null || \
+   grep -q "- ${LOCAL_HTTPS_PORT}:" "$COMPOSE_FILE" 2>/dev/null; then
+  echo "Error: HTTPS port ${LOCAL_HTTPS_PORT} is already used by a service in $COMPOSE_FILE" >&2
   echo "Please choose a different HTTPS port to avoid conflicts." >&2
   exit 1
 fi
@@ -133,7 +133,7 @@ awk '
 NGINX_CONF="${COMPOSE_DIR}/nginx-ssl.conf"
 cat > "$NGINX_CONF" <<NGINXEOF
 server {
-    listen ${HTTPS_PORT} ssl;
+    listen ${LOCAL_HTTPS_PORT} ssl;
     server_name _;
 
     ssl_certificate /etc/ssl/addon/fullchain.pem;
@@ -171,7 +171,7 @@ cat >> "$COMPOSE_FILE" <<COMPOSEEOF
     image: nginx:alpine
     user: "${UID_VALUE}:${GID_VALUE}"
     ports:
-      - "${HTTPS_PORT}:${HTTPS_PORT}"
+      - "${LOCAL_HTTPS_PORT}:${LOCAL_HTTPS_PORT}"
     volumes:
       - ./nginx-ssl.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/ssl/addon:/etc/ssl/addon:ro
@@ -181,4 +181,4 @@ cat >> "$COMPOSE_FILE" <<COMPOSEEOF
 COMPOSEEOF
 
 echo "Added nginx-ssl-proxy service to $COMPOSE_FILE" >&2
-echo "Upstream: ${UPSTREAM_SERVICE}:${HTTP_PORT} -> HTTPS port ${HTTPS_PORT}" >&2
+echo "Upstream: ${UPSTREAM_SERVICE}:${HTTP_PORT} -> HTTPS port ${LOCAL_HTTPS_PORT}" >&2

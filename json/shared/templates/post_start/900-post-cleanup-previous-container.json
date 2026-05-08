@@ -9,7 +9,7 @@
     "previous_vm_id",
     "vm_id",
     "http_port",
-    "https_port",
+    "local_https_port",
     "hostname",
     "deployer_base_url"
   ],

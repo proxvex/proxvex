@@ -9,7 +9,7 @@
 #   ca_cert_b64   - Base64-encoded CA certificate PEM
 #   fqdn          - PVE host FQDN
 #   hostname      - PVE host short hostname
-#   domain_suffix - Domain suffix
+#   project_domain_suffix - Domain suffix
 
 # Library functions are prepended automatically:
 # - cert_generate_server()

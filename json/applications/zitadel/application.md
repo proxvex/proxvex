@@ -36,8 +36,11 @@ The bootstrap credentials are stored in `/bootstrap/deployer-oidc.json` inside t
 
 ### What You Must Do Manually
 
-- Create regular users in the Zitadel web interface
-- Assign project roles to users (e.g. `admin` role for deployer access)
+After the deploy succeeds, Zitadel is reachable but not yet usable for real
+flows — SMTP needs to be verified, the admin user's e-mail needs to be set
+to a real inbox, and regular users + role assignments only exist after
+manual setup. See [Post-install setup (Web UI)](#post-install-setup-web-ui)
+for the click-through walkthrough.
 
 ## Architecture
 
@@ -282,6 +285,112 @@ silently. Check:
 **Cloudflare DNS script fails with "No zone found"** — the `smtp_mail_domain`
 must match a zone in the Cloudflare account tied to `CF_TOKEN`. If you use a
 subdomain, use the apex in `smtp_mail_domain`.
+
+## Post-install setup (Web UI)
+
+After a successful deploy, walk through the Zitadel admin UI to verify that
+SMTP actually works, give the admin user a real e-mail, and confirm
+end-to-end mail delivery. None of this is automated — Zitadel happily
+"activates" an SMTP config that has never sent a single mail, so the
+verification step has to happen by hand.
+
+> **Why click-through and not API?** Provider-specific quirks
+> (app-passwords, alternate-sender verification, OAuth-only providers)
+> make a generic API path expensive to build and brittle to maintain.
+> The Web UI is the pragmatic route — these steps run once per install.
+
+### Step 1 — Log in as admin
+
+- URL: `https://<ZITADEL_EXTERNALDOMAIN>` (e.g. `https://auth.example.com`)
+- Username: `admin`
+- Password: `ZITADEL_ADMIN_PASSWORD` (from the `oidc` stack in the deployer
+  Web UI, **Stacks > oidc**) followed by the suffix `!Aa1`. Zitadel
+  appends this suffix during FirstInstance init so the bootstrap value
+  satisfies the default password policy.
+
+### Step 2 — Test SMTP credentials
+
+If you provided SMTP credentials at deploy time (Examples 2–4 above), the
+FirstInstance migration already created **and activated** an SMTP
+configuration — but it has never been tested.
+
+1. **Settings** → **Notification Providers** → **SMTP**
+2. Open the existing configuration. If SMTP wasn't deployed (Example 1),
+   click **New** and fill host/port/user/sender/password from your
+   provider's documentation.
+3. Click **Test**.
+4. **Re-enter the SMTP password** in the test dialog. The test endpoint
+   does **not** reuse the stored, encrypted password — leaving the field
+   empty fails with `RpcError(INVALID_ARGUMENT): input value cannot be nil
+   (CRYPT-mNsQwe)`. Re-typing the password in the dialog only affects this
+   one test request, the stored password is unchanged.
+5. Set the recipient to any inbox you control → **Send test email**.
+6. Check the inbox. **Don't trust** Zitadel's "successfully sent" toast —
+   only an actually-arrived mail proves the config works (see warning at
+   the top of [Email notifications](#email-notifications-smtp)).
+
+If the test mail does not arrive, fix it now. See
+[Troubleshooting email](#troubleshooting-email).
+
+### Step 3 — Activate the SMTP configuration
+
+Skip this step if FirstInstance already activated it (Examples 2–4 path).
+
+If you created the SMTP config manually in Step 2 (Example 1 path):
+
+1. In the SMTP list, click **Activate** on your configuration.
+2. From now on Zitadel uses this configuration for all outgoing mail
+   (password reset, user invitations, MFA, e-mail verification).
+
+Only one configuration is active at a time. Activation does **not**
+re-validate credentials — it only marks the config as the one to use.
+
+### Step 4 — Set admin's real e-mail address
+
+The bootstrapped admin user has `admin@<ZITADEL_EXTERNALDOMAIN>` marked
+verified — that mailbox usually doesn't exist. Replace it with a real
+inbox you can read, otherwise password-reset and other admin flows go
+into the void.
+
+1. **Users** → click `admin` → **Edit**.
+2. Replace the e-mail with a real address.
+3. **Save**. Zitadel marks it unverified — Step 5 fixes that.
+
+### Step 5 — Verify the admin e-mail
+
+This proves the full delivery path (Zitadel → SMTP → provider → inbox)
+end-to-end and gives the admin a verified e-mail.
+
+1. **Users** → `admin` → next to the e-mail field, click
+   **Send verification e-mail**.
+2. Open the mail in the admin's inbox, click the verification link.
+3. Back in Zitadel, the e-mail is now marked **verified**.
+
+### Step 6 — Create regular users and assign roles
+
+Once SMTP is proven, regular user setup is straightforward:
+
+1. **Users** → **New** → name + e-mail. Choose
+   *"send verification mail with set-password link"* so the user picks
+   their own initial password — no out-of-band password sharing needed.
+2. **Projects** → *proxvex* → **Authorizations** → **New** → grant the
+   role to the user. The `admin` role is what unlocks deployer access
+   for an OIDC-protected proxvex.
+
+### Provider-specific notes
+
+> **mailbox.org** requires an **application-specific password** for SMTP —
+> your normal account password fails even with TLS. Generate one under
+> *mailbox.org webmail → Settings → Account & Security → Application-specific
+> passwords*. Use that value as `SMTP_PASSWORD` (both at deploy time in the
+> `oidc` stack and when re-typing the password in the Step 2 test dialog).
+> Combined with the alternate-sender flow in
+> [Example 4](#example-4--mailboxorg-specifics), this is what makes
+> `auth@yourdomain` deliverable through a `yourname@mailbox.org` mailbox.
+
+Add notes for additional providers (Gmail / Workspace, Fastmail, …) here
+as you encounter them — most have similar quirks (app passwords, sender
+verification, OAuth-only requirements).
 
 ## Upgrade
 
