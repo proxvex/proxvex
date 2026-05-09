@@ -10,7 +10,9 @@
 #   shared_volpath     - Shared volume path on PVE host
 #   oidc_app_name      - Name of the OIDC app in Zitadel (optional, defaults to hostname)
 #   oidc_redirect_uri  - Full OIDC redirect URI (required from app or addon-oidc default)
-#   oidc_post_logout_uri - Full OIDC post-logout URI (required)
+#   oidc_post_logout_uri - Full OIDC post-logout URI (optional; omit to skip
+#                          postLogoutRedirectUris on the Zitadel app — useful
+#                          when the landing page is itself OIDC-protected)
 #   oidc_project_name  - Zitadel project name (from addon parameter, defaults to hostname)
 #   oidc_issuer_url    - External issuer URL override (optional, defaults to internal Zitadel URL)
 #
@@ -40,10 +42,11 @@ if [ "$OIDC_REDIRECT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_REDIRECT_URI" ]; then
   echo '[]'
   exit 1
 fi
-if [ "$OIDC_POST_LOGOUT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_POST_LOGOUT_URI" ]; then
-  echo "ERROR: oidc_post_logout_uri is required" >&2
-  echo '[]'
-  exit 1
+# Optional: empty post-logout URI maps to "create app without
+# postLogoutRedirectUris". Normalise NOT_DEFINED → "" so downstream JSON
+# assembly can decide via "is the value empty?".
+if [ "$OIDC_POST_LOGOUT_URI" = "NOT_DEFINED" ]; then
+  OIDC_POST_LOGOUT_URI=""
 fi
 
 # --- Short-circuit: manually provided OIDC credentials ---
@@ -301,8 +304,12 @@ CLIENT_SECRET=""
 if [ -z "$APP_ID" ]; then
   echo "OIDC app not found, creating '${OIDC_APP_NAME}'..." >&2
 
+  POST_LOGOUT_FRAGMENT=""
+  if [ -n "$OIDC_POST_LOGOUT_URI" ]; then
+    POST_LOGOUT_FRAGMENT=",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]"
+  fi
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
-    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]}")
+    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\"${POST_LOGOUT_FRAGMENT}}")
 
   APP_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p' | head -1)
   CLIENT_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"clientId":"\([^"]*\)".*/\1/p' | head -1)
@@ -366,7 +373,11 @@ fi
 # verify the flags actually persisted by reading the config back. Without
 # this guard a stale flag set silently breaks every subsequent OIDC login.
 APP_CONFIG_PATH="/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config"
-APP_CONFIG_BODY="{\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"],\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}"
+POST_LOGOUT_FRAGMENT=""
+if [ -n "$OIDC_POST_LOGOUT_URI" ]; then
+  POST_LOGOUT_FRAGMENT=",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]"
+fi
+APP_CONFIG_BODY="{\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\"${POST_LOGOUT_FRAGMENT},\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}"
 
 attempts=0
 flags_ok=0

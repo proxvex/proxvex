@@ -13,7 +13,8 @@
 #   shared_volpath         - Shared volume path on PVE host
 #   oidc_issuer_url        - External issuer URL override (optional)
 #   oidc_redirect_uri      - Full OIDC redirect URI (required from app or addon-oidc default)
-#   oidc_post_logout_uri   - Full OIDC post-logout URI (required)
+#   oidc_post_logout_uri   - Full OIDC post-logout URI (optional; omit to skip
+#                            postLogoutRedirectUris on the Zitadel app)
 #
 # Outputs (JSON to stdout):
 #   oidc_issuer_url           - Zitadel issuer URL
@@ -33,16 +34,16 @@ OIDC_ISSUER_URL_INPUT="{{ oidc_issuer_url }}"
 OIDC_REDIRECT_URI="{{ oidc_redirect_uri }}"
 OIDC_POST_LOGOUT_URI="{{ oidc_post_logout_uri }}"
 
-# Guard against NOT_DEFINED — both URIs are required
+# oidc_redirect_uri is required (callback target for the OIDC code flow);
+# oidc_post_logout_uri is optional — empty string maps to "create app
+# without postLogoutRedirectUris" further below.
 if [ "$OIDC_REDIRECT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_REDIRECT_URI" ]; then
   echo "ERROR: oidc_redirect_uri is required (set via application.json property or oci-image default)" >&2
   echo '[]'
   exit 1
 fi
-if [ "$OIDC_POST_LOGOUT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_POST_LOGOUT_URI" ]; then
-  echo "ERROR: oidc_post_logout_uri is required" >&2
-  echo '[]'
-  exit 1
+if [ "$OIDC_POST_LOGOUT_URI" = "NOT_DEFINED" ]; then
+  OIDC_POST_LOGOUT_URI=""
 fi
 
 PROJECT_NAME="pve-${HOSTNAME}"
@@ -251,8 +252,12 @@ CLIENT_SECRET=""
 if [ -z "$APP_ID" ]; then
   echo "Creating OIDC app '${OIDC_APP_NAME}'..." >&2
 
+  POST_LOGOUT_FRAGMENT=""
+  if [ -n "$OIDC_POST_LOGOUT_URI" ]; then
+    POST_LOGOUT_FRAGMENT=",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]"
+  fi
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
-    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]}")
+    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\"${POST_LOGOUT_FRAGMENT}}")
 
   APP_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p' | head -1)
   CLIENT_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"clientId":"\([^"]*\)".*/\1/p' | head -1)
