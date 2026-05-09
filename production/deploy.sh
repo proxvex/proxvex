@@ -33,6 +33,37 @@ DEPLOYER_HOST="${DEPLOYER_HOST:-proxvex}"
 # isn't ready yet (pre-Zitadel-deploy phase).
 init_admin_pat "$PVE_HOST"
 init_oidc_jwt "$PVE_HOST"
+# Optional: load operator-issued PAT for headless Zitadel-API auth in
+# templates (conf-setup-oidc-client.sh & friends). When set, gets injected
+# as a `ZITADEL_PAT` param into every params.json before the CLI call so
+# the templates use it instead of the on-LXC /bootstrap/admin-client.pat.
+init_deployer_pat
+
+# augment_params_with_pat <input_file> → echoes path of params file to use.
+# When OCI_DEPLOYER_PAT is set, writes a tempfile with the original
+# params + a `{"name":"ZITADEL_PAT","value":"<pat>"}` entry appended
+# (replacing any existing entry of the same name). Caller is responsible
+# for removing the returned file if it differs from the input.
+augment_params_with_pat() {
+  local input="$1"
+  if [ -z "${OCI_DEPLOYER_PAT:-}" ]; then
+    echo "$input"
+    return 0
+  fi
+  local out
+  out=$(mktemp)
+  python3 - "$input" "$OCI_DEPLOYER_PAT" > "$out" <<'EOF'
+import json, sys
+input_file, pat = sys.argv[1], sys.argv[2]
+with open(input_file) as f:
+    data = json.load(f)
+params = [p for p in data.get("params", []) if p.get("name") != "ZITADEL_PAT"]
+params.append({"name": "ZITADEL_PAT", "value": pat})
+data["params"] = params
+print(json.dumps(data))
+EOF
+  echo "$out"
+}
 
 # Optional per-call host override
 if [ "$1" = "--host" ] || [ "$1" = "--ve" ]; then
@@ -59,16 +90,19 @@ if [ -n "$DEPLOYER_VMID" ]; then
   run_cli() {
     local params_file="$1"
     shift
+    local effective_params
+    effective_params=$(augment_params_with_pat "$params_file")
     # Push JSON file into container and run CLI from inside.
     # Use HTTPS — after Step 6 (ACME) the HTTP listener on :3080 only
     # serves a 301 to :3443, and the CLI's HTTP client does not follow
     # redirects on POST, so plain http://localhost:3080 returns
     # "Not found" instead of the expected route handler.
-    pct push "$DEPLOYER_VMID" "$params_file" /tmp/deploy-params.json
+    pct push "$DEPLOYER_VMID" "$effective_params" /tmp/deploy-params.json
     pct exec "$DEPLOYER_VMID" -- oci-lxc-cli remote \
       --server https://localhost:3443 --ve "$PVE_HOST" \
       --insecure "$@" /tmp/deploy-params.json
     pct exec "$DEPLOYER_VMID" -- rm -f /tmp/deploy-params.json
+    [ "$effective_params" != "$params_file" ] && rm -f "$effective_params"
   }
 else
   echo "Running on dev machine (using npx tsx)"
@@ -91,9 +125,12 @@ else
   run_cli() {
     local params_file="$1"
     shift
+    local effective_params
+    effective_params=$(augment_params_with_pat "$params_file")
     NODE_TLS_REJECT_UNAUTHORIZED=0 $CLI remote \
       --server "$SERVER" --ve "$PVE_HOST" --insecure \
-      $OIDC_FLAGS "$@" "$params_file"
+      $OIDC_FLAGS "$@" "$effective_params"
+    [ "$effective_params" != "$params_file" ] && rm -f "$effective_params"
   }
 fi
 

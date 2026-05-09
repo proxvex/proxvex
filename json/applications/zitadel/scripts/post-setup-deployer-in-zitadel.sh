@@ -245,7 +245,7 @@ if [ -z "$APP_ID" ]; then
   # default. The actual deployer hostname/port is unknown at Zitadel-bootstrap
   # time (proxvex isn't deployed yet); user adjusts in Zitadel UI if non-standard.
   CALLBACK_URL="https://proxvex:3443/api/auth/callback"
-  LOGOUT_URL="https://proxvex:3443"
+  LOGOUT_URL="https://proxvex:3443/logged-out.html"
 
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
     "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"]}")
@@ -292,11 +292,52 @@ fi
 # the project alone is not enough — the OIDC app itself must opt in.
 # UpdateOIDCAppConfig replaces the config wholesale, so we re-send the same
 # values used at creation time. Idempotent on re-runs.
-echo "Enabling idTokenRoleAssertion + accessTokenRoleAssertion on app ${APP_ID}..." >&2
+#
+# Robust against silent failure: capture the response, retry up to 3 times
+# (Zitadel sometimes returns transient 5xx right after CreateOIDCApp), then
+# verify the flags actually persisted by reading the config back. Without
+# this guard a stale flag set silently breaks every subsequent OIDC login.
 CALLBACK_URL="https://proxvex:3443/api/auth/callback"
-LOGOUT_URL="https://proxvex:3443"
-zitadel_api PUT "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config" \
-  "{\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"],\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}" >/dev/null
+LOGOUT_URL="https://proxvex:3443/logged-out.html"
+APP_CONFIG_PATH="/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config"
+APP_CONFIG_BODY="{\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"],\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}"
+
+attempts=0
+flags_ok=0
+while [ $attempts -lt 3 ] && [ $flags_ok -eq 0 ]; do
+  attempts=$((attempts + 1))
+  echo "Enabling idTokenRoleAssertion + accessTokenRoleAssertion on app ${APP_ID} (attempt ${attempts}/3)..." >&2
+  PUT_RESP=$(zitadel_api PUT "$APP_CONFIG_PATH" "$APP_CONFIG_BODY")
+  case "$PUT_RESP" in
+    *'"sequence"'*|*'"changeDate"'*)
+      ;;
+    *)
+      echo "WARN: UpdateOIDCAppConfig response missing success markers: ${PUT_RESP}" >&2
+      sleep 2
+      continue
+      ;;
+  esac
+
+  # Verify by reading back. Both flags must be true.
+  GET_RESP=$(zitadel_api GET "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}")
+  has_id=$(echo "$GET_RESP" | grep -c '"idTokenRoleAssertion": *true' || true)
+  has_at=$(echo "$GET_RESP" | grep -c '"accessTokenRoleAssertion": *true' || true)
+  if [ "$has_id" -gt 0 ] && [ "$has_at" -gt 0 ]; then
+    echo "  OIDC role-assertion flags verified on app ${APP_ID}" >&2
+    flags_ok=1
+  else
+    echo "WARN: Role-assertion flags did not stick after PUT — retrying" >&2
+    echo "  GET response: $(echo "$GET_RESP" | head -c 400)" >&2
+    sleep 2
+  fi
+done
+
+if [ $flags_ok -eq 0 ]; then
+  echo "ERROR: Failed to enable OIDC role-assertion flags on app ${APP_ID} after ${attempts} attempts" >&2
+  echo "  Without these flags every browser/CLI login will fail with 'missing role admin'" >&2
+  echo '[]'
+  exit 1
+fi
 
 # --- 4. Find or create machine user "deployer-cli" for client_credentials ---
 # The OIDC app above is a Web app (auth_code flow) used by the browser login.

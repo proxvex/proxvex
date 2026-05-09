@@ -551,9 +551,9 @@
     },
     "oidc_post_logout_uri": {
       "name": "OIDC Post-Logout URI",
-      "description": "Full OIDC post-logout URL the application uses after sign-out and that Zitadel registers as the only valid postLogoutRedirectUri.",
+      "description": "Full OIDC post-logout URL the application uses after sign-out and that Zitadel registers as the only valid postLogoutRedirectUri. Optional — when omitted, the OIDC app is created without a post-logout redirect, which is preferable when the landing page is itself OIDC-protected (Zitadel would otherwise loop the user back into the auth flow on logout).",
       "type": "string",
-      "required": true,
+      "required": false,
       "group": "Authentication",
       "advanced": true,
       "tasks": ["installation"]

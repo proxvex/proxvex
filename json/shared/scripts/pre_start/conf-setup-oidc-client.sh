@@ -10,7 +10,9 @@
 #   shared_volpath     - Shared volume path on PVE host
 #   oidc_app_name      - Name of the OIDC app in Zitadel (optional, defaults to hostname)
 #   oidc_redirect_uri  - Full OIDC redirect URI (required from app or addon-oidc default)
-#   oidc_post_logout_uri - Full OIDC post-logout URI (required)
+#   oidc_post_logout_uri - Full OIDC post-logout URI (optional; omit to skip
+#                          postLogoutRedirectUris on the Zitadel app — useful
+#                          when the landing page is itself OIDC-protected)
 #   oidc_project_name  - Zitadel project name (from addon parameter, defaults to hostname)
 #   oidc_issuer_url    - External issuer URL override (optional, defaults to internal Zitadel URL)
 #
@@ -40,10 +42,11 @@ if [ "$OIDC_REDIRECT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_REDIRECT_URI" ]; then
   echo '[]'
   exit 1
 fi
-if [ "$OIDC_POST_LOGOUT_URI" = "NOT_DEFINED" ] || [ -z "$OIDC_POST_LOGOUT_URI" ]; then
-  echo "ERROR: oidc_post_logout_uri is required" >&2
-  echo '[]'
-  exit 1
+# Optional: empty post-logout URI maps to "create app without
+# postLogoutRedirectUris". Normalise NOT_DEFINED → "" so downstream JSON
+# assembly can decide via "is the value empty?".
+if [ "$OIDC_POST_LOGOUT_URI" = "NOT_DEFINED" ]; then
+  OIDC_POST_LOGOUT_URI=""
 fi
 
 # --- Short-circuit: manually provided OIDC credentials ---
@@ -301,8 +304,12 @@ CLIENT_SECRET=""
 if [ -z "$APP_ID" ]; then
   echo "OIDC app not found, creating '${OIDC_APP_NAME}'..." >&2
 
+  POST_LOGOUT_FRAGMENT=""
+  if [ -n "$OIDC_POST_LOGOUT_URI" ]; then
+    POST_LOGOUT_FRAGMENT=",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]"
+  fi
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
-    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]}")
+    "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\"${POST_LOGOUT_FRAGMENT}}")
 
   APP_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p' | head -1)
   CLIENT_ID=$(echo "$CREATE_APP_RESPONSE" | sed -n 's/.*"clientId":"\([^"]*\)".*/\1/p' | head -1)
@@ -352,6 +359,59 @@ if [ -z "$CLIENT_SECRET" ]; then
     echo '[]'
     exit 1
   fi
+fi
+
+# Ensure role-assertion flags are enabled on the OIDC app config. Without
+# these the JWT (id_token / access_token) does not carry the
+# urn:zitadel:iam:org:project:roles claim, and the application's auth
+# middleware rejects every login with "missing role 'admin'".
+# projectRoleAssertion on the project alone is not enough — the OIDC app
+# itself must opt in.
+#
+# Robust against silent failure: capture the response, retry up to 3 times
+# (Zitadel sometimes returns transient 5xx right after CreateOIDCApp), then
+# verify the flags actually persisted by reading the config back. Without
+# this guard a stale flag set silently breaks every subsequent OIDC login.
+APP_CONFIG_PATH="/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config"
+POST_LOGOUT_FRAGMENT=""
+if [ -n "$OIDC_POST_LOGOUT_URI" ]; then
+  POST_LOGOUT_FRAGMENT=",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"]"
+fi
+APP_CONFIG_BODY="{\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\"${POST_LOGOUT_FRAGMENT},\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}"
+
+attempts=0
+flags_ok=0
+while [ $attempts -lt 3 ] && [ $flags_ok -eq 0 ]; do
+  attempts=$((attempts + 1))
+  echo "Enabling idTokenRoleAssertion + accessTokenRoleAssertion on app ${APP_ID} (attempt ${attempts}/3)..." >&2
+  PUT_RESP=$(zitadel_api PUT "$APP_CONFIG_PATH" "$APP_CONFIG_BODY")
+  case "$PUT_RESP" in
+    *'"sequence"'*|*'"changeDate"'*)
+      ;;
+    *)
+      echo "WARN: UpdateOIDCAppConfig response missing success markers: ${PUT_RESP}" >&2
+      sleep 2
+      continue
+      ;;
+  esac
+
+  GET_RESP=$(zitadel_api GET "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}")
+  has_id=$(echo "$GET_RESP" | grep -c '"idTokenRoleAssertion": *true' || true)
+  has_at=$(echo "$GET_RESP" | grep -c '"accessTokenRoleAssertion": *true' || true)
+  if [ "$has_id" -gt 0 ] && [ "$has_at" -gt 0 ]; then
+    echo "  OIDC role-assertion flags verified on app ${APP_ID}" >&2
+    flags_ok=1
+  else
+    echo "WARN: Role-assertion flags did not stick after PUT — retrying" >&2
+    sleep 2
+  fi
+done
+
+if [ $flags_ok -eq 0 ]; then
+  echo "ERROR: Failed to enable OIDC role-assertion flags on app ${APP_ID} after ${attempts} attempts" >&2
+  echo "  Without these flags every browser/CLI login will fail with 'missing role admin'" >&2
+  echo '[]'
+  exit 1
 fi
 
 # Store credentials for future create-only access

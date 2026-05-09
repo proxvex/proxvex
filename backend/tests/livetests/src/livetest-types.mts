@@ -108,6 +108,14 @@ export interface E2EConfig {
     snapshot?: { enabled: boolean };
     registryMirror?: { dnsForwarder: string };
     portForwarding?: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
+    /** Optional Zitadel PAT (UI-generated for a service user with sufficient
+     *  org permissions). When set, gets injected as `ZITADEL_PAT` param into
+     *  every params.json before the CLI invocation, so OIDC-addon templates
+     *  use it instead of the on-LXC /bootstrap/admin-client.pat fallback.
+     *  In CI this comes from the secret-vault-loaded config.json; locally
+     *  the tester edits e2e/config.json (gitignored). Empty / missing →
+     *  templates fall back to admin-client.pat as before. */
+    zitadelPat?: string;
   }>;
   defaults: Record<string, unknown>;
   ports: {

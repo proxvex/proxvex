@@ -101,6 +101,23 @@ Ein Token mit Permission `Zone:DNS:Edit` für alle relevanten Domains erstellen 
 
 Zitadel verschickt Verifikations-Mails über SMTP. Das Passwort kommt analog zum CF_TOKEN per `SMTP_PASSWORD=xxx ./production/setup-production.sh --step 6` oder interaktivem Prompt; bereits gespeicherte Werte im `oidc_production`-Stack werden wiederverwendet.
 
+### OCI_DEPLOYER_PAT (optional, ab Step 12)
+
+Skripte mit `addon-oidc` (gitea, node-red, modbus2mqtt, …) müssen Project + OIDC-App in Zitadel anlegen. Default-Auth-Pfad ist der von Zitadel beim FirstInstance-Bootstrap erzeugte Admin-PAT, der auf der Zitadel-LXC unter `/bootstrap/admin-client.pat` liegt — das funktioniert ohne weitere Konfiguration, hat aber Org-Owner-Privilegien für einen langlebigen Fund-File.
+
+Optional kannst du in der Zitadel-UI einen eigenen PAT für einen Service-User anlegen und ihn an `setup-production.sh` durchreichen, statt auf den Admin-PAT zu fallen:
+
+1. https://auth.ohnewarum.de aufrufen, einloggen
+2. Users → Service Users → `deployer-cli` (oder einen eigenen Service-User mit ausreichenden Org-Rechten) → Personal Access Tokens → New
+3. Expiration date wählen (z.B. 1 Jahr), generierten Token kopieren — wird nur einmal angezeigt
+4. Als env-var setzen, entweder vor jedem Aufruf oder dauerhaft in `production/.env` (gitignored):
+   ```
+   OCI_DEPLOYER_PAT=<token>
+   ```
+5. Subsequent `setup-production.sh`-Läufe injizieren den PAT als `ZITADEL_PAT`-Param in jede `params.json` vor dem CLI-Call. Die `conf-setup-oidc-client.sh`-Templates (und friends) nutzen ihn als Bearer für Zitadel-Management-API.
+
+Bei UI-getriggerten Installs aus proxvex selbst greift automatisch das Access-Token des eingeloggten Users — kein Env-Var nötig. Bei Livetest-Suites kommt der PAT aus `livetest-local/config.json` (gitignored bzw. CI-Secret-Vault).
+
 ## Single-Step-Operations
 
 Während der Master-Lauf alles in einem Aufwasch macht, gibt es ein paar Eingriffe, die du gezielt brauchst:

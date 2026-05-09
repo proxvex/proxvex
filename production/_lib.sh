@@ -186,3 +186,33 @@ init_oidc_creds() {
   export OIDC_PROJECT_ID="$project_id"
   echo "  OIDC machine credentials loaded from Zitadel deployer-oidc.json (machine_client_id=${client_id})" >&2
 }
+
+# Make a Zitadel-Management-API PAT available to subsequent deploy scripts as
+# OCI_DEPLOYER_PAT. Looked-up sources, in order:
+#   1. Already-set env (no-op if OCI_DEPLOYER_PAT is non-empty)
+#   2. production/.env file next to setup-production.sh (gitignored)
+#
+# When set, deploy.sh injects the value as a `ZITADEL_PAT` entry into the
+# CLI's params.json before forwarding — so the headless flow uses an
+# operator-issued PAT for deployer-cli (or any service user with the right
+# org permissions) instead of the cluster-wide /bootstrap/admin-client.pat.
+# Templates that read `{{ ZITADEL_PAT }}` (conf-setup-oidc-client.sh,
+# conf-bootstrap-zitadel-project.sh) pick this up automatically; if neither
+# this nor the env was set, they fall back to the on-LXC admin PAT — the
+# pre-existing behaviour, unchanged.
+init_deployer_pat() {
+  if [ -n "${OCI_DEPLOYER_PAT:-}" ]; then
+    return 0
+  fi
+  if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$SCRIPT_DIR/.env"
+    set +a
+  fi
+  if [ -n "${OCI_DEPLOYER_PAT:-}" ]; then
+    echo "  Deployer PAT loaded from production/.env (${#OCI_DEPLOYER_PAT} chars) — will be passed as ZITADEL_PAT param" >&2
+  else
+    echo "  OCI_DEPLOYER_PAT not set — Zitadel-API calls will fall back to /bootstrap/admin-client.pat on the LXC" >&2
+  fi
+}

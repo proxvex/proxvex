@@ -81,6 +81,7 @@ function loadConfig(instanceName?: string): {
   snapshot: { enabled: boolean } | undefined;
   registryMirror: { dnsForwarder: string } | undefined;
   portForwarding: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
+  zitadelPat: string | undefined;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
   const configPath = path.join(projectRoot, "e2e/config.json");
@@ -137,6 +138,10 @@ function loadConfig(instanceName?: string): {
   // Port forwarding config (for accessing containers from outside the nested VM)
   const portForwarding = inst.portForwarding ?? [];
 
+  // Optional Zitadel PAT — UI-generated for a service user with sufficient
+  // org permissions. Resolved like other strings (env var interpolation).
+  const zitadelPat = inst.zitadelPat ? resolveEnv(inst.zitadelPat) : undefined;
+
   return {
     instance,
     pveHost,
@@ -155,6 +160,7 @@ function loadConfig(instanceName?: string): {
     snapshot,
     registryMirror,
     portForwarding,
+    zitadelPat,
   };
 }
 
