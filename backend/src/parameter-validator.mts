@@ -28,6 +28,17 @@ export class ParameterValidator {
     selectedAddons?: string[];
     availableAddons?: IAddonWithParameters[];
     applicationParamIds?: Set<string>;
+    /**
+     * Resolved values for parameters set on the application (via property
+     * `value:` or `default:`). Used as a third fallback in the addon
+     * required-parameter check below: a value the application pins on the
+     * parameter satisfies the addon's `required: true` even when the user
+     * did not pass it explicitly and the addon's own definition has no
+     * default. Without this, applications that override addon parameters
+     * (e.g. gitea pinning oidc_redirect_uri to a hostname-based URL) would
+     * fail validation.
+     */
+    applicationParamValues?: Map<string, IParameterValue>;
     knownPropertyIds?: Set<string>;
     stackId?: string;
     availableStacks?: IStack[];
@@ -179,11 +190,22 @@ export class ParameterValidator {
               if (!condValue || condValue === "false" || condValue === "0")
                 continue;
             }
-            // Same default-fallback as the application-level check: a
-            // parameter that declares `default: "..."` is considered set
-            // even when no explicit value was provided.
+            // Resolution order (first non-empty wins):
+            //   1. Explicit user param (paramMap)
+            //   2. Application-level pin (applicationParamValues): set when
+            //      the app declares a property with `value:` or `default:`
+            //      for this parameter ID — that satisfies the addon's
+            //      requirement even though the addon's own definition lacks
+            //      a default.
+            //   3. The addon's own default
             let value: unknown = paramMap.get(def.id);
-            if (value === undefined && def.default !== undefined && def.default !== "") {
+            if ((value === undefined || value === "") && input.applicationParamValues) {
+              const pinned = input.applicationParamValues.get(def.id);
+              if (pinned !== undefined && pinned !== "") {
+                value = pinned;
+              }
+            }
+            if ((value === undefined || value === "") && def.default !== undefined && def.default !== "") {
               value = def.default;
             }
             if (value === undefined || value === "" || value === null) {
