@@ -251,6 +251,7 @@ export interface ITemplate {
   skip_if_all_missing?: string[];
   skip_if_property_set?: string;
   implements?: string;
+  persists_container_state?: boolean;
   name: string;
   description?: string;
   parameters?: IParameter[];

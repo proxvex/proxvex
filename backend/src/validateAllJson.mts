@@ -626,6 +626,110 @@ export async function validateAllJson(localPathArg?: string): Promise<void> {
     console.log(`✔ stack_usage`);
   }
 
+  // === 6. Validate persists_container_state coherence ===
+  // Templates marked `persists_container_state: true` mutate persistent
+  // container files (e.g. /etc/docker/daemon.json, on-start hooks). They
+  // MUST be referenced by every task block (installation/upgrade/reconfigure)
+  // an application defines — otherwise upgrade/reconfigure silently drops
+  // the change and the container drifts. Inheritance: applications that
+  // don't define a task block (≤1 of the three) inherit from `extends`,
+  // and the parent is checked separately.
+  type ContainerStateError = { app: string; template: string; present: string[]; missing: string[] };
+  const containerStateErrors: ContainerStateError[] = [];
+
+  // Collect template basenames marked persists_container_state via the
+  // template repository — already parsed (and cache-hot) so no extra
+  // filesystem walk needed here. The application.json check below stays
+  // on raw fs because repositories.getApplication() returns the
+  // inheritance-flattened form and we need own-keys-only.
+  const markedTemplates = new Set<string>();
+  for (const { ref, data } of repositories.listAllTemplates()) {
+    if (data.persists_container_state === true) {
+      // ref.name is the template's filename (with .json) — match the format
+      // used by application.json's task-block references.
+      const name = ref.name.endsWith(".json") ? ref.name : `${ref.name}.json`;
+      markedTemplates.add(name);
+    }
+  }
+
+  if (markedTemplates.size > 0) {
+    const TASK_KEYS = ["installation", "upgrade", "reconfigure"] as const;
+
+    // Recursively pull every template-file basename out of a task block
+    // (handles {name: "..."} entries and arbitrarily nested phase keys).
+    const extractRefs = (node: unknown, acc: Set<string>): void => {
+      if (typeof node === "string") {
+        if (node.endsWith(".json")) acc.add(path.basename(node));
+      } else if (Array.isArray(node)) {
+        for (const item of node) extractRefs(item, acc);
+      } else if (node && typeof node === "object") {
+        const obj = node as { name?: unknown };
+        if (typeof obj.name === "string" && obj.name.endsWith(".json")) {
+          acc.add(path.basename(obj.name));
+        }
+        for (const v of Object.values(node as Record<string, unknown>)) extractRefs(v, acc);
+      }
+    };
+
+    // Iterate available applications via the persistence service. For each,
+    // read its single application.json (without inheritance — readApplicationFile
+    // is the new schema-validated raw read). Apps that don't define at least
+    // two of the three task blocks inherit the rest from `extends` and are
+    // checked when the parent itself is processed.
+    const persistence = pm.getPersistence();
+    for (const app of apps) {
+      let appData: Record<string, unknown>;
+      try {
+        appData = persistence.readApplicationFile(app.id) as unknown as Record<string, unknown>;
+      } catch {
+        continue; // Schema check (section 2) already flagged this.
+      }
+
+      const refsByTask: Record<string, Set<string>> = {};
+      for (const task of TASK_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(appData, task)) {
+          const acc = new Set<string>();
+          extractRefs(appData[task], acc);
+          refsByTask[task] = acc;
+        }
+      }
+      const definedTasks = Object.keys(refsByTask);
+      if (definedTasks.length < 2) continue;
+
+      const usedMarked = new Set<string>();
+      for (const t of definedTasks) {
+        const refs = refsByTask[t]!;
+        for (const r of refs) if (markedTemplates.has(r)) usedMarked.add(r);
+      }
+
+      for (const m of usedMarked) {
+        const missing = definedTasks.filter((t) => !refsByTask[t]!.has(m));
+        if (missing.length > 0) {
+          containerStateErrors.push({
+            app: app.id,
+            template: m,
+            present: definedTasks.filter((t) => refsByTask[t]!.has(m)),
+            missing,
+          });
+        }
+      }
+    }
+  }
+
+  if (containerStateErrors.length > 0) {
+    hasError = true;
+    console.error(
+      `✖ persists_container_state coherence (${containerStateErrors.length} issue(s))`,
+    );
+    for (const e of containerStateErrors) {
+      console.error(
+        `  ✖ ${e.app}: ${e.template} present in [${e.present.join(", ")}], missing from [${e.missing.join(", ")}]`,
+      );
+    }
+  } else {
+    console.log(`✔ persists_container_state coherence`);
+  }
+
   // === Summary ===
   console.log("");
   if (hasError) {

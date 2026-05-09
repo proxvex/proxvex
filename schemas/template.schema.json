@@ -41,6 +41,10 @@
       "minItems": 1,
       "description": "List of parameter IDs. If ALL of these are missing or empty, the template will be skipped. If at least one parameter is present, the template will be executed. If this property is present (and not empty), the template is considered optional."
     },
+    "persists_container_state": {
+      "type": "boolean",
+      "description": "Marks templates that mutate persistent container state (files inside the LXC, e.g. /etc/docker/daemon.json, /etc/hosts entries, on-start hook scripts). The container-state-templates validator (backend/scripts/validateContainerStateTemplates.mjs) requires every application that references such a template in any of installation/upgrade/reconfigure to reference it in ALL three — otherwise an upgrade or reconfigure silently drops the change and the container drifts."
+    },
     "skip_if_property_set": {
       "type": "string",
       "description": "Parameter ID. If this parameter is set (exists in resolvedParams), the template will be skipped."

@@ -48,9 +48,9 @@ GHCR_REGISTRY_MIRROR="{{ ghcr_registry_mirror }}"
 
 mkdir -p /etc/docker
 
-# Build daemon.json with explicit DNS upstreams. Without `dns`, dockerd
-# captures the LXC's /etc/resolv.conf at start time and exposes it via the
-# embedded DNS resolver at 127.0.0.11. That forwarding is fragile in nested
+  # Build daemon.json with explicit DNS upstreams. Without `dns`, dockerd
+  # captures the LXC's /etc/resolv.conf at start time and exposes it via the
+  # embedded DNS resolver at 127.0.0.11. That forwarding is fragile in nested
 # LXC-Docker setups: when the upstream resolver (OpenWrt dnsmasq) takes a
 # moment to answer, or when the LXC's resolv.conf is rewritten by an init
 # system, containers begin failing with "lookup <host> on 127.0.0.11:53:

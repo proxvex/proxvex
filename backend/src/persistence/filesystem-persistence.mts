@@ -91,6 +91,10 @@ export class FileSystemPersistence
     return this.applicationHandler.readApplication(applicationName, opts);
   }
 
+  readApplicationFile(applicationName: string) {
+    return this.applicationHandler.readApplicationFile(applicationName);
+  }
+
   readApplicationIcon(applicationName: string) {
     return this.applicationHandler.readApplicationIcon(applicationName);
   }
