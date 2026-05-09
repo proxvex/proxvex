@@ -1,0 +1,102 @@
+<!--
+  OIDC post-logout landing page. Reachable at /logged-out.html, served by
+  Express static middleware without going through the auth middleware
+  (which only gates /api/*). Linked from each app's
+  oidc_post_logout_uri so Zitadel redirects here after end_session — the
+  user lands on a public page instead of being looped back into a fresh
+  OIDC flow on the protected /.
+
+  Self-contained on purpose: no external CSS/JS, no Angular, no images
+  outside /favicon.svg. Drop into any other proxvex-style frontend
+  (e.g. modbus2mqtt) verbatim and it will work as long as the host
+  serves /favicon.svg and the link target / makes sense for that app.
+-->
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Abgemeldet</title>
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f9fc;
+        --fg: #1f2933;
+        --muted: #5b6877;
+        --card: #ffffff;
+        --border: #d0d7e2;
+        --accent: #1976d2;
+        --accent-hover: #1565c0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #131720;
+          --fg: #e6e9ef;
+          --muted: #9aa3b2;
+          --card: #1c2230;
+          --border: #2a3242;
+          --accent: #64b5f6;
+          --accent-hover: #90caf9;
+        }
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+          Ubuntu, Cantarell, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 2rem 2.25rem;
+        max-width: 28rem;
+        text-align: center;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      a.btn {
+        display: inline-block;
+        padding: 0.65rem 1.4rem;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 500;
+        transition: background 0.15s ease;
+      }
+      a.btn:hover,
+      a.btn:focus-visible {
+        background: var(--accent-hover);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Sie sind abgemeldet.</h1>
+      <p>
+        Sie können das Fenster schließen oder sich erneut anmelden.
+      </p>
+      <a class="btn" href="/">Anmelden</a>
+    </main>
+  </body>
+</html>

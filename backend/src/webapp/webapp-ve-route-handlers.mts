@@ -689,8 +689,17 @@ export class WebAppVeRouteHandlers {
         value: p.value,
       }));
 
-      // Inject user's access token for OIDC addon scripts (delegated access)
-      if (selectedAddons.includes("addon-oidc") && userAccessToken) {
+      // Inject user's access token for OIDC addon scripts (delegated access).
+      // Only when nothing already provided ZITADEL_PAT — explicit operator
+      // PATs (e.g. via headless production/deploy.sh's params augmentation,
+      // see production/_lib.sh::init_deployer_pat) take precedence because
+      // they may be a long-lived service-user token that's more authoritative
+      // than the current request's session token.
+      if (
+        selectedAddons.includes("addon-oidc") &&
+        userAccessToken &&
+        !inputs.some((i) => i.id === "ZITADEL_PAT")
+      ) {
         inputs.push({ id: "ZITADEL_PAT", value: userAccessToken });
         this.logger.info("[ve-route-handlers] Injected user access token for OIDC addon");
       }

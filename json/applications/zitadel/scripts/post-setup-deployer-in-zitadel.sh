@@ -245,7 +245,7 @@ if [ -z "$APP_ID" ]; then
   # default. The actual deployer hostname/port is unknown at Zitadel-bootstrap
   # time (proxvex isn't deployed yet); user adjusts in Zitadel UI if non-standard.
   CALLBACK_URL="https://proxvex:3443/api/auth/callback"
-  LOGOUT_URL="https://proxvex:3443"
+  LOGOUT_URL="https://proxvex:3443/logged-out.html"
 
   CREATE_APP_RESPONSE=$(zitadel_api POST "/management/v1/projects/${PROJECT_ID}/apps/oidc" \
     "{\"name\":\"${OIDC_APP_NAME}\",\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"]}")
@@ -298,7 +298,7 @@ fi
 # verify the flags actually persisted by reading the config back. Without
 # this guard a stale flag set silently breaks every subsequent OIDC login.
 CALLBACK_URL="https://proxvex:3443/api/auth/callback"
-LOGOUT_URL="https://proxvex:3443"
+LOGOUT_URL="https://proxvex:3443/logged-out.html"
 APP_CONFIG_PATH="/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config"
 APP_CONFIG_BODY="{\"redirectUris\":[\"${CALLBACK_URL}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${LOGOUT_URL}\"],\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}"
 

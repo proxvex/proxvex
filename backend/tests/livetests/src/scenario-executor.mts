@@ -264,6 +264,11 @@ export async function executeScenarios(
     deployerUrl: string;
     snapshot?: { enabled: boolean };
     portForwarding?: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
+    /** Optional: UI-generated PAT for a Zitadel service user with sufficient
+     *  org permissions. When set, gets injected as `ZITADEL_PAT` param into
+     *  every params.json so OIDC-addon templates use it instead of the
+     *  on-LXC /bootstrap/admin-client.pat fallback. */
+    zitadelPat?: string;
   },
   apiUrl: string,
   veHost: string,
@@ -498,10 +503,19 @@ export async function executeScenarios(
 
       // Write params file
       const paramsFile = path.join(tmpDir, `params-${i}.json`);
+      const paramsList = buildResult.params.map((p) => ({ name: p.name, value: p.value }));
+      // Inject Zitadel PAT from e2e/config.json so OIDC-addon templates
+      // (conf-setup-oidc-client.sh & friends) use it as `ZITADEL_PAT` template
+      // var instead of the on-LXC /bootstrap/admin-client.pat fallback.
+      // Only when the addons require it AND no explicit value already in
+      // buildResult.params (operator override wins).
+      if (config.zitadelPat && !paramsList.some((p) => p.name === "ZITADEL_PAT")) {
+        paramsList.push({ name: "ZITADEL_PAT", value: config.zitadelPat });
+      }
       const paramsObj: Record<string, unknown> = {
         application: scenario.application,
         task,
-        params: buildResult.params.map((p) => ({ name: p.name, value: p.value })),
+        params: paramsList,
       };
 
       if (allAddons.length > 0) paramsObj.selectedAddons = allAddons;

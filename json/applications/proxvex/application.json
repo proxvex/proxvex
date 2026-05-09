@@ -74,7 +74,7 @@
     },
     {
       "id": "oidc_post_logout_uri",
-      "value": "https://{{hostname}}:{{local_https_port}}"
+      "value": "https://{{hostname}}:{{local_https_port}}/logged-out.html"
     },
     {
       "id": "oidc_required_role",
