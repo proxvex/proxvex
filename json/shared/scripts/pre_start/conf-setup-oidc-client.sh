@@ -247,6 +247,20 @@ echo "Searching for project '${OIDC_PROJECT_NAME}'..." >&2
 PROJECT_RESPONSE=$(zitadel_api POST "/management/v1/projects/_search" \
   "{\"queries\":[{\"nameQuery\":{\"name\":\"${OIDC_PROJECT_NAME}\",\"method\":\"TEXT_QUERY_METHOD_EQUALS\"}}]}")
 
+# Hard-fail on Zitadel error envelope (`{"code":N, "message":...}`) before
+# the regex picks up an `id` from the error detail (e.g. "AUTH-7fs1e") and
+# we mistake it for a project ID. Common causes: expired/wrong-audience PAT
+# or token, network/Host-header mismatch.
+case "$PROJECT_RESPONSE" in
+  *'"code":'*'"message":'*)
+    echo "ERROR: Zitadel rejected the project search:" >&2
+    echo "  ${PROJECT_RESPONSE}" >&2
+    echo "  Verify ZITADEL_PAT (template var or /bootstrap/admin-client.pat) has Org-level permissions on Zitadel's Management API." >&2
+    echo '[]'
+    exit 1
+    ;;
+esac
+
 PROJECT_ID=$(echo "$PROJECT_RESPONSE" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
 
 if [ -z "$PROJECT_ID" ]; then

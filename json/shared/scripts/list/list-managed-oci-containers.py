@@ -49,16 +49,19 @@ def _get_status_once(vmid: int, timeout: float) -> str | None:
 def get_status(vmid: int) -> str | None:
     """Retry `pct status` a couple of times before giving up.
 
-    Transient failures (lock from a parallel pct command, brief cluster-state
-    refresh, slow disk) clear within a few hundred ms, so a quick retry is
-    much more reliable than a single longer call. Total wall time stays bounded
-    (~5s) so a stuck container does not block the whole listing.
+    On a real cluster `pct status` consistently takes ~1.6s per call (cluster
+    state lookup + manifest read), so the per-call timeout must comfortably
+    exceed that. Transient failures (lock from a parallel pct command, brief
+    cluster-state refresh, slow disk) clear within a few hundred ms, so a
+    quick retry handles those without ballooning wall time. Total budget per
+    VM: ~12s worst case (3 × 4s + ~1.4s sleep) — still bounded so a single
+    stuck container does not block the whole listing.
     """
-    delays = (0.0, 0.4, 1.0)  # 3 attempts, ~1.4s of sleep + up to 3*1.5s of pct = bounded
+    delays = (0.0, 0.4, 1.0)  # 3 attempts, ~1.4s of sleep + up to 3*4s of pct = bounded
     for delay in delays:
         if delay:
             time.sleep(delay)
-        status = _get_status_once(vmid, timeout=1.5)
+        status = _get_status_once(vmid, timeout=4.0)
         if status:
             return status
     return None
