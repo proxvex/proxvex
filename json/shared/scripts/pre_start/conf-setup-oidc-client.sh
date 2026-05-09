@@ -354,6 +354,55 @@ if [ -z "$CLIENT_SECRET" ]; then
   fi
 fi
 
+# Ensure role-assertion flags are enabled on the OIDC app config. Without
+# these the JWT (id_token / access_token) does not carry the
+# urn:zitadel:iam:org:project:roles claim, and the application's auth
+# middleware rejects every login with "missing role 'admin'".
+# projectRoleAssertion on the project alone is not enough — the OIDC app
+# itself must opt in.
+#
+# Robust against silent failure: capture the response, retry up to 3 times
+# (Zitadel sometimes returns transient 5xx right after CreateOIDCApp), then
+# verify the flags actually persisted by reading the config back. Without
+# this guard a stale flag set silently breaks every subsequent OIDC login.
+APP_CONFIG_PATH="/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config"
+APP_CONFIG_BODY="{\"redirectUris\":[\"${OIDC_REDIRECT_URI}\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_BASIC\",\"postLogoutRedirectUris\":[\"${OIDC_POST_LOGOUT_URI}\"],\"idTokenRoleAssertion\":true,\"accessTokenRoleAssertion\":true,\"idTokenUserinfoAssertion\":true}"
+
+attempts=0
+flags_ok=0
+while [ $attempts -lt 3 ] && [ $flags_ok -eq 0 ]; do
+  attempts=$((attempts + 1))
+  echo "Enabling idTokenRoleAssertion + accessTokenRoleAssertion on app ${APP_ID} (attempt ${attempts}/3)..." >&2
+  PUT_RESP=$(zitadel_api PUT "$APP_CONFIG_PATH" "$APP_CONFIG_BODY")
+  case "$PUT_RESP" in
+    *'"sequence"'*|*'"changeDate"'*)
+      ;;
+    *)
+      echo "WARN: UpdateOIDCAppConfig response missing success markers: ${PUT_RESP}" >&2
+      sleep 2
+      continue
+      ;;
+  esac
+
+  GET_RESP=$(zitadel_api GET "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}")
+  has_id=$(echo "$GET_RESP" | grep -c '"idTokenRoleAssertion": *true' || true)
+  has_at=$(echo "$GET_RESP" | grep -c '"accessTokenRoleAssertion": *true' || true)
+  if [ "$has_id" -gt 0 ] && [ "$has_at" -gt 0 ]; then
+    echo "  OIDC role-assertion flags verified on app ${APP_ID}" >&2
+    flags_ok=1
+  else
+    echo "WARN: Role-assertion flags did not stick after PUT — retrying" >&2
+    sleep 2
+  fi
+done
+
+if [ $flags_ok -eq 0 ]; then
+  echo "ERROR: Failed to enable OIDC role-assertion flags on app ${APP_ID} after ${attempts} attempts" >&2
+  echo "  Without these flags every browser/CLI login will fail with 'missing role admin'" >&2
+  echo '[]'
+  exit 1
+fi
+
 # Store credentials for future create-only access
 if [ -n "$CLIENT_ID" ] && [ -n "$CLIENT_SECRET" ]; then
   CRED_DIR=$(dirname "$OIDC_CRED_FILE")
