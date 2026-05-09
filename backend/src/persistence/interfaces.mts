@@ -55,6 +55,15 @@ export interface IApplicationPersistence extends IPersistence {
   ): IApplication;
 
   /**
+   * Reads a single application.json (schema-validated) without inheritance
+   * resolution, parameter expansion or file:-reference inlining. Used by
+   * checks that must distinguish own keys from parent-inherited ones — e.g.
+   * the persists_container_state coherence check in validateAllJson.
+   * @param applicationName Name of the application (optionally with json: prefix)
+   */
+  readApplicationFile(applicationName: string): IApplication;
+
+  /**
    * Reads application icon as base64
    * @param applicationName Name of the application
    * @returns Object with iconContent (base64) and iconType (MIME type) or null if not found

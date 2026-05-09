@@ -23,8 +23,9 @@
     "test:templates": "vitest run --config vitest.config.template-tests.mts",
     "build": "tsc --project tsconfig.production.json && tsc-alias -p tsconfig.production.json",
     "postbuild": "chmod +x ./dist/proxvex.mjs && node -e \"const{execSync:e}=require('child_process');let h='unknown',d='',v='unknown';try{h=e('git rev-parse --short HEAD').toString().trim();d=e('git diff --stat HEAD').toString().trim()}catch{}try{v=require('../package.json').version}catch{try{v=require('./package.json').version}catch{}}const j={version:v,gitHash:h,buildTime:new Date().toISOString(),dirty:d.length>0};require('fs').writeFileSync('dist/build-info.json',JSON.stringify(j,null,2))\"",
-    "lint:all": "eslint \"src/**/*.{ts,mts,cts}\" \"tests/**/*.{ts,mts,cts}\"",
-    "lint:fix": "eslint \"src/**/*.{ts,mts,cts}\" \"tests/**/*.{ts,mts,cts}\" --fix",
+    "lint:json": "vitest run tests/validation/validate-all-json.test.mts",
+    "lint:all": "eslint \"src/**/*.{ts,mts,cts}\" \"tests/**/*.{ts,mts,cts}\" && pnpm run lint:json",
+    "lint:fix": "eslint \"src/**/*.{ts,mts,cts}\" \"tests/**/*.{ts,mts,cts}\" --fix && pnpm run lint:json",
     "prettier": "prettier --write ."
   },
   "keywords": [],

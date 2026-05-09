@@ -23,18 +23,19 @@ fi
 # Create hooks directory if it doesn't exist
 mkdir -p "$HOOKS_DIR"
 
-# Install pre-push hook only if missing or different
-SOURCE_HOOK="$SOURCE_HOOKS_DIR/pre-push"
-TARGET_HOOK="$HOOKS_DIR/pre-push"
+# Install every hook script that ships under scripts/git-hooks/.
+# Currently: pre-push (rebase + dependency sync), pre-commit (lint:json gate
+# triggered by JSON or backend changes — see git-hooks/pre-commit).
+for SOURCE_HOOK in "$SOURCE_HOOKS_DIR"/*; do
+  [ -f "$SOURCE_HOOK" ] || continue
+  HOOK_NAME=$(basename "$SOURCE_HOOK")
+  TARGET_HOOK="$HOOKS_DIR/$HOOK_NAME"
 
-if [ -f "$SOURCE_HOOK" ]; then
   if [ -f "$TARGET_HOOK" ] && cmp -s "$SOURCE_HOOK" "$TARGET_HOOK"; then
-    # Hook is up-to-date, nothing to do
-    exit 0
+    continue
   fi
 
-  # Install or update hook
   cp "$SOURCE_HOOK" "$TARGET_HOOK"
   chmod +x "$TARGET_HOOK"
-  echo "${GREEN}✓ pre-push hook installed${NC}"
-fi
+  echo "${GREEN}✓ ${HOOK_NAME} hook installed${NC}"
+done

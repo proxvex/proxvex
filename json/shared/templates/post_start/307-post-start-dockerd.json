@@ -1,7 +1,8 @@
 {
   "execute_on": "lxc",
   "name": "Start Dockerd",
-  "description": "Launch dockerd via nohup. The pre-baked debian-docker LXC base has docker installed but no init system, so we start the daemon directly. 330-svc-start-docker-compose polls for readiness afterwards. The script also wires project-level registry mirrors into /etc/docker/daemon.json (Docker Hub) and /etc/hosts (ghcr.io) when the corresponding project defaults are set.",
+  "description": "Launch dockerd via nohup. The pre-baked debian-docker LXC base has docker installed but no init system, so we start the daemon directly. 330-svc-start-docker-compose polls for readiness afterwards. The script also wires project-level registry mirrors into /etc/docker/daemon.json (Docker Hub), the LXC nameservers as `dns` upstream in daemon.json (avoids embedded-DNS forwarding glitches in nested LXC-Docker setups), and /etc/hosts (ghcr.io) when the corresponding project defaults are set.",
+  "persists_container_state": true,
   "parameters": [
     "docker_registry_mirror",
     "ghcr_registry_mirror"

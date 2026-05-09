@@ -284,6 +284,27 @@ export class ApplicationPersistenceHandler {
   /**
    * Deserializes application.json and initializes hierarchy tracking.
    */
+  /**
+   * Public single-file read: schema-validated application.json with no
+   * inheritance, no parameter expansion, no file:-reference inlining.
+   * Throws on schema/parse failure (caller decides how to handle).
+   */
+  readApplicationFile(applicationName: string): IApplication {
+    const opts: IReadApplicationOptions = {
+      applicationHierarchy: [],
+      // Discardable error sink; we want the throw, not the soft-collect path.
+      error: { message: "" } as IReadApplicationOptions["error"],
+      taskTemplates: [],
+    };
+    const { appName, appFile } = this.resolveApplicationPath(applicationName, opts);
+    const appData = this.jsonValidator.serializeJsonFileWithSchema<IApplication>(
+      appFile,
+      "application",
+    );
+    appData.id = appName;
+    return appData;
+  }
+
   private deserializeAndInitApp(
     appFile: string,
     appName: string,
