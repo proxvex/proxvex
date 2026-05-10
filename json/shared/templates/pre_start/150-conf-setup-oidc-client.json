@@ -24,8 +24,7 @@
       "outputs": [
         "oidc_issuer_url",
         "oidc_client_id",
-        "oidc_client_secret",
-        "oidc_bearer_source"
+        "oidc_client_secret"
       ]
     }
   ]
