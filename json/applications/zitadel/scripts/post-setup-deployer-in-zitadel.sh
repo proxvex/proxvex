@@ -380,13 +380,57 @@ if [ -z "$MACHINE_CLIENT_ID" ] || [ -z "$MACHINE_CLIENT_SECRET" ]; then
   exit 1
 fi
 
-# Grant the project's "admin" role so the JWT carries
-# urn:zitadel:iam:org:project:${PROJECT_ID}:roles.admin — the deployer's
-# auth middleware (webapp-auth-middleware.mts) requires this role.
-# Idempotent: 409/AlreadyExists on re-run is fine.
+# --- Project-admin grant on the proxvex project ---
+# Carries `urn:zitadel:iam:org:project:${PROJECT_ID}:roles.admin` in the JWT
+# so the proxvex deployer's auth middleware (webapp-auth-middleware.mts:70-93)
+# admits the request. Idempotent: 409/AlreadyExists on re-run is fine.
 echo "Granting 'admin' role on project ${PROJECT_ID} to machine user..." >&2
 zitadel_api POST "/management/v1/users/${MACHINE_USER_ID}/grants" \
   "{\"projectId\":\"${PROJECT_ID}\",\"roleKeys\":[\"admin\"]}" >/dev/null 2>&1 || true
+
+# --- ORG_OWNER grant on the Zitadel org (Phase 2) ---
+# Without this, a JWT issued for the machine user has audience=<proxvex_project_id>
+# and Zitadel's Management API rejects it with `Errors.Token.Invalid (AUTH-7fs1e)`.
+# ORG_OWNER lifts deployer-cli to the org level so a client_credentials grant
+# with scope `urn:zitadel:iam:org:project:id:zitadel:aud` returns a JWT the
+# Management API accepts — making conf-setup-oidc-client.sh's Tier 2 the
+# long-term primary path (no admin-client.pat fallback needed post-hardening).
+#
+# Idempotent on re-run: ORG_OWNER already-granted returns
+# AlreadyExists (409) — we silently swallow that, then verify below.
+echo "Granting 'ORG_OWNER' role to machine user on org..." >&2
+ORG_OWNER_RESPONSE=$(zitadel_api POST "/management/v1/orgs/me/members" \
+  "{\"userId\":\"${MACHINE_USER_ID}\",\"roles\":[\"ORG_OWNER\"]}")
+case "$ORG_OWNER_RESPONSE" in
+  *'"details"'*|*'AlreadyExists'*|*'already exists'*)
+    echo "  ORG_OWNER grant returned success (or already present)" >&2
+    ;;
+  *'"code":'*'"message":'*)
+    echo "WARN: ORG_OWNER grant returned an error envelope: ${ORG_OWNER_RESPONSE}" >&2
+    ;;
+esac
+
+# Verify the ORG_OWNER role is actually present on the deployer-cli member
+# (re-querying so we catch silent grant failures, partial state, or
+# permission shape that Zitadel changes across versions). Hard-fails the
+# zitadel install if missing — the install pipeline is the only place that
+# can correct this, so producing a working zitadel without ORG_OWNER on
+# deployer-cli would be a step backwards into the AUTH-7fs1e era.
+echo "Verifying ORG_OWNER membership for ${MACHINE_USER_ID}..." >&2
+MEMBERS_RESPONSE=$(zitadel_api POST "/management/v1/orgs/me/members/_search" \
+  "{\"queries\":[{\"userIdQuery\":{\"userId\":\"${MACHINE_USER_ID}\"}}]}")
+case "$MEMBERS_RESPONSE" in
+  *'"ORG_OWNER"'*)
+    echo "  ORG_OWNER verified for deployer-cli (${MACHINE_USER_ID})" >&2
+    ;;
+  *)
+    echo "ERROR: deployer-cli (${MACHINE_USER_ID}) is NOT a member with ORG_OWNER on this org." >&2
+    echo "  Members response: ${MEMBERS_RESPONSE}" >&2
+    echo "  This breaks the long-term Tier-2 auth path; aborting Zitadel install so the issue is visible at deploy time rather than at the next addon-oidc app install." >&2
+    echo '[]'
+    exit 1
+    ;;
+esac
 
 # --- 5. Store credentials in bootstrap volume ---
 # Schema:

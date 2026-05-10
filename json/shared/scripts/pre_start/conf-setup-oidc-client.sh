@@ -150,16 +150,20 @@ fi
 
 # --- Acquire a Bearer for the Zitadel Management API ---
 # Priority:
-#   1) {{ ZITADEL_PAT }}  Template variable (operator-supplied PAT, override)
-#   2) Machine credentials from oidc_production stack → JWT via client_credentials
-#      grant. The 4 DEPLOYER_OIDC_* template-vars are populated by the backend's
-#      stack→template-var resolution from provides_DEPLOYER_OIDC_* outputs that
-#      template 340 (post-setup-deployer-in-zitadel.sh) emits.
-#   3) /bootstrap/admin-client.pat on the Zitadel LXC (legacy file fallback).
-#
-# Tier 2 is the long-term primary path: it survives Zitadel hardening (which
-# removes admin-client.pat) and works headlessly without requiring an
-# operator-supplied PAT.
+#   1) {{ ZITADEL_PAT }}  Template variable — operator-supplied PAT only.
+#      Backend no longer auto-injects user-access tokens here (audience
+#      mismatch made them all reject with AUTH-7fs1e). This tier now only
+#      fires when an operator explicitly passes ZITADEL_PAT (typically via
+#      production/.env's OCI_DEPLOYER_PAT → deploy.sh's params augmentation).
+#   2) Machine credentials from oidc_production stack → JWT via
+#      client_credentials grant against the Zitadel "zitadel" IAM project
+#      audience. Phase 2 grants deployer-cli ORG_OWNER on the org so this
+#      JWT carries the right audience for the Management API. Long-term
+#      primary path: survives Zitadel hardening that removes
+#      /bootstrap/admin-client.pat.
+#   3) /bootstrap/admin-client.pat on the Zitadel LXC. Opaque PAT with no
+#      audience constraint, kept as a fallback for the bootstrap window
+#      between Zitadel install and the moment Phase 2's grant + scope land.
 ZITADEL_PAT_INPUT="{{ ZITADEL_PAT }}"
 DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT="{{ DEPLOYER_OIDC_MACHINE_CLIENT_ID }}"
 DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT="{{ DEPLOYER_OIDC_MACHINE_CLIENT_SECRET }}"
@@ -169,16 +173,16 @@ DEPLOYER_OIDC_PROJECT_ID_INPUT="{{ DEPLOYER_OIDC_PROJECT_ID }}"
 PAT=""
 PAT_SOURCE=""
 
+# Tier 1: explicit operator override.
 if [ -n "$ZITADEL_PAT_INPUT" ] && [ "$ZITADEL_PAT_INPUT" != "NOT_DEFINED" ]; then
   PAT="$ZITADEL_PAT_INPUT"
   PAT_SOURCE="template variable ZITADEL_PAT (operator-supplied)"
 fi
 
 # Tier 2: derive JWT from Machine credentials via client_credentials grant.
-# Mirrors production/_lib.sh init_oidc_jwt() so the headless and in-template
-# paths obtain identical tokens. Audience scope binds the JWT to the proxvex
-# project — required for the Management API to accept it with the machine
-# user's role grants.
+# Requests the special "zitadel" audience so the resulting JWT is accepted by
+# the Zitadel Management API. Requires deployer-cli to be granted ORG_OWNER
+# on the org (done by post-setup-deployer-in-zitadel.sh's Phase 2 block).
 if [ -z "$PAT" ] \
    && [ -n "$DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT" ] \
    && [ "$DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT" != "NOT_DEFINED" ] \
@@ -186,10 +190,7 @@ if [ -z "$PAT" ] \
    && [ "$DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT" != "NOT_DEFINED" ] \
    && [ -n "$DEPLOYER_OIDC_ISSUER_URL_INPUT" ] \
    && [ "$DEPLOYER_OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then
-  cc_scope="openid"
-  if [ -n "$DEPLOYER_OIDC_PROJECT_ID_INPUT" ] && [ "$DEPLOYER_OIDC_PROJECT_ID_INPUT" != "NOT_DEFINED" ]; then
-    cc_scope="openid urn:zitadel:iam:org:project:id:${DEPLOYER_OIDC_PROJECT_ID_INPUT}:aud urn:zitadel:iam:org:projects:roles"
-  fi
+  cc_scope="openid urn:zitadel:iam:org:project:id:zitadel:aud urn:zitadel:iam:org:projects:roles"
   cc_response=$(curl -sk -X POST "${DEPLOYER_OIDC_ISSUER_URL_INPUT}/oauth/v2/token" \
     -u "${DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT}:${DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT}" \
     --data-urlencode "grant_type=client_credentials" \
