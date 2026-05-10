@@ -133,13 +133,16 @@ async function startWebApp(
   const pm = PersistenceManager.getInstance();
 
   // If this instance was just started as the target of a deployer self-upgrade,
-  // a marker file sits in the /config volume. Process it before we serve any
-  // requests so the log makes the upgrade visible and the marker is cleared.
+  // a marker file sits in the /config volume. The previous deployer is still
+  // running and holding the static IP — we must stop it (via SSH back to the
+  // PVE host) before app.listen, otherwise our network bind will fail or
+  // race with the old deployer. The marker is only removed on success so a
+  // crash here retries on the next boot.
   try {
     const { finalizeUpgradeIfPending } = await import(
       "./services/upgrade-finalization-service.mjs"
     );
-    finalizeUpgradeIfPending(localPath);
+    await finalizeUpgradeIfPending(localPath);
   } catch (err: any) {
     logger.warn("Upgrade finalization check failed (non-fatal)", {
       error: err?.message,

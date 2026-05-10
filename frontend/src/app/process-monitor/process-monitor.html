@@ -63,7 +63,11 @@
             }
             @if (finished.redirectUrl) {
               <div class="redirect-info">
-                <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>
+                @if (switchoverScheduled) {
+                  <p>Deployer wird ausgetauscht — der neue Deployer übernimmt gerade die IP. Weiterleitung in {{ redirectCountdown }} Sekunden...</p>
+                } @else {
+                  <p>Weiterleitung zum neuen Deployer in {{ redirectCountdown }} Sekunden...</p>
+                }
                 <a [href]="finished.redirectUrl" class="redirect-link">{{ finished.redirectUrl }}</a>
                 <button class="action-btn" type="button" (click)="redirectNow()">Jetzt weiterleiten</button>
               </div>

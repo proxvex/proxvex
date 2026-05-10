@@ -188,6 +188,7 @@ export interface IVeExecuteMessage {
   partial?: boolean; // If true, this is a partial/streaming output chunk (process still running)
   vmId?: number; // Container VMID (available in final success message)
   redirectUrl?: string; // Redirect URL for deployer self-reconfigure (new instance URL)
+  switchoverScheduled?: boolean; // true for proxvex self-upgrade: the new deployer takes over the IP, so the UI must wait longer than the default redirect countdown before navigating to redirectUrl.
   completionInfo?: ICompletionInfo; // Optional structured completion info from application
   template?: string; // Filename of the template this command was loaded from (e.g. "342-post-install-acme-renew-on-start.json")
 }

@@ -23,6 +23,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   messages: IVeExecuteMessagesResponse | undefined;
   redirectUrl?: string;
   redirectCountdown = 0;
+  switchoverScheduled = false;
   private sseSubscription?: Subscription;
   private redirectTimer?: number;
   private countdownInterval?: number;
@@ -223,7 +224,10 @@ export class ProcessMonitor implements OnInit, OnDestroy {
         for (const group of this.messages) {
           const finishedMsg = group.messages.find(m => m.finished && m.redirectUrl);
           if (finishedMsg?.redirectUrl) {
-            this.startRedirect(finishedMsg.redirectUrl);
+            this.startRedirect(
+              finishedMsg.redirectUrl,
+              finishedMsg.switchoverScheduled === true,
+            );
             break;
           }
         }
@@ -231,9 +235,19 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     }
   }
 
-  private startRedirect(url: string): void {
+  // Deployer self-upgrade: the new deployer needs ~15-20s to boot, SSH
+  // back to the PVE host and stop the old one. The browser must wait that
+  // long before navigating, otherwise it hits the old (about-to-die)
+  // deployer on the shared static IP.
+  private static readonly REDIRECT_COUNTDOWN_DEFAULT = 10;
+  private static readonly REDIRECT_COUNTDOWN_SWITCHOVER = 25;
+
+  private startRedirect(url: string, switchoverScheduled = false): void {
     this.redirectUrl = url;
-    this.redirectCountdown = 10;
+    this.switchoverScheduled = switchoverScheduled;
+    this.redirectCountdown = switchoverScheduled
+      ? ProcessMonitor.REDIRECT_COUNTDOWN_SWITCHOVER
+      : ProcessMonitor.REDIRECT_COUNTDOWN_DEFAULT;
     this.countdownInterval = window.setInterval(() => {
       this.zone.run(() => {
         this.redirectCountdown--;
@@ -245,7 +259,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
     }, 1000) as unknown as number;
     this.redirectTimer = setTimeout(() => {
       window.location.href = url;
-    }, 10000) as unknown as number;
+    }, this.redirectCountdown * 1000) as unknown as number;
   }
 
   redirectNow(): void {
