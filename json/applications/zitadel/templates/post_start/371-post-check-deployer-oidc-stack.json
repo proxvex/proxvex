@@ -1,0 +1,17 @@
+{
+  "execute_on": "lxc",
+  "name": "Check Deployer OIDC Stack",
+  "description": "Verify the oidc_production stack received the 4 DEPLOYER_OIDC_* provides published by template 340. Without these, downstream OIDC consumers cannot authenticate against Zitadel via stack-resolution and would fall back to reading /bootstrap/deployer-oidc.json over pct-exec.",
+  "parameters": [
+    "DEPLOYER_OIDC_MACHINE_CLIENT_ID",
+    "DEPLOYER_OIDC_MACHINE_CLIENT_SECRET",
+    "DEPLOYER_OIDC_ISSUER_URL",
+    "DEPLOYER_OIDC_PROJECT_ID"
+  ],
+  "commands": [
+    {
+      "script": "post-check-deployer-oidc-stack.sh",
+      "description": "Verify 4 DEPLOYER_OIDC_* fields present and non-empty in oidc_production stack"
+    }
+  ]
+}

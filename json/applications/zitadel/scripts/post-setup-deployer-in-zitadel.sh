@@ -407,6 +407,14 @@ chmod 0600 "$CRED_FILE"
 echo "Credentials stored" >&2
 
 # --- Output ---
+# In addition to the per-run template-vars (oidc_*) consumed by downstream
+# templates within this same install, publish the globally-shared deployer
+# credentials as `provides_DEPLOYER_OIDC_*` so the backend persists them in
+# the oidc_production stack (firstStackId of zitadel). Consumers in other
+# apps then resolve them via stack→template-var without needing to read
+# /bootstrap/deployer-oidc.json over pct-exec.
+# Web-app client_id/secret are intentionally NOT published — they are
+# proxvex-specific; each consumer creates its own web-app via conf-setup-oidc-client.sh.
 echo "Deployer setup complete" >&2
 cat <<ENDOFOUTPUT
 [
@@ -415,6 +423,10 @@ cat <<ENDOFOUTPUT
   {"id": "oidc_client_id", "value": "${CLIENT_ID}"},
   {"id": "oidc_client_secret", "value": "${CLIENT_SECRET}"},
   {"id": "oidc_machine_client_id", "value": "${MACHINE_CLIENT_ID}"},
-  {"id": "oidc_machine_client_secret", "value": "${MACHINE_CLIENT_SECRET}"}
+  {"id": "oidc_machine_client_secret", "value": "${MACHINE_CLIENT_SECRET}"},
+  {"id": "provides_DEPLOYER_OIDC_MACHINE_CLIENT_ID", "value": "${MACHINE_CLIENT_ID}"},
+  {"id": "provides_DEPLOYER_OIDC_MACHINE_CLIENT_SECRET", "value": "${MACHINE_CLIENT_SECRET}"},
+  {"id": "provides_DEPLOYER_OIDC_ISSUER_URL", "value": "${ISSUER_URL}"},
+  {"id": "provides_DEPLOYER_OIDC_PROJECT_ID", "value": "${PROJECT_ID}"}
 ]
 ENDOFOUTPUT

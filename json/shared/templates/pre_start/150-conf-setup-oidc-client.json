@@ -11,6 +11,10 @@
     "oidc_project_name",
     "oidc_issuer_url",
     "ZITADEL_PAT",
+    "DEPLOYER_OIDC_MACHINE_CLIENT_ID",
+    "DEPLOYER_OIDC_MACHINE_CLIENT_SECRET",
+    "DEPLOYER_OIDC_ISSUER_URL",
+    "DEPLOYER_OIDC_PROJECT_ID",
     "oidc_roles"
   ],
   "commands": [
@@ -20,7 +24,8 @@
       "outputs": [
         "oidc_issuer_url",
         "oidc_client_id",
-        "oidc_client_secret"
+        "oidc_client_secret",
+        "oidc_bearer_source"
       ]
     }
   ]

@@ -37,16 +37,19 @@
 read_zitadel_admin_pat() {
   local pve_host="${1:-${PVE_HOST:-pve1.cluster}}"
   local vmid pat
+  # `|| true` guards against `set -e` killing callers when the remote
+  # `cat` returns non-zero (file missing — which is a legitimate
+  # "PAT not yet available" state, not an error).
   if command -v pct >/dev/null 2>&1; then
     vmid=$(pct list 2>/dev/null | awk '$NF=="zitadel"{print $1; exit}')
     [ -z "$vmid" ] && return 0
-    pat=$(pct exec "$vmid" -- cat /bootstrap/admin-client.pat 2>/dev/null)
+    pat=$(pct exec "$vmid" -- cat /bootstrap/admin-client.pat 2>/dev/null || true)
   else
     vmid=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${pve_host}" \
-      "pct list 2>/dev/null | awk '\$NF==\"zitadel\"{print \$1; exit}'" 2>/dev/null)
+      "pct list 2>/dev/null | awk '\$NF==\"zitadel\"{print \$1; exit}'" 2>/dev/null || true)
     [ -z "$vmid" ] && return 0
     pat=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${pve_host}" \
-      "pct exec ${vmid} -- cat /bootstrap/admin-client.pat 2>/dev/null" 2>/dev/null)
+      "pct exec ${vmid} -- cat /bootstrap/admin-client.pat 2>/dev/null" 2>/dev/null || true)
   fi
   printf '%s' "$pat" | tr -d '\r\n'
 }
@@ -146,20 +149,84 @@ auth_curl() {
 # enforced. The client_credentials grant returns a JWS that validates.
 init_oidc_creds() {
   local pve_host="${1:-${PVE_HOST:-pve1.cluster}}"
+
+  # Tier 1 — Deployer Stack API. Long-term primary path: zitadel template 340
+  # publishes 4 `provides_DEPLOYER_OIDC_*` outputs that the backend persists
+  # into the firstStackId of the zitadel install — which today happens to be
+  # `postgres_<variant>`, not `oidc_<variant>`, because of the order in which
+  # the install caller passes stack IDs. Templates resolve the values
+  # transparently across all consumer stacks, but a workstation API caller
+  # has to scan because the destination stack is order-dependent. So query
+  # /api/stacks and pick the first stack that carries all 4 fields.
+  local deployer_host="${DEPLOYER_HOST:-proxvex}"
+  local deployer_port="${DEPLOYER_PORT:-3443}"
+  local stack_list_url="https://${deployer_host}:${deployer_port}/api/stacks"
+  local stacks_blob
+  stacks_blob=$(curl -sk --connect-timeout 3 "$stack_list_url" 2>/dev/null || true)
+  if [ -z "$stacks_blob" ]; then
+    # Try HTTP fallback (cluster pre-HTTPS, or local livetest deployer on :3201).
+    local http_port
+    case "$deployer_port" in
+      3443) http_port=3080 ;;
+      *) http_port="$deployer_port" ;;
+    esac
+    stack_list_url="http://${deployer_host}:${http_port}/api/stacks"
+    stacks_blob=$(curl -s --connect-timeout 3 "$stack_list_url" 2>/dev/null || true)
+  fi
+  if [ -n "$stacks_blob" ]; then
+    # Single python invocation: scan all stacks, return the 4 values from
+    # the first stack that has all of DEPLOYER_OIDC_MACHINE_CLIENT_ID +
+    # _SECRET + _ISSUER_URL (PROJECT_ID is optional). Prints 4 lines
+    # (issuer, client_id, client_secret, project_id) or empty.
+    local creds_lines
+    creds_lines=$(printf '%s' "$stacks_blob" | python3 -c "
+import sys, json
+try:
+  d = json.load(sys.stdin)
+except Exception:
+  sys.exit(0)
+for s in d.get('stacks', []):
+  pmap = {p.get('name'): p.get('value', '') for p in s.get('provides', [])}
+  iss = pmap.get('DEPLOYER_OIDC_ISSUER_URL', '')
+  cid = pmap.get('DEPLOYER_OIDC_MACHINE_CLIENT_ID', '')
+  sec = pmap.get('DEPLOYER_OIDC_MACHINE_CLIENT_SECRET', '')
+  pid = pmap.get('DEPLOYER_OIDC_PROJECT_ID', '')
+  if iss and cid and sec:
+    print(iss); print(cid); print(sec); print(pid); break
+" 2>/dev/null)
+    if [ -n "$creds_lines" ]; then
+      local s_issuer s_client_id s_client_secret s_project_id
+      s_issuer=$(echo "$creds_lines" | sed -n '1p')
+      s_client_id=$(echo "$creds_lines" | sed -n '2p')
+      s_client_secret=$(echo "$creds_lines" | sed -n '3p')
+      s_project_id=$(echo "$creds_lines" | sed -n '4p')
+      export OIDC_ISSUER_URL="$s_issuer"
+      export OIDC_CLI_CLIENT_ID="$s_client_id"
+      export OIDC_CLI_CLIENT_SECRET="$s_client_secret"
+      export OIDC_PROJECT_ID="$s_project_id"
+      echo "  OIDC machine credentials loaded from deployer stack-API ${stack_list_url} (machine_client_id=${s_client_id})" >&2
+      return 0
+    fi
+  fi
+
+  # Tier 2 — File fallback on the Zitadel LXC. Used during initial bootstrap
+  # before the deployer is reachable, or for clusters predating the stack-publish
+  # change. `|| true` defends against `set -e` killing the caller when the remote
+  # `cat` exits non-zero (file missing — a legitimate "creds not yet available").
   local vmid blob
   if command -v pct >/dev/null 2>&1; then
     vmid=$(pct list 2>/dev/null | awk '$NF=="zitadel"{print $1; exit}')
     [ -z "$vmid" ] && return 0
-    blob=$(pct exec "$vmid" -- cat /bootstrap/deployer-oidc.json 2>/dev/null)
+    blob=$(pct exec "$vmid" -- cat /bootstrap/deployer-oidc.json 2>/dev/null || true)
   else
     vmid=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${pve_host}" \
-      "pct list 2>/dev/null | awk '\$NF==\"zitadel\"{print \$1; exit}'" 2>/dev/null)
+      "pct list 2>/dev/null | awk '\$NF==\"zitadel\"{print \$1; exit}'" 2>/dev/null || true)
     [ -z "$vmid" ] && return 0
     blob=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes "root@${pve_host}" \
-      "pct exec ${vmid} -- cat /bootstrap/deployer-oidc.json 2>/dev/null" 2>/dev/null)
+      "pct exec ${vmid} -- cat /bootstrap/deployer-oidc.json 2>/dev/null" 2>/dev/null || true)
   fi
   if [ -z "$blob" ]; then
-    echo "  deployer-oidc.json not available on ${pve_host} — proceeding without OIDC creds" >&2
+    echo "  deployer-oidc.json not available on ${pve_host} and stack ${stack_url} empty — proceeding without OIDC creds" >&2
     return 0
   fi
   # Read machine_client_id/secret — these are the credentials for the
@@ -184,7 +251,7 @@ init_oidc_creds() {
   export OIDC_CLI_CLIENT_ID="$client_id"
   export OIDC_CLI_CLIENT_SECRET="$client_secret"
   export OIDC_PROJECT_ID="$project_id"
-  echo "  OIDC machine credentials loaded from Zitadel deployer-oidc.json (machine_client_id=${client_id})" >&2
+  echo "  OIDC machine credentials loaded from Zitadel deployer-oidc.json file fallback (machine_client_id=${client_id})" >&2
 }
 
 # Make a Zitadel-Management-API PAT available to subsequent deploy scripts as
