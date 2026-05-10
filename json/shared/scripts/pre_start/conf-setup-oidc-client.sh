@@ -72,7 +72,8 @@ if [ $_manual_id -eq 1 ] || [ $_manual_secret -eq 1 ]; then
 [
   {"id": "oidc_issuer_url", "value": "${OIDC_ISSUER_URL_INPUT}"},
   {"id": "oidc_client_id", "value": "${OIDC_CLIENT_ID_INPUT}"},
-  {"id": "oidc_client_secret", "value": "${OIDC_CLIENT_SECRET_INPUT}"}
+  {"id": "oidc_client_secret", "value": "${OIDC_CLIENT_SECRET_INPUT}"},
+  {"id": "oidc_bearer_source", "value": "manual-input (oidc_client_id + oidc_client_secret + oidc_issuer_url all provided)"}
 ]
 ENDOFOUTPUT
     exit 0
@@ -140,7 +141,8 @@ if [ -f "$DEPLOYER_CRED_FILE" ] && [ "$OIDC_APP_NAME" = "proxvex" ]; then
 [
   {"id": "oidc_issuer_url", "value": "${CRED_ISSUER}"},
   {"id": "oidc_client_id", "value": "${CRED_CLIENT_ID}"},
-  {"id": "oidc_client_secret", "value": "${CRED_CLIENT_SECRET}"}
+  {"id": "oidc_client_secret", "value": "${CRED_CLIENT_SECRET}"},
+  {"id": "oidc_bearer_source", "value": "pre-provisioned-deployer-oidc.json (proxvex short-circuit, no API call)"}
 ]
 ENDOFOUTPUT
     exit 0
