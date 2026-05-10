@@ -21,10 +21,12 @@ export class WebAppVE {
   private parameterProcessor: WebAppVeParameterProcessor;
   private executionSetup: WebAppVeExecutionSetup;
   private routeHandlers: WebAppVeRouteHandlers;
-  private pm: PersistenceManager;
+  // Getter, not field — see WebAppVeRouteHandlers for rationale.
+  private get pm(): PersistenceManager {
+    return PersistenceManager.getInstance();
+  }
 
   constructor(private app: express.Application) {
-    this.pm = PersistenceManager.getInstance();
     this.messageManager = new WebAppVeMessageManager();
     this.restartManager = new WebAppVeRestartManager();
     this.parameterProcessor = new WebAppVeParameterProcessor();

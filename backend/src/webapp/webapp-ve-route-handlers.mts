@@ -34,7 +34,15 @@ import { listManagedContainers } from "@src/services/container-list-service.mjs"
  * Separated from Express binding for better testability.
  */
 export class WebAppVeRouteHandlers {
-  private pm: PersistenceManager;
+  // pm is exposed as a getter, NOT a captured field, so each access reads the
+  // current PersistenceManager singleton. PersistenceManager.reload() (POST
+  // /api/reload) constructs a new instance and swaps the singleton slot;
+  // capturing the reference once at construction time would leave handlers
+  // permanently bound to the pre-reload caches, making script edits invisible
+  // until a full deployer restart.
+  private get pm(): PersistenceManager {
+    return PersistenceManager.getInstance();
+  }
   private addonCommandBuilder: WebAppVeAddonCommandBuilder;
   private certificateInjector: WebAppVeCertificateInjector;
   private logger = createLogger("ve-route-handlers");
@@ -45,7 +53,6 @@ export class WebAppVeRouteHandlers {
     private parameterProcessor: WebAppVeParameterProcessor,
     private executionSetup: WebAppVeExecutionSetup,
   ) {
-    this.pm = PersistenceManager.getInstance();
     this.addonCommandBuilder = new WebAppVeAddonCommandBuilder();
     this.certificateInjector = new WebAppVeCertificateInjector();
   }
