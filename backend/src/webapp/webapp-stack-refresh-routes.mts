@@ -12,14 +12,15 @@ import {
 } from "../services/stack-refresh-service.mjs";
 
 export class WebAppStackRefresh {
-  private pm: PersistenceManager;
+  // Getter, not field — see WebAppVeRouteHandlers for rationale.
+  private get pm(): PersistenceManager {
+    return PersistenceManager.getInstance();
+  }
 
   constructor(
     private app: express.Application,
     private stackProvider: IStackProvider,
-  ) {
-    this.pm = PersistenceManager.getInstance();
-  }
+  ) {}
 
   init(): void {
     // POST /api/stack/:id/refresh-preview

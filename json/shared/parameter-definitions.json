@@ -327,6 +327,30 @@
       "default": "",
       "internal": true
     },
+    "DEPLOYER_OIDC_MACHINE_CLIENT_ID": {
+      "name": "Deployer OIDC Machine Client ID",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
+    "DEPLOYER_OIDC_MACHINE_CLIENT_SECRET": {
+      "name": "Deployer OIDC Machine Client Secret",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
+    "DEPLOYER_OIDC_ISSUER_URL": {
+      "name": "Deployer OIDC Issuer URL",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
+    "DEPLOYER_OIDC_PROJECT_ID": {
+      "name": "Deployer OIDC Project ID",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
     "disk_size": {
       "name": "Disk size",
       "type": "string",

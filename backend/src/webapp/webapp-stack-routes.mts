@@ -11,14 +11,15 @@ import { generateSecret } from "../services/secrets-generator.service.mjs";
 import { StackRestoreService } from "../services/stack-restore-service.mjs";
 
 export class WebAppStack {
-  private pm: PersistenceManager;
+  // Getter, not field — see WebAppVeRouteHandlers for rationale.
+  private get pm(): PersistenceManager {
+    return PersistenceManager.getInstance();
+  }
 
   constructor(
     private app: express.Application,
     private stackProvider: IStackProvider,
-  ) {
-    this.pm = PersistenceManager.getInstance();
-  }
+  ) {}
 
   init(): void {
     // GET /api/stacktypes - List all stacktypes

@@ -757,11 +757,20 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
   /**
    * Reload: close and re-initialize with the same parameters.
    * Clears all caches and re-reads json/ and schemas/ from disk.
+   *
+   * In-memory state on the OLD ContextManager (registered SSH configs, stack
+   * secrets that were modified after startup, …) is carried over to the NEW
+   * instance. Without this, /api/reload silently wipes everything that was
+   * registered post-startup — and once route handlers stop holding stale
+   * references to the previous PM (see WebAppVeRouteHandlers' getter), every
+   * subsequent request would 404 / "VE context not found" until a new SSH
+   * config is POSTed and the storagecontext file rewritten. Reload's contract
+   * is "re-read disk-backed caches", not "reset in-memory state".
    */
   static reload(): PersistenceManager {
-    const instance = PersistenceManager.getInstance();
-    const args = instance.initArgs;
-    return PersistenceManager.initialize(
+    const previousInstance = PersistenceManager.getInstance();
+    const args = previousInstance.initArgs;
+    const newInstance = PersistenceManager.initialize(
       args.localPath,
       args.storageContextFilePath,
       args.secretFilePath,
@@ -769,6 +778,15 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
       args.jsonPath,
       args.schemaPath,
     );
+    // Carry in-memory contextManager state forward so existing SSH configs,
+    // stack secrets, etc. survive the reload. Note: the inherited
+    // contextManager still holds references to the OLD persistence/validator;
+    // that's intentional — the reload swaps file-backed services on the new
+    // instance, but the contextManager's persistence boundary is "write
+    // through to disk", which targets the same files regardless of which
+    // FileSystemPersistence instance handles the I/O.
+    newInstance.contextManager = previousInstance.contextManager;
+    return newInstance;
   }
 
   /**

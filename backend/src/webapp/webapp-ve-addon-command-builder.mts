@@ -14,11 +14,12 @@ import { TemplateResolver } from "@src/templates/template-resolver.mjs";
  * and addon disable/removal flows.
  */
 export class WebAppVeAddonCommandBuilder {
-  private pm: PersistenceManager;
-
-  constructor() {
-    this.pm = PersistenceManager.getInstance();
+  // Getter, not field — see WebAppVeRouteHandlers for rationale.
+  private get pm(): PersistenceManager {
+    return PersistenceManager.getInstance();
   }
+
+  constructor() {}
 
   /**
    * Maps task types to addon configuration keys.

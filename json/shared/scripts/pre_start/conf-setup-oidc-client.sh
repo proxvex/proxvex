@@ -148,32 +148,83 @@ ENDOFOUTPUT
   echo "WARNING: Pre-provisioned credentials incomplete, falling back to API" >&2
 fi
 
-# --- Read PAT ---
-# Priority: 1) Template variable (injected by backend in zero-secret mode)
-#           2) File on PVE host (legacy mode)
+# --- Acquire a Bearer for the Zitadel Management API ---
+# Priority:
+#   1) {{ ZITADEL_PAT }}  Template variable (operator-supplied PAT, override)
+#   2) Machine credentials from oidc_production stack → JWT via client_credentials
+#      grant. The 4 DEPLOYER_OIDC_* template-vars are populated by the backend's
+#      stack→template-var resolution from provides_DEPLOYER_OIDC_* outputs that
+#      template 340 (post-setup-deployer-in-zitadel.sh) emits.
+#   3) /bootstrap/admin-client.pat on the Zitadel LXC (legacy file fallback).
+#
+# Tier 2 is the long-term primary path: it survives Zitadel hardening (which
+# removes admin-client.pat) and works headlessly without requiring an
+# operator-supplied PAT.
 ZITADEL_PAT_INPUT="{{ ZITADEL_PAT }}"
+DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT="{{ DEPLOYER_OIDC_MACHINE_CLIENT_ID }}"
+DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT="{{ DEPLOYER_OIDC_MACHINE_CLIENT_SECRET }}"
+DEPLOYER_OIDC_ISSUER_URL_INPUT="{{ DEPLOYER_OIDC_ISSUER_URL }}"
+DEPLOYER_OIDC_PROJECT_ID_INPUT="{{ DEPLOYER_OIDC_PROJECT_ID }}"
+
 PAT=""
+PAT_SOURCE=""
 
 if [ -n "$ZITADEL_PAT_INPUT" ] && [ "$ZITADEL_PAT_INPUT" != "NOT_DEFINED" ]; then
   PAT="$ZITADEL_PAT_INPUT"
-  echo "PAT provided via template variable (zero-secret mode)" >&2
-else
+  PAT_SOURCE="template variable ZITADEL_PAT (operator-supplied)"
+fi
+
+# Tier 2: derive JWT from Machine credentials via client_credentials grant.
+# Mirrors production/_lib.sh init_oidc_jwt() so the headless and in-template
+# paths obtain identical tokens. Audience scope binds the JWT to the proxvex
+# project — required for the Management API to accept it with the machine
+# user's role grants.
+if [ -z "$PAT" ] \
+   && [ -n "$DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT" ] \
+   && [ "$DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT" != "NOT_DEFINED" ] \
+   && [ -n "$DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT" ] \
+   && [ "$DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT" != "NOT_DEFINED" ] \
+   && [ -n "$DEPLOYER_OIDC_ISSUER_URL_INPUT" ] \
+   && [ "$DEPLOYER_OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then
+  cc_scope="openid"
+  if [ -n "$DEPLOYER_OIDC_PROJECT_ID_INPUT" ] && [ "$DEPLOYER_OIDC_PROJECT_ID_INPUT" != "NOT_DEFINED" ]; then
+    cc_scope="openid urn:zitadel:iam:org:project:id:${DEPLOYER_OIDC_PROJECT_ID_INPUT}:aud urn:zitadel:iam:org:projects:roles"
+  fi
+  cc_response=$(curl -sk -X POST "${DEPLOYER_OIDC_ISSUER_URL_INPUT}/oauth/v2/token" \
+    -u "${DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT}:${DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT}" \
+    --data-urlencode "grant_type=client_credentials" \
+    --data-urlencode "scope=${cc_scope}" 2>/dev/null)
+  cc_token=$(echo "$cc_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  if [ -n "$cc_token" ]; then
+    PAT="$cc_token"
+    PAT_SOURCE="client_credentials grant via DEPLOYER_OIDC_MACHINE_* (oidc_production stack, len=${#cc_token})"
+  else
+    echo "WARN: client_credentials grant failed against ${DEPLOYER_OIDC_ISSUER_URL_INPUT} — response: $(echo "$cc_response" | head -c 200)" >&2
+  fi
+fi
+
+# Tier 3: legacy file fallback — read admin PAT from the Zitadel LXC's
+# bootstrap volume. Removed once Zitadel hardening drops admin-client.pat.
+if [ -z "$PAT" ]; then
   PAT_FILE="$(resolve_host_volume "$ZITADEL_HOST" "bootstrap" "$ZITADEL_VMID")/admin-client.pat"
   if [ -f "$PAT_FILE" ]; then
     PAT=$(cat "$PAT_FILE")
     if [ -n "$PAT" ]; then
-      echo "PAT loaded from ${PAT_FILE} (legacy mode)" >&2
+      PAT_SOURCE="file ${PAT_FILE} (legacy admin-client.pat fallback)"
     fi
   fi
 fi
 
 if [ -z "$PAT" ]; then
-  echo "ERROR: No Zitadel PAT available." >&2
-  echo "Either ZITADEL_PAT must be set or admin-client.pat must exist at:" >&2
-  echo "  $(resolve_host_volume "$ZITADEL_HOST" "bootstrap" "$ZITADEL_VMID")/admin-client.pat" >&2
+  echo "ERROR: No Zitadel Bearer available." >&2
+  echo "Tried in order:" >&2
+  echo "  1) {{ ZITADEL_PAT }} template var — empty" >&2
+  echo "  2) DEPLOYER_OIDC_MACHINE_* from oidc_production stack — incomplete or grant failed" >&2
+  echo "  3) admin-client.pat at $(resolve_host_volume "$ZITADEL_HOST" "bootstrap" "$ZITADEL_VMID")/admin-client.pat — missing" >&2
   echo '[]'
   exit 1
 fi
+echo "Using Bearer from: ${PAT_SOURCE}" >&2
 
 echo "Using Zitadel at ${ZITADEL_URL}" >&2
 
@@ -449,10 +500,16 @@ echo "  Issuer URL: ${ISSUER_URL}" >&2
 echo "  Client ID:  ${CLIENT_ID}" >&2
 
 # --- Output ---
+# `oidc_bearer_source` is informational — names which Tier the script used to
+# obtain the Bearer (operator PAT / Machine-creds via client_credentials /
+# legacy admin-client.pat file). Useful for the post-Phase-1 verification that
+# Tier 2 (DEPLOYER_OIDC_MACHINE_*) is actually picked when present, rather
+# than silently falling back to the file.
 cat <<ENDOFOUTPUT
 [
   {"id": "oidc_issuer_url", "value": "${ISSUER_URL}"},
   {"id": "oidc_client_id", "value": "${CLIENT_ID}"},
-  {"id": "oidc_client_secret", "value": "${CLIENT_SECRET}"}
+  {"id": "oidc_client_secret", "value": "${CLIENT_SECRET}"},
+  {"id": "oidc_bearer_source", "value": "${PAT_SOURCE}"}
 ]
 ENDOFOUTPUT
