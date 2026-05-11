@@ -169,6 +169,19 @@ EOF
   # IP until the new deployer stops it.
   mark_replaced "$SOURCE_VMID" "$TARGET_VMID"
 
+  # The new container was already started by 200-start-lxc.json before this
+  # replace_ct template ran, so its finalizeUpgradeIfPending check at boot
+  # ran BEFORE we wrote the marker — and silently skipped because the marker
+  # didn't exist yet. Without restarting, the new deployer never reads the
+  # marker, the old deployer keeps holding the static IP, and the new
+  # deployer can't bind its listener (port conflict via the shared MAC).
+  # Reboot the new container so finalizeUpgradeIfPending runs again — this
+  # time it sees the marker, SSHes back to the PVE host, stops the old
+  # container, unlinks its managed volumes, and removes the marker.
+  log "Restarting new container $TARGET_VMID so its finalizer reads the marker..."
+  pct reboot "$TARGET_VMID" --timeout 30 >&2 || \
+    log "Warning: pct reboot $TARGET_VMID returned non-zero — finalizer may not have triggered"
+
   log "Switchover marker placed. New deployer (vmid $TARGET_VMID) takes over and stops $SOURCE_VMID once it has finished booting."
   printf '[{"id":"redirect_url","value":"%s"},{"id":"switchover_scheduled","value":"true"}]' "$REDIRECT_URL"
   exit 0
