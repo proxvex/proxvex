@@ -1,0 +1,27 @@
+{
+  "name": "Write modbus2mqtt config",
+  "description": "Writes the modbus2mqtt YAML configuration into /config/modbus2mqtt/modbus2mqtt.yaml on the host-side volume directory before the LXC starts. Avoids the chicken-and-egg problem of the previous REST-upload pattern: modbus2mqtt opens its HTTPS admin endpoint only after a config file is present, so polling /api/health to upload via REST never succeeded. Using upload_pre_start_file places the file directly into the managed `config` volume's host filesystem path, so the service starts already configured.",
+  "execute_on": "ve",
+  "skip_if_all_missing": [
+    "upload_modbus2mqtt_config_content"
+  ],
+  "parameters": [
+    "upload_modbus2mqtt_config_content",
+    "hostname",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid",
+    "vm_id"
+  ],
+  "commands": [
+    {
+      "name": "Write modbus2mqtt config",
+      "script": "host-write-modbus2mqtt-config.sh",
+      "library": "upload-file-common.sh",
+      "outputs": [
+        "modbus2mqtt_config_written"
+      ]
+    }
+  ]
+}

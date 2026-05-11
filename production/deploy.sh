@@ -96,8 +96,10 @@ if [ -n "$DEPLOYER_VMID" ]; then
   run_cli() {
     local params_file="$1"
     shift
+    local with_pat
+    with_pat=$(augment_params_with_pat "$params_file")
     local effective_params
-    effective_params=$(augment_params_with_pat "$params_file")
+    effective_params=$(augment_params_with_previous_vmid "$with_pat") || true
     # Push JSON file into container and run CLI from inside.
     # Use HTTPS — after Step 6 (ACME) the HTTP listener on :3080 only
     # serves a 301 to :3443, and the CLI's HTTP client does not follow
@@ -108,7 +110,8 @@ if [ -n "$DEPLOYER_VMID" ]; then
       --server https://localhost:3443 --ve "$PVE_HOST" \
       --insecure "$@" /tmp/deploy-params.json
     pct exec "$DEPLOYER_VMID" -- rm -f /tmp/deploy-params.json
-    [ "$effective_params" != "$params_file" ] && rm -f "$effective_params"
+    [ "$effective_params" != "$with_pat" ] && rm -f "$effective_params"
+    [ "$with_pat" != "$params_file" ] && rm -f "$with_pat"
   }
 else
   echo "Running on dev machine (using npx tsx)"
@@ -131,12 +134,15 @@ else
   run_cli() {
     local params_file="$1"
     shift
+    local with_pat
+    with_pat=$(augment_params_with_pat "$params_file")
     local effective_params
-    effective_params=$(augment_params_with_pat "$params_file")
+    effective_params=$(augment_params_with_previous_vmid "$with_pat") || true
     NODE_TLS_REJECT_UNAUTHORIZED=0 $CLI remote \
       --server "$SERVER" --ve "$PVE_HOST" --insecure \
       $OIDC_FLAGS "$@" "$effective_params"
-    [ "$effective_params" != "$params_file" ] && rm -f "$effective_params"
+    [ "$effective_params" != "$with_pat" ] && rm -f "$effective_params"
+    [ "$with_pat" != "$params_file" ] && rm -f "$with_pat"
   }
 fi
 
@@ -169,6 +175,84 @@ deploy_app() {
   fi
 
   run_cli "$params" --timeout "$timeout"
+}
+
+# Resolve previous_vm_id for upgrade/reconfigure tasks by querying the
+# deployer's installations API for managed containers with the given
+# application_id. Errors out if zero or more-than-one are found — for
+# multi-instance setups the operator must specify previous_vm_id manually
+# in the params file. Echoes the VMID on stdout when exactly one is found.
+resolve_previous_vmid() {
+  local app="$1"
+  local body
+  body=$(auth_curl -sk --max-time 30 "$SERVER/api/ve_${PVE_HOST}/installations" 2>/dev/null)
+  if [ -z "$body" ]; then
+    echo "WARN: could not query installations API — cannot auto-detect previous_vm_id for $app" >&2
+    return 1
+  fi
+  # Extract vm_ids where application_id matches. Use jq if available, else
+  # fall back to a grep+awk pipeline that handles the same JSON shape.
+  local matches
+  if command -v jq >/dev/null 2>&1; then
+    matches=$(echo "$body" | jq -r ".[] | select(.application_id == \"$app\") | .vm_id" 2>/dev/null)
+  else
+    matches=$(echo "$body" | tr ',' '\n' | awk -v app="$app" '
+      /"vm_id":/ { gsub(/[^0-9]/, ""); cur_vmid=$0 }
+      /"application_id":/ { gsub(/"|application_id|:| /, ""); if ($0 == app && cur_vmid != "") print cur_vmid; cur_vmid="" }
+    ')
+  fi
+  local count
+  count=$(echo "$matches" | grep -c .)
+  if [ "$count" -eq 0 ]; then
+    echo "ERROR: no managed container found for application_id=$app on $PVE_HOST" >&2
+    return 1
+  fi
+  if [ "$count" -gt 1 ]; then
+    echo "ERROR: multiple managed containers found for application_id=$app on $PVE_HOST (VMIDs: $matches) — set previous_vm_id explicitly in the params JSON to disambiguate" >&2
+    return 1
+  fi
+  echo "$matches"
+}
+
+# Auto-inject previous_vm_id into the params JSON for upgrade/reconfigure
+# tasks when missing. Echoes the (possibly-augmented) params file path —
+# caller is responsible for removing the returned file if it differs from
+# the input.
+augment_params_with_previous_vmid() {
+  local input="$1"
+  local task
+  task=$(grep -oE '"task"[[:space:]]*:[[:space:]]*"[^"]+"' "$input" 2>/dev/null | head -1 | sed -E 's/.*"task"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+  case "$task" in
+    upgrade|reconfigure) ;;
+    *) echo "$input"; return 0 ;;
+  esac
+  # Already set in params?
+  if grep -q '"name"[[:space:]]*:[[:space:]]*"previous_vm_id"' "$input" 2>/dev/null; then
+    echo "$input"; return 0
+  fi
+  local app
+  app=$(grep -oE '"application"[[:space:]]*:[[:space:]]*"[^"]+"' "$input" | head -1 | sed -E 's/.*"application"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+  if [ -z "$app" ]; then echo "$input"; return 0; fi
+  local vmid
+  if ! vmid=$(resolve_previous_vmid "$app"); then
+    # Resolution failed (zero or multiple matches). Pass the input through;
+    # the CLI will reject with a clear "previous_vm_id is required" error.
+    echo "$input"; return 1
+  fi
+  echo "  Auto-resolved previous_vm_id=$vmid for $task task" >&2
+  local out
+  out=$(mktemp)
+  if command -v jq >/dev/null 2>&1; then
+    jq --argjson v "$vmid" '.params += [{"name":"previous_vm_id","value":$v}]' "$input" > "$out"
+  else
+    awk -v vmid="$vmid" '
+      /"params"[[:space:]]*:[[:space:]]*\[/ {
+        sub(/\[/, "[ {\"name\":\"previous_vm_id\",\"value\":" vmid "},")
+      }
+      { print }
+    ' "$input" > "$out"
+  fi
+  echo "$out"
 }
 
 ensure_stack

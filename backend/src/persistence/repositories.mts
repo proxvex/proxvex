@@ -177,7 +177,14 @@ export class InMemoryRepositories
         scope: "application",
         applicationId,
         origin: this.origin,
-        category: "",
+        // Propagate the caller-supplied category so the downstream script
+        // resolver picks the right shared/scripts/<category>/ subdirectory.
+        // (App-scoped templates can still reference shared scripts under a
+        // specific phase; without this, opts.templateCategory was overwritten
+        // to "" at templateprocessor.mts:417 and the shared/scripts/<phase>/
+        // lookup degenerated to root, breaking e.g. modbus2mqtt's
+        // post-rest-upload.sh resolution.)
+        category,
       };
     }
     const categoryKey = `${category}:${normalized}`;
@@ -440,7 +447,8 @@ export class FileSystemRepositories
           scope: "application",
           origin,
           applicationId: appId,
-          category: "",
+          // See InMemoryRepositories.resolveTemplateRef for the rationale.
+          category,
         };
       }
     }
