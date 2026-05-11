@@ -29,8 +29,10 @@ if [ ! -f "$SETTINGS_FILE" ]; then
   exit 0
 fi
 
-# Check if adminAuth is already configured
-if grep -q "adminAuth" "$SETTINGS_FILE"; then
+# Check if adminAuth is already configured. Strip line comments first so that
+# a comment like "// adminAuth is injected at deploy time" does not count as
+# an existing configuration and cause us to skip the injection.
+if sed 's|//.*||' "$SETTINGS_FILE" | grep -q "adminAuth"; then
   echo "adminAuth already configured in settings.js — skipping" >&2
   echo '[]'
   exit 0
