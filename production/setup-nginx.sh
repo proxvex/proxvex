@@ -115,7 +115,7 @@ server {
 ${SSL_DIRECTIVES}
     client_max_body_size 512m;
     location / {
-        proxy_pass https://gitea:443;
+        proxy_pass https://gitea:1443;
         proxy_http_version 1.1;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate ${CERT_DIR}/chain.pem;
