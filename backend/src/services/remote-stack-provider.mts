@@ -51,7 +51,11 @@ export class RemoteStackProvider implements IStackProvider {
 
   private fetchJsonSync<T>(path: string, method: string = "GET", body?: unknown): T {
     const url = `${this.hubUrl}${path}`;
-    const args: string[] = ["-s", "--max-time", "10"];
+    // -sS: suppress progress meter but DO show error messages on stderr.
+    // Plain -s would silently swallow "Could not resolve host" / connection
+    // errors and surface only `result.status != 0` with empty stderr — making
+    // DNS-related Spoke→Hub failures undebuggable.
+    const args: string[] = ["-sS", "--max-time", "10"];
 
     if (this.isHttps && !this.trustedHubCa) {
       args.push("-k"); // TOFU — trust any cert
