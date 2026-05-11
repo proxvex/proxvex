@@ -68,7 +68,21 @@
       "value": "10"
     }
   ],
-  "installation": {},
+  "installation": {
+    "pre_start": [
+      "0-conf-registry-proxy-stub.json"
+    ]
+  },
+  "reconfigure": {
+    "pre_start": [
+      "0-conf-registry-proxy-stub.json"
+    ]
+  },
+  "upgrade": {
+    "pre_start": [
+      "0-conf-registry-proxy-stub.json"
+    ]
+  },
   "check": {
     "check": [
       "check-registry-mirror.json"
