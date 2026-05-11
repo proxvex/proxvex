@@ -319,7 +319,7 @@ server {
     listen 8080;
     server_name git.ohnewarum.de;
     location / {
-        proxy_pass https://gitea:443;
+        proxy_pass https://gitea:1443;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate /etc/ssl/addon/chain.pem;
     }

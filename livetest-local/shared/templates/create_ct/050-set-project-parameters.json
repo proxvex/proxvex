@@ -1,6 +1,6 @@
 {
   "name": "Set Project Parameters",
-  "description": "Livetest override: route apk/apt through fast EU mirrors so Alpine/Debian pkg installs (Trust OCI CA, npm/pip post-installs) don't stall on dl-cdn.alpinelinux.org from inside the nested VM.",
+  "description": "Livetest override. Search precedence in resolveTemplatePath is localPath -> hubPath -> jsonPath (see proxvex.mts:81), so this file wins over both the synced Hub copy and the json/ default; every project-wide param the livetest needs must be listed here. Routes apk/apt through fast EU mirrors so Alpine/Debian pkg installs don't stall on dl-cdn.alpinelinux.org from inside the nested VM, AND points docker.io pulls at docker-mirror-test so docker-compose-based apps (zitadel, gitea, ...) don't try to reach Docker Hub over the broken double-NAT path. ghcr.io is NOT routed via ghcr_registry_mirror because zot-mirror is currently blocked by a PVE OCI extractor bug — dnsmasq in mirrors-ready already DNS-redirects ghcr.io to the working Distribution-based mirror at 192.168.4.48, so leaving ghcr_registry_mirror unset is correct.",
   "commands": [
     {
       "properties": [
@@ -8,7 +8,8 @@
         { "id": "oidc_issuer_url", "default": "" },
         { "id": "acme_san", "default": "" },
         { "id": "alpine_mirror", "value": "https://mirror1.hs-esslingen.de/Mirrors/alpine" },
-        { "id": "debian_mirror", "value": "http://mirror.23m.com/debian/" }
+        { "id": "debian_mirror", "value": "http://mirror.23m.com/debian/" },
+        { "id": "docker_registry_mirror", "default": "https://docker-mirror-test" }
       ]
     }
   ]

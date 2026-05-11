@@ -1,0 +1,14 @@
+{
+  "name": "Registry Proxy Stub",
+  "description": "The upstream distribution/distribution:3 OCI image ships /etc/distribution/config.yml WITHOUT a `proxy:` section. Distribution's env-var override (REGISTRY_PROXY_REMOTEURL etc., set via the application's `envs` property) ONLY fills in keys whose parent section already exists in the config file — so without this stub, REGISTRY_PROXY_REMOTEURL is silently ignored and the registry behaves as a plain (push-only) registry. Cached blob misses then return HTTP 200 with size=0 instead of 404 + upstream fetch, breaking every docker pull whose layers were not previously pushed. This template runs before the LXC starts (execute_on=ve, pre_start), opens the rootfs subvolume on the host filesystem, and appends `proxy: {}` to the config file. The env vars fill in remoteurl/username/password at registry startup. Idempotent: skipped if a `proxy:` section is already present.",
+  "execute_on": "ve",
+  "parameters": [
+    "vm_id"
+  ],
+  "commands": [
+    {
+      "name": "Registry Proxy Stub",
+      "script": "conf-registry-proxy-stub.sh"
+    }
+  ]
+}

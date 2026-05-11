@@ -34,7 +34,7 @@ import path from "node:path";
 import type { ResolvedScenario, PlannedScenario } from "./livetest-types.mjs";
 import { apiFetch, type AppMeta } from "./verifier.mjs";
 import { runCleanupSql, destroyStaleVms, ensureStacks } from "./stack-manager.mjs";
-import { rollbackToBaseline, restoreBestSnapshot, prepareVms, ensureProjectDefaults } from "./vm-lifecycle.mjs";
+import { rollbackToBaseline, restoreBestSnapshot, prepareVms } from "./vm-lifecycle.mjs";
 import { executeScenarios } from "./scenario-executor.mjs";
 import { RED, GREEN, NC, logOk, logFail, logWarn, logInfo } from "./log-helpers.mjs";
 import { analyzeCoverage } from "./coverage-analyzer.mjs";
@@ -571,12 +571,8 @@ async function main() {
   console.log("");
 
   // VM preparation: snapshot restore → pre-cleanup
-  if (testArg === "--all") await rollbackToBaseline(config, projectRoot, apiUrl);
+  if (testArg === "--all") rollbackToBaseline(config, projectRoot);
   await restoreBestSnapshot(planned, allTests, config, apiUrl, projectRoot);
-  // Ensure project defaults (registry-mirrors etc.) are written into the
-  // deployer regardless of rollback outcome. Idempotent — safe to call
-  // even when a rollback already ran ensureProjectDefaults internally.
-  await ensureProjectDefaults(config, apiUrl);
   prepareVms(planned, config, appStacktypes);
 
   // Stack management: cleanup SQL, stale VM detection, stack creation
