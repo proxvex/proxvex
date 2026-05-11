@@ -34,7 +34,7 @@ import path from "node:path";
 import type { ResolvedScenario, PlannedScenario } from "./livetest-types.mjs";
 import { apiFetch, type AppMeta } from "./verifier.mjs";
 import { runCleanupSql, destroyStaleVms, ensureStacks } from "./stack-manager.mjs";
-import { rollbackToBaseline, restoreBestSnapshot, prepareVms } from "./vm-lifecycle.mjs";
+import { rollbackToBaseline, restoreBestSnapshot, prepareVms, ensureProjectDefaults } from "./vm-lifecycle.mjs";
 import { executeScenarios } from "./scenario-executor.mjs";
 import { RED, GREEN, NC, logOk, logFail, logWarn, logInfo } from "./log-helpers.mjs";
 
@@ -336,51 +336,18 @@ async function main() {
     logInfo("Warning: Could not write OCI version cache (non-fatal)");
   }
 
-  // Set up registry mirror DNS + insecure config on nested PVE host
-  // Local mirrors (set up by step2): Docker Hub on 10.0.0.1:443, ghcr.io on 10.0.0.2:443
+  // Registry mirror DNS + skopeo insecure config are baked into the
+  // `mirrors-ready` snapshot by step2a-setup-mirrors.sh, so they survive
+  // `qm rollback`. Previously these were added at runner startup, which
+  // worked once but every snapshot rollback wiped them — silent regression
+  // surfaced as `unexpected EOF` on traefik:v3.6 pull (docker.io traffic
+  // routed to a non-existent mirror). If you need to re-add them at run
+  // time on a host that pre-dates this change, run
+  // `./e2e/step2a-setup-mirrors.sh <instance>` once (idempotent, fenced
+  // replace of the BEGIN/END block in /etc/dnsmasq.d/e2e-nat.conf).
   if (config.registryMirror) {
     const fwd = config.registryMirror.dnsForwarder;
-    try {
-      // a) dnsmasq: docker-registry-mirror → production mirror (for mirror_detect in containers)
-      //    registry-1.docker.io/index.docker.io → 192.168.4.45 (production Docker Hub mirror)
-      //    ghcr.io → 10.0.0.2 (local ghcr.io mirror)
-      const dnsCheck = nestedSsh(config.pveHost, config.portPveSsh,
-        `grep -q 'address=/ghcr.io/' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null && echo "exists" || echo "missing"`,
-        5000);
-      if (dnsCheck.trim() === "missing") {
-        nestedSsh(config.pveHost, config.portPveSsh,
-          `cat >> /etc/dnsmasq.d/e2e-nat.conf <<'DNS'\n` +
-          `server=/docker-registry-mirror/${fwd}\n` +
-          `address=/registry-1.docker.io/192.168.4.45\n` +
-          `address=/index.docker.io/192.168.4.45\n` +
-          `address=/ghcr.io/10.0.0.2\n` +
-          `DNS\n` +
-          `systemctl restart dnsmasq`,
-          10000);
-        logOk(`dnsmasq forwarding: docker-registry-mirror -> ${fwd}`);
-        logOk("dnsmasq forwarding: registry-1.docker.io -> 192.168.4.45 (production mirror)");
-        logOk("dnsmasq forwarding: ghcr.io -> 10.0.0.2 (local mirror)");
-      } else {
-        logOk("dnsmasq forwarding already configured");
-      }
-
-      // b) Skopeo insecure config — only for ghcr.io (still self-signed via
-      //    the nested-VM internal CA). The production Docker Hub mirror at
-      //    192.168.4.45 has a proxvex-CA-signed cert and validates normally.
-      const skopeoCheck = nestedSsh(config.pveHost, config.portPveSsh,
-        `grep -q ghcr.io /etc/containers/registries.conf.d/mirror.conf 2>/dev/null && echo "exists" || echo "missing"`,
-        5000);
-      if (skopeoCheck.trim() === "missing") {
-        nestedSsh(config.pveHost, config.portPveSsh,
-          `mkdir -p /etc/containers/registries.conf.d && printf '[[registry]]\\nlocation = "ghcr.io"\\ninsecure = true\\n' > /etc/containers/registries.conf.d/mirror.conf`,
-          10000);
-        logOk("Skopeo insecure config for ghcr.io mirror written");
-      } else {
-        logOk("Skopeo insecure config already exists");
-      }
-    } catch {
-      logInfo("Warning: Could not configure registry mirror (non-fatal)");
-    }
+    logInfo(`dnsmasq + skopeo mirror config baked into mirrors-ready snapshot (dnsForwarder=${fwd})`);
   }
 
   // Set up port forwarding for containers that need external access (e.g. Zitadel for OIDC)
@@ -508,8 +475,12 @@ async function main() {
   console.log("");
 
   // VM preparation: snapshot restore → pre-cleanup
-  if (testArg === "--all") rollbackToBaseline(config, projectRoot);
+  if (testArg === "--all") await rollbackToBaseline(config, projectRoot, apiUrl);
   await restoreBestSnapshot(planned, allTests, config, apiUrl, projectRoot);
+  // Ensure project defaults (registry-mirrors etc.) are written into the
+  // deployer regardless of rollback outcome. Idempotent — safe to call
+  // even when a rollback already ran ensureProjectDefaults internally.
+  await ensureProjectDefaults(config, apiUrl);
   prepareVms(planned, config, appStacktypes);
 
   // Stack management: cleanup SQL, stale VM detection, stack creation

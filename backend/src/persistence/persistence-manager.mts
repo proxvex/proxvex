@@ -687,6 +687,7 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
         if (data.stackId) scenario.stackId = data.stackId as string;
         if (data.stackIds) scenario.stackIds = data.stackIds as string[];
         if (data.task) scenario.task = data.task as string;
+        if (data.stack_name) scenario.stack_name = data.stack_name as string;
         if (data.depends_on) scenario.depends_on = data.depends_on as string[];
         if (data.cleanup) scenario.cleanup = data.cleanup as Record<string, string>;
         if (data.wait_seconds !== undefined) scenario.wait_seconds = data.wait_seconds as number;

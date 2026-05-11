@@ -1,0 +1,9 @@
+{
+  "selectedAddons": ["addon-ssl"],
+  "task": "reconfigure",
+  "depends_on": ["zitadel/ssl"],
+  "stack_name": "ssl",
+  "wait_seconds": 60,
+  "cli_timeout": 480,
+  "description": "Reconfigure an existing addon-ssl Zitadel container (no addon change). Reproduces a production failure observed during 0.5.60 upgrade where the cloned-for-reconfigure container's Docker daemon never became ready, breaking the Start Docker Compose step before template 340 (and the Phase 2 ORG_OWNER grant inside it) could run.\n\n`stack_name: ssl` is required so the reconfigure shares the postgres_ssl + oidc_ssl stacks with the zitadel/ssl install dependency — without it, the runner creates separate `*_reconf-ssl` stacks with fresh auto-generated passwords, breaking zitadel-api's connection to the existing postgres container."
+}
