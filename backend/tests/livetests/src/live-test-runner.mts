@@ -345,6 +345,13 @@ async function main() {
     process.exit(1);
   }
 
+  // Pre-flight: ensure the running spoke matches the on-disk build. The spoke
+  // is a long-lived background process and `/api/reload` only refreshes config,
+  // not loaded JSON schemas — so a code/schema change made after the spoke
+  // started leaves it serving stale validators. Compare gitHash; on mismatch,
+  // restart via start-livetest-deployer.sh and rediscover the URL.
+  apiUrl = await ensureSpokeMatchesBuild(apiUrl, config, projectRoot);
+
   // Ensure VE host SSH config exists on the deployer
   const veHost = config.veHost;
   const deploySshPort = config.veSshPort;
@@ -646,6 +653,97 @@ async function main() {
   } else {
     console.log(`${GREEN}PASSED${NC} - All tests passed`);
   }
+}
+
+/**
+ * Verify the running spoke was built from the same git hash as the on-disk
+ * `backend/dist/build-info.json`. The spoke is a long-lived background process
+ * that loads JSON schemas once at startup; `/api/reload` does NOT recompile
+ * them. So if backend source or schemas have changed since the spoke started,
+ * its validators are stale — and validation errors mention properties that
+ * actually exist in the on-disk schema (the classic "but the file is right!"
+ * symptom).
+ *
+ * On mismatch: warn, invoke `e2e/start-livetest-deployer.sh <instance>` to
+ * kill + restart, then re-discover the URL (port should be the same).
+ */
+async function ensureSpokeMatchesBuild(
+  apiUrl: string,
+  config: { instance: string; deployerUrl: string; deployerHttpsUrl: string },
+  projectRoot: string,
+): Promise<string> {
+  // Read on-disk build hash. If build-info is missing (dev mode without
+  // build), skip the check — only built spokes report a hash anyway.
+  const buildInfoPath = path.join(projectRoot, "backend", "dist", "build-info.json");
+  if (!existsSync(buildInfoPath)) {
+    logInfo("build-info.json missing locally — skipping spoke build-hash check");
+    return apiUrl;
+  }
+  const localInfo = JSON.parse(readFileSync(buildInfoPath, "utf-8")) as {
+    gitHash?: string;
+    dirty?: boolean;
+  };
+
+  let spokeVersion: { gitHash?: string; dirty?: boolean; buildTime?: string; startTime?: string } | null = null;
+  try {
+    const resp = await fetch(`${apiUrl}/api/version`, { signal: AbortSignal.timeout(5000) });
+    if (resp.ok) {
+      spokeVersion = (await resp.json()) as typeof spokeVersion;
+    }
+  } catch {
+    // pre-flight endpoint may not exist on older spokes — treat as mismatch
+  }
+
+  const localHash = `${localInfo.gitHash ?? ""}${localInfo.dirty ? "-dirty" : ""}`;
+  const spokeHash = spokeVersion
+    ? `${spokeVersion.gitHash ?? ""}${spokeVersion.dirty ? "-dirty" : ""}`
+    : "<unreachable>";
+
+  if (spokeVersion && spokeHash === localHash) {
+    logOk(`Spoke build matches on-disk (gitHash=${spokeHash}, started ${spokeVersion.startTime ?? "?"})`);
+    return apiUrl;
+  }
+
+  logWarn(`Spoke build mismatch — restarting before tests can run`);
+  logInfo(`  spoke:  ${spokeHash}`);
+  logInfo(`  local:  ${localHash}`);
+
+  const startScript = path.join(projectRoot, "e2e", "start-livetest-deployer.sh");
+  if (!existsSync(startScript)) {
+    logFail(`Cannot auto-restart spoke: ${startScript} not found`);
+    process.exit(1);
+  }
+  const { spawnSync } = await import("node:child_process");
+  const result = spawnSync(startScript, [config.instance], {
+    stdio: "inherit",
+    cwd: projectRoot,
+  });
+  if (result.status !== 0) {
+    logFail(`start-livetest-deployer.sh exited ${result.status} — aborting`);
+    process.exit(1);
+  }
+
+  // Rediscover (port may have changed if config was edited mid-flight)
+  const fresh = await discoverApiUrl(config.deployerUrl, config.deployerHttpsUrl);
+  logOk(`Spoke restarted; API now at ${fresh}`);
+
+  // Verify the freshly started spoke reports the matching hash. If it
+  // doesn't, something is wrong with the build pipeline (e.g. the new
+  // process loaded an older dist).
+  try {
+    const resp = await fetch(`${fresh}/api/version`, { signal: AbortSignal.timeout(5000) });
+    if (resp.ok) {
+      const v = (await resp.json()) as { gitHash?: string; dirty?: boolean };
+      const newHash = `${v.gitHash ?? ""}${v.dirty ? "-dirty" : ""}`;
+      if (newHash !== localHash) {
+        logFail(`Restarted spoke still reports ${newHash}, expected ${localHash}. Build pipeline issue?`);
+        process.exit(1);
+      }
+    }
+  } catch {
+    logWarn("Could not verify restarted spoke's build hash — proceeding anyway");
+  }
+  return fresh;
 }
 
 /** Remove the first occurrence of `--name <value>` from `args` and return value. */
