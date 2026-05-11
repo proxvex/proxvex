@@ -50,8 +50,14 @@ augment_params_with_pat() {
     echo "$input"
     return 0
   fi
-  local out
-  out=$(mktemp)
+  # Write the augmented file into the SAME directory as the input. The CLI
+  # resolves `file:foo.conf` parameter values relative to the params.json
+  # directory, so a /tmp tempfile would break upload references like
+  # `file:mosquitto.conf` or `file:node-red-settings.js`
+  # (resolved against /tmp instead of production/).
+  local input_dir
+  input_dir=$(cd "$(dirname "$input")" && pwd)
+  local out="${input_dir}/.deploy-params.augmented.$$.json"
   python3 - "$input" "$OCI_DEPLOYER_PAT" > "$out" <<'EOF'
 import json, sys
 input_file, pat = sys.argv[1], sys.argv[2]

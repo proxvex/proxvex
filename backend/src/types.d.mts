@@ -109,6 +109,7 @@ export interface IVeExecuteMessage {
     partial?: boolean;
     vmId?: number;
     redirectUrl?: string;
+    switchoverScheduled?: boolean;
     completionInfo?: ICompletionInfo;
     template?: string;
 }

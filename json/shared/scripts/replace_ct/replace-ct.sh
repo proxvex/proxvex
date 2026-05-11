@@ -51,6 +51,7 @@ HOSTNAME="{{ hostname }}"
 HTTP_PORT="{{ http_port }}"
 LOCAL_HTTPS_PORT="{{ local_https_port }}"
 DEPLOYER_BASE_URL="{{ deployer_base_url }}"
+VE_CONTEXT_KEY="{{ ve_context_key }}"
 
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
@@ -117,24 +118,24 @@ fi
 # ─── Step 4a: Self-upgrade detection ─────────────────────────────────────────
 # If the SOURCE container is the deployer instance running THIS script (via
 # SSH driven by the deployer itself), we cannot stop it inline — stopping
-# the container kills the SSH session that's executing this script, and the
-# cleanup below never happens. Detect via the deployer-instance marker in
-# the source container's PVE notes, and offload stop/start to a transient
-# systemd unit on the PVE host.
+# the container kills the SSH session that's executing this script. Instead
+# we drop a marker into the NEW container's /config volume and return.
+# The NEW deployer reads the marker on first boot, SSHes back to the PVE
+# host, stops SOURCE with --timeout 30 and unlinks its managed volumes
+# (see upgrade-finalization-service.mts + host-stop-and-unlink-previous-
+# deployer.sh). That removes the previous systemd-run race entirely.
 IS_SELF_UPGRADE=false
 if pct config "$SOURCE_VMID" 2>/dev/null | grep -qa "deployer-instance"; then
   IS_SELF_UPGRADE=true
 fi
 
 if [ "$IS_SELF_UPGRADE" = "true" ]; then
-  log "Self-upgrade detected (source $SOURCE_VMID is the deployer instance); scheduling switchover via systemd"
+  log "Self-upgrade detected (source $SOURCE_VMID is the deployer instance); handing switchover to new deployer"
 
-  # Write a marker into the NEW container's /config volume so the new
-  # deployer can log the completed upgrade on its first boot.
-  # Resolve the path directly from TARGET_VMID's pct config instead of via
-  # resolve_host_volume — during self-upgrade there are two volumes with the
-  # same hostname suffix (subvol-OLD-<host>-config AND subvol-NEW-<host>-config),
-  # and resolve_host_volume can't distinguish them.
+  # Resolve the path of the NEW container's /config volume directly from its
+  # pct config — during self-upgrade there are two volumes with the same
+  # hostname suffix (subvol-OLD-<host>-config AND subvol-NEW-<host>-config),
+  # so resolve_host_volume cannot disambiguate them.
   NEW_CONFIG_VOLID=$(pct config "$TARGET_VMID" 2>/dev/null \
     | grep -aE '^mp[0-9]+:.*[ ,]mp=/config([, ]|$)' \
     | head -1 \
@@ -144,42 +145,31 @@ if [ "$IS_SELF_UPGRADE" = "true" ]; then
   if [ -n "$NEW_CONFIG_VOLID" ]; then
     CONFIG_PATH=$(pvesm path "$NEW_CONFIG_VOLID" 2>/dev/null || true)
   fi
-  if [ -n "$CONFIG_PATH" ] && [ -d "$CONFIG_PATH" ]; then
-    NOW_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    cat > "${CONFIG_PATH}/.pending-post-upgrade.json" <<EOF
+  if [ -z "$CONFIG_PATH" ] || [ ! -d "$CONFIG_PATH" ]; then
+    fail "Could not resolve /config volume of new container $TARGET_VMID (volid=$NEW_CONFIG_VOLID, path=$CONFIG_PATH) — new deployer needs the marker to finish the switchover"
+  fi
+
+  NOW_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  # ve_context_key lets the new deployer pick the right SSH context when it
+  # SSHes back to the PVE host to stop SOURCE.
+  cat > "${CONFIG_PATH}/.pending-post-upgrade.json" <<EOF
 {
   "previous_vmid": "${SOURCE_VMID}",
   "new_vmid": "${TARGET_VMID}",
-  "upgraded_at": "${NOW_UTC}"
+  "upgraded_at": "${NOW_UTC}",
+  "ve_context_key": "${VE_CONTEXT_KEY}"
 }
 EOF
-    chmod 0644 "${CONFIG_PATH}/.pending-post-upgrade.json" 2>/dev/null || true
-    log "Wrote post-upgrade marker: ${CONFIG_PATH}/.pending-post-upgrade.json"
-  else
-    log "Warning: could not resolve /config volume of new container $TARGET_VMID (volid=$NEW_CONFIG_VOLID, path=$CONFIG_PATH) — post-upgrade log marker skipped"
-  fi
+  chmod 0644 "${CONFIG_PATH}/.pending-post-upgrade.json" 2>/dev/null || true
+  log "Wrote post-upgrade marker: ${CONFIG_PATH}/.pending-post-upgrade.json"
 
   # Mark the old deployer container as replaced (sets onboot=0 + lock + notes
-  # markers). The lock is briefly released inside the systemd-run block so
-  # `pct stop` can succeed, then re-applied so the container cannot be
-  # accidentally restarted during the cleanup grace window.
+  # markers). lock is informational here — the new deployer issues
+  # `pct unlock` before `pct stop` regardless. SOURCE keeps serving on its
+  # IP until the new deployer stops it.
   mark_replaced "$SOURCE_VMID" "$TARGET_VMID"
 
-  # Schedule the switchover. TARGET is already running (start phase started
-  # it), but its network is racing with SOURCE. Stop SOURCE, wait, restart
-  # TARGET so it cleanly takes over the IP.
-  UNIT_NAME="proxvex-upgrade-${SOURCE_VMID}-to-${TARGET_VMID}"
-  DELAY_SECONDS=5
-  log "systemd-run: unit=${UNIT_NAME}, delay=${DELAY_SECONDS}s"
-  if ! systemd-run \
-      --on-active="${DELAY_SECONDS}s" \
-      --unit="${UNIT_NAME}" \
-      --description="proxvex upgrade switchover ${SOURCE_VMID} -> ${TARGET_VMID}" \
-      /bin/sh -c "pct unlock ${SOURCE_VMID} 2>/dev/null || true; pct stop ${SOURCE_VMID}; pct set ${SOURCE_VMID} --lock ${PROXVEX_REPLACED_LOCK} 2>/dev/null || true; sleep 2; pct restart ${TARGET_VMID}" >&2; then
-    fail "systemd-run failed — cannot schedule self-upgrade switchover"
-  fi
-
-  log "Switchover scheduled. Reconnect to ${REDIRECT_URL} after ~10-20s."
+  log "Switchover marker placed. New deployer (vmid $TARGET_VMID) takes over and stops $SOURCE_VMID once it has finished booting."
   printf '[{"id":"redirect_url","value":"%s"},{"id":"switchover_scheduled","value":"true"}]' "$REDIRECT_URL"
   exit 0
 fi

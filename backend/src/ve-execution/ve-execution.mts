@@ -765,6 +765,20 @@ export class VeExecution extends EventEmitter {
 
         // Build restart info for successful execution
         rcRestartInfo = this.stateManager.buildRestartInfo(i);
+
+        // Short-circuit on proxvex self-upgrade: replace-ct.sh signals that
+        // the new deployer will take over the IP. The old deployer (running
+        // this loop) is about to be stopped by the new one — any remaining
+        // commands (e.g. the check phase) cannot complete here. Mark all
+        // commands as successful so the "Completed" message with the
+        // redirectUrl is emitted now and the UI can start its switchover
+        // countdown.
+        if (this.outputs.get("switchover_scheduled") === "true") {
+          rcRestartInfo = this.stateManager.buildRestartInfo(
+            this.commands.length - 1,
+          );
+          break outerloop;
+        }
       } catch (e) {
         // Handle any other errors
         this.messageEmitter.emitErrorMessage(cmd, e, getNextMessageIndex());
@@ -788,6 +802,8 @@ export class VeExecution extends EventEmitter {
         : "All commands completed successfully";
 
       const redirectUrl = this.outputs.get("redirect_url") as string | undefined;
+      const switchoverScheduled =
+        this.outputs.get("switchover_scheduled") === "true";
 
       // Build optional completion info from reserved output keys
       const completionHeader = this.outputs.get("completion_header") as string | undefined;
@@ -810,6 +826,7 @@ export class VeExecution extends EventEmitter {
         partial: false,
         vmId: vmId, // Include VMID in message for E2E tests
         redirectUrl: redirectUrl || undefined,
+        switchoverScheduled: switchoverScheduled || undefined,
         completionInfo,
       } as IVeExecuteMessage);
 
