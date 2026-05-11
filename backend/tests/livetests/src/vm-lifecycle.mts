@@ -19,13 +19,80 @@ import { checkVolumeConsistency } from "./volume-consistency-check.mjs";
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
 
 /**
+ * Write the project-defaults template into the deployer LXC and trigger
+ * `/api/reload` so post-start-dockerd.sh sees `docker_registry_mirror` +
+ * `ghcr_registry_mirror` on the next install/reconfigure.
+ *
+ * step2b-install-deployer.sh writes this into the `deployer-installed`
+ * snapshot, but snapshots created before that change (or `dep-*` snapshots
+ * built on top of an older `deployer-installed`) lack the file. Without it
+ * the daemon.json produced by 307-post-start-dockerd has no
+ * `registry-mirrors` and dockerd pulls registry-1.docker.io via DNS — the
+ * production mirror returns 0-byte layer bodies (HTTP/2 framing bug) →
+ * docker pull dies with `unexpected EOF`. Call this after every rollback.
+ */
+export async function ensureProjectDefaults(
+  config: { pveHost: string; portPveSsh: number },
+  apiUrl: string,
+  deployerVmid = 300,
+): Promise<void> {
+  const projectDefaults = JSON.stringify({
+    name: "Set Project Parameters (test)",
+    description: "Project defaults for the livetest deployer.",
+    commands: [{
+      properties: [
+        { id: "vm_id_start", default: "301" },
+        { id: "docker_registry_mirror", default: "https://docker-mirror-test" },
+        { id: "ghcr_registry_mirror", default: "https://zot-mirror" },
+      ],
+    }],
+  });
+  const targetPath = "/config/shared/templates/create_ct/050-set-project-parameters.json";
+  // base64 encode to avoid newline/quoting issues through the ssh + pct exec pipeline
+  // (JSON.stringify in nestedSshStrict escapes real newlines into `\n`, which breaks heredocs).
+  const b64 = Buffer.from(projectDefaults).toString("base64");
+  try {
+    nestedSshStrict(config.pveHost, config.portPveSsh,
+      `pct exec ${deployerVmid} -- mkdir -p /config/shared/templates/create_ct`, 10000);
+    nestedSshStrict(config.pveHost, config.portPveSsh,
+      `pct exec ${deployerVmid} -- sh -c 'echo ${b64} | base64 -d > ${targetPath}'`,
+      10000);
+    nestedSsh(config.pveHost, config.portPveSsh,
+      `pct exec ${deployerVmid} -- sh -c 'chown -R $(stat -c %u:%g /config) /config/shared'`, 5000);
+
+    // The local Spoke caches Hub repositories under .hubs/<id>/local/ via
+    // /api/hub/repositories.tar.gz at startup. Writing to the Hub's /config
+    // directly is invisible to the Spoke until we trigger a fresh sync.
+    let synced = false;
+    for (const url of [apiUrl, apiUrl.replace("https://", "http://")]) {
+      try {
+        const r = await fetch(`${url}/api/spoke/sync`, { method: "POST", signal: AbortSignal.timeout(15000) });
+        if (r.ok) { synced = true; break; }
+      } catch { /* try next */ }
+    }
+    if (!synced) logWarn("Project defaults written to Hub but /api/spoke/sync failed — Spoke may not see them");
+
+    for (const url of [apiUrl, apiUrl.replace("https://", "http://")]) {
+      try {
+        const r = await fetch(`${url}/api/reload`, { method: "POST", signal: AbortSignal.timeout(10000) });
+        if (r.ok) { logInfo("Project defaults written + Spoke synced + deployer reloaded"); return; }
+      } catch { /* try next */ }
+    }
+    logWarn("Project defaults written but /api/reload failed — defaults may pick up at next deployer restart");
+  } catch (err: any) {
+    logWarn(`Could not ensure project defaults (non-fatal): ${err.message}`);
+  }
+}
+
+/**
  * Rollback to @baseline snapshot for --all runs.
  * Clears local context (passwords) since baseline has no stacks.
  */
-export function rollbackToBaseline(
+export async function rollbackToBaseline(
   config: { pveHost: string; vmId: number; portPveSsh: number; snapshot?: { enabled: boolean } },
   projectRoot: string,
-): void {
+  apiUrl?: string,
+): Promise<void> {
   if (!config.snapshot?.enabled) return;
 
   const isLocalDeployer = true; // baseline rollback only used for dev instance
@@ -53,6 +120,7 @@ export function rollbackToBaseline(
       }
       logInfo("Local context cleared (baseline has no stacks)");
     }
+    if (apiUrl) await ensureProjectDefaults(config, apiUrl);
   } else {
     logWarn("No @baseline snapshot found — skipping rollback");
   }
@@ -112,7 +180,16 @@ export async function restoreBestSnapshot(
       dep.skipExecution = true;
     }
 
-    // Reload deployer to pick up the restored context (stack passwords)
+    // Write project defaults (registry-mirrors etc.) into the restored
+    // deployer so post-start-dockerd.sh sees them on the next install/
+    // reconfigure. ensureProjectDefaults also calls /api/reload, so this
+    // subsumes the reload step below.
+    await ensureProjectDefaults(config, apiUrl);
+
+    // Reload deployer to pick up the restored context (stack passwords).
+    // ensureProjectDefaults already reloaded once; we still retry here to
+    // give snapMgr.restoreContextPublic() a chance if the first reload
+    // missed something.
     let reloaded = false;
     for (let attempt = 0; attempt < 2 && !reloaded; attempt++) {
       if (attempt > 0) {

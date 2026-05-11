@@ -278,6 +278,15 @@ echo ""
 [ "$api_ok" = "true" ] || error "Deployer API not reachable after 60s"
 success "Deployer API is responding"
 
+# Step 9b: Write project-level defaults BEFORE snapshotting so they survive
+# every `qm rollback deployer-installed`. Without this, post-start-dockerd.sh
+# composes /etc/docker/daemon.json without registry-mirrors, dockerd resolves
+# registry-1.docker.io via dnsmasq → production mirror → HTTP/2 framing bug
+# → 0-byte body on layer GET → `unexpected EOF` on every docker pull.
+header "Writing project defaults into deployer (for snapshot)"
+"$SCRIPT_DIR/setup-test-project.sh" "$E2E_INSTANCE" \
+    || error "setup-test-project.sh failed — project defaults missing in snapshot"
+
 # Step 10: Snapshot — clean shutdown, then qm snapshot deployer-installed
 header "Creating 'deployer-installed' snapshot"
 info "Stopping nested VM $TEST_VMID..."

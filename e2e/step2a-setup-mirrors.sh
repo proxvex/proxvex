@@ -355,6 +355,23 @@ address=/${ZOT_MIRROR_HOST}/::
 # on the zot LXC includes DNS:ghcr.io, so TLS validates cleanly.
 address=/ghcr.io/${ZOT_MIRROR_IP}
 address=/ghcr.io/::
+# docker.io -> production Docker Hub mirror (pve1.cluster). Test mirrors
+# on ubuntupve hold only ghcr.io upstream; for docker.io pulls in livetest
+# (e.g. traefik:v3.6) we redirect to the production-side mirror at
+# 192.168.4.45 which proxies registry-1.docker.io. Previously baked at
+# runner-startup time (live-test-runner.mts), which lost the entries on
+# every \`qm rollback\` to mirrors-ready/deployer-installed — symptom was
+# \`unexpected EOF\` on traefik pull during zitadel install/reconfigure.
+# Baking here means future rollbacks preserve the DNS-redirect.
+address=/registry-1.docker.io/192.168.4.45
+address=/registry-1.docker.io/::
+address=/index.docker.io/192.168.4.45
+address=/index.docker.io/::
+# docker-registry-mirror hostname → forwarder. The forwarder address
+# comes from the per-instance e2e/config.json registryMirror.dnsForwarder
+# (router IP in the green nested-VM network) so containers inside the
+# nested PVE resolve docker-registry-mirror.* via the outer router.
+server=/docker-registry-mirror/192.168.4.1
 # === proxvex E2E registry redirects END ===
 DNS
     systemctl restart dnsmasq

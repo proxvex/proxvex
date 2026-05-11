@@ -471,6 +471,12 @@ export interface ITestScenarioResponse {
   selectedAddons?: string[];
   stackId?: string;
   stackIds?: string[];
+  /** Override stack name (default derived from scenario variant). Set when a
+   *  reconfigure-only scenario must join an existing stack (e.g. zitadel/reconf-ssl
+   *  needs to share postgres_ssl + oidc_ssl with the zitadel/ssl install
+   *  dependency) instead of forking a fresh `*_<variant>` stack with new
+   *  auto-generated passwords. */
+  stack_name?: string;
   uploads?: { name: string; content: string }[];
   cleanup?: Record<string, string>;
   /** Per-template expected failure exit codes for livetests. Keys are

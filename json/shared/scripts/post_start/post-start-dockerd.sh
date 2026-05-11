@@ -27,6 +27,27 @@ if [ ! -x /usr/sbin/dockerd ]; then
   exit 1
 fi
 
+# Clean up stale runtime state from a cloned or restored rootfs.
+# `pct clone --full` from a running source captures /var/run/docker.{pid,sock}
+# and /run/docker/containerd/{containerd.pid,*.sock} as-is. In the new
+# container's PID namespace, the recorded PIDs either do not exist OR
+# (worse) map to unrelated processes — dockerd then either refuses to
+# start with:
+#   failed to start daemon, ensure docker is not running or delete
+#   /var/run/docker.pid: process with PID N is still running
+# or boots fine but times out talking to its embedded containerd:
+#   containerd is still running module=libcontainerd pid=N
+#   failed to start containerd: timeout waiting for containerd to start
+# This bites every reconfigure (template 100-create-ct-clone) and every
+# upgrade pipeline that does the same. We've already established above
+# that no dockerd is actually responsive, so any pid/sock files here are
+# stale by definition — safe to remove.
+rm -f /var/run/docker.pid /var/run/docker.sock
+rm -f /run/docker/containerd/containerd.pid \
+      /run/docker/containerd/containerd.sock \
+      /run/docker/containerd/containerd.sock.ttrpc \
+      /run/docker/containerd/containerd-debug.sock
+
 # Project-level registry mirrors. Both come from project defaults
 # (json/shared/templates/create_ct/050-set-project-parameters.json) and
 # may be empty.
