@@ -454,6 +454,9 @@ while [ $attempts -lt 3 ] && [ $flags_ok -eq 0 ]; do
   case "$PUT_RESP" in
     *'"sequence"'*|*'"changeDate"'*)
       ;;
+    *'"COMMAND-1m88i"'*|*'No changes'*)
+      # Idempotent re-run: flags already at desired state. Skip to GET verify.
+      ;;
     *)
       echo "WARN: UpdateOIDCAppConfig response missing success markers: ${PUT_RESP}" >&2
       sleep 2
