@@ -1,0 +1,35 @@
+{
+  "$schema": "./test-sets.schema.json",
+  "description": "Named presets for the live integration test runner. Resolved by test-set-registry.mts when --set <name> is passed to live-test-runner.mts. Each preset is a filter; the runner takes the union of `tags`/`regex` results and subtracts `excludeTags`/`excludeRegex`. Scenarios with `untestable: <reason>` are excluded from every preset unless --include-untestable is passed.",
+  "presets": {
+    "essentials": {
+      "description": "Full feature coverage matrix (1 representative per supported base × addon-combo × task cell).",
+      "tags": ["coverage:essentials", "coverage:critical"]
+    },
+    "ci-pr": {
+      "description": "Minimum set for pull-request feedback: OIDC + base-default representatives plus declared-quick scenarios. Excludes external-dependency tests so unconfigured environments still pass.",
+      "tags": ["coverage:critical", "cost:quick"],
+      "excludeTags": ["needs:*"],
+      "excludeRegex": ["production"]
+    },
+    "nightly": {
+      "description": "Full suite minus production-prefixed and untestable scenarios. Default for the scheduled workflow.",
+      "all": true,
+      "excludeRegex": ["production"]
+    },
+    "production": {
+      "description": "Production validation scenarios only (filename pattern `production-*`). Run manually.",
+      "regex": ["production(-.*)?$"]
+    },
+    "smoke": {
+      "description": "Smallest sanity check: quick scenarios with no addons. Useful for local sanity-checking.",
+      "tags": ["cost:quick"],
+      "excludeTags": ["addon:*"]
+    },
+    "local-dev": {
+      "description": "Developer-friendly default: quick scenarios that don't require external services.",
+      "tags": ["cost:quick"],
+      "excludeTags": ["needs:*"]
+    }
+  }
+}

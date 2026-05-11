@@ -246,7 +246,11 @@ function renderSummaryMarkdown(result: AffectedTestsResult): string {
   const lines: string[] = [];
   lines.push("## Affected-Tests Compute (Shadow-Mode)");
   lines.push("");
-  lines.push(`**Filter would be:** \`${result.filter || "(none)"}\`  `);
+  // When no scenarios are derivable from the diff, suggest the ci-pr preset
+  // as the fallback. Preset is defined in e2e/test-sets.json — keeps the PR
+  // run within a minimum-coverage budget rather than degenerating to --all.
+  const suggestedFilter = result.filter || "--set ci-pr (suggested fallback)";
+  lines.push(`**Filter would be:** \`${suggestedFilter}\`  `);
   lines.push(`**Skip would be:** ${result.skip ? "true" : "false"}  `);
   lines.push(
     `**PR-Directive used:** ${result.directiveUsed ? `yes (\`${result.directiveValue ?? ""}\`)` : "no"}`,

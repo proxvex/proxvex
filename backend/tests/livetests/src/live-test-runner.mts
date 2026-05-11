@@ -26,7 +26,7 @@
  */
 
 import { nestedSsh, nestedSshStrict } from "./ssh-helpers.mjs";
-import { collectWithDeps, selectScenarios, planScenarios } from "./scenario-planner.mjs";
+import { collectWithDeps, selectScenarios, planScenarios, applyTagFilter } from "./scenario-planner.mjs";
 import { TestResultWriter } from "./test-result-writer.mjs";
 import { renderResultsMarkdown } from "./result-summary.mjs";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -37,6 +37,9 @@ import { runCleanupSql, destroyStaleVms, ensureStacks } from "./stack-manager.mj
 import { rollbackToBaseline, restoreBestSnapshot, prepareVms, ensureProjectDefaults } from "./vm-lifecycle.mjs";
 import { executeScenarios } from "./scenario-executor.mjs";
 import { RED, GREEN, NC, logOk, logFail, logWarn, logInfo } from "./log-helpers.mjs";
+import { analyzeCoverage } from "./coverage-analyzer.mjs";
+import { renderMarkdown as renderCoverageMarkdown, renderJson as renderCoverageJson } from "./coverage-report.mjs";
+import { buildAdHocFilter, buildFilter, loadTestSets, resolvePreset, type ResolvedFilter } from "./test-set-registry.mjs";
 
 // Re-export types so existing imports from this module continue to work
 export type { TestScenario, ResolvedScenario, PlannedScenario, StepResult, TestResult, E2EConfig, ParamEntry } from "./livetest-types.mjs";
@@ -246,12 +249,64 @@ async function main() {
   const fixturesFlag = args.includes("--fixtures");
   const queueFlag = args.includes("--queue");
   const failFastFlag = args.includes("--fail-fast");
-  const filteredArgs = args.filter(a => a !== "--fixtures" && a !== "--queue" && a !== "--fail-fast");
-  const instance = filteredArgs[0] || undefined;
-  const testArg = filteredArgs[1] || "--all";
+  const includeUntestable = args.includes("--include-untestable");
+
+  // Coverage-report short-circuits before any deployer interaction.
+  if (args.includes("--coverage-report")) {
+    const formatIdx = args.indexOf("--format");
+    const format = formatIdx >= 0 && args[formatIdx + 1] === "json" ? "json" : "markdown";
+    const gapsOnly = args.includes("--gaps-only");
+    const projectRoot = path.resolve(import.meta.dirname, "../../../..");
+    const report = analyzeCoverage(projectRoot);
+    const out = format === "json" ? renderCoverageJson(report) : renderCoverageMarkdown(report, gapsOnly);
+    process.stdout.write(out);
+    if (!out.endsWith("\n")) process.stdout.write("\n");
+    return;
+  }
+
+  // Extract value-taking flags (must come before positional consumption).
+  const setName = popValueFlag(args, "--set");
+  const tagFlags = popAllValueFlags(args, "--tag");
+  const tagsFlag = popValueFlag(args, "--tags");
+  const excludeTagFlags = popAllValueFlags(args, "--exclude-tag");
+
+  const positionalArgs = args.filter((a, i, arr) =>
+    a !== "--fixtures" &&
+    a !== "--queue" &&
+    a !== "--fail-fast" &&
+    a !== "--include-untestable" &&
+    a !== "--coverage-report" &&
+    a !== "--gaps-only" &&
+    !(arr[i - 1] === "--format")
+  );
+  const instance = positionalArgs[0] || undefined;
+  const testArg = positionalArgs[1] || "--all";
 
   const config = loadConfig(instance);
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
+
+  // Resolve --set / --tag / --exclude-tag into a single filter spec.
+  // --set takes precedence; ad-hoc flags are layered on top via intersection.
+  let filter: ResolvedFilter | null = null;
+  if (setName) {
+    const testSetsPath = path.join(projectRoot, "e2e", "test-sets.json");
+    const testSets = loadTestSets(testSetsPath);
+    const preset = resolvePreset(setName, testSets);
+    filter = buildFilter(preset);
+    logInfo(`Preset: ${setName}${preset.description ? ` — ${preset.description}` : ""}`);
+  }
+  const includeTags = [...tagFlags, ...(tagsFlag ? tagsFlag.split(",").map((t) => t.trim()).filter(Boolean) : [])];
+  if (includeTags.length > 0 || excludeTagFlags.length > 0) {
+    const adHoc = buildAdHocFilter({ includeTags, excludeTags: excludeTagFlags });
+    if (filter) {
+      const presetFilter = filter;
+      filter = {
+        matches: (id, tags) => presetFilter.matches(id, tags) && adHoc.matches(id, tags),
+      };
+    } else {
+      filter = adHoc;
+    }
+  }
 
   console.log("========================================");
   console.log(" Proxvex - Live Integration Test");
@@ -423,12 +478,46 @@ async function main() {
   const allTests = await fetchTestScenarios(apiUrl);
   logOk(`Discovered ${allTests.size} test scenario(s)`);
 
+  // Enrich scenarios with computed tags from the static coverage analyzer.
+  // The analyzer reads json/applications directly — same source the deployer
+  // serves from — so tags reflect the on-disk reality.
+  try {
+    const coverage = analyzeCoverage(projectRoot);
+    for (const [id, tags] of coverage.computedTags) {
+      const scenario = allTests.get(id);
+      if (scenario) scenario.computedTags = tags;
+    }
+    // Inherit declared tags/untestable from disk if the API didn't relay them.
+    for (const s of coverage.scenarios) {
+      const scenario = allTests.get(s.id);
+      if (!scenario) continue;
+      if (!scenario.tags && s.tags.length > 0) scenario.tags = s.tags;
+      if (!scenario.untestable && s.untestable) scenario.untestable = s.untestable;
+    }
+  } catch (err: any) {
+    logWarn(`Coverage analyzer failed (continuing without computed tags): ${err?.message ?? err}`);
+  }
+
   // Select and resolve dependencies
   let selectedIds: string[];
   try {
     selectedIds = selectScenarios(testArg, allTests);
   } catch (err: any) {
     logFail(err.message);
+    process.exit(1);
+  }
+
+  if (filter) {
+    const before = selectedIds.length;
+    selectedIds = applyTagFilter(selectedIds, allTests, filter, { includeUntestable });
+    logInfo(`Filter applied: ${selectedIds.length}/${before} scenarios selected`);
+  } else if (!includeUntestable) {
+    // No explicit filter: still drop untestable scenarios by default.
+    selectedIds = applyTagFilter(selectedIds, allTests, null, { includeUntestable: false });
+  }
+
+  if (selectedIds.length === 0) {
+    logFail("No scenarios matched after filter — nothing to run.");
     process.exit(1);
   }
 
@@ -556,6 +645,25 @@ async function main() {
     process.exit(1);
   } else {
     console.log(`${GREEN}PASSED${NC} - All tests passed`);
+  }
+}
+
+/** Remove the first occurrence of `--name <value>` from `args` and return value. */
+function popValueFlag(args: string[], name: string): string | undefined {
+  const idx = args.indexOf(name);
+  if (idx < 0 || idx + 1 >= args.length) return undefined;
+  const value = args[idx + 1];
+  args.splice(idx, 2);
+  return value;
+}
+
+/** Remove every `--name <value>` from `args`, returning values in order. */
+function popAllValueFlags(args: string[], name: string): string[] {
+  const out: string[] = [];
+  while (true) {
+    const v = popValueFlag(args, name);
+    if (v === undefined) return out;
+    out.push(v);
   }
 }
 

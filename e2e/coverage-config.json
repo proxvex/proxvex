@@ -1,0 +1,25 @@
+{
+  "description": "Test-coverage policy. Filters the ideal matrix produced by coverage-analyzer.mts. This is NOT runtime configuration — it only shapes which (base, addon-combo, task) cells the analyzer enumerates and reports as gaps.",
+  "addonRules": {
+    "addon-acme": {
+      "description": "ACME only matters in nginx (only consumer). Test solo, never in combinations.",
+      "isolated": true,
+      "onlyForApps": ["nginx"]
+    },
+    "samba-shares": {
+      "description": "Samba addon currently unused — exclude from the matrix until adoption.",
+      "excluded": true
+    }
+  },
+  "appOverrides": {
+    "proxmox": {
+      "description": "Host-only app (hidden, reconfigure-only). Tested with the full oidc+ssl combo since that's the realistic deployment.",
+      "tasks": ["reconfigure"],
+      "addonCombos": ["oidc+ssl"]
+    },
+    "npm-nodejs": {
+      "description": "Deprecated framework — no live tests planned. Pending full removal from json/applications and json/frameworks.",
+      "excluded": true
+    }
+  }
+}
