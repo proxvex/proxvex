@@ -12,14 +12,30 @@
     }
   },
   "appOverrides": {
+    "oci-image": {
+      "description": "Framework — never deployed standalone. Apps that extend it (gitea, postgres, …) emit their own cells under base:oci-image.",
+      "excluded": true
+    },
+    "docker-compose": {
+      "description": "Framework — never deployed standalone. Apps that extend it (docker-registry-mirror, postgrest, …) emit their own cells under base:docker-compose.",
+      "excluded": true
+    },
     "proxmox": {
-      "description": "Host-only app (hidden, reconfigure-only). Tested with the full oidc+ssl combo since that's the realistic deployment.",
+      "description": "Host-only app (hidden, reconfigure-only). Two realistic deployments: SSL-only and SSL+OIDC. SSL-only also covers the base:none/ssl/reconfigure cell since proxmox is the sole base:none app left after frameworks are excluded.",
       "tasks": ["reconfigure"],
-      "addonCombos": ["oidc+ssl"]
+      "addonCombos": ["ssl", "oidc+ssl"]
     },
     "npm-nodejs": {
       "description": "Deprecated framework — no live tests planned. Pending full removal from json/applications and json/frameworks.",
       "excluded": true
     }
-  }
+  },
+  "skipCells": [
+    {
+      "description": "docker-compose with no addons reconfigured to no addons is a no-op — not a realistic deployment pattern. nginx/reconf-addons-off already covers the analogous oci-image cell.",
+      "base": "docker-compose",
+      "addonCombo": "none",
+      "task": "reconfigure"
+    }
+  ]
 }

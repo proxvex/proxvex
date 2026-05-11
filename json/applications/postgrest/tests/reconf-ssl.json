@@ -1,0 +1,8 @@
+{
+  "task": "reconfigure",
+  "depends_on": ["postgrest/ssl"],
+  "selectedAddons": ["addon-ssl"],
+  "stack_name": "ssl",
+  "wait_seconds": 30,
+  "description": "Reconfigure postgrest/ssl in place — exercises the reconfigure pipeline on a docker-compose-based SSL container. Closes the docker-compose/ssl/reconfigure matrix cell. stack_name='ssl' keeps postgres credentials consistent (cf. zitadel/reconf-ssl)."
+}

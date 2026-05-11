@@ -545,6 +545,32 @@ describe("CoverageConfig — appOverrides", () => {
     }
   });
 
+  it("skipCells: matching (base, addonCombo, task) tuples removed from matrix", () => {
+    const root = createFixture([
+      {
+        id: "app",
+        supported_addons: ["addon-ssl"],
+        installation: {},
+        reconfigure: {},
+      },
+    ]);
+    try {
+      const config: CoverageConfig = {
+        skipCells: [{ base: "none", addonCombo: "none", task: "reconfigure" }],
+      };
+      const apps = applyAddonRules(loadAppMetadata(root), config);
+      const cells = computeIdealMatrix(apps, config);
+      const matchesSkip = cells.some(
+        (c) => c.base === "none" && c.addonCombo === "none" && c.task === "reconfigure",
+      );
+      expect(matchesSkip).toBe(false);
+      // Other cells (e.g. none/ssl/reconfigure) still emitted.
+      expect(cells.some((c) => c.addonCombo === "ssl")).toBe(true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("excluded: app is dropped from the matrix entirely", () => {
     const root = createFixture([
       { id: "keep", installation: {} },

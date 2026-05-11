@@ -81,9 +81,25 @@ export interface AppOverride {
   addonCombos?: string[];
 }
 
+/**
+ * A specific matrix cell to remove from the ideal matrix, regardless of which
+ * app would otherwise emit it. Use for "these combinations aren't worth
+ * tracking" rules that cross app boundaries — e.g. docker-compose/none/
+ * reconfigure (a docker-compose app reconfiguring to no addons isn't a
+ * realistic deployment pattern). Scenarios that map to a skipped cell are
+ * neither covered nor orphan: they simply don't contribute to the matrix.
+ */
+export interface SkipCell {
+  description?: string;
+  base: string;
+  addonCombo: string;
+  task: Task;
+}
+
 export interface CoverageConfig {
   addonRules?: Record<string, AddonRule>;
   appOverrides?: Record<string, AppOverride>;
+  skipCells?: SkipCell[];
 }
 
 // ── Types ──
@@ -378,7 +394,12 @@ export function computeIdealMatrix(apps: AppRecord[], config: CoverageConfig = {
     }
   }
 
-  return cells.sort(cellComparator);
+  // Apply global skipCells filter — same-shape entries are removed from the
+  // ideal matrix regardless of which app emitted them.
+  const skipSet = new Set((config.skipCells ?? []).map((s) => `${s.base}|${s.addonCombo}|${s.task}`));
+  const filtered = skipSet.size > 0 ? cells.filter((c) => !skipSet.has(cellKey(c))) : cells;
+
+  return filtered.sort(cellComparator);
 }
 
 function powerSet<T>(items: T[]): T[][] {
