@@ -1,0 +1,11 @@
+{
+  "task": "upgrade",
+  "depends_on": ["node-red/default"],
+  "selectedAddons": ["addon-ssl"],
+  "wait_seconds": 30,
+  "cli_timeout": 600,
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" }
+  ],
+  "description": "Upgrade an SSL-enabled node-red container in place. Closes oci-image/ssl/upgrade gap."
+}

@@ -1,0 +1,7 @@
+{
+  "task": "reconfigure",
+  "depends_on": ["node-red/default"],
+  "selectedAddons": ["addon-ssl"],
+  "wait_seconds": 30,
+  "description": "Reconfigure node-red/default in place with the same SSL addon — exercises the reconfigure pipeline against an SSL-enabled container. Closes oci-image/ssl/reconfigure gap."
+}

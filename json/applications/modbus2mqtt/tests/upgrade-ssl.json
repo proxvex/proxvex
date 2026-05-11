@@ -1,0 +1,11 @@
+{
+  "task": "upgrade",
+  "depends_on": ["modbus2mqtt/ssl"],
+  "selectedAddons": ["addon-ssl", "addon-oidc"],
+  "wait_seconds": 30,
+  "cli_timeout": 600,
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" }
+  ],
+  "description": "Upgrade modbus2mqtt with native SSL + OIDC in place. Closes oci-image/oidc+ssl/upgrade gap — critical (auth + transport)."
+}
