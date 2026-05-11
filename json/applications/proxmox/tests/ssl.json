@@ -1,0 +1,12 @@
+{
+  "selectedAddons": ["addon-ssl"],
+  "task": "reconfigure",
+  "depends_on": ["zitadel/default"],
+  "stack_name": "default",
+  "params": [
+    { "name": "previous_vm_id", "value": "0" }
+  ],
+  "wait_seconds": 30,
+  "cli_timeout": 360,
+  "description": "Reconfigure the PVE host: enable addon-ssl only (proxvex-signed cert for the web UI on :8006), no OIDC. Closes the base:none/ssl/reconfigure matrix cell. zitadel/default dependency is required to bootstrap the proxvex CA for the host's veContextKey — without it, webapp-ve-certificate-injector returns silently (no CA in this context) and server_key_b64/server_cert_b64 never reach the Write Certificates template. Mirrors proxmox/oidc-ssl's dependency."
+}

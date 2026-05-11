@@ -1,0 +1,13 @@
+{
+  "task": "upgrade",
+  "depends_on": ["postgrest/ssl"],
+  "selectedAddons": ["addon-ssl"],
+  "stack_name": "ssl",
+  "wait_seconds": 30,
+  "cli_timeout": 600,
+  "params": [
+    { "name": "target_versions", "value": "postgrest=v14.10" },
+    { "name": "expected_versions", "value": "postgrest=v14.10" }
+  ],
+  "description": "Upgrade postgrest with SSL addon in place. Closes the docker-compose/ssl/upgrade matrix cell. docker-compose-based apps use 'target_versions=<image>=<tag>' (not oci_image_tag) because the upgrade pipeline exposes the version via DOCKER_postgrest_TAG env var to docker-compose. stack_name='ssl' keeps the reconfigure in the baseline's stack so postgres credentials stay consistent."
+}
