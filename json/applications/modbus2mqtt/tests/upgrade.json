@@ -1,0 +1,11 @@
+{
+  "task": "upgrade",
+  "depends_on": ["modbus2mqtt/default"],
+  "selectedAddons": ["addon-oidc"],
+  "wait_seconds": 30,
+  "cli_timeout": 600,
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" }
+  ],
+  "description": "Upgrade modbus2mqtt with OIDC addon in place. Closes oci-image/oidc/upgrade gap — critical (auth-related)."
+}

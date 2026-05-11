@@ -26,7 +26,7 @@
  */
 
 import { nestedSsh, nestedSshStrict } from "./ssh-helpers.mjs";
-import { collectWithDeps, selectScenarios, planScenarios } from "./scenario-planner.mjs";
+import { collectWithDeps, selectScenarios, planScenarios, applyTagFilter } from "./scenario-planner.mjs";
 import { TestResultWriter } from "./test-result-writer.mjs";
 import { renderResultsMarkdown } from "./result-summary.mjs";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -37,6 +37,9 @@ import { runCleanupSql, destroyStaleVms, ensureStacks } from "./stack-manager.mj
 import { rollbackToBaseline, restoreBestSnapshot, prepareVms, ensureProjectDefaults } from "./vm-lifecycle.mjs";
 import { executeScenarios } from "./scenario-executor.mjs";
 import { RED, GREEN, NC, logOk, logFail, logWarn, logInfo } from "./log-helpers.mjs";
+import { analyzeCoverage } from "./coverage-analyzer.mjs";
+import { renderMarkdown as renderCoverageMarkdown, renderJson as renderCoverageJson } from "./coverage-report.mjs";
+import { buildAdHocFilter, buildFilter, loadTestSets, resolvePreset, type ResolvedFilter } from "./test-set-registry.mjs";
 
 // Re-export types so existing imports from this module continue to work
 export type { TestScenario, ResolvedScenario, PlannedScenario, StepResult, TestResult, E2EConfig, ParamEntry } from "./livetest-types.mjs";
@@ -246,12 +249,64 @@ async function main() {
   const fixturesFlag = args.includes("--fixtures");
   const queueFlag = args.includes("--queue");
   const failFastFlag = args.includes("--fail-fast");
-  const filteredArgs = args.filter(a => a !== "--fixtures" && a !== "--queue" && a !== "--fail-fast");
-  const instance = filteredArgs[0] || undefined;
-  const testArg = filteredArgs[1] || "--all";
+  const includeUntestable = args.includes("--include-untestable");
+
+  // Coverage-report short-circuits before any deployer interaction.
+  if (args.includes("--coverage-report")) {
+    const formatIdx = args.indexOf("--format");
+    const format = formatIdx >= 0 && args[formatIdx + 1] === "json" ? "json" : "markdown";
+    const gapsOnly = args.includes("--gaps-only");
+    const projectRoot = path.resolve(import.meta.dirname, "../../../..");
+    const report = analyzeCoverage(projectRoot);
+    const out = format === "json" ? renderCoverageJson(report) : renderCoverageMarkdown(report, gapsOnly);
+    process.stdout.write(out);
+    if (!out.endsWith("\n")) process.stdout.write("\n");
+    return;
+  }
+
+  // Extract value-taking flags (must come before positional consumption).
+  const setName = popValueFlag(args, "--set");
+  const tagFlags = popAllValueFlags(args, "--tag");
+  const tagsFlag = popValueFlag(args, "--tags");
+  const excludeTagFlags = popAllValueFlags(args, "--exclude-tag");
+
+  const positionalArgs = args.filter((a, i, arr) =>
+    a !== "--fixtures" &&
+    a !== "--queue" &&
+    a !== "--fail-fast" &&
+    a !== "--include-untestable" &&
+    a !== "--coverage-report" &&
+    a !== "--gaps-only" &&
+    !(arr[i - 1] === "--format")
+  );
+  const instance = positionalArgs[0] || undefined;
+  const testArg = positionalArgs[1] || "--all";
 
   const config = loadConfig(instance);
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
+
+  // Resolve --set / --tag / --exclude-tag into a single filter spec.
+  // --set takes precedence; ad-hoc flags are layered on top via intersection.
+  let filter: ResolvedFilter | null = null;
+  if (setName) {
+    const testSetsPath = path.join(projectRoot, "e2e", "test-sets.json");
+    const testSets = loadTestSets(testSetsPath);
+    const preset = resolvePreset(setName, testSets);
+    filter = buildFilter(preset);
+    logInfo(`Preset: ${setName}${preset.description ? ` — ${preset.description}` : ""}`);
+  }
+  const includeTags = [...tagFlags, ...(tagsFlag ? tagsFlag.split(",").map((t) => t.trim()).filter(Boolean) : [])];
+  if (includeTags.length > 0 || excludeTagFlags.length > 0) {
+    const adHoc = buildAdHocFilter({ includeTags, excludeTags: excludeTagFlags });
+    if (filter) {
+      const presetFilter = filter;
+      filter = {
+        matches: (id, tags) => presetFilter.matches(id, tags) && adHoc.matches(id, tags),
+      };
+    } else {
+      filter = adHoc;
+    }
+  }
 
   console.log("========================================");
   console.log(" Proxvex - Live Integration Test");
@@ -289,6 +344,13 @@ async function main() {
     logFail(err.message);
     process.exit(1);
   }
+
+  // Pre-flight: ensure the running spoke matches the on-disk build. The spoke
+  // is a long-lived background process and `/api/reload` only refreshes config,
+  // not loaded JSON schemas — so a code/schema change made after the spoke
+  // started leaves it serving stale validators. Compare gitHash; on mismatch,
+  // restart via start-livetest-deployer.sh and rediscover the URL.
+  apiUrl = await ensureSpokeMatchesBuild(apiUrl, config, projectRoot);
 
   // Ensure VE host SSH config exists on the deployer
   const veHost = config.veHost;
@@ -423,12 +485,46 @@ async function main() {
   const allTests = await fetchTestScenarios(apiUrl);
   logOk(`Discovered ${allTests.size} test scenario(s)`);
 
+  // Enrich scenarios with computed tags from the static coverage analyzer.
+  // The analyzer reads json/applications directly — same source the deployer
+  // serves from — so tags reflect the on-disk reality.
+  try {
+    const coverage = analyzeCoverage(projectRoot);
+    for (const [id, tags] of coverage.computedTags) {
+      const scenario = allTests.get(id);
+      if (scenario) scenario.computedTags = tags;
+    }
+    // Inherit declared tags/untestable from disk if the API didn't relay them.
+    for (const s of coverage.scenarios) {
+      const scenario = allTests.get(s.id);
+      if (!scenario) continue;
+      if (!scenario.tags && s.tags.length > 0) scenario.tags = s.tags;
+      if (!scenario.untestable && s.untestable) scenario.untestable = s.untestable;
+    }
+  } catch (err: any) {
+    logWarn(`Coverage analyzer failed (continuing without computed tags): ${err?.message ?? err}`);
+  }
+
   // Select and resolve dependencies
   let selectedIds: string[];
   try {
     selectedIds = selectScenarios(testArg, allTests);
   } catch (err: any) {
     logFail(err.message);
+    process.exit(1);
+  }
+
+  if (filter) {
+    const before = selectedIds.length;
+    selectedIds = applyTagFilter(selectedIds, allTests, filter, { includeUntestable });
+    logInfo(`Filter applied: ${selectedIds.length}/${before} scenarios selected`);
+  } else if (!includeUntestable) {
+    // No explicit filter: still drop untestable scenarios by default.
+    selectedIds = applyTagFilter(selectedIds, allTests, null, { includeUntestable: false });
+  }
+
+  if (selectedIds.length === 0) {
+    logFail("No scenarios matched after filter — nothing to run.");
     process.exit(1);
   }
 
@@ -556,6 +652,116 @@ async function main() {
     process.exit(1);
   } else {
     console.log(`${GREEN}PASSED${NC} - All tests passed`);
+  }
+}
+
+/**
+ * Verify the running spoke was built from the same git hash as the on-disk
+ * `backend/dist/build-info.json`. The spoke is a long-lived background process
+ * that loads JSON schemas once at startup; `/api/reload` does NOT recompile
+ * them. So if backend source or schemas have changed since the spoke started,
+ * its validators are stale — and validation errors mention properties that
+ * actually exist in the on-disk schema (the classic "but the file is right!"
+ * symptom).
+ *
+ * On mismatch: warn, invoke `e2e/start-livetest-deployer.sh <instance>` to
+ * kill + restart, then re-discover the URL (port should be the same).
+ */
+async function ensureSpokeMatchesBuild(
+  apiUrl: string,
+  config: { instance: string; deployerUrl: string; deployerHttpsUrl: string },
+  projectRoot: string,
+): Promise<string> {
+  // Read on-disk build hash. If build-info is missing (dev mode without
+  // build), skip the check — only built spokes report a hash anyway.
+  const buildInfoPath = path.join(projectRoot, "backend", "dist", "build-info.json");
+  if (!existsSync(buildInfoPath)) {
+    logInfo("build-info.json missing locally — skipping spoke build-hash check");
+    return apiUrl;
+  }
+  const localInfo = JSON.parse(readFileSync(buildInfoPath, "utf-8")) as {
+    gitHash?: string;
+    dirty?: boolean;
+  };
+
+  let spokeVersion: { gitHash?: string; dirty?: boolean; buildTime?: string; startTime?: string } | null = null;
+  try {
+    const resp = await fetch(`${apiUrl}/api/version`, { signal: AbortSignal.timeout(5000) });
+    if (resp.ok) {
+      spokeVersion = (await resp.json()) as typeof spokeVersion;
+    }
+  } catch {
+    // pre-flight endpoint may not exist on older spokes — treat as mismatch
+  }
+
+  const localHash = `${localInfo.gitHash ?? ""}${localInfo.dirty ? "-dirty" : ""}`;
+  const spokeHash = spokeVersion
+    ? `${spokeVersion.gitHash ?? ""}${spokeVersion.dirty ? "-dirty" : ""}`
+    : "<unreachable>";
+
+  if (spokeVersion && spokeHash === localHash) {
+    logOk(`Spoke build matches on-disk (gitHash=${spokeHash}, started ${spokeVersion.startTime ?? "?"})`);
+    return apiUrl;
+  }
+
+  logWarn(`Spoke build mismatch — restarting before tests can run`);
+  logInfo(`  spoke:  ${spokeHash}`);
+  logInfo(`  local:  ${localHash}`);
+
+  const startScript = path.join(projectRoot, "e2e", "start-livetest-deployer.sh");
+  if (!existsSync(startScript)) {
+    logFail(`Cannot auto-restart spoke: ${startScript} not found`);
+    process.exit(1);
+  }
+  const { spawnSync } = await import("node:child_process");
+  const result = spawnSync(startScript, [config.instance], {
+    stdio: "inherit",
+    cwd: projectRoot,
+  });
+  if (result.status !== 0) {
+    logFail(`start-livetest-deployer.sh exited ${result.status} — aborting`);
+    process.exit(1);
+  }
+
+  // Rediscover (port may have changed if config was edited mid-flight)
+  const fresh = await discoverApiUrl(config.deployerUrl, config.deployerHttpsUrl);
+  logOk(`Spoke restarted; API now at ${fresh}`);
+
+  // Verify the freshly started spoke reports the matching hash. If it
+  // doesn't, something is wrong with the build pipeline (e.g. the new
+  // process loaded an older dist).
+  try {
+    const resp = await fetch(`${fresh}/api/version`, { signal: AbortSignal.timeout(5000) });
+    if (resp.ok) {
+      const v = (await resp.json()) as { gitHash?: string; dirty?: boolean };
+      const newHash = `${v.gitHash ?? ""}${v.dirty ? "-dirty" : ""}`;
+      if (newHash !== localHash) {
+        logFail(`Restarted spoke still reports ${newHash}, expected ${localHash}. Build pipeline issue?`);
+        process.exit(1);
+      }
+    }
+  } catch {
+    logWarn("Could not verify restarted spoke's build hash — proceeding anyway");
+  }
+  return fresh;
+}
+
+/** Remove the first occurrence of `--name <value>` from `args` and return value. */
+function popValueFlag(args: string[], name: string): string | undefined {
+  const idx = args.indexOf(name);
+  if (idx < 0 || idx + 1 >= args.length) return undefined;
+  const value = args[idx + 1];
+  args.splice(idx, 2);
+  return value;
+}
+
+/** Remove every `--name <value>` from `args`, returning values in order. */
+function popAllValueFlags(args: string[], name: string): string[] {
+  const out: string[] = [];
+  while (true) {
+    const v = popValueFlag(args, name);
+    if (v === undefined) return out;
+    out.push(v);
   }
 }
 

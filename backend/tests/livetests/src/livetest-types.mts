@@ -46,6 +46,22 @@ export interface TestScenario {
    * the full pipeline when the env is set.
    */
   allowed2fail?: Record<string, number>;
+  /**
+   * Free-form tags for scenario selection. Used by `--tag` / `--set` filters in
+   * the runner. Conventional vocabulary: `cost:quick`, `cost:slow`,
+   * `needs:internet`, `needs:cf-token`, `coverage:critical`,
+   * `coverage:representative`. Computed tags (`app:*`, `base:*`, `addon:*`,
+   * `task:*`, `coverage:essentials`) are injected at runtime and should NOT be
+   * stored here.
+   */
+  tags?: string[];
+  /**
+   * If set, the scenario cannot be automated (e.g. requires audio/USB/serial
+   * hardware passthrough). The string is a human-readable reason. Untestable
+   * scenarios are excluded from all preset runs by default; use
+   * `--include-untestable` to override.
+   */
+  untestable?: string;
 }
 
 /** Discovered scenario with resolved identity */
@@ -57,6 +73,13 @@ export interface ResolvedScenario extends TestScenario {
   selectedAddons?: string[];
   stackId?: string;
   uploads?: { name: string; content: string }[];
+  /**
+   * Tags computed by the coverage analyzer or runtime: `app:<id>`,
+   * `base:<extends>`, `addon:<id>`, `task:<task>`, `coverage:critical`,
+   * `coverage:essentials`, `coverage:representative`. Never persisted —
+   * derived from app metadata and scenario configuration.
+   */
+  computedTags?: string[];
 }
 
 /** Planned scenario ready for execution */

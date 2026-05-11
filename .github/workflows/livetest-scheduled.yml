@@ -140,9 +140,12 @@ jobs:
       - name: Install deployer (step2b on mirrors-ready)
         run: ./e2e/step2b-install-deployer.sh github-action
 
-      - name: Run livetests --all
+      - name: Run livetests (nightly preset)
+        # Equivalent to --all minus production-prefixed scenarios; also drops
+        # any future scenarios marked `untestable` in their test.json. See
+        # e2e/test-sets.json for preset definitions.
         run: |
-          npx tsx backend/tests/livetests/src/live-test-runner.mts github-action --all
+          npx tsx backend/tests/livetests/src/live-test-runner.mts github-action --set nightly
 
       - name: Upload diagnostic artifacts
         if: always()

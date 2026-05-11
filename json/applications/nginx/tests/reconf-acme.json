@@ -1,0 +1,16 @@
+{
+  "task": "reconfigure",
+  "depends_on": ["nginx/acme"],
+  "selectedAddons": ["addon-acme"],
+  "stack_name": "acme",
+  "wait_seconds": 30,
+  "params": [
+    { "name": "acme_san", "value": "test.example.invalid" },
+    { "name": "acme_staging", "value": "true" },
+    { "name": "CF_TOKEN", "value": "fake-test-token-not-real" }
+  ],
+  "allowed2fail": {
+    "945-host-check-cert-issuer.json": 1
+  },
+  "description": "Reconfigure nginx/acme in place — verifies the reconfigure pipeline with addon-acme. stack_name='acme' keeps the reconfigure in the baseline's stack so addon secrets stay consistent (cf. zitadel/reconf-ssl). Placeholder cert is inherited from nginx/acme, so 945 cert-issuer check may still fail (allowed2fail). Closes oci-image/acme/reconfigure gap."
+}

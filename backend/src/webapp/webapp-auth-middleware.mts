@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/callback",
   "/api/validate",
+  "/api/version",
 ];
 
 interface AuthSession {

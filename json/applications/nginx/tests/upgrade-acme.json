@@ -1,0 +1,17 @@
+{
+  "task": "upgrade",
+  "depends_on": ["nginx/acme"],
+  "selectedAddons": ["addon-acme"],
+  "wait_seconds": 30,
+  "cli_timeout": 600,
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "acme_san", "value": "test.example.invalid" },
+    { "name": "acme_staging", "value": "true" },
+    { "name": "CF_TOKEN", "value": "fake-test-token-not-real" }
+  ],
+  "allowed2fail": {
+    "945-host-check-cert-issuer.json": 1
+  },
+  "description": "Upgrade nginx/acme. Inherits placeholder-cert state from nginx/acme, so 945 cert-issuer check may still fail (allowed2fail, not expected). Closes oci-image/acme/upgrade gap."
+}

@@ -12,6 +12,7 @@ import {
   type ResolvedScenario,
   type PlannedScenario,
 } from "./livetest-types.mjs";
+import type { ResolvedFilter } from "./test-set-registry.mjs";
 
 /** Result of building params from a scenario params file */
 export interface BuildParamsResult {
@@ -169,6 +170,39 @@ export function selectScenarios(
     );
   }
   return matches;
+}
+
+/**
+ * Apply a tag/preset filter to a pre-selected scenario list. Scenarios with
+ * `untestable` set are unconditionally excluded unless `includeUntestable` is
+ * true. The filter sees both declared scenario tags and computed tags injected
+ * via `ResolvedScenario.computedTags`.
+ *
+ * Used by the runner to layer `--set <preset>` and `--tag …` on top of the
+ * positional selector argument (app/regex/comma list/`--all`).
+ */
+export function applyTagFilter(
+  ids: string[],
+  all: Map<string, ResolvedScenario>,
+  filter: ResolvedFilter | null,
+  opts: { includeUntestable?: boolean } = {},
+): string[] {
+  const includeUntestable = opts.includeUntestable === true;
+  const filtered: string[] = [];
+  for (const id of ids) {
+    const s = all.get(id);
+    if (!s) continue;
+    if (s.untestable && !includeUntestable) continue;
+    if (!filter) {
+      filtered.push(id);
+      continue;
+    }
+    const tags = [...(s.tags ?? []), ...(s.computedTags ?? [])];
+    if (filter.matches(id, tags)) {
+      filtered.push(id);
+    }
+  }
+  return filtered;
 }
 
 function isRegexLiteral(s: string): boolean {

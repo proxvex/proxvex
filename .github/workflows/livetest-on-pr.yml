@@ -141,6 +141,19 @@ jobs:
           echo "filter=$(jq -r '.filter' /tmp/result.json)" >> "$GITHUB_OUTPUT"
           echo "directive_used=$(jq -r '.directiveUsed' /tmp/result.json)" >> "$GITHUB_OUTPUT"
 
+      - name: Coverage matrix report
+        # Renders the live-test coverage matrix (base × addon-combo × task) so
+        # reviewers can see at a glance which combinations are tested and which
+        # are still gaps. Pure static analysis, no deployer required. Reads
+        # json/applications and e2e/test-sets.json from the PR head.
+        run: |
+          {
+            echo "";
+            echo "---";
+            echo "";
+            npx tsx backend/tests/livetests/src/coverage-report.mts --gaps-only
+          } >> "$GITHUB_STEP_SUMMARY"
+
   livetest:
     needs: [check-runner, compute-affected]
     # SHADOW-MODE: still bound only to check-runner. Filter forced to --all.
