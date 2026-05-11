@@ -152,6 +152,16 @@ done
 $HUB_READY || err "Hub at $HUB_URL not reachable after 120s"
 ok "Hub responsive at $HUB_URL"
 
+# 3b. Refresh the Hub's /config/shared/ from livetest-local/shared/. The
+# committed livetest-local/shared/ tree is the source of truth for
+# project-wide template overrides (e.g. docker_registry_mirror in
+# create_ct/050-set-project-parameters.json); setup-test-project.sh
+# mirrors it into the Hub's /config so tests run identically whether
+# dispatched against the local Spoke or directly against the Hub LXC.
+info "Refreshing Hub /config/shared from livetest-local/shared/"
+"$SCRIPT_DIR/setup-test-project.sh" "$E2E_INSTANCE" \
+  || err "setup-test-project.sh failed — Hub /config/shared not in sync with livetest-local/shared/"
+
 # 4. Start local backend as Spoke
 mkdir -p "$PROJECT_ROOT/.livetest-data"
 LOG_FILE="/tmp/livetest-deployer-${E2E_INSTANCE}.log"
