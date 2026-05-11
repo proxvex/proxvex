@@ -7,7 +7,7 @@
 
 import { runCli, type CliJsonResult } from "./cli-executor.mjs";
 import { SnapshotManager } from "./snapshot-manager.mjs";
-import { nestedSsh, waitForServices, waitForContainerStable } from "./ssh-helpers.mjs";
+import { nestedSsh, waitForServices, waitForContainerStable, waitForLxcInit } from "./ssh-helpers.mjs";
 import { buildParams, partitionAfterFailure } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import { collectFailureLogs } from "./diagnostics.mjs";
@@ -746,6 +746,28 @@ export async function executeScenarios(
         if (newVm) {
           logOk(`replace_ct: new VM_ID=${newVm.vm_id} (was ${step.vmId})`);
           step.vmId = newVm.vm_id;
+        }
+      }
+
+      // Block until lxc-attach actually works on the (possibly freshly
+      // replaced) container. `pct status: running` flips early — the
+      // kernel can be done bringing up the LXC engine state long before
+      // init/cgroup are responsive. Without this gate the next pipeline
+      // step (or the very next scenario, e.g. docker-compose's reconfigure
+      // pre-pull which `lxc-attach`es into the previous container) races
+      // init startup and fails with
+      //   "lxc-attach: 406 Connection refused - Failed to get init pid"
+      // Applies to all frameworks — oci-image and docker-compose alike;
+      // hidden host-only apps (vm_id=0) and dependency steps that were
+      // skipped (via snapshot restore) skip this poll.
+      if (!isHiddenApp && step.vmId > 0 && cliResult.exitCode === 0) {
+        const initWait = await waitForLxcInit(config.pveHost, config.portPveSsh, step.vmId, 30);
+        if (!initWait.ok) {
+          logWarn(`LXC ${step.vmId} init not responsive after 30s: ${initWait.lastError}`);
+        } else if (initWait.waitedMs > 1500) {
+          // Don't log the fast path (sub-1.5s) to keep output clean; surface
+          // only when the race window actually mattered.
+          logInfo(`LXC ${step.vmId} init responsive after ${initWait.waitedMs}ms`);
         }
       }
 

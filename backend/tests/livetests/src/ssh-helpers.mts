@@ -54,6 +54,58 @@ export function nestedSsh(
 }
 
 /**
+ * Wait until `pct exec <vmId> -- /bin/true` succeeds — i.e. the LXC's init
+ * (PID 1) is responsive enough for lxc-attach calls to land. `pct status:
+ * running` flips as soon as the engine has spawned the container, but cgroup
+ * setup, namespace mounts and init-process boot can take several more seconds.
+ * Any pipeline step that immediately does `lxc-attach` after the engine
+ * reports "running" hits a window where the call returns
+ *   "lxc-attach: 406 Connection refused - Failed to get init pid"
+ *
+ * Symptom in the wild: upgrade scenarios use `replace_ct` (stop old, start
+ * new with same VMID). The runner declares "Container ready" the moment
+ * `pct status` returns "running"; if the very next scenario (or the very
+ * next pipeline step inside the same scenario, e.g. docker-compose's
+ * `012-host-docker-pull-in-existing` in the `image:` phase of reconfigure)
+ * runs `lxc-attach <vmId>`, it races the still-initialising init and fails.
+ *
+ * Returns `{ ok: true, waitedMs }` on first successful exec, or `{ ok:
+ * false, lastError, waitedMs }` after `maxWaitSeconds` of nothing. Caller
+ * decides whether to fail the scenario or continue with a warning.
+ */
+export async function waitForLxcInit(
+  pveHost: string,
+  sshPort: number,
+  vmId: number,
+  maxWaitSeconds: number = 30,
+  pollIntervalMs: number = 1000,
+): Promise<{ ok: true; waitedMs: number } | { ok: false; lastError: string; waitedMs: number }> {
+  const start = Date.now();
+  const deadline = start + maxWaitSeconds * 1000;
+  let lastError = "";
+  while (true) {
+    try {
+      // /bin/true is the cheapest possible attach: nothing to read, no
+      // syscalls beyond exec/exit. If it returns 0, init is responsive.
+      nestedSsh(pveHost, sshPort,
+        `pct exec ${vmId} -- /bin/true 2>&1`, 10000);
+      return { ok: true, waitedMs: Date.now() - start };
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      // Common transient signals while init is starting:
+      //   "Failed to get init pid" — cgroup not ready
+      //   "Connection refused"     — same root cause, different wording
+      //   "Configuration file ... does not exist" — container being recreated
+      // All retried; only a deadline miss surfaces.
+    }
+    if (Date.now() >= deadline) {
+      return { ok: false, lastError, waitedMs: Date.now() - start };
+    }
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+}
+
+/**
  * Wait for all docker services in a container to report "Up" status.
  * Polls every 5 seconds until all services are up or the deadline is reached.
  */

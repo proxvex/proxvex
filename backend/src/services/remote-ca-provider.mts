@@ -173,7 +173,7 @@ export class RemoteCaProvider implements ICaProvider {
     // Synchronous Hub call via spawnSync("curl"), analogous to RemoteStackProvider.
     // ICaProvider is sync because it's called from sync template-resolution paths.
     const url = `${this.hubUrl}/api/hub/ca/sign`;
-    const args: string[] = ["-s", "--max-time", "15"];
+    const args: string[] = ["-sS", "--max-time", "15"];
     if (this.isHttps) args.push("-k");
     args.push("-X", "POST");
     const token = this.getBearerToken?.();
@@ -217,7 +217,7 @@ export class RemoteCaProvider implements ICaProvider {
     if (this.cachedCaCert) return this.cachedCaCert;
 
     const url = `${this.hubUrl}/api/hub/ca/cert`;
-    const args: string[] = ["-s", "--max-time", "10"];
+    const args: string[] = ["-sS", "--max-time", "10"];
     if (this.isHttps) args.push("-k");
     const token = this.getBearerToken?.();
     if (token) args.push("-H", `Authorization: Bearer ${token}`);
