@@ -1,0 +1,13 @@
+{
+  "application": "modbus2mqtt",
+  "task": "reconfigure",
+  "params": [
+    { "name": "vm_id_start", "value": 600 },
+    { "name": "previous_vm_id", "value": 614 },
+    { "name": "upload_modbus2mqtt_config_content", "value": "file:modbus2mqtt-config.yaml" },
+    { "name": "oidc_redirect_uri", "value": "https://modbus2mqtt:3443/api/auth/callback" },
+    { "name": "oidc_post_logout_uri", "value": "https://modbus2mqtt:3443/" }
+  ],
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "stackIds": ["oidc_production"]
+}
