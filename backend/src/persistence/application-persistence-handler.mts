@@ -170,6 +170,15 @@ export class ApplicationPersistenceHandler {
           framework,
           extends: app.extends,
           stacktype: app.stacktype,
+          // Properties are inherited along the extends chain via
+          // readApplicationLightweight, so by the time we get here `app.properties`
+          // already contains oci-image's pins (oidc_redirect_uri, etc.) merged
+          // onto the child app's own pins. Forwarding them lets the
+          // configuration dialog seed addon FormControls with the same
+          // defaults the backend uses at validate/deploy time.
+          ...(app.properties && app.properties.length > 0 && {
+            properties: app.properties,
+          }),
           verification: app.verification,
           ...(app.errors &&
             app.errors.length > 0 && {
@@ -480,6 +489,16 @@ export class ApplicationPersistenceHandler {
           }
           if ((!appData.description || appData.description === "No description available") && parent.description) {
             appData.description = parent.description;
+          }
+          // Inherit properties: parent as base, child overrides by id. Same
+          // rule as the full readApplication merge — the lightweight path is
+          // what feeds /api/applications, and the configuration dialog needs
+          // parent property pins (oci-image's oidc_redirect_uri default,
+          // etc.) to seed addon FormControls.
+          if (parent.properties?.length) {
+            const childIds = new Set((appData.properties ?? []).map((p) => p.id));
+            const inherited = parent.properties.filter((p) => !childIds.has(p.id));
+            appData.properties = [...inherited, ...(appData.properties ?? [])];
           }
         } catch (e: Error | any) {
           this.addErrorToOptions(opts, e);

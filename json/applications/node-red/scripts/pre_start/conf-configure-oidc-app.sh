@@ -2,11 +2,11 @@
 # Configure Node-RED settings.js with OIDC adminAuth (pre-start)
 #
 # Runs on PVE host before container start. Modifies settings.js directly
-# in the shared volume. Only adds OIDC config if adminAuth is not already present.
+# in the data volume. Only adds OIDC config if adminAuth is not already present.
 #
 # Template variables:
+#   vm_id              - Container VMID (used to resolve the data volume)
 #   hostname           - Container hostname
-#   shared_volpath     - Path to the shared volume mount point
 #   oidc_issuer_url    - Zitadel issuer URL
 #   oidc_client_id     - OIDC client ID
 #   oidc_client_secret - OIDC client secret
@@ -14,14 +14,24 @@
 #
 # Output: JSON to stdout
 
+VM_ID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
-SHARED_VOLPATH="{{ shared_volpath }}"
 OIDC_ISSUER_URL="{{ oidc_issuer_url }}"
 OIDC_CLIENT_ID="{{ oidc_client_id }}"
 OIDC_CLIENT_SECRET="{{ oidc_client_secret }}"
 OIDC_REDIRECT_URI="{{ oidc_redirect_uri }}"
 
-SETTINGS_FILE="${SHARED_VOLPATH}/volumes/${HOSTNAME}/data/settings.js"
+# resolve_host_volume (from auto-injected ve-global.sh) mounts the dedicated
+# subvol-<vmid>-<hostname>-data managed volume on the host and returns its
+# path. Earlier versions of this script used "${shared_volpath}/volumes/..."
+# but shared_volpath is only emitted by 121-conf-mount-zfs-pool-on-host, which
+# node-red does not invoke — the file lookup silently failed and the script
+# exited 0 without injecting adminAuth.
+DATA_DIR=$(resolve_host_volume "$HOSTNAME" "data" "$VM_ID") || {
+  echo "ERROR: could not resolve node-red data volume for vmid=$VM_ID host=$HOSTNAME" >&2
+  exit 1
+}
+SETTINGS_FILE="${DATA_DIR}/settings.js"
 
 if [ ! -f "$SETTINGS_FILE" ]; then
   echo "settings.js not found at $SETTINGS_FILE — skipping OIDC configuration" >&2

@@ -7,7 +7,9 @@
     { "name": "static_gw", "value": "192.168.4.1" },
     { "name": "nameserver4", "value": "192.168.4.1" },
     { "name": "nameserver6", "value": "2606:4700:4700::1111" },
-    { "name": "local_https_port", "value": 1443 }
+    { "name": "local_https_port", "value": 1443 },
+    { "name": "oidc_redirect_uri", "value": "https://git.ohnewarum.de/user/oauth2/zitadel/callback" },
+    { "name": "oidc_post_logout_uri", "value": "https://git.ohnewarum.de/" }
   ],
   "selectedAddons": ["addon-oidc", "addon-ssl"],
   "stackIds": ["postgres_production", "oidc_production"]

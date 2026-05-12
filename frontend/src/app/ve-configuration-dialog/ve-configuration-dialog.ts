@@ -361,16 +361,29 @@ export class VeConfigurationDialog implements OnInit, OnDestroy {
   private _allCompatibleAddons: IAddonWithParameters[] = [];
 
   /** Pre-create a flat FormGroup for each addon with all its parameter controls.
-   *  Project-level defaults from unresolvedParameters take precedence over addon defaults. */
+   *  Default resolution mirrors the backend's ParameterValidator
+   *  (parameter-validator.mts:202-205): project param → application property
+   *  (value or default) → addon default. The property fallback is what lets
+   *  oci-image apps pin oidc_redirect_uri / oidc_post_logout_uri to
+   *  hostname-based templates and have the form pre-fill them — without it,
+   *  selecting addon-oidc on apps like node-red/gitea leaves the required
+   *  redirect URI empty and blocks the install/reconfigure button with
+   *  "Invalid: addon-oidc, oidc_redirect_uri", even though the backend would
+   *  resolve the property at deploy time. */
   private initAddonFormGroups(addons: IAddonWithParameters[]): void {
     for (const addon of addons) {
       if (!addon.parameters?.length) continue;
       const controls: Record<string, FormControl> = {};
       for (const param of addon.parameters) {
         const validators = param.required ? [Validators.required] : [];
-        // Project default (from template 106) takes precedence over addon default
         const projectParam = this.unresolvedParameters.find(p => p.id === param.id);
-        const defaultValue = projectParam?.default ?? param.default ?? '';
+        const appProperty = this.data.app.properties?.find(p => p.id === param.id);
+        const propValue = appProperty?.value;
+        const propertyFallback =
+          (typeof propValue === 'string' || typeof propValue === 'number' || typeof propValue === 'boolean')
+            ? propValue
+            : appProperty?.default;
+        const defaultValue = projectParam?.default ?? propertyFallback ?? param.default ?? '';
         controls[param.id] = new FormControl(defaultValue, validators);
       }
       this.addonFormGroups.set(addon.id, new FormGroup(controls));
