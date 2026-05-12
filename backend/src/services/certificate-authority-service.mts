@@ -234,7 +234,7 @@ export class CertificateAuthorityService implements ICaProvider {
         "subjectAltName = @alt_names",
         "basicConstraints = CA:FALSE",
         "keyUsage = digitalSignature, keyEncipherment",
-        "extendedKeyUsage = serverAuth",
+        "extendedKeyUsage = serverAuth, clientAuth",
         "",
         "[alt_names]",
         ...dnsEntries.map((d, i) => `DNS.${i + 1} = ${d}`),
