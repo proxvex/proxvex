@@ -18,8 +18,6 @@ and must be at the very beginning of the combined file.
 import json
 import os
 import subprocess
-import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # Library functions are prepended - these are available:
@@ -27,44 +25,51 @@ from pathlib import Path
 # - is_managed_container(conf_text) -> bool
 
 
-def _get_status_once(vmid: int, timeout: float) -> str | None:
+def get_all_statuses(timeout: float = 8.0) -> dict[int, str]:
+    """Return {vmid: status} for every container known to pct.
+
+    Calling `pct status <vmid>` per container is slow on a real cluster
+    (~1.6s per call) and stalls on any container that holds a transient
+    lock (migrate, backup, snapshot) — the dependency-check dialog then
+    times out or surfaces "unknown" warnings for unrelated VMs. `pct list`
+    is a single cluster-state lookup that returns every container's status
+    in one ~2s call, regardless of how many containers there are and
+    regardless of per-container locks.
+
+    Output format (header + space-padded columns):
+        VMID       Status     Lock         Name
+        500        running                 postgres
+        504        stopped    migrate      gitea
+
+    The Lock column is always empty for unlocked containers, so splitting
+    on whitespace gives `[vmid, status, ...]` — we only need the first
+    two columns.
+    """
     try:
         result = subprocess.run(
-            ["pct", "status", str(vmid)],
+            ["pct", "list"],
             capture_output=True,
             text=True,
             timeout=timeout,
         )
-        if result.returncode != 0:
-            return None
-        out = result.stdout.strip()
-        # Expected format: "status: running" or "status: stopped"
-        if "status:" in out:
-            return out.split("status:", 1)[1].strip() or None
-        return out or None
     except Exception:
-        return None
+        return {}
+    if result.returncode != 0:
+        return {}
 
-
-def get_status(vmid: int) -> str | None:
-    """Retry `pct status` a couple of times before giving up.
-
-    On a real cluster `pct status` consistently takes ~1.6s per call (cluster
-    state lookup + manifest read), so the per-call timeout must comfortably
-    exceed that. Transient failures (lock from a parallel pct command, brief
-    cluster-state refresh, slow disk) clear within a few hundred ms, so a
-    quick retry handles those without ballooning wall time. Total budget per
-    VM: ~12s worst case (3 × 4s + ~1.4s sleep) — still bounded so a single
-    stuck container does not block the whole listing.
-    """
-    delays = (0.0, 0.4, 1.0)  # 3 attempts, ~1.4s of sleep + up to 3*4s of pct = bounded
-    for delay in delays:
-        if delay:
-            time.sleep(delay)
-        status = _get_status_once(vmid, timeout=4.0)
-        if status:
-            return status
-    return None
+    statuses: dict[int, str] = {}
+    for raw in result.stdout.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 2 or not parts[0].isdigit():
+            continue  # header row or unexpected format
+        try:
+            statuses[int(parts[0])] = parts[1]
+        except ValueError:
+            continue
+    return statuses
 
 
 def main() -> None:
@@ -153,16 +158,13 @@ def main() -> None:
             containers.append(item)
 
     if containers:
-        max_workers = min(8, len(containers))
-        vmids = [item["vm_id"] for item in containers]
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            statuses = list(executor.map(get_status, vmids))
+        all_statuses = get_all_statuses()
         # Always set a status so consumers (dep-check matching, UI) can
         # distinguish "really stopped" from "couldn't determine". "unknown"
-        # signals a transient failure (pct status timeout, locked container,
-        # unexpected output) — must not be treated as "stopped".
-        for item, status in zip(containers, statuses):
-            item["status"] = status or "unknown"
+        # only fires if `pct list` itself failed or omitted the VM (rare —
+        # the conf exists but the cluster manager has not picked it up yet).
+        for item in containers:
+            item["status"] = all_statuses.get(item["vm_id"], "unknown")
 
     # Return output in VeExecution format: IOutput[]
     print(json.dumps([{"id": "containers", "value": json.dumps(containers)}]))

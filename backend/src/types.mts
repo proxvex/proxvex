@@ -119,6 +119,14 @@ export interface IApplicationWeb {
   stacktype?: string | string[] | undefined;
   default_addons?: string[] | undefined;
   required_addons?: string[] | undefined;
+  /** Application-level property pins (value/default). The configuration
+   * dialog uses these as defaults for addon parameters the application has
+   * already pinned (e.g. oci-image apps pin oidc_redirect_uri to a
+   * hostname-based template, satisfying addon-oidc's required-flag
+   * without the user typing anything). Backend already honours this via
+   * ParameterValidator.applicationParamValues — exposing it here keeps the
+   * UI form in sync with what the backend will accept. */
+  properties?: IOutputObject[] | undefined;
   errors?: IJsonError[];
   verification?: IApplicationVerification | undefined;
 }
