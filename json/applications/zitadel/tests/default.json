@@ -5,6 +5,7 @@
   "cli_timeout": 480,
   "wait_seconds": 90,
   "params": [
-    { "name": "setup_test_project", "value": "true" }
+    { "name": "setup_test_project", "value": "true" },
+    { "name": "ssl_mode", "value": "none" }
   ]
 }
