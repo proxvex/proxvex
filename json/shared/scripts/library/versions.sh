@@ -28,7 +28,7 @@ OCI_mariadb_TAG="${OCI_mariadb_TAG:-11}"                      # mariadb
 OCI_phpmyadmin_TAG="${OCI_phpmyadmin_TAG:-5.2.3}"             # phpmyadmin
 OCI_docker_registry_mirror_TAG="${OCI_docker_registry_mirror_TAG:-3.0.0}" # distribution/distribution
 OCI_zot_mirror_TAG="${OCI_zot_mirror_TAG:-v2.1.5}"            # ghcr.io/project-zot/zot-linux-amd64 (paused: PVE 9.1.x OCI extractor bug, see memory project_zot_mirror_blocked)
-OCI_playwright_TAG="${OCI_playwright_TAG:-v1.59.1-noble}"     # mcr.microsoft.com/playwright
+OCI_playwright_TAG="${OCI_playwright_TAG:-v1.57.0-noble}"     # mcr.microsoft.com/playwright (synced from frontend/package.json)
 
 # Export all tags so docker-compose subprocesses can resolve ${DOCKER_*_TAG} references
 export DOCKER_traefik_TAG DOCKER_zitadel_TAG DOCKER_zitadel_login_TAG DOCKER_postgrest_TAG

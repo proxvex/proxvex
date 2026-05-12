@@ -8,8 +8,7 @@
     { "id": "disk_size", "default": "8" },
     { "id": "memory", "default": "2048" },
     { "id": "playwright_port", "default": "3000" },
-    { "id": "playwright_version", "default": "1.59.1" },
-    { "id": "initial_command", "value": "/bin/sh -c 'npm install -g playwright@{{playwright_version}} && exec playwright run-server --port {{playwright_port}} --host 0.0.0.0'" }
+    { "id": "initial_command", "value": "/bin/sh -c 'TAG={{oci_image_tag}}; V=${TAG#v}; V=${V%-*}; npm install -g playwright@$V && exec playwright run-server --port {{playwright_port}} --host 0.0.0.0'" }
   ],
   "installation": {
     "pre_start": [

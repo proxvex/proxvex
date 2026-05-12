@@ -71,7 +71,11 @@ success "Deployer VMID: ${deployer_vmid}"
 # Hub-side rm -rf + extract keeps the destination an exact mirror of the
 # source (files removed locally disappear on the Hub too).
 info "Syncing livetest-local/shared/ → Hub LXC ${deployer_vmid} /config/shared/"
-tar -C "$PROJECT_ROOT/livetest-local" -czf - shared \
+# --exclude='._*' suppresses macOS resource-fork sidecar files that tar would
+# otherwise pull in when this script runs on a Mac. Those zero-content files
+# are not valid JSON and crash the deployer when it tries to load them as
+# templates.
+tar -C "$PROJECT_ROOT/livetest-local" --exclude='._*' -czf - shared \
     | nested_ssh "pct exec ${deployer_vmid} -- sh -c 'rm -rf /config/shared && mkdir -p /config && tar -xzf - -C /config && chown -R \$(stat -c %u:%g /config) /config/shared'" \
     || error "Failed to sync livetest-local/shared/ into Hub LXC ${deployer_vmid}"
 success "Hub /config/shared synced from livetest-local/shared/"
