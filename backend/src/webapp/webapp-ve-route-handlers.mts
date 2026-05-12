@@ -82,41 +82,76 @@ export class WebAppVeRouteHandlers {
     }
     if (provides.length === 0 || stackIds.length === 0) return;
 
-    const firstStackId = stackIds[0]!;
     // Use the StackProvider so Spoke deployers (HUB_URL set) read/write the
     // stack on the Hub. Reading via storageContext directly would only see
     // the local in-memory map and miss everything Hub-resident.
     const stackProvider = this.pm.getStackProvider();
-    const stack = stackProvider.getStack(firstStackId);
-    if (!stack) return;
 
-    // Remove stale provides from this application (keys may have changed)
-    const newNames = new Set(provides.map((p) => p.name));
-    let existingProvides = (stack.provides ?? []).filter(
-      (e) => e.application !== applicationId || newNames.has(e.name),
-    );
-    let changed = existingProvides.length !== (stack.provides ?? []).length;
+    // Route each provide to the semantically right stack.
+    //
+    // Default: firstStackId — keeps the historical behaviour for app-specific
+    //   provides like PROXVEX_DEFAULT_URL.
+    // Override: DEPLOYER_OIDC_* — these credentials are consumed by every app
+    //   that activates addon-oidc (via conf-setup-oidc-client.sh Tier 2). The
+    //   producing application (zitadel) has stacktype=["cloudflare","postgres"]
+    //   so firstStackId is postgres_default — but consumer apps (proxvex et
+    //   al.) join the oidc_* stack via their own stacktype, NOT postgres_*.
+    //   Routing OIDC-specific provides to the oidc stack lets template-var
+    //   resolution find them. Without this, Tier 2 silently sees NOT_DEFINED
+    //   and falls through to (now-defunct) Tier 3 (admin-client.pat).
+    const firstStackId = stackIds[0]!;
+    const oidcStackId = stackIds.find((id) => {
+      const s = stackProvider.getStack(id);
+      return s?.stacktype === "oidc";
+    });
 
+    const routeFor = (name: string): string =>
+      name.startsWith("DEPLOYER_OIDC_") && oidcStackId
+        ? oidcStackId
+        : firstStackId;
+
+    // Group provides by target stack so we touch each stack at most once.
+    const grouped = new Map<string, Array<{ name: string; value: string }>>();
     for (const p of provides) {
-      const existing = existingProvides.find((e) => e.name === p.name);
-      if (existing) {
-        if (existing.value !== p.value) {
-          this.logger.warn(`Stack provides changed: ${p.name} (${existing.value} → ${p.value})`, { application: applicationId, stack: firstStackId });
-          existing.value = p.value;
-          existing.application = applicationId;
-          changed = true;
-        }
-      } else {
-        existingProvides.push({ name: p.name, value: p.value, application: applicationId });
-        changed = true;
-      }
+      const target = routeFor(p.name);
+      if (!grouped.has(target)) grouped.set(target, []);
+      grouped.get(target)!.push(p);
     }
 
-    if (changed) {
-      stack.provides = existingProvides;
-      // Persist via StackProvider so Spoke pushes the update to the Hub.
-      stackProvider.addStack(stack);
-      this.logger.info("Stack provides updated", { stack: firstStackId, provides: provides.map((p) => p.name) });
+    for (const [stackId, group] of grouped) {
+      const stack = stackProvider.getStack(stackId);
+      if (!stack) continue;
+
+      // Remove stale provides from this application — but only for keys we're
+      // updating in THIS stack, so a key that moved between stacks doesn't
+      // get dropped from its new home.
+      const newNames = new Set(group.map((p) => p.name));
+      let existingProvides = (stack.provides ?? []).filter(
+        (e) => e.application !== applicationId || newNames.has(e.name),
+      );
+      let changed = existingProvides.length !== (stack.provides ?? []).length;
+
+      for (const p of group) {
+        const existing = existingProvides.find((e) => e.name === p.name);
+        if (existing) {
+          if (existing.value !== p.value) {
+            this.logger.warn(`Stack provides changed: ${p.name} (${existing.value} → ${p.value})`, { application: applicationId, stack: stackId });
+            existing.value = p.value;
+            existing.application = applicationId;
+            changed = true;
+          }
+        } else {
+          existingProvides.push({ name: p.name, value: p.value, application: applicationId });
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        stack.provides = existingProvides;
+        // Persist via StackProvider so Spoke pushes the update to the Hub.
+        stackProvider.addStack(stack);
+        this.logger.info("Stack provides updated", { stack: stackId, provides: group.map((p) => p.name) });
+      }
     }
   }
 
