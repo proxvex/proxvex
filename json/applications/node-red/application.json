@@ -11,7 +11,11 @@
     { "id": "oci_image", "value": "nodered/node-red:{{oci_image_tag}}" },
     { "id": "uid", "value": "1000" },
     { "id": "username", "value": "root" },
-    { "id": "ssl.needs_ca_cert", "value": "true" }
+    { "id": "ssl.needs_ca_cert", "value": "true" },
+    {
+      "id": "oidc_redirect_uri",
+      "default": "https://{{hostname}}{{project_domain_suffix}}/auth/strategy/callback"
+    }
   ],
   "installation": {
     "pre_start": [

@@ -1,0 +1,14 @@
+{
+  "application": "node-red",
+  "task": "reconfigure",
+  "params": [
+    { "name": "vm_id_start", "value": 600 },
+    { "name": "previous_vm_id", "value": 611 },
+    { "name": "upload_settings_js_content", "value": "file:node-red-settings.js" },
+    { "name": "upload_flows_json_content", "value": "file:node-red-flows.json" },
+    { "name": "oidc_redirect_uri", "value": "https://node-red:1880/auth/strategy/callback" },
+    { "name": "oidc_post_logout_uri", "value": "https://node-red:1880/" }
+  ],
+  "selectedAddons": ["addon-oidc", "addon-ssl"],
+  "stackIds": ["oidc_production"]
+}
