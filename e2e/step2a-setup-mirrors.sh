@@ -279,24 +279,33 @@ success "Test mirror reachable; proxvex CA already trusted in nested VM"
 # so Phase B (Docker Hub upstream via the same zot LXC) needs no cert reissue.
 ZOT_MIRROR_IP="${ZOT_MIRROR_IP:-192.168.4.50}"
 ZOT_MIRROR_HOST="${ZOT_MIRROR_HOST:-zot-mirror}"
-header "Verifying zot-mirror (${ZOT_MIRROR_HOST} @ ${ZOT_MIRROR_IP})"
-for i in $(seq 1 10); do
+# STEP2A_SKIP_ZOT_MIRROR=1 bypasses the zot-mirror health checks so the
+# mirrors-ready snapshot can still be created even when zot-mirror is broken.
+# ghcr.io pulls will fail at install-time for any consumer that needs them,
+# but the snapshot itself is created and step2b can proceed.
+if [ "${STEP2A_SKIP_ZOT_MIRROR:-}" = "1" ]; then
+    info "STEP2A_SKIP_ZOT_MIRROR=1 — skipping zot-mirror reachability check"
+else
+    header "Verifying zot-mirror (${ZOT_MIRROR_HOST} @ ${ZOT_MIRROR_IP})"
+    for i in $(seq 1 10); do
+        nested_ssh "curl -sf --connect-timeout 5 \
+            --resolve ${ZOT_MIRROR_HOST}:443:${ZOT_MIRROR_IP} \
+            https://${ZOT_MIRROR_HOST}/v2/ >/dev/null 2>&1" && break
+        sleep 1
+    done
     nested_ssh "curl -sf --connect-timeout 5 \
         --resolve ${ZOT_MIRROR_HOST}:443:${ZOT_MIRROR_IP} \
-        https://${ZOT_MIRROR_HOST}/v2/ >/dev/null 2>&1" && break
-    sleep 1
-done
-nested_ssh "curl -sf --connect-timeout 5 \
-    --resolve ${ZOT_MIRROR_HOST}:443:${ZOT_MIRROR_IP} \
-    https://${ZOT_MIRROR_HOST}/v2/ >/dev/null 2>&1" \
-    || error "${ZOT_MIRROR_HOST} (${ZOT_MIRROR_IP}) unreachable from nested VM.
-    - Deploy it: ./production/setup-production.sh --step 19
-      (target host ubuntupve; see APP_HOST_MAP in setup-production.sh).
-    - Check the LXC is running:
-        ssh root@ubuntupve 'pct list | grep ${ZOT_MIRROR_HOST}'
-    - Verify routing 10.99.X.0/24 → 192.168.4.0/24 (POSTROUTING MASQUERADE
-      on the outer PVE host — see step1-create-vm.sh)."
-success "zot-mirror reachable at ${ZOT_MIRROR_IP} (TLS via proxvex CA)"
+        https://${ZOT_MIRROR_HOST}/v2/ >/dev/null 2>&1" \
+        || error "${ZOT_MIRROR_HOST} (${ZOT_MIRROR_IP}) unreachable from nested VM.
+        - Deploy it: ./production/setup-production.sh --step 19
+          (target host ubuntupve; see APP_HOST_MAP in setup-production.sh).
+        - Check the LXC is running:
+            ssh root@ubuntupve 'pct list | grep ${ZOT_MIRROR_HOST}'
+        - Verify routing 10.99.X.0/24 → 192.168.4.0/24 (POSTROUTING MASQUERADE
+          on the outer PVE host — see step1-create-vm.sh).
+        - Or rerun with STEP2A_SKIP_ZOT_MIRROR=1 to create the snapshot anyway."
+    success "zot-mirror reachable at ${ZOT_MIRROR_IP} (TLS via proxvex CA)"
+fi
 
 # Step 5: dnsmasq + skopeo registries.conf so the nested VM (and any inner
 # LXCs that inherit DNS via DHCP) routes registry traffic through the test
@@ -443,15 +452,20 @@ success "Skopeo routes docker.io through ${TEST_MIRROR_HOST}"
 # a cert SAN matching DNS:ghcr.io, so curl validates cleanly. On a cold
 # zot cache this triggers exactly one ghcr.io pull-through to populate
 # the index — ghcr.io is anonymous-friendly, no rate-limit concern.
-header "Smoketest: ghcr.io via zot-mirror"
-nested_ssh "curl -sf --connect-timeout 5 https://ghcr.io/v2/ >/dev/null" \
-    || error "https://ghcr.io/v2/ unreachable via dnsmasq → ${ZOT_MIRROR_HOST}.
-    - Verify dnsmasq redirects ghcr.io: nested_ssh 'grep ghcr.io /etc/dnsmasq.d/e2e-nat.conf'
-    - Verify ${ZOT_MIRROR_HOST} resolves: nested_ssh 'getent hosts ${ZOT_MIRROR_HOST}'
-    - Probe directly:
-        curl -sf --resolve ${ZOT_MIRROR_HOST}:443:${ZOT_MIRROR_IP} \\
-          https://${ZOT_MIRROR_HOST}/v2/"
-success "ghcr.io routes through ${ZOT_MIRROR_HOST}"
+if [ "${STEP2A_SKIP_ZOT_MIRROR:-}" = "1" ]; then
+    info "STEP2A_SKIP_ZOT_MIRROR=1 — skipping ghcr.io smoketest"
+else
+    header "Smoketest: ghcr.io via zot-mirror"
+    nested_ssh "curl -sf --connect-timeout 5 https://ghcr.io/v2/ >/dev/null" \
+        || error "https://ghcr.io/v2/ unreachable via dnsmasq → ${ZOT_MIRROR_HOST}.
+        - Verify dnsmasq redirects ghcr.io: nested_ssh 'grep ghcr.io /etc/dnsmasq.d/e2e-nat.conf'
+        - Verify ${ZOT_MIRROR_HOST} resolves: nested_ssh 'getent hosts ${ZOT_MIRROR_HOST}'
+        - Probe directly:
+            curl -sf --resolve ${ZOT_MIRROR_HOST}:443:${ZOT_MIRROR_IP} \\
+              https://${ZOT_MIRROR_HOST}/v2/
+        - Or rerun with STEP2A_SKIP_ZOT_MIRROR=1 to create the snapshot anyway."
+    success "ghcr.io routes through ${ZOT_MIRROR_HOST}"
+fi
 
 # Step 7: Snapshot — VM must be stopped for a clean snapshot.
 header "Creating 'mirrors-ready' snapshot"

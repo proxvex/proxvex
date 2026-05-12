@@ -90,11 +90,15 @@ export async function restoreBestSnapshot(
     (msg) => logInfo(msg), localContextPath,
   );
 
-  // Single-snapshot strategy: if dep-stacks-ready exists AND matches the
-  // current build hash, roll the whole nested VM back to it and skip all
-  // provider installations.
+  // Single-snapshot strategy: roll the whole nested VM back to dep-stacks-ready
+  // and skip all provider installations — but only when the snapshot's
+  // captured dep set covers every dep this run needs. A snapshot built for a
+  // run with fewer deps (e.g. `zitadel/default` captures just postgres) must
+  // not be reused for a run that needs more (e.g. proxvex/playwright-oidc
+  // needs postgres+playwright+zitadel), or pre_start dep-resolution fails.
   const SNAP_NAME = "dep-stacks-ready";
-  if (!snapMgr.exists(SNAP_NAME) || !snapMgr.matchesBuild(SNAP_NAME, buildHash)) {
+  const requiredDeps = depSteps.map((d) => d.scenario.application);
+  if (!snapMgr.exists(SNAP_NAME) || !snapMgr.coversRun(SNAP_NAME, buildHash, requiredDeps)) {
     return;
   }
 

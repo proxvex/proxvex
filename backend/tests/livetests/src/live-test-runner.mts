@@ -250,6 +250,7 @@ async function main() {
   const queueFlag = args.includes("--queue");
   const failFastFlag = args.includes("--fail-fast");
   const includeUntestable = args.includes("--include-untestable");
+  const depsOnlyFlag = args.includes("--deps-only");
 
   // Coverage-report short-circuits before any deployer interaction.
   if (args.includes("--coverage-report")) {
@@ -290,6 +291,7 @@ async function main() {
     a !== "--include-untestable" &&
     a !== "--coverage-report" &&
     a !== "--gaps-only" &&
+    a !== "--deps-only" &&
     !(arr[i - 1] === "--format")
   );
   const instance = positionalArgs[0] || undefined;
@@ -572,6 +574,24 @@ async function main() {
   for (const p of planned) {
     p.isDependency =
       !selectedIdSet.has(p.scenario.id) || dependedOn.has(p.scenario.id);
+  }
+
+  // --deps-only: drop non-dependency steps so we install all providers, create
+  // the dep-stacks-ready snapshot, and skip the target tests. Iteration loop
+  // for the target test (e.g. tweaking a Playwright spec or a single template)
+  // can then re-run without paying the dep-install cost.
+  if (depsOnlyFlag) {
+    const dropped = planned.filter((p) => !p.isDependency).map((p) => p.scenario.id);
+    if (dropped.length > 0) {
+      logInfo(`--deps-only: skipping target test(s): ${dropped.join(", ")}`);
+    }
+    for (let i = planned.length - 1; i >= 0; i--) {
+      if (!planned[i]!.isDependency) planned.splice(i, 1);
+    }
+    if (planned.length === 0) {
+      logInfo("--deps-only: no dependencies to install, nothing to do");
+      return;
+    }
   }
 
   // Show plan

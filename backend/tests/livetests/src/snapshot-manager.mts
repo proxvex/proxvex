@@ -26,6 +26,19 @@ export interface SnapshotConfig {
 
 const CONTEXT_BACKUP_DIR = "/root/.deployer-context-backup";
 
+/**
+ * Parse the `deps:a,b,c` segment from a snapshot description, returning a
+ * set of captured application names. Returns an empty set for legacy
+ * snapshots that pre-date the deps encoding.
+ */
+function parseDepsFromSnapshotDescription(desc: string): Set<string> {
+  for (const segment of desc.split(";")) {
+    const m = /^\s*deps:(.*)$/.exec(segment);
+    if (m) return new Set(m[1]!.split(",").map((s) => s.trim()).filter(Boolean));
+  }
+  return new Set();
+}
+
 export class SnapshotManager {
   private debugIndex = 0;
 
@@ -219,7 +232,7 @@ export class SnapshotManager {
    * Captures all LXC rootfs, managed volumes, and the nested-VM host FS
    * (including the storagecontext-backup dir) in one atomic ZFS snapshot.
    */
-  createHostSnapshot(name: string, buildHash?: string): void {
+  createHostSnapshot(name: string, buildHash?: string, deps?: readonly string[]): void {
     this.log(`Creating snapshot @${name}...`);
 
     this.saveContextSnapshot(`before-create-${name}`);
@@ -241,7 +254,13 @@ export class SnapshotManager {
       }
     } catch { /* ignore */ }
 
-    const desc = buildHash ? `build:${buildHash}` : "livetest";
+    const parts: string[] = [];
+    if (buildHash) parts.push(`build:${buildHash}`);
+    if (deps && deps.length > 0) {
+      const sorted = [...new Set(deps)].sort();
+      parts.push(`deps:${sorted.join(",")}`);
+    }
+    const desc = parts.length > 0 ? parts.join(";") : "livetest";
     if (this.useApi) {
       const url = `https://${this.outerPveHost}:8006/api2/json/nodes/${this.apiNode()}/qemu/${this.nestedVmId}/snapshot`;
       const upid = JSON.parse(this.apiCurl([
@@ -326,17 +345,31 @@ export class SnapshotManager {
   }
 
   /**
-   * Check if a snapshot's description matches the given build hash.
-   * Used to invalidate dep-stacks-ready when the deployer build changed.
+   * Check whether a snapshot is safe to reuse for a run that needs the
+   * given build hash and dependency set.
+   *
+   * Snapshot description format (from createHostSnapshot):
+   *   build:<hash>;deps:a,b,c
+   *
+   * Reusable iff:
+   *  - buildHash matches (when given — deployer build invalidates otherwise)
+   *  - captured deps ⊇ requiredDeps (snapshot has every dep the run needs)
+   *
+   * Legacy snapshots without a `deps:` segment have an empty captured set,
+   * so any run that needs deps will fall back to a fresh install.
    */
-  matchesBuild(name: string, buildHash?: string): boolean {
-    if (!buildHash) return true;
+  coversRun(name: string, buildHash: string | undefined, requiredDeps: readonly string[]): boolean {
+    let desc: string;
     try {
       const snap = this.listSnapshots().find((s) => s.name === name);
-      return !!snap && snap.description.includes(`build:${buildHash}`);
+      if (!snap) return false;
+      desc = snap.description;
     } catch {
       return false;
     }
+    if (buildHash && !desc.includes(`build:${buildHash}`)) return false;
+    const captured = parseDepsFromSnapshotDescription(desc);
+    return requiredDeps.every((d) => captured.has(d));
   }
 
   /** Wait for the nested VM to become reachable via SSH after boot */

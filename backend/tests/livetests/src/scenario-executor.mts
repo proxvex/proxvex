@@ -1029,11 +1029,16 @@ export async function executeScenarios(
 
       // After the LAST stack-provider step, create the single dep-stacks-ready
       // snapshot on the host PVE. All subsequent consumer tests use this as
-      // their failure-rollback target.
+      // their failure-rollback target. Encode the full captured dep set in the
+      // description so the next run can verify the snapshot covers its needs
+      // (see SnapshotManager.coversRun).
       if (snapMgr && step.isDependency && !step.skipExecution
           && planned.slice(i + 1).every((p) => !p.isDependency)) {
         try {
-          snapMgr.createHostSnapshot("dep-stacks-ready", buildHash);
+          const capturedDeps = planned
+            .filter((p) => p.isDependency)
+            .map((p) => p.scenario.application);
+          snapMgr.createHostSnapshot("dep-stacks-ready", buildHash, capturedDeps);
         } catch (err) {
           logInfo(`Snapshot creation failed (non-fatal): ${err}`);
         }
