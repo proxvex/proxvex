@@ -111,7 +111,7 @@ cert_generate_server() {
     -subj "/CN=${_fqdn}" 2>/dev/null
 
   # Write extfile for SAN (POSIX-compatible, no process substitution)
-  printf "subjectAltName=%s\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth" "$_san" > "$_tmp_ca_dir/ext.cnf"
+  printf "subjectAltName=%s\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth" "$_san" > "$_tmp_ca_dir/ext.cnf"
 
   # Sign with CA (validity: 825 days)
   openssl x509 -req \
