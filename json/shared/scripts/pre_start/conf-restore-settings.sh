@@ -126,6 +126,14 @@ if grep -qaE '^mp[0-9]+: ' "$OLD_CONF"; then
   log "Scanning $OLD_CONF for addon-managed volumes to restore..."
   # vol-common.sh is prepended into this script via the template `library`
   # property — vol_copy, vol_get_storage_type are available here.
+  #
+  # We stage the mp-lines into a temp file rather than piping `grep |
+  # while read` because the loop body sets CHANGED=1, and the pipe form
+  # would run the body in a subshell where that variable change is lost.
+  # `< <(...)` process substitution would also work but is bash-only; this
+  # script runs as POSIX /bin/sh via SSH on the PVE host.
+  MP_LIST_TMP=$(mktemp)
+  grep -aE '^mp[0-9]+: ' "$OLD_CONF" > "$MP_LIST_TMP" || true
   while IFS= read -r mp_line; do
     mp_key=$(echo "$mp_line" | cut -d: -f1)
     mp_value=$(echo "$mp_line" | sed -E "s/^${mp_key}: //")
@@ -186,7 +194,8 @@ if grep -qaE '^mp[0-9]+: ' "$OLD_CONF"; then
     }
     log "  Attached $mp_key -> $mp_new_volid"
     CHANGED=1
-  done < <(grep -aE '^mp[0-9]+: ' "$OLD_CONF")
+  done < "$MP_LIST_TMP"
+  rm -f "$MP_LIST_TMP"
 fi
 
 if [ "$CHANGED" -eq 1 ]; then
