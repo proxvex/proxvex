@@ -39,11 +39,48 @@ if [ ! -f "$SETTINGS_FILE" ]; then
   exit 0
 fi
 
-# Check if adminAuth is already configured. Strip line comments first so that
-# a comment like "// adminAuth is injected at deploy time" does not count as
-# an existing configuration and cause us to skip the injection.
-if sed 's|//.*||' "$SETTINGS_FILE" | grep -q "adminAuth"; then
-  echo "adminAuth already configured in settings.js — skipping" >&2
+# If a previous proxvex-managed adminAuth block is present (recognised via
+# our marker comment), strip it before re-injecting so reconfigure-driven
+# changes — new redirect_uri, rotated client_secret, different issuer —
+# actually land in settings.js. Skipping here would silently keep the old
+# block and cause Zitadel/OIDC mismatches like "redirect_uri not registered".
+if grep -q '// OIDC authentication — managed by proxvex' "$SETTINGS_FILE"; then
+  echo "Existing proxvex-managed adminAuth block found — removing before re-injection" >&2
+  # The block contains nested braces (options, strategy, function bodies),
+  # so simple pattern matching on "}," stops at the wrong line. Use a brace
+  # counter: start counting at the marker comment, increment on "{",
+  # decrement on "}", and end the skip range when the counter returns to 0.
+  # The block we emit has zero "{"/"}" inside string literals, so a plain
+  # char-by-char count is correct.
+  awk '
+    !skipping && /\/\/ OIDC authentication — managed by proxvex/ {
+      skipping = 1
+      depth = 0
+      started = 0
+      next
+    }
+    skipping {
+      n = length($0)
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (c == "{") { depth++; started = 1 }
+        else if (c == "}") {
+          depth--
+          if (started && depth == 0) {
+            skipping = 0
+            next
+          }
+        }
+      }
+      next
+    }
+    { print }
+  ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.stripped"
+  mv "${SETTINGS_FILE}.stripped" "$SETTINGS_FILE"
+elif sed 's|//.*||' "$SETTINGS_FILE" | grep -q "adminAuth"; then
+  # adminAuth exists but without our marker — likely user-managed. Leave
+  # alone so we don't blow away a manually crafted auth config.
+  echo "adminAuth already configured in settings.js (not proxvex-managed) — skipping" >&2
   echo '[]'
   exit 0
 fi
@@ -95,13 +132,19 @@ ADMIN_AUTH_BLOCK=$(printf '%s' "$ADMIN_AUTH_BLOCK" | sed \
 # Strategy: find the last '}' in the file and insert before it
 TMPFILE="${SETTINGS_FILE}.tmp"
 
-# Use awk to insert the block before the last '}'
+# Use awk to insert the block before the last '}'.
+# The block itself ends with "," so the next property after it parses
+# correctly. But the property *immediately before* the insertion point
+# (the last property of module.exports) typically has no trailing comma
+# in stock settings.js — Node-RED ships it as `... }`. We need to add a
+# comma to that preceding non-empty/non-comment line, otherwise V8
+# rejects the file with "SyntaxError: Unexpected identifier 'adminAuth'".
 awk -v block="$ADMIN_AUTH_BLOCK" '
 {
   lines[NR] = $0
 }
 END {
-  # Find the last line containing only "}" or "};"
+  # Find the last line that is just "}" or "};" — the end of module.exports.
   last_brace = 0
   for (i = NR; i >= 1; i--) {
     if (lines[i] ~ /^[[:space:]]*\}[;]?[[:space:]]*$/) {
@@ -109,12 +152,42 @@ END {
       break
     }
   }
-  for (i = 1; i <= NR; i++) {
-    if (i == last_brace) {
-      print block
-      print ""
+  # Find the last "real" code line before that brace (skip blanks and
+  # // line-comments). Add a trailing "," if it does not already end
+  # with one of: "," "{" "[" — those are the cases where appending a
+  # comma would either be redundant ("," / "{" / "[") or break syntax.
+  needs_comma_at = 0
+  for (i = last_brace - 1; i >= 1; i--) {
+    line = lines[i]
+    stripped = line
+    sub(/[[:space:]]*$/, "", stripped)
+    if (stripped == "") continue
+    # skip pure // line comments
+    tmp = stripped
+    sub(/^[[:space:]]+/, "", tmp)
+    if (tmp ~ /^\/\//) continue
+    # strip inline trailing // comment for the comma check
+    code_only = stripped
+    sub(/[[:space:]]*\/\/.*$/, "", code_only)
+    last_char = substr(code_only, length(code_only), 1)
+    if (last_char != "," && last_char != "{" && last_char != "[") {
+      needs_comma_at = i
     }
-    print lines[i]
+    break
+  }
+  for (i = 1; i <= NR; i++) {
+    if (i == needs_comma_at) {
+      out = lines[i]
+      # Strip trailing whitespace, then append "," to the last non-space char.
+      sub(/[[:space:]]*$/, "", out)
+      print out ","
+    } else {
+      if (i == last_brace) {
+        print block
+        print ""
+      }
+      print lines[i]
+    }
   }
 }
 ' "$SETTINGS_FILE" > "$TMPFILE"

@@ -39,6 +39,17 @@ export class ParameterValidator {
      * fail validation.
      */
     applicationParamValues?: Map<string, IParameterValue>;
+    /**
+     * IDs of application properties whose `value:` is set (pinned). A user-
+     * supplied param targeting such an id is rejected with an error: the
+     * property is already resolved at application-definition time and the
+     * CLI cannot override it. Without this guard, deploy.sh-style overrides
+     * (e.g. oidc_redirect_uri in production/<app>-reconfigure.json) were
+     * silently ignored, leading to long debug sessions on Zitadel
+     * redirect_uri mismatches because the deployer log claimed the param
+     * landed while in fact the pinned value won.
+     */
+    applicationPinnedIds?: Set<string>;
     knownPropertyIds?: Set<string>;
     stackId?: string;
     availableStacks?: IStack[];
@@ -51,6 +62,7 @@ export class ParameterValidator {
       parameterDefs,
       selectedAddons,
       availableAddons,
+      applicationPinnedIds,
       stackId,
       availableStacks,
     } = input;
@@ -58,6 +70,31 @@ export class ParameterValidator {
     const paramMap = new Map<string, IParameterValue>();
     for (const p of params) {
       paramMap.set(p.name, p.value);
+    }
+
+    // Reject user-supplied params that target a pinned application property.
+    // Backend-injected params (application_id, vm_id, previous_vm_id,
+    // ve_context_key, deployer_base_url) are added after the user's params
+    // and don't carry pinning semantics, so we never flag them.
+    if (applicationPinnedIds && applicationPinnedIds.size > 0) {
+      const backendInjected = new Set([
+        "application_id",
+        "vm_id",
+        "previous_vm_id",
+        "ve_context_key",
+        "deployer_base_url",
+      ]);
+      for (const p of params) {
+        if (backendInjected.has(p.name)) continue;
+        if (!applicationPinnedIds.has(p.name)) continue;
+        errors.push({
+          field: p.name,
+          message:
+            `Parameter '${p.name}' cannot be overridden — the application pins it ` +
+            `via property value:. Remove it from params, or change the application's ` +
+            `property to default: if user overrides should be allowed.`,
+        });
+      }
     }
 
     // Check required params

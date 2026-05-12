@@ -127,9 +127,16 @@ export function registerValidationRoutes(app: Application): void {
         // oidc_redirect_uri/oidc_post_logout_uri to hostname-based URLs
         // would fail addon validation.
         const applicationParamValues = new Map<string, IParameterValue>();
+        // Separate set of properties whose `value:` is set: these are hard
+        // pins, and a user-supplied param targeting them must be rejected by
+        // the validator. We compute this distinctly from applicationParamValues
+        // because the latter conflates value:/default: for the addon-required
+        // check, whereas the pin-rejection only cares about value:.
+        const applicationPinnedIds = new Set<string>();
         for (const p of appObj.properties ?? []) {
           const v = (p.value !== undefined && p.value !== "") ? p.value : p.default;
           if (v !== undefined && v !== "") applicationParamValues.set(p.id, v as IParameterValue);
+          if (p.value !== undefined && p.value !== "") applicationPinnedIds.add(p.id);
         }
         for (const p of appObj.parameters ?? []) {
           if (applicationParamValues.has(p.id)) continue;
@@ -184,6 +191,7 @@ export function registerValidationRoutes(app: Application): void {
           availableAddons,
           applicationParamIds,
           applicationParamValues,
+          applicationPinnedIds,
           knownPropertyIds,
           ...(body.stackId ? { stackId: body.stackId } : {}),
           availableStacks,

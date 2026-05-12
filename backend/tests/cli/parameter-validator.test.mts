@@ -290,4 +290,42 @@ describe("ParameterValidator", () => {
       expect(result.valid).toBe(true);
     });
   });
+
+  describe("pinned property override rejection", () => {
+    it("should reject params targeting a property pinned with value:", () => {
+      const result = validator.validate({
+        params: [
+          { name: "oidc_redirect_uri", value: "https://override.example.com/cb" },
+        ],
+        parameterDefs: [],
+        applicationPinnedIds: new Set(["oidc_redirect_uri", "oci_image"]),
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].field).toBe("oidc_redirect_uri");
+      expect(result.errors[0].message).toMatch(/cannot be overridden/);
+    });
+
+    it("should accept params targeting a property with only default: set", () => {
+      const result = validator.validate({
+        params: [
+          { name: "oidc_redirect_uri", value: "https://override.example.com/cb" },
+        ],
+        parameterDefs: [],
+        applicationPinnedIds: new Set(),
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it("should not flag backend-injected names that happen to be pinned", () => {
+      const result = validator.validate({
+        params: [
+          { name: "application_id", value: "gitea" },
+          { name: "vm_id", value: 500 },
+        ],
+        parameterDefs: [],
+        applicationPinnedIds: new Set(["application_id", "vm_id"]),
+      });
+      expect(result.valid).toBe(true);
+    });
+  });
 });
