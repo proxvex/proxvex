@@ -30,12 +30,6 @@
           "containerPort": 1443
         },
         {
-          "port": 1809,
-          "hostname": "gitea-default",
-          "ip": "10.0.0.203",
-          "containerPort": 3000
-        },
-        {
           "port": 1810,
           "hostname": "playwright",
           "ip": "10.0.0.140",
@@ -72,12 +66,6 @@
           "containerPort": 1443
         },
         {
-          "port": 2809,
-          "hostname": "gitea-default",
-          "ip": "10.0.0.203",
-          "containerPort": 3000
-        },
-        {
           "port": 2810,
           "hostname": "playwright",
           "ip": "10.0.0.140",
@@ -99,7 +87,21 @@
       "hostKey": {
         "ed25519PrivB64": "LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0KYjNCbGJuTnphQzFyWlhrdGRqRUFBQUFBQkc1dmJtVUFBQUFFYm05dVpRQUFBQUFBQUFBQkFBQUFNd0FBQUF0emMyZ3RaVwpReU5UVXhPUUFBQUNEQURoZkNvVUMwTE4wNGNXRXdBeTltcmxsdVlCNjhiOGlmaGFmdm11WFE2UUFBQUtEeVNHWkU4a2htClJBQUFBQXR6YzJndFpXUXlOVFV4T1FBQUFDREFEaGZDb1VDMExOMDRjV0V3QXk5bXJsbHVZQjY4YjhpZmhhZnZtdVhRNlEKQUFBRUNZM2FyNkxjdEo0UWZMaE1VTFRCampXdHMwKzVXRGg5c2hNdlE3aWhRNkk4QU9GOEtoUUxRczNUaHhZVEFETDJhdQpXVzVnSHJ4dnlKK0ZwKythNWREcEFBQUFGMjVsYzNSbFpDMTJiUzFuYVhSb2RXSXRZV04wYVc5dUFRSURCQVVHCi0tLS0tRU5EIE9QRU5TU0ggUFJJVkFURSBLRVktLS0tLQo=",
         "ed25519PubB64": "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSU1BT0Y4S2hRTFFzM1RoeFlUQURMMmF1V1c1Z0hyeHZ5SitGcCsrYTVkRHAgbmVzdGVkLXZtLWdpdGh1Yi1hY3Rpb24K"
-      }
+      },
+      "portForwarding": [
+        {
+          "port": 3808,
+          "hostname": "zitadel-default",
+          "ip": "10.0.0.226",
+          "containerPort": 1443
+        },
+        {
+          "port": 3810,
+          "hostname": "playwright",
+          "ip": "10.0.0.140",
+          "containerPort": 3000
+        }
+      ]
     }
   },
   "defaults": {

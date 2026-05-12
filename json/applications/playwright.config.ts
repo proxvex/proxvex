@@ -43,6 +43,9 @@ export default defineConfig({
   use: {
     connectOptions: { wsEndpoint: resolveWsEndpoint() },
     launchOptions: { args: ["--no-sandbox", "--disable-setuid-sandbox"] },
+    // Apps use the proxvex internal CA for TLS; specs reach them via internal
+    // hostnames that won't be in any external trust store.
+    ignoreHTTPSErrors: true,
     actionTimeout: 15000,
     navigationTimeout: 30000,
   },

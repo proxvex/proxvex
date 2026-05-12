@@ -150,6 +150,135 @@ function hasRole(
   return false;
 }
 
+interface AuthSessionShape {
+  authenticated?: boolean;
+  userName?: string;
+  userEmail?: string;
+  sub?: string;
+  roles?: Record<string, Record<string, unknown>>;
+  accessToken?: string;
+}
+
+/**
+ * Validate an access token against the OIDC issuer and populate the session
+ * fields (userName, userEmail, sub, roles, accessToken). Shared between the
+ * Authorization-Code callback handler and the e2e dev-session endpoint so
+ * both produce identical session state.
+ *
+ * Returns the resolved claims/userinfo merged object, or null if the token
+ * is invalid (UserInfo returned non-2xx). Throws on network errors.
+ */
+export async function populateSessionFromAccessToken(
+  sess: AuthSessionShape,
+  accessToken: string,
+  oidcConfig: OidcConfig,
+): Promise<Record<string, unknown> | null> {
+  // 1. Validate via UserInfo. A valid token returns 200 with claims;
+  //    invalid/expired returns 401.
+  const userinfoEndpoint =
+    oidcConfig.config.serverMetadata().userinfo_endpoint;
+  if (!userinfoEndpoint) {
+    throw new Error("OIDC config has no userinfo_endpoint");
+  }
+  const userinfoResp = await fetch(userinfoEndpoint, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!userinfoResp.ok) {
+    return null;
+  }
+  const claimsRecord = (await userinfoResp.json()) as Record<string, unknown>;
+
+  // 2. Role check (same as callback handler)
+  if (oidcConfig.requiredRole) {
+    if (!hasRole(claimsRecord, oidcConfig.requiredRole)) {
+      logger.warn(
+        `[oidc] dev-session: user ${claimsRecord.sub} denied — missing role '${oidcConfig.requiredRole}'`,
+      );
+      return null;
+    }
+  }
+
+  // 3. Resolve display name (same fallback chain as callback)
+  const nameCandidate =
+    (typeof claimsRecord.name === "string" && claimsRecord.name) ||
+    (typeof claimsRecord.preferred_username === "string" &&
+      claimsRecord.preferred_username) ||
+    [
+      typeof claimsRecord.given_name === "string"
+        ? claimsRecord.given_name
+        : "",
+      typeof claimsRecord.family_name === "string"
+        ? claimsRecord.family_name
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    (typeof claimsRecord.email === "string" && claimsRecord.email) ||
+    "";
+
+  // 4. Populate session
+  sess.authenticated = true;
+  if (nameCandidate) sess.userName = nameCandidate;
+  if (typeof claimsRecord.email === "string") {
+    sess.userEmail = claimsRecord.email;
+  }
+  if (typeof claimsRecord.sub === "string") sess.sub = claimsRecord.sub;
+
+  // 5. Extract project roles from claims
+  const roles: Record<string, Record<string, unknown>> = {};
+  for (const [key, value] of Object.entries(claimsRecord)) {
+    if (
+      key.startsWith(ZITADEL_ROLES_CLAIM_PREFIX) &&
+      key.endsWith(":roles") &&
+      value &&
+      typeof value === "object"
+    ) {
+      Object.assign(roles, value as Record<string, Record<string, unknown>>);
+    }
+  }
+
+  // 6. Fetch Zitadel Manager memberships
+  try {
+    const membershipResp = await fetch(
+      `${oidcConfig.issuerUrl.replace(/\/$/, "")}/auth/v1/memberships/me/_search`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      },
+    );
+    if (membershipResp.ok) {
+      const data = (await membershipResp.json()) as {
+        result?: Array<{
+          roles?: string[];
+          projectId?: string;
+          orgId?: string;
+          iam?: boolean;
+        }>;
+      };
+      for (const m of data.result ?? []) {
+        for (const role of m.roles ?? []) {
+          if (!roles[role]) roles[role] = {};
+          const meta = roles[role] as Record<string, unknown>;
+          if (m.projectId) meta.projectId = m.projectId;
+          if (m.orgId) meta.orgId = m.orgId;
+          if (m.iam) meta.iam = true;
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn("[oidc] Membership fetch error", serializeError(err));
+  }
+  sess.roles = roles;
+  sess.accessToken = accessToken;
+
+  return claimsRecord;
+}
+
 /**
  * Register OIDC auth routes.
  */
@@ -425,6 +554,68 @@ export function registerOidcRoutes(
       }
     },
   );
+
+  // POST /api/auth/dev-session — e2e bypass for the Zitadel UI login flow.
+  // Caller (Playwright test) obtains an access token via OAuth2
+  // client_credentials grant with a machine-user, posts it here, and gets
+  // back a populated express session (cookie). The token is validated
+  // against the OIDC issuer's UserInfo endpoint, so this is NOT a forge-able
+  // "trust me" backdoor — the issuer still does the cryptographic check.
+  // Gated by PROXVEX_E2E_MODE so it's wired up only in test deployments.
+  if (process.env.PROXVEX_E2E_MODE === "1") {
+    logger.info(
+      "[oidc] PROXVEX_E2E_MODE=1 → registering POST /api/auth/dev-session (e2e only)",
+    );
+    app.post(
+      "/api/auth/dev-session",
+      async (req: Request, res: Response): Promise<void> => {
+        const auth = req.headers.authorization || "";
+        const m = /^Bearer\s+(.+)$/i.exec(auth);
+        if (!m) {
+          res
+            .status(401)
+            .json({ error: "Missing Authorization: Bearer <token>" });
+          return;
+        }
+        const accessToken = m[1]!;
+        try {
+          const sess = req.session as AuthSession;
+          const claims = await populateSessionFromAccessToken(
+            sess,
+            accessToken,
+            oidcConfig,
+          );
+          if (!claims) {
+            res.status(401).json({ error: "Invalid or unauthorized token" });
+            return;
+          }
+          setBearerToken(accessToken);
+          req.session.save((err) => {
+            if (err) {
+              logger.error(
+                "[oidc] dev-session: session.save error",
+                serializeError(err),
+              );
+              res.status(500).json({ error: "session save failed" });
+              return;
+            }
+            logger.info(
+              `[oidc] dev-session: established for sub=${sess.sub}`,
+            );
+            res.json({ ok: true, sub: sess.sub, userName: sess.userName });
+          });
+        } catch (err) {
+          logOidcFailure(
+            "[oidc] dev-session error",
+            err,
+            oidcConfig,
+            undefined,
+          );
+          res.status(500).json({ error: "dev-session failed" });
+        }
+      },
+    );
+  }
 
   // POST /api/auth/logout - destroy session
   app.post("/api/auth/logout", (req: Request, res: Response) => {

@@ -62,6 +62,14 @@ export interface TestScenario {
    * `--include-untestable` to override.
    */
   untestable?: string;
+  /**
+   * Optional Playwright spec(s) to run against the deployed application after
+   * the scenario's own verifications pass. String for a single spec, array
+   * for multiple. Files live at
+   * `json/applications/<app>/tests/playwright/<spec>`. Skipped when
+   * env LIVETEST_SKIP_PLAYWRIGHT=1 is set.
+   */
+  playwright_spec?: string | string[];
 }
 
 /** Discovered scenario with resolved identity */

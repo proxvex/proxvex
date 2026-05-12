@@ -7,11 +7,12 @@
 
 import { runCli, type CliJsonResult } from "./cli-executor.mjs";
 import { SnapshotManager } from "./snapshot-manager.mjs";
-import { nestedSsh, waitForServices, waitForContainerStable, waitForLxcInit } from "./ssh-helpers.mjs";
+import { nestedSsh, nestedSshStrict, waitForServices, waitForContainerStable, waitForLxcInit } from "./ssh-helpers.mjs";
 import { buildParams, partitionAfterFailure } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import { collectFailureLogs } from "./diagnostics.mjs";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-types.mjs";
@@ -19,6 +20,7 @@ import { Verifier, buildDefaultVerify, type AppMeta } from "./verifier.mjs";
 import { logOk, logFail, logWarn, logInfo, logStep } from "./log-helpers.mjs";
 import { resolveVolumeStorage } from "./live-test-runner.mjs";
 import { checkVolumeConsistency } from "./volume-consistency-check.mjs";
+import { collectScenarioEnv } from "./scenario-env.mjs";
 
 /** Tasks that use create_ct + replace_ct (old container must stay running) */
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
@@ -842,6 +844,139 @@ export async function executeScenarios(
       }
       logInfo("Verifying...");
       await verifier.runAll(step.vmId, step.hostname, finalVerify, planned);
+
+      // Optional Playwright spec(s) — runs after verifications pass. The
+      // browser server is reached via PLAYWRIGHT_WS (port-forwarded outer
+      // PVE), the app under test is addressed by container hostname (the
+      // remote browser is on the same vmbr1 network and resolves it via
+      // dnsmasq). Specs receive APP_HOSTNAME and decide port/scheme based
+      // on app convention. Opt-out via LIVETEST_SKIP_PLAYWRIGHT=1.
+      if (
+        scenario.playwright_spec &&
+        process.env.LIVETEST_SKIP_PLAYWRIGHT !== "1"
+      ) {
+        const specs = Array.isArray(scenario.playwright_spec)
+          ? scenario.playwright_spec
+          : [scenario.playwright_spec];
+        const usesSsl = (scenario.selectedAddons ?? []).includes("addon-ssl");
+        const instanceFile = path.join(projectRoot, "e2e/.current-instance");
+        const instance = existsSync(instanceFile)
+          ? readFileSync(instanceFile, "utf-8").trim()
+          : "yellow";
+        const playwrightEnv: Record<string, string> = {
+          ...collectScenarioEnv({
+            instance,
+            pveHost: config.pveHost,
+            projectRoot,
+            appHostname: step.hostname,
+            appHttps: usesSsl,
+          }),
+        };
+        // Forward Zitadel test-deployer credentials so the spec's
+        // getDeployerToken() fixture can do client_credentials grant.
+        if (oidcCredentials) {
+          // scenario-executor's port-forward rewrite only replaces the
+          // bare hostname, leaving a stray ".local" tail when the source URL
+          // ended on a hostname.local TLD. Strip it so URL parsing works.
+          const cleanIssuer = oidcCredentials.issuerUrl
+            .replace(/\.local(?=[/:]|$)/, "");
+          playwrightEnv.OIDC_ISSUER_URL = cleanIssuer;
+          playwrightEnv.DEPLOYER_OIDC_MACHINE_CLIENT_ID =
+            oidcCredentials.clientId;
+          playwrightEnv.DEPLOYER_OIDC_MACHINE_CLIENT_SECRET =
+            oidcCredentials.clientSecret;
+        }
+
+        // Pre-step: grant the test-deployer machine user all roles of all
+        // currently-existing OIDC projects on the *specific* Zitadel instance
+        // this scenario depends on. We resolve the right Zitadel via
+        // scenario.depends_on so test variants targeting different Zitadel
+        // deployments (e.g. zitadel/default vs. zitadel/ssl) hit the matching
+        // one instead of whichever container `pct list` returns first.
+        //
+        // Tests that need an authenticated OIDC session MUST declare a
+        // dependency on a zitadel scenario; otherwise this step is skipped
+        // (the dev-session bypass still validates the token via UserInfo, so
+        // it can succeed if no OIDC_REQUIRED_ROLE is enforced).
+        try {
+          const zitadelDep = (scenario.depends_on ?? [])
+            .map((depId) => planned.find((p) => p.scenario.id === depId))
+            .find((p) => p?.scenario.application === "zitadel");
+          if (!zitadelDep) {
+            logWarn(
+              `No zitadel/* in depends_on of ${scenario.id} — skipping test-deployer grant refresh`,
+            );
+          } else {
+            const grantScriptPath = path.join(
+              projectRoot,
+              "livetest-local/applications/zitadel/scripts/post-grant-test-deployer-all-roles.sh",
+            );
+            if (existsSync(grantScriptPath)) {
+              const zitadelHostname = zitadelDep.hostname;
+              const usesSslZitadel = (zitadelDep.scenario.selectedAddons ?? [])
+                .includes("addon-ssl");
+              const rendered = readFileSync(grantScriptPath, "utf-8")
+                .replace(/\{\{\s*hostname\s*\}\}/g, zitadelHostname)
+                .replace(/\{\{\s*project_domain_suffix\s*\}\}/g, "")
+                .replace(
+                  /\{\{\s*ssl_mode\s*\}\}/g,
+                  usesSslZitadel ? "certs" : "",
+                );
+              logInfo(
+                `Granting test-deployer all project roles on ${zitadelDep.scenario.id} (CT ${zitadelDep.vmId})...`,
+              );
+              nestedSshStrict(
+                config.pveHost,
+                config.portPveSsh,
+                `pct exec ${zitadelDep.vmId} -- sh -s`,
+                60000,
+                rendered,
+              );
+              logOk("test-deployer grants refreshed");
+            }
+          }
+        } catch (err) {
+          // Non-fatal: the grant refresh may legitimately fail when zitadel
+          // is already hardened (PAT gone). The dev-session bypass works
+          // without role updates if no OIDC_REQUIRED_ROLE is enforced.
+          logWarn(
+            `test-deployer grant refresh failed (continuing): ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+
+        for (const spec of specs) {
+          const specPath = path.join(
+            "json/applications",
+            scenario.application,
+            "tests/playwright",
+            spec,
+          );
+          const absSpec = path.join(projectRoot, specPath);
+          if (!existsSync(absSpec)) {
+            throw new Error(
+              `playwright_spec missing: ${specPath} (resolved to ${absSpec})`,
+            );
+          }
+          logInfo(`Playwright: ${specPath}`);
+          const proc = spawnSync(
+            "pnpm",
+            ["run", "test:applications", "--", specPath],
+            {
+              cwd: projectRoot,
+              env: { ...process.env, ...playwrightEnv },
+              stdio: "inherit",
+            },
+          );
+          if (proc.status !== 0) {
+            throw new Error(
+              `Playwright spec failed: ${specPath} (exit ${proc.status})`,
+            );
+          }
+          logOk(`Playwright passed: ${specPath}`);
+        }
+      }
 
       // Write test result
       if (resultWriter) {
