@@ -1,0 +1,25 @@
+{
+  "name": "Playwright Browser Server",
+  "description": "Remote Chromium server for end-to-end tests, controlled via WebSocket",
+  "extends": "oci-image",
+  "properties": [
+    { "id": "hostname", "default": "playwright" },
+    { "id": "oci_image", "value": "mcr.microsoft.com/playwright:{{oci_image_tag}}" },
+    { "id": "disk_size", "default": "8" },
+    { "id": "memory", "default": "2048" },
+    { "id": "playwright_port", "default": "3000" },
+    { "id": "playwright_version", "default": "1.59.1" },
+    { "id": "initial_command", "value": "/bin/sh -c 'npm install -g playwright@{{playwright_version}} && exec playwright run-server --port {{playwright_port}} --host 0.0.0.0'" }
+  ],
+  "installation": {
+    "pre_start": [
+      "101-conf-configure-lxc-for-docker.json"
+    ]
+  },
+  "url": "https://playwright.dev/",
+  "documentation": "https://playwright.dev/docs/docker",
+  "source": "https://github.com/microsoft/playwright",
+  "tags": [
+    "testing"
+  ]
+}

@@ -181,6 +181,24 @@ pct create "$VMID" "$TEMPLATE_PATH" \
   $ARCH_ARG \
   $STARTUP_ARG >&2
 RC=$?
+
+# Pull the matching PVE task log for this VMID. pct create is mostly a wrapper
+# around an async PVE-API task — the real error message (e.g. "Disk quota
+# exceeded", "newuidmap not allowed", quota issues during tar extraction)
+# typically lands in the task log, not on pct's own stderr. Without this we
+# silently lose root-cause info when the backend hits SSH timeout / disconnect.
+NODE=$(hostname -s 2>/dev/null || hostname)
+UPID=$(pvesh get "/nodes/${NODE}/tasks" --vmid "$VMID" --typefilter vzcreate --limit 1 --output-format json 2>/dev/null \
+  | grep -oE '"upid"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 \
+  | sed -E 's/.*"upid"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+if [ -n "$UPID" ]; then
+  echo "--- PVE task log: $UPID ---" >&2
+  pvesh get "/nodes/${NODE}/tasks/${UPID}/log" --output-format json 2>/dev/null \
+    | grep -oE '"t"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | sed -E 's/.*"t"[[:space:]]*:[[:space:]]*"(.*)"$/\1/' >&2 || true
+  echo "--- end PVE task log ---" >&2
+fi
+
 if [ $RC -ne 0 ]; then
   echo "Failed to create LXC container!" >&2
   echo "Note: If you see 'newuidmap' errors, this may be due to automatic UID/GID mapping." >&2

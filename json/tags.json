@@ -13,7 +13,8 @@
         { "id": "media", "name": "Media & Streaming" },
         { "id": "infrastructure", "name": "Infrastructure" },
         { "id": "development", "name": "Development" },
-        { "id": "api", "name": "API & Integration" }
+        { "id": "api", "name": "API & Integration" },
+        { "id": "testing", "name": "Testing & QA" }
       ]
     }
   ],
