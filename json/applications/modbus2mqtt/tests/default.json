@@ -3,15 +3,14 @@
     "addon-oidc"
   ],
   "params": [
-    {
-      "name": "oci_image_tag",
-      "value": "latest"
-    }
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "upload_modbus2mqtt_config_content", "value": "file:config-plain.zip" }
   ],
   "depends_on": [
-    "zitadel/default"
+    "zitadel/default",
+    "eclipse-mosquitto/default"
   ],
   "wait_seconds": 30,
   "cli_timeout": 360,
-  "description": "Install modbus2mqtt with OIDC addon (no SSL)"
+  "description": "Install modbus2mqtt with OIDC addon (no SSL); MQTT over plain port 1883"
 }

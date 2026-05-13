@@ -141,6 +141,25 @@ if [ "$REFRESH_HUB" = "true" ]; then
   nested_ssh "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --tarball $REMOTE_TARBALL --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL && rm -f $REMOTE_TARBALL $REMOTE_INSTALLER" \
     || err "install-proxvex.sh --tarball failed inside nested VM"
 
+  # Make the freshly-built image visible to test-target proxvex installs that
+  # pull `ghcr.io/proxvex/proxvex:<version>` via host-get-oci-image.py. That
+  # script searches /var/lib/vz/template/cache/ for `proxvex_<safe_tag>*.tar`
+  # before downloading; without the alias the test target would still pull
+  # the stale ghcr.io image (no PROXVEX_E2E_MODE check → dev-session endpoint
+  # missing → spec gets 404). Alias is created for both :latest (covers
+  # ghcr.io/proxvex/proxvex:latest) and the resolved version tag if known.
+  info "Aliasing fresh image into /var/lib/vz/template/cache/ for test-target cache hits"
+  PROXVEX_VERSION=$(node -e "console.log(require('$PROJECT_ROOT/package.json').version)" 2>/dev/null || echo "")
+  nested_ssh "
+    set -e
+    cp /var/lib/vz/template/cache/proxvex-${E2E_INSTANCE}-redeploy.oci.tar /var/lib/vz/template/cache/proxvex_latest.tar 2>/dev/null || true
+    if [ -n '$PROXVEX_VERSION' ]; then
+      cp /var/lib/vz/template/cache/proxvex-${E2E_INSTANCE}-redeploy.oci.tar /var/lib/vz/template/cache/proxvex_${PROXVEX_VERSION}.tar 2>/dev/null || true
+    fi
+    ls -la /var/lib/vz/template/cache/proxvex_*.tar 2>/dev/null | head -3
+  " >&2 || true
+  ok "Image aliased into cache (proxvex_latest.tar + proxvex_${PROXVEX_VERSION}.tar)"
+
   ok "Hub redeployed; proxvex-LXC $DEPLOYER_VMID running with fresh image"
 fi
 

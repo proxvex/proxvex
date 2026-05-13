@@ -389,6 +389,15 @@ export async function executeScenarios(
 
       const stepStartTime = new Date();
 
+      // Per-iteration crash safety: an uncaught exception inside the loop
+      // body would kill the runner mid-plan, leaving the result dir nearly
+      // empty (we've seen this with --all: scenario 1 throws → 42 remaining
+      // scenarios never run, no result.md anywhere). Catching here turns the
+      // throw into a "crashed" test result and lets the rest of the plan
+      // proceed; downstream scenarios that depend on this one will be
+      // filtered out by the existing partitionAfterFailure logic.
+      try {
+
       // Skip dependencies that were restored from snapshot or are already running
       if (step.skipExecution) {
         logOk(`Skipping ${scenario.id} (${step.isDependency ? "restored from snapshot" : "already running"})`);
@@ -983,6 +992,7 @@ export async function executeScenarios(
         const pwLogPath = path.join(scenarioResultDir, "playwright-output.log");
         try { writeFileSync(pwLogPath, ""); } catch { /* dir may not exist yet — runner creates it */ }
 
+        let playwrightFailed = false;
         for (const spec of specs) {
           const specPath = path.join(
             "json/applications",
@@ -1024,10 +1034,10 @@ export async function executeScenarios(
             );
           } catch { /* non-fatal — we still threw above */ }
           if (proc.status !== 0) {
-            // Write a `status: failed` result before bubbling out, otherwise
-            // the run directory stays empty (the success-path write at the
-            // bottom of this iteration never executes), which makes the
-            // post-mortem (test-result.md + debug bundle) inaccessible.
+            // Write a `status: failed` result so the bundle (test-result.md +
+            // artifacts) is accessible post-mortem, then mark this scenario
+            // failed and move on. Previously we threw, which aborted the
+            // entire --all run on the first failing spec.
             const errMsg = `Playwright spec failed: ${specPath} (exit ${proc.status})`;
             if (resultWriter) {
               await resultWriter.write(TestResultWriter.buildResult({
@@ -1042,11 +1052,16 @@ export async function executeScenarios(
                 ...(cliResult.restartKey ? { restartKey: cliResult.restartKey } : {}),
               }));
             }
-            throw new Error(errMsg);
+            logFail(errMsg);
+            result.errors.push(errMsg);
+            result.failed++;
+            playwrightFailed = true;
+            break;  // skip remaining specs for this scenario, fall through to cleanup below
           }
           logOk(`Playwright passed: ${specPath}`);
         }
       }
+      if (playwrightFailed) continue;
 
       // Write test result
       if (resultWriter) {
@@ -1111,6 +1126,43 @@ export async function executeScenarios(
           snapMgr.createHostSnapshot("dep-stacks-ready", buildHash, capturedDeps);
         } catch (err) {
           logInfo(`Snapshot creation failed (non-fatal): ${err}`);
+        }
+      }
+      } catch (iterErr) {
+        // Uncaught exception during this scenario — turn it into a "failed"
+        // result so the run continues with the remaining scenarios. The
+        // partitionAfterFailure logic above (used by the cliResult.exitCode !== 0
+        // path) is bypassed here because we may have thrown before reaching it,
+        // so blocked downstream scenarios will simply fail their own pre-flight
+        // checks rather than being marked "skipped" — that's acceptable for the
+        // crash path (better than zero results).
+        const errMsg = `Scenario crashed: ${scenario.id} (${task}): ${iterErr instanceof Error ? iterErr.message : String(iterErr)}`;
+        logFail(errMsg);
+        if (iterErr instanceof Error && iterErr.stack) {
+          logInfo(iterErr.stack);
+        }
+        result.errors.push(errMsg);
+        result.failed++;
+        result.steps.push({
+          vmId: step.vmId, hostname: step.hostname,
+          application: scenario.application, scenarioId: scenario.id,
+        });
+        if (resultWriter) {
+          try {
+            await resultWriter.write(TestResultWriter.buildResult({
+              runId: resultWriter.getRunId(),
+              scenarioId: scenario.id, application: scenario.application, task,
+              status: "failed", vmId: step.vmId, hostname: step.hostname,
+              stackName: step.stackName, addons: scenario.selectedAddons ?? [],
+              startedAt: stepStartTime, finishedAt: new Date(),
+              deployerVersion, deployerGitHash,
+              commandLine: resultWriter.getCommandLine(),
+              dependencies: [], verifyResults: {}, errorMessage: errMsg,
+            }));
+          } catch { /* result write failure — already logging the throw above */ }
+        }
+        if (options?.failFast) {
+          throw iterErr;
         }
       }
     }

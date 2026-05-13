@@ -70,6 +70,15 @@ export interface TestScenario {
    * env LIVETEST_SKIP_PLAYWRIGHT=1 is set.
    */
   playwright_spec?: string | string[];
+
+  /**
+   * Environment variables that must be set (and non-empty) on the dev box
+   * before this scenario is selectable. The runner drops the scenario from
+   * the plan with a warning when any of these are missing. Use for
+   * scenarios that need real-world credentials the source tree can't ship
+   * (e.g. `["CF_TOKEN"]` for ACME Cloudflare DNS-01 challenges).
+   */
+  requires_env?: string[];
 }
 
 /** Discovered scenario with resolved identity */

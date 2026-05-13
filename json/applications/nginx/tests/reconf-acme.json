@@ -1,6 +1,7 @@
 {
   "task": "reconfigure",
   "depends_on": ["nginx/acme"],
+  "requires_env": ["CF_TOKEN"],
   "selectedAddons": ["addon-acme"],
   "stack_name": "acme",
   "wait_seconds": 30,

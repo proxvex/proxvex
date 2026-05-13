@@ -68,6 +68,7 @@
   },
   "upgrade": {
     "post_start": [
+      { "name": "210-wait-for-container-ready.json", "category": "start" },
       "307-post-start-dockerd.json",
       "315-post-update-compose-image-tags.json",
       "316-post-upgrade-system-packages.json",
