@@ -2,16 +2,7 @@
   "name": "Create Test OIDC Deployer User",
   "description": "Creates a machine user with ORG_OWNER role and client credentials for test OIDC operations. The deployer CLI authenticates as this user to create OIDC apps for other applications.",
   "execute_on": "lxc",
-  "skip_if_all_missing": ["zitadel_project_id"],
   "parameters": [
-    {
-      "id": "zitadel_project_id",
-      "name": "Zitadel Project ID",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Internal Zitadel project ID emitted by 340-post-setup-deployer-in-zitadel. Required so skip_if_all_missing can resolve to a real value when present (otherwise the check always sees NOT_DEFINED and the template is silently skipped, leaving /bootstrap/test-deployer.json absent and breaking the Phase D grant hook)."
-    },
     {
       "id": "hostname",
       "name": "Hostname",
