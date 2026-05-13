@@ -31,7 +31,7 @@
         },
         {
           "port": 1810,
-          "hostname": "playwright",
+          "hostname": "playwright-default",
           "ip": "10.0.0.140",
           "containerPort": 3000
         }
@@ -67,7 +67,7 @@
         },
         {
           "port": 2810,
-          "hostname": "playwright",
+          "hostname": "playwright-default",
           "ip": "10.0.0.140",
           "containerPort": 3000
         },
@@ -109,7 +109,7 @@
         },
         {
           "port": 3810,
-          "hostname": "playwright",
+          "hostname": "playwright-default",
           "ip": "10.0.0.140",
           "containerPort": 3000
         }

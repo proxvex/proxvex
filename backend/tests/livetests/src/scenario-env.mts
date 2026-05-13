@@ -63,12 +63,16 @@ function resolvePlaywrightWsPort(
       }
     >;
   };
-  const fwd = cfg.instances?.[instance]?.portForwarding?.find(
-    (f) => f.hostname === "playwright",
-  );
+  // Match by `<app>-<variant>` naming convention from scenario-planner —
+  // playwright/default → "playwright-default". Accept the bare "playwright"
+  // as a fallback for older config.json files that pre-date the suffix.
+  const entries = cfg.instances?.[instance]?.portForwarding ?? [];
+  const fwd =
+    entries.find((f) => f.hostname === "playwright-default")
+    ?? entries.find((f) => f.hostname === "playwright");
   if (!fwd) {
     throw new Error(
-      `No portForwarding entry for hostname "playwright" in e2e/config.json instance "${instance}" — deploy the playwright application or add the entry manually.`,
+      `No portForwarding entry for hostname "playwright-default" (or legacy "playwright") in e2e/config.json instance "${instance}" — deploy the playwright application or add the entry manually.`,
     );
   }
   return fwd.port;

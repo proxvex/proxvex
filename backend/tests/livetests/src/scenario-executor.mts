@@ -358,6 +358,42 @@ export async function executeScenarios(
           vmId: step.vmId, hostname: step.hostname,
           application: scenario.application, scenarioId: scenario.id,
         });
+        // Even when the zitadel install is skipped (running container reused
+        // from a prior run or restored from snapshot), downstream Playwright
+        // specs still need DEPLOYER_OIDC_* env vars. The bootstrap file lives
+        // in the LXC volume so it survives skipped installs — read it now.
+        if (scenario.application === "zitadel" && !oidcCredentials) {
+          try {
+            const credJson = nestedSsh(
+              config.pveHost, config.portPveSsh,
+              `pct exec ${step.vmId} -- cat /bootstrap/test-deployer.json 2>/dev/null`,
+              10000,
+            );
+            const creds = JSON.parse(credJson.trim());
+            if (creds.client_id && creds.client_secret && creds.issuer_url) {
+              let issuerUrl = creds.issuer_url as string;
+              const portFwd = (config as { portForwarding?: Array<{ port: number; hostname: string; ip: string; containerPort: number }> }).portForwarding;
+              if (portFwd) {
+                for (const fwd of portFwd) {
+                  if (issuerUrl.includes(fwd.hostname)) {
+                    issuerUrl = issuerUrl.replace(
+                      new RegExp(`${fwd.hostname}(:\\d+)?`),
+                      `${config.pveHost}:${fwd.port}`,
+                    );
+                    logInfo(`Rewritten OIDC issuer URL for external access: ${issuerUrl}`);
+                    break;
+                  }
+                }
+              }
+              oidcCredentials = {
+                issuerUrl,
+                clientId: creds.client_id,
+                clientSecret: creds.client_secret,
+              };
+              logOk("Test OIDC deployer credentials loaded from skipped Zitadel container");
+            }
+          } catch { /* no test-deployer in this snapshot — Phase D will fail later */ }
+        }
         continue;
       }
 

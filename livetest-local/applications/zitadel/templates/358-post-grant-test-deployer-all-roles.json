@@ -5,6 +5,14 @@
   "skip_if_all_missing": ["zitadel_project_id"],
   "parameters": [
     {
+      "id": "zitadel_project_id",
+      "name": "Zitadel Project ID",
+      "type": "string",
+      "required": false,
+      "advanced": true,
+      "description": "Internal Zitadel project ID emitted by 340-post-setup-deployer-in-zitadel. Must be declared as a parameter here so skip_if_all_missing can resolve to a real value; otherwise the check always sees NOT_DEFINED and the grant template is silently skipped."
+    },
+    {
       "id": "hostname",
       "name": "Hostname",
       "type": "string",
