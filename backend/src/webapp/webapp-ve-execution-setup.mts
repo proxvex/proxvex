@@ -3,7 +3,10 @@ import { ICommand, IPlannedStep, IVeExecuteMessage } from "@src/types.mjs";
 import { IProcessedTemplate } from "@src/templates/templateprocessor-types.mjs";
 import { IRestartInfo } from "@src/ve-execution/ve-execution-constants.mjs";
 import { VeExecution } from "@src/ve-execution/ve-execution.mjs";
-import { Logger } from "@src/logger/index.mjs";
+import { spawnAsync } from "@src/spawn-utils.mjs";
+import { Logger, createLogger } from "@src/logger/index.mjs";
+
+const diagLogger = createLogger("diagnostics");
 import type { IVeDebugEvent } from "@src/ve-execution/ve-execution-message-emitter.mjs";
 import { WebAppVeMessageManager } from "./webapp-ve-message-manager.mjs";
 import { WebAppVeRestartManager } from "./webapp-ve-restart-manager.mjs";
@@ -74,11 +77,17 @@ export class WebAppVeExecutionSetup {
       messageManager.handleExecutionMessage(msg, application, task, restartKey);
       // Stream stderr chunks into the debug bundle so the per-script trace
       // can interleave them with backend logger lines by timestamp.
+      // Exception: kind:"skipped" messages already have a dedicated
+      // `script-skipped` debug event that creates a scripts[] entry. Routing
+      // them through attachStderr too would re-emit the "Skipped: …" text as
+      // stderr attached to the previous script — the very misattribution
+      // this kind flag is meant to prevent.
       if (
         debugCollector &&
         debugLevel !== "off" &&
         typeof msg.stderr === "string" &&
-        msg.stderr.length > 0
+        msg.stderr.length > 0 &&
+        msg.kind !== "skipped"
       ) {
         debugCollector.attachStderr(restartKey, msg.stderr);
       }
@@ -86,8 +95,20 @@ export class WebAppVeExecutionSetup {
     exec.on("finished", (msg: IVMContext) => {
       veContext.getStorageContext().setVMContext(msg);
       if (debugCollector && debugLevel !== "off") {
-        debugCollector.finish(restartKey);
-        Logger.setDebugSink(null);
+        // Capture LXC console log + config for the current and (for
+        // reconfigure/upgrade) previous VM. Best-effort: failures land in
+        // the bundle as error notes, never block finish().
+        void captureLxcDiagnostics(
+          debugCollector,
+          restartKey,
+          veContext,
+          msg,
+          inputs,
+          defaults,
+        ).finally(() => {
+          debugCollector.finish(restartKey);
+          Logger.setDebugSink(null);
+        });
       }
     });
 
@@ -188,4 +209,190 @@ function readDebugLevelFromInputs(
     "off";
   if (raw === "extLog" || raw === "script") return raw;
   return "off";
+}
+
+/**
+ * Resolve an input value by id, falling back to defaults. Returns the raw
+ * value or undefined if neither source defines it.
+ */
+function resolveInput(
+  id: string,
+  inputs: Array<{ id: string; value: string | number | boolean }>,
+  defaults: Map<string, string | number | boolean>,
+): string | number | boolean | undefined {
+  const inp = inputs.find((i) => i.id === id);
+  if (inp !== undefined) return inp.value;
+  return defaults.get(id);
+}
+
+function toVmId(v: string | number | boolean | undefined): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+  if (typeof v === "string") {
+    const n = parseInt(v, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return undefined;
+}
+
+/**
+ * After the task finishes, fetch the LXC console log (via VeLogsService —
+ * same code path as the live /logs/<ve>/<vmid> endpoint) and the
+ * `/etc/pve/lxc/<vmid>.conf` snapshot for each VM of interest, and attach
+ * them to the debug bundle. Covers the current vm_id plus previous_vm_id
+ * when set (reconfigure/upgrade).
+ *
+ * Best-effort: any per-VM failure is recorded as an error string in the
+ * bundle rather than thrown, so a missing previous container or an SSH
+ * hiccup never blocks bundle finalisation.
+ */
+async function captureLxcDiagnostics(
+  debugCollector: WebAppDebugCollector,
+  restartKey: string,
+  veContext: IVEContext,
+  finishedCtx: IVMContext,
+  inputs: Array<{ id: string; value: string | number | boolean }>,
+  defaults: Map<string, string | number | boolean>,
+): Promise<void> {
+  const targets: Array<{ vmId: number; label: string }> = [];
+  const currentVmId = finishedCtx.vmid || toVmId(resolveInput("vm_id", inputs, defaults));
+  if (currentVmId) targets.push({ vmId: currentVmId, label: "current" });
+  const prevVmId = toVmId(resolveInput("previous_vm_id", inputs, defaults));
+  if (prevVmId && prevVmId !== currentVmId) {
+    targets.push({ vmId: prevVmId, label: "previous" });
+  }
+  diagLogger.info("capture starting", {
+    restartKey,
+    vmids: targets.map((t) => `${t.vmId}(${t.label})`).join(",") || "(none)",
+    host: `${veContext.host}:${veContext.port ?? 22}`,
+  });
+  if (targets.length === 0) return;
+
+  const sshHost = buildSshTarget(veContext);
+
+  // Single SSH call per VM that returns both conf and log in one go,
+  // separated by sentinel lines. Avoids VeLogsService's 4-5 sequential
+  // SSH round-trips (checkStatus / getHostname / findLogFile / cat) that
+  // routinely exceeded the runner's 10s bundle-fetch timeout.
+  await Promise.all(
+    targets.map(async ({ vmId, label }) => {
+      const diag: {
+        vmId: number;
+        label: string;
+        log?: string;
+        logSource?: string;
+        logError?: string;
+        conf?: string;
+        confError?: string;
+      } = { vmId, label };
+
+      const confPath = `/etc/pve/lxc/${vmId}.conf`;
+      // Try the two canonical LXC log locations directly. The first match
+      // wins. tail -c limits to ~256 KB so a runaway log can't bloat the
+      // bundle indefinitely.
+      const remoteScript = [
+        `echo "===CONF==="`,
+        `cat ${confPath} 2>&1 || true`,
+        `echo "===HOSTNAME==="`,
+        `awk -F': *' '/^hostname:/ {print $2; exit}' ${confPath} 2>/dev/null || true`,
+        `HN=$(awk -F': *' '/^hostname:/ {print $2; exit}' ${confPath} 2>/dev/null)`,
+        `LOG="/var/log/lxc/$HN-${vmId}.log"`,
+        `[ -n "$HN" ] && [ -f "$LOG" ] || LOG="/var/log/lxc/container-${vmId}.log"`,
+        `echo "===LOGPATH==="`,
+        `echo "$LOG"`,
+        `echo "===LOG==="`,
+        `[ -f "$LOG" ] && tail -c 262144 "$LOG" 2>/dev/null || echo "(log file missing: $LOG)"`,
+      ].join("; ");
+
+      try {
+        const res = await sshExec(sshHost, remoteScript, 15000);
+        if (res.exitCode === 0) {
+          parseDiagnosticBlocks(res.stdout, diag, vmId);
+        } else {
+          diag.confError = `ssh exit ${res.exitCode}: ${res.stderr?.trim() || "(no stderr)"}`;
+          diag.logError = diag.confError;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        diag.confError = msg;
+        diag.logError = msg;
+      }
+
+      diagLogger.info("capture done", {
+        restartKey,
+        vmId,
+        confBytes: diag.conf?.length ?? 0,
+        logBytes: diag.log?.length ?? 0,
+        confError: diag.confError,
+        logError: diag.logError,
+      });
+      debugCollector.attachDiagnostic(restartKey, diag);
+    }),
+  );
+}
+
+function parseDiagnosticBlocks(
+  stdout: string,
+  diag: {
+    log?: string;
+    logSource?: string;
+    logError?: string;
+    conf?: string;
+    confError?: string;
+  },
+  vmId: number,
+): void {
+  const sections = stdout.split(/^===(CONF|HOSTNAME|LOGPATH|LOG)===\s*$/m);
+  // sections: ["", "CONF", "<conf>", "HOSTNAME", "<hostname>", "LOGPATH", "<path>", "LOG", "<log>"]
+  const map = new Map<string, string>();
+  for (let i = 1; i + 1 < sections.length; i += 2) {
+    map.set(sections[i]!, sections[i + 1] ?? "");
+  }
+  const conf = map.get("CONF")?.trim();
+  if (conf) diag.conf = conf;
+  else diag.confError = `/etc/pve/lxc/${vmId}.conf not readable`;
+  const logPath = map.get("LOGPATH")?.trim();
+  if (logPath) diag.logSource = logPath;
+  const log = map.get("LOG");
+  if (log && !log.startsWith("(log file missing")) {
+    diag.log = log;
+  } else {
+    diag.logError = log?.trim() || "log not captured";
+  }
+}
+
+/** Resolve the ssh `[user@]host` target plus port from veContext. */
+function buildSshTarget(veContext: IVEContext): { host: string; port: number } {
+  let host = veContext.host;
+  if (typeof host === "string" && !host.includes("@")) {
+    host = `root@${host}`;
+  }
+  return { host, port: veContext.port || 22 };
+}
+
+async function sshExec(
+  target: { host: string; port: number },
+  command: string,
+  timeoutMs: number,
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const args = [
+    "-o",
+    "StrictHostKeyChecking=no",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "PasswordAuthentication=no",
+    "-o",
+    "PreferredAuthentications=publickey",
+    "-o",
+    "LogLevel=ERROR",
+    "-o",
+    "ConnectTimeout=5",
+    "-T",
+    "-q",
+    "-p",
+    String(target.port),
+    target.host,
+    command,
+  ];
+  return spawnAsync("ssh", args, { timeout: timeoutMs });
 }

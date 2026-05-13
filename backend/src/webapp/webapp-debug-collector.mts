@@ -35,6 +35,18 @@ interface DebugScript {
   exitCode?: number;
   redactedScript: string;
   substitutions: IVarSubstitution[];
+  skipped?: boolean;
+  skippedReason?: string;
+}
+
+interface DebugDiagnostic {
+  vmId: number;
+  label: string; // e.g. "current", "previous"
+  log?: string;
+  logSource?: string; // resolved log file path on the ve host
+  logError?: string;
+  conf?: string;
+  confError?: string;
 }
 
 interface DebugEntry {
@@ -46,6 +58,12 @@ interface DebugEntry {
   finishedAt?: number;
   scripts: DebugScript[];
   events: TraceEvent[];
+  diagnostics: DebugDiagnostic[];
+  // Promise that resolves when finish() is called. Lets bundle consumers
+  // (test runner) await async post-task capture (LXC log + conf) before
+  // they read the manifest — otherwise they race and miss diagnostics/.
+  ready: Promise<void>;
+  resolveReady: () => void;
 }
 
 /**
@@ -82,6 +100,10 @@ export class WebAppDebugCollector {
   ): void {
     if (debugLevel === "off") return;
     const now = Date.now();
+    let resolveReady: () => void = () => {};
+    const ready = new Promise<void>((resolve) => {
+      resolveReady = resolve;
+    });
     this.entries.set(restartKey, {
       application,
       task,
@@ -90,6 +112,9 @@ export class WebAppDebugCollector {
       startedAt: now,
       scripts: [],
       events: [],
+      diagnostics: [],
+      ready,
+      resolveReady,
     });
     this.activeRestartKey = restartKey;
   }
@@ -98,7 +123,24 @@ export class WebAppDebugCollector {
     const entry = this.entries.get(restartKey);
     if (!entry) return;
     entry.finishedAt = Date.now();
+    entry.resolveReady();
     if (this.activeRestartKey === restartKey) this.activeRestartKey = null;
+  }
+
+  /**
+   * Resolves when finish() has been called for this restartKey, or
+   * immediately when there is no entry (debug was off / already expired).
+   * Bundle consumers (test runners) await this before reading the manifest
+   * so they don't race with async post-task diagnostic capture.
+   */
+  async waitForFinish(restartKey: string, timeoutMs = 30000): Promise<void> {
+    const entry = this.entries.get(restartKey);
+    if (!entry) return;
+    if (entry.finishedAt !== undefined) return;
+    await Promise.race([
+      entry.ready,
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
   }
 
   has(restartKey: string): boolean {
@@ -139,6 +181,18 @@ export class WebAppDebugCollector {
     }
   }
 
+  /**
+   * Attach captured per-VM diagnostics: the LXC console log and the LXC
+   * config file. Called once per VM-of-interest after the task finishes.
+   * The bundle writes each log as `diagnostics/lxc-<vmid>.log` and embeds the
+   * conf inline in `index.md`.
+   */
+  attachDiagnostic(restartKey: string, diag: DebugDiagnostic): void {
+    const e = this.entries.get(restartKey);
+    if (!e) return;
+    e.diagnostics.push(diag);
+  }
+
   handleDebugEvent(restartKey: string, event: IVeDebugEvent): void {
     const e = this.entries.get(restartKey);
     if (!e) return;
@@ -163,6 +217,23 @@ export class WebAppDebugCollector {
           secure: s.secure,
         });
       }
+    } else if (event.type === "script-skipped") {
+      // A command whose skip_if_all_missing condition matched. Recorded as
+      // its own row in the chronological scripts table (no per-script .md
+      // file is written for skipped entries — there's no body to redact and
+      // no trace to interleave).
+      e.scripts.push({
+        index: event.index,
+        command: event.command,
+        executeOn: event.executeOn,
+        ...(event.template ? { template: event.template } : {}),
+        startedAt: event.ts,
+        finishedAt: event.ts,
+        redactedScript: "",
+        substitutions: [],
+        skipped: true,
+        skippedReason: event.reason,
+      });
     } else {
       const script = e.scripts.find((s) => s.index === event.index);
       if (script) {
@@ -212,6 +283,10 @@ export class WebAppDebugCollector {
     files.set("variables.json", variablesJson);
 
     for (const script of entry.scripts) {
+      // Skipped commands have no body and no trace — they're represented
+      // only by their row in the index.md scripts table. Writing per-script
+      // .md/.json sidecars would be empty noise.
+      if (script.skipped) continue;
       const slug = slugify(script.command, script.index);
       const base = `${pad2(script.index)}-${slug}`;
       const scriptFiles = this.renderScript(
@@ -225,6 +300,16 @@ export class WebAppDebugCollector {
       files.set(`scripts/${base}.substitutions.json`, scriptFiles.substJson);
       files.set(`scripts/${base}.trace.json`, scriptFiles.traceJson);
     }
+
+    // Captured diagnostics: LXC console log goes into its own file in the
+    // diagnostics/ subdir, the (small) /etc/pve/lxc/<vmid>.conf is embedded
+    // inline in index.md.
+    for (const diag of entry.diagnostics) {
+      if (typeof diag.log === "string" && diag.log.length > 0) {
+        files.set(`diagnostics/lxc-${diag.vmId}.log`, diag.log);
+      }
+    }
+
     return files;
   }
 
@@ -318,6 +403,9 @@ export class WebAppDebugCollector {
     };
 
     const scriptRows = entry.scripts.map((s) => {
+      if (s.skipped) {
+        return `| ${s.index} | \`${escapeMd(s.command)}\` | ${s.executeOn ?? "—"} | skipped | — | _${escapeMd(s.skippedReason ?? "skipped")}_ |`;
+      }
       const slug = slugify(s.command, s.index);
       const exit = s.exitCode ?? "?";
       const dur =
@@ -325,6 +413,7 @@ export class WebAppDebugCollector {
       return `| ${s.index} | \`${escapeMd(s.command)}\` | ${s.executeOn ?? "?"} | ${exit} | ${dur} | [scripts/${pad2(s.index)}-${slug}.md](scripts/${pad2(s.index)}-${slug}.md) |`;
     });
 
+    const hasDiagnostics = entry.diagnostics.length > 0;
     const md = [
       `# Debug Bundle — ${entry.application} ${entry.task}`,
       `**restartKey**: \`${entry.restartKey}\` · **level**: \`${entry.debugLevel}\` · **duration**: ${duration}ms`,
@@ -337,6 +426,7 @@ export class WebAppDebugCollector {
       `- [Scripts (chronological)](#scripts-chronological)`,
       `- [Preamble Trace](#preamble-trace)`,
       `- [Postamble Trace](#postamble-trace)`,
+      ...(hasDiagnostics ? [`- [Diagnostics](#diagnostics)`] : []),
       `- [Cross-References](#cross-references)`,
       ``,
       section("Scripts (chronological)"),
@@ -352,6 +442,7 @@ export class WebAppDebugCollector {
       `_Events after the last script (cleanup, notes update)._`,
       renderTraceHtml(buckets.postamble),
       ``,
+      ...(hasDiagnostics ? renderDiagnostics(entry.diagnostics) : []),
       section("Cross-References"),
       `- [Variables](variables.md) — where each variable is used`,
       ``,
@@ -551,6 +642,33 @@ function anchorSlug(s: string): string {
 function section(title: string, anchor?: string): string {
   const slug = anchor ?? anchorSlug(title);
   return `<a id="${slug}"></a>\n## ${title}`;
+}
+
+/**
+ * Render the captured-diagnostics section: link to the LXC console log
+ * (preserved as diagnostics/lxc-<vmid>.log) and embed the (small)
+ * /etc/pve/lxc/<vmid>.conf inline as a fenced code block.
+ */
+function renderDiagnostics(diagnostics: DebugDiagnostic[]): string[] {
+  const lines: string[] = [section("Diagnostics")];
+  for (const d of diagnostics) {
+    lines.push(``, `### CT ${d.vmId} (${d.label})`);
+    if (typeof d.log === "string" && d.log.length > 0) {
+      const src = d.logSource ? ` — source: \`${d.logSource}\`` : "";
+      lines.push(
+        `- LXC console log: [diagnostics/lxc-${d.vmId}.log](diagnostics/lxc-${d.vmId}.log)${src}`,
+      );
+    } else if (d.logError) {
+      lines.push(`- LXC console log: _unavailable — ${d.logError}_`);
+    }
+    if (typeof d.conf === "string" && d.conf.length > 0) {
+      lines.push(``, `**/etc/pve/lxc/${d.vmId}.conf:**`, "```", d.conf.trimEnd(), "```");
+    } else if (d.confError) {
+      lines.push(`- LXC config: _unavailable — ${d.confError}_`);
+    }
+  }
+  lines.push(``);
+  return lines;
 }
 
 function formatTime(ts: number): string {

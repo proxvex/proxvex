@@ -25,6 +25,15 @@ export type IVeDebugEvent =
       command: string;
       exitCode: number;
       ts: number;
+    }
+  | {
+      type: "script-skipped";
+      index: number;
+      command: string;
+      executeOn: string | undefined;
+      template?: string;
+      reason: string;
+      ts: number;
     };
 
 /**
@@ -85,6 +94,29 @@ export class VeExecutionMessageEmitter {
   }
 
   /**
+   * Emits a debug event recording that a command was skipped because its
+   * skip_if_all_missing condition matched. Shares the script counter with
+   * real script-start events so skipped commands interleave in chronological
+   * index order. Returns the assigned index for symmetry with `emitDebugScriptStart`.
+   */
+  emitDebugScriptSkipped(cmd: ICommand, reason: string): number {
+    const index = ++this.scriptCounter;
+    const sourceTemplate = (cmd as unknown as { _sourceTemplate?: string })
+      ._sourceTemplate;
+    const event: IVeDebugEvent = {
+      type: "script-skipped",
+      index,
+      command: cmd.name ?? "",
+      executeOn: typeof cmd.execute_on === "string" ? cmd.execute_on : undefined,
+      ...(sourceTemplate ? { template: sourceTemplate } : {}),
+      reason,
+      ts: Date.now(),
+    };
+    this.eventEmitter.emit("debug", event);
+    return index;
+  }
+
+  /**
    * Emits a partial message for streaming output.
    */
   emitPartialMessage(
@@ -114,6 +146,7 @@ export class VeExecutionMessageEmitter {
     exitCode: number,
     index: number,
     hostname?: string,
+    kind?: "skipped",
   ): void {
     const sourceTemplate = (cmd as unknown as { _sourceTemplate?: string })._sourceTemplate;
     this.eventEmitter.emit("message", {
@@ -126,6 +159,7 @@ export class VeExecutionMessageEmitter {
       index,
       partial: false,
       ...(sourceTemplate ? { template: sourceTemplate } : {}),
+      ...(kind ? { kind } : {}),
     } as unknown as IVeExecuteMessage);
   }
 
