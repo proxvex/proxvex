@@ -1,6 +1,6 @@
 {
   "params": [
-    { "name": "upload_mosquitto_configuration_content", "value": "file:mosquitto.conf" }
+    { "name": "upload_mosquitto_configuration_content", "value": "file:mosquitto-mtls.conf" }
   ],
   "selectedAddons": ["addon-ssl"],
   "wait_seconds": 30
