@@ -884,6 +884,7 @@ export async function executeScenarios(
       // remote browser is on the same vmbr1 network and resolves it via
       // dnsmasq). Specs receive APP_HOSTNAME and decide port/scheme based
       // on app convention. Opt-out via LIVETEST_SKIP_PLAYWRIGHT=1.
+      let playwrightFailed = false;
       if (
         scenario.playwright_spec &&
         process.env.LIVETEST_SKIP_PLAYWRIGHT !== "1"
@@ -992,7 +993,6 @@ export async function executeScenarios(
         const pwLogPath = path.join(scenarioResultDir, "playwright-output.log");
         try { writeFileSync(pwLogPath, ""); } catch { /* dir may not exist yet — runner creates it */ }
 
-        let playwrightFailed = false;
         for (const spec of specs) {
           const specPath = path.join(
             "json/applications",
