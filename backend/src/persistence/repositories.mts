@@ -631,18 +631,34 @@ export class FileSystemRepositories
       // For each app in the hierarchy, try every base path it lives at
       // (overlay first, canonical second) — an overlay may extend a
       // canonical app additively without re-providing its scripts/ tree.
+      //
+      // We do NOT use TemplatePathResolver.resolveScriptPath here because that
+      // helper falls back to shared scripts when the appPath doesn't contain
+      // the script. We need the shared fallback to happen only AFTER every
+      // appPath of every app in the hierarchy is exhausted; otherwise the
+      // first overlay-path lookup returns the shared no-op and masks the
+      // canonical app's real override.
       const hierarchy = ref.applicationId ? this.getApplicationHierarchy(ref.applicationId) : [];
       outer: for (const appId of hierarchy) {
         const appPaths = this.getApplicationPaths(appId);
         for (const appPath of appPaths) {
-          scriptPath = TemplatePathResolver.resolveScriptPath(
-            ref.name,
-            appPath,
-            this.pathes,
-            ref.category || "root",
-          );
-          if (scriptPath && fs.existsSync(scriptPath)) break outer;
-          scriptPath = null;
+          if (ref.category && ref.category !== "root") {
+            const cat = path.join(appPath, "scripts", ref.category, ref.name);
+            if (fs.existsSync(cat)) { scriptPath = cat; break outer; }
+          }
+          const flat = path.join(appPath, "scripts", ref.name);
+          if (fs.existsSync(flat)) { scriptPath = flat; break outer; }
+        }
+      }
+
+      // No app-scoped script in the hierarchy — fall back to shared scripts.
+      if (!scriptPath) {
+        const bases = [this.pathes.localPath, this.pathes.hubPath, this.pathes.jsonPath].filter(Boolean) as string[];
+        for (const base of bases) {
+          const p = ref.category && ref.category !== "root"
+            ? path.join(base, "shared", "scripts", ref.category, ref.name)
+            : path.join(base, "shared", "scripts", ref.name);
+          if (fs.existsSync(p)) { scriptPath = p; break; }
         }
       }
     }
