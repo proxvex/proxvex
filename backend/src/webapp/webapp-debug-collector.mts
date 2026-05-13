@@ -35,6 +35,8 @@ interface DebugScript {
   exitCode?: number;
   redactedScript: string;
   substitutions: IVarSubstitution[];
+  skipped?: boolean;
+  skippedReason?: string;
 }
 
 interface DebugEntry {
@@ -163,6 +165,23 @@ export class WebAppDebugCollector {
           secure: s.secure,
         });
       }
+    } else if (event.type === "script-skipped") {
+      // A command whose skip_if_all_missing condition matched. Recorded as
+      // its own row in the chronological scripts table (no per-script .md
+      // file is written for skipped entries — there's no body to redact and
+      // no trace to interleave).
+      e.scripts.push({
+        index: event.index,
+        command: event.command,
+        executeOn: event.executeOn,
+        ...(event.template ? { template: event.template } : {}),
+        startedAt: event.ts,
+        finishedAt: event.ts,
+        redactedScript: "",
+        substitutions: [],
+        skipped: true,
+        skippedReason: event.reason,
+      });
     } else {
       const script = e.scripts.find((s) => s.index === event.index);
       if (script) {
@@ -212,6 +231,10 @@ export class WebAppDebugCollector {
     files.set("variables.json", variablesJson);
 
     for (const script of entry.scripts) {
+      // Skipped commands have no body and no trace — they're represented
+      // only by their row in the index.md scripts table. Writing per-script
+      // .md/.json sidecars would be empty noise.
+      if (script.skipped) continue;
       const slug = slugify(script.command, script.index);
       const base = `${pad2(script.index)}-${slug}`;
       const scriptFiles = this.renderScript(
@@ -318,6 +341,9 @@ export class WebAppDebugCollector {
     };
 
     const scriptRows = entry.scripts.map((s) => {
+      if (s.skipped) {
+        return `| ${s.index} | \`${escapeMd(s.command)}\` | ${s.executeOn ?? "—"} | skipped | — | _${escapeMd(s.skippedReason ?? "skipped")}_ |`;
+      }
       const slug = slugify(s.command, s.index);
       const exit = s.exitCode ?? "?";
       const dur =

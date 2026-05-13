@@ -207,16 +207,29 @@ export class VeExecutionCommandProcessor {
 
   /**
    * Handles a skipped command by emitting a message.
+   * Also emits a `script-skipped` debug event when debug collection is
+   * active, so the bundle shows the skip as its own row in the chronological
+   * scripts table rather than as stderr attached to the previous script.
    */
   handleSkippedCommand(cmd: ICommand, msgIndex: number): number {
     // Use getNextMessageIndex() to ensure consistency with other commands
     const index = getNextMessageIndex();
+    const reason = cmd.description || "Skipped: all required parameters missing";
+    if (this.currentDebugLevel() !== "off") {
+      try {
+        this.deps.messageEmitter.emitDebugScriptSkipped(cmd, reason);
+      } catch {
+        /* never break execution because of a debug-twin failure */
+      }
+    }
     this.deps.messageEmitter.emitStandardMessage(
       cmd,
-      cmd.description || "Skipped: all required parameters missing",
+      reason,
       null,
       0,
       index,
+      undefined,
+      "skipped",
     );
     return msgIndex + 1;
   }

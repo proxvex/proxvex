@@ -74,11 +74,17 @@ export class WebAppVeExecutionSetup {
       messageManager.handleExecutionMessage(msg, application, task, restartKey);
       // Stream stderr chunks into the debug bundle so the per-script trace
       // can interleave them with backend logger lines by timestamp.
+      // Exception: kind:"skipped" messages already have a dedicated
+      // `script-skipped` debug event that creates a scripts[] entry. Routing
+      // them through attachStderr too would re-emit the "Skipped: …" text as
+      // stderr attached to the previous script — the very misattribution
+      // this kind flag is meant to prevent.
       if (
         debugCollector &&
         debugLevel !== "off" &&
         typeof msg.stderr === "string" &&
-        msg.stderr.length > 0
+        msg.stderr.length > 0 &&
+        msg.kind !== "skipped"
       ) {
         debugCollector.attachStderr(restartKey, msg.stderr);
       }

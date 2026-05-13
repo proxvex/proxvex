@@ -27,11 +27,15 @@ printf '%s' "$_content_b64" | base64 -d > "$_tmp"
 _magic=$(dd if="$_tmp" bs=1 count=2 2>/dev/null)
 if [ "$_magic" = "PK" ]; then
   _safe_host=$(upload_sanitize_name "{{ hostname }}")
-  _target_dir=$(resolve_host_volume "$_safe_host" "config" "{{ vm_id }}")
-  if [ ! -d "$_target_dir" ]; then
-    echo "ERROR: config volume directory '$_target_dir' not found" >&2
+  _config_dir=$(resolve_host_volume "$_safe_host" "config" "{{ vm_id }}")
+  if [ ! -d "$_config_dir" ]; then
+    echo "ERROR: config volume directory '$_config_dir' not found" >&2
     exit 1
   fi
+  # modbus2mqtt reads from ${configDir}/modbus2mqtt/ — mirror what
+  # POST /api/upload/local + Config.importLocalZip do in the running app.
+  _target_dir="${_config_dir}/modbus2mqtt"
+  mkdir -p "$_target_dir"
 
   echo "Extracting modbus2mqtt config ZIP into $_target_dir" >&2
   python3 - "$_tmp" "$_target_dir" <<'PY'

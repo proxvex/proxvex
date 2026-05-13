@@ -370,7 +370,7 @@ export class FileSystemRepositories
     if (fs.existsSync(appsDir)) {
       const appEntries = fs.readdirSync(appsDir, { withFileTypes: true });
       for (const entry of appEntries) {
-        if (!entry.isDirectory()) continue;
+        if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
         const appId = entry.name;
         const appBase = path.join(appsDir, appId);
 
@@ -429,7 +429,7 @@ export class FileSystemRepositories
         for (const entry of fs.readdirSync(templatesRoot, {
           withFileTypes: true,
         })) {
-          if (entry.isDirectory()) {
+          if (entry.isDirectory() && !entry.name.startsWith(".")) {
             candidates.push(
               path.join(templatesRoot, entry.name, templateNameWithExt),
             );
@@ -784,6 +784,10 @@ export class FileSystemRepositories
       //   keyed by bare name (no category in the cache key — see
       //   getTemplateCacheKey), so the recursion keeps the parent category
       //   to flatten subdir templates into the same lookup namespace.
+      // Skip dotfiles (.DS_Store, macOS AppleDouble ._*, etc.) — they're not
+      // ours and parsing them as JSON would crash the loader.
+      if (entry.name.startsWith(".")) continue;
+
       if (entry.isDirectory()) {
         const categoryDir = path.join(dir, entry.name);
         this.preloadTemplatesFromDir(
@@ -846,6 +850,9 @@ export class FileSystemRepositories
     if (!fs.existsSync(dir)) return;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
+      // Skip dotfiles (.DS_Store, macOS AppleDouble ._*, etc.).
+      if (entry.name.startsWith(".")) continue;
+
       // Handle subdirectories as categories (for shared scope only)
       if (entry.isDirectory() && scope === "shared") {
         const categoryDir = path.join(dir, entry.name);

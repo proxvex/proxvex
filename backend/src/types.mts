@@ -194,6 +194,7 @@ export interface IVeExecuteMessage {
   index?: number;
   finished?: boolean;
   partial?: boolean; // If true, this is a partial/streaming output chunk (process still running)
+  kind?: "skipped"; // Set when the command was skipped because skip_if_all_missing matched. Lets consumers (debug bundle) route the message into its own scripts[] entry instead of attaching it as stderr to the previous script.
   vmId?: number; // Container VMID (available in final success message)
   redirectUrl?: string; // Redirect URL for deployer self-reconfigure (new instance URL)
   switchoverScheduled?: boolean; // true for proxvex self-upgrade: the new deployer takes over the IP, so the UI must wait longer than the default redirect countdown before navigating to redirectUrl.
