@@ -316,7 +316,17 @@ export class RemoteCli {
       timeout: this.options.timeout,
     });
 
-    const result = await progress.poll();
+    // poll() throws ExecutionFailedError / TimeoutError on script failure.
+    // Capture so we can still emit the final JSON line carrying restartKey —
+    // without it the livetest's TestResultWriter can't fetch the per-task
+    // debug bundle on the path that needs it most (the failing scenario).
+    let result: { vmId?: number; success: boolean } = { success: false };
+    let pollError: unknown;
+    try {
+      result = await progress.poll();
+    } catch (err) {
+      pollError = err;
+    }
 
     // 11. Output final result
     if (this.options.quiet || this.options.json) {
@@ -330,6 +340,8 @@ export class RemoteCli {
         }) + "\n",
       );
     }
+
+    if (pollError) throw pollError;
   }
 
   private async resolveVeContext(): Promise<string> {
