@@ -97,25 +97,27 @@ export class CertificateAutoRenewalService {
    */
   async listAllCertificates(): Promise<ICertificateStatus[]> {
     const veKeys = this.getVeContextKeys();
-    const allCerts: ICertificateStatus[] = [];
 
-    for (const veKey of veKeys) {
-      try {
-        const certs = await this.listCertificatesForContext(veKey);
-        const veContext = this.contextManager.getVEContextByKey(veKey);
-        const hostName = veContext?.host || veKey.replace(/^ve_/, "");
-        const port = (veContext as any)?.port as number | undefined;
-        const host = port && port !== 22 ? `${hostName}:${port}` : hostName;
-        for (const cert of certs) {
-          (cert as any).host = host;
+    const perHost = await Promise.all(
+      veKeys.map(async (veKey) => {
+        try {
+          const certs = await this.listCertificatesForContext(veKey);
+          const veContext = this.contextManager.getVEContextByKey(veKey);
+          const hostName = veContext?.host || veKey.replace(/^ve_/, "");
+          const port = (veContext as any)?.port as number | undefined;
+          const host = port && port !== 22 ? `${hostName}:${port}` : hostName;
+          for (const cert of certs) {
+            (cert as any).host = host;
+          }
+          return certs;
+        } catch (err: any) {
+          logger.warn(`Failed to list certificates for ${veKey}`, { error: err?.message });
+          return [] as ICertificateStatus[];
         }
-        allCerts.push(...certs);
-      } catch (err: any) {
-        logger.warn(`Failed to list certificates for ${veKey}`, { error: err?.message });
-      }
-    }
+      }),
+    );
 
-    return allCerts;
+    return perHost.flat();
   }
 
   /**

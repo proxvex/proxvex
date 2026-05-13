@@ -23,11 +23,14 @@ append_cert() {
   _rel="$3"
 
   [ -f "$_crt" ] || return 0
-  openssl x509 -in "$_crt" -noout 2>/dev/null || return 0
 
-  SUBJECT=$(openssl x509 -in "$_crt" -noout -subject 2>/dev/null | sed 's/^subject= *//')
-  ISSUER=$(openssl x509 -in "$_crt" -noout -issuer 2>/dev/null | sed 's/^issuer= *//')
-  END_DATE_STR=$(openssl x509 -in "$_crt" -noout -enddate 2>/dev/null | sed 's/^notAfter=//')
+  # Single openssl invocation per cert: combines validation, subject, issuer,
+  # enddate. Was 4 separate calls — on a large cluster this dominates wall-time.
+  INFO=$(openssl x509 -in "$_crt" -noout -subject -issuer -enddate 2>/dev/null) || return 0
+
+  SUBJECT=$(printf '%s\n' "$INFO" | sed -n 's/^subject= *//p')
+  ISSUER=$(printf '%s\n' "$INFO" | sed -n 's/^issuer= *//p')
+  END_DATE_STR=$(printf '%s\n' "$INFO" | sed -n 's/^notAfter=//p')
   END_EPOCH=$(date -d "$END_DATE_STR" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$END_DATE_STR" +%s 2>/dev/null || echo 0)
   NOW_EPOCH=$(date +%s)
   DAYS_REMAINING=$(( (END_EPOCH - NOW_EPOCH) / 86400 ))
