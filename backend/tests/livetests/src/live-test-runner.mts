@@ -15,13 +15,15 @@
  * - Comprehensive verification suite (container, notes, services, TLS, SSL)
  *
  * Usage:
- *   tsx live-test-runner.mts [instance] [test-name|--all] [--queue] [--fixtures]
+ *   tsx live-test-runner.mts [instance] [test-name|--all] [--queue] [--fixtures] [--deps-only]
  *
  * Examples:
  *   tsx live-test-runner.mts github-action postgres/ssl
  *   tsx live-test-runner.mts github-action zitadel        # runs all zitadel/* + deps
  *   tsx live-test-runner.mts github-action --all
  *   tsx live-test-runner.mts github-action --queue         # parallel queue worker mode
+ *   tsx live-test-runner.mts yellow proxvex/playwright-oidc --deps-only
+ *                                                          # install deps + snapshot, skip target
  *   KEEP_VM=1 tsx live-test-runner.mts github-action zitadel/ssl
  */
 
