@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { FormsModule } from '@angular/forms';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
@@ -34,6 +35,7 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
     MatTabsModule,
     MatCardModule,
     MatSlideToggleModule,
+    MatCheckboxModule,
     FormsModule,
   ],
   template: `
@@ -230,6 +232,14 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                 <mat-card-title>Deployed Certificates</mat-card-title>
               </mat-card-header>
               <mat-card-content>
+                <div class="auto-renewal-row">
+                  <mat-slide-toggle [checked]="showAllCerts()" (change)="showAllCerts.set($event.checked)">
+                    Show all certificates
+                  </mat-slide-toggle>
+                  <span class="auto-renewal-info">
+                    <span class="hint-text">{{ certificates().length }} of {{ allCertificates().length }} shown</span>
+                  </span>
+                </div>
                 @if (loadingCerts()) {
                   <mat-spinner diameter="24"></mat-spinner>
                 } @else if (certificates().length === 0) {
@@ -258,9 +268,31 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                         </div>
                       }
                       <table mat-table [dataSource]="group.certs" class="cert-table">
+                        <ng-container matColumnDef="select">
+                          <th mat-header-cell *matHeaderCellDef>
+                            <mat-checkbox
+                              [checked]="selectionState() === 'all'"
+                              [indeterminate]="selectionState() === 'some'"
+                              [disabled]="renewableCerts().length === 0"
+                              (change)="toggleSelectAll($event.checked)"
+                              matTooltip="Select all renewable certificates"></mat-checkbox>
+                          </th>
+                          <td mat-cell *matCellDef="let cert">
+                            <mat-checkbox
+                              [checked]="isRowSelected(cert)"
+                              [disabled]="!canRenewCert(cert)"
+                              (change)="toggleRow(cert, $event.checked)"></mat-checkbox>
+                          </td>
+                        </ng-container>
+
                         <ng-container matColumnDef="subject">
                           <th mat-header-cell *matHeaderCellDef>Subject</th>
                           <td mat-cell *matCellDef="let cert">{{ cert.subject }}</td>
+                        </ng-container>
+
+                        <ng-container matColumnDef="certtype">
+                          <th mat-header-cell *matHeaderCellDef>Type</th>
+                          <td mat-cell *matCellDef="let cert">{{ cert.certtype }}</td>
                         </ng-container>
 
                         <ng-container matColumnDef="expiry">
@@ -286,7 +318,7 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                               <button mat-icon-button color="warn"
                                 [disabled]="isRenewing(cert) || renewingAll()"
                                 (click)="renewOne(cert)"
-                                [matTooltip]="'Re-issue this certificate with current CA'">
+                                [matTooltip]="'Re-issue this certificate with the current CA. The private key (privkey.pem) is regenerated as well.'">
                                 @if (isRenewing(cert)) {
                                   <mat-spinner diameter="16"></mat-spinner>
                                 } @else {
@@ -297,8 +329,8 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                           </td>
                         </ng-container>
 
-                        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+                        <tr mat-header-row *matHeaderRowDef="displayedColumns()"></tr>
+                        <tr mat-row *matRowDef="let row; columns: displayedColumns();"></tr>
                       </table>
                     </div>
                   }
@@ -308,10 +340,19 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IAutoRenewa
                 <div class="renew-hint">
                   Re-issues every certificate in the list above that was signed by your <strong>current</strong> CA
                   (<em>{{ caInfo()?.subject ? shortIssuer(caInfo()!.subject) : '—' }}</em>).
-                  New validity period, same subjects. Certificates from other CAs stay untouched.
+                  New validity period, same subjects. The private key (privkey.pem) is regenerated together with the cert. Certificates from other CAs stay untouched.
                 </div>
+                <button mat-stroked-button color="warn" (click)="renewSelected()"
+                  [disabled]="renewingSelected() || renewingAll() || selectedHostnames().length === 0 || !caInfo()?.exists"
+                  matTooltip="Re-issue only the certificates you ticked. Their private keys are regenerated as well.">
+                  @if (renewingSelected()) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                  } @else {
+                    <ng-container><mat-icon>autorenew</mat-icon> Renew selected ({{ selectedHostnames().length }})</ng-container>
+                  }
+                </button>
                 <button mat-stroked-button color="warn" (click)="renewAll()"
-                  [disabled]="renewingAll() || certificates().length === 0 || !caInfo()?.exists"
+                  [disabled]="renewingAll() || renewingSelected() || certificates().length === 0 || !caInfo()?.exists"
                   matTooltip="Re-sign all server certificates using the current CA. Useful after the CA was regenerated or on a fresh deployer install.">
                   @if (renewingAll()) {
                     <mat-spinner diameter="18"></mat-spinner>
@@ -671,7 +712,19 @@ export class CertificateManagementDialog implements OnInit {
   caInfo = signal<ICaInfoResponse | null>(null);
   projectDomainSuffix = signal('.local');
   pveStatus = signal<ICertificateStatus | null>(null);
-  certificates = signal<ICertificateStatus[]>([]);
+  allCertificates = signal<ICertificateStatus[]>([]);
+  showAllCerts = signal(false);
+
+  certificates = computed(() => {
+    const all = this.allCertificates();
+    if (this.showAllCerts()) {
+      return all.filter((c) => c.certtype !== 'key');
+    }
+    return all.filter((c) =>
+      c.certtype === 'server' ||
+      ((c.certtype === 'ca' || c.certtype === 'ca_pub') && c.status !== 'ok')
+    );
+  });
 
   autoRenewalStatus = signal<IAutoRenewalStatus | null>(null);
   autoRenewalEnabled = signal(false);
@@ -697,9 +750,67 @@ export class CertificateManagementDialog implements OnInit {
   renewingAll = signal(false);
   spokeStatus = signal<{ active: boolean; hubUrl?: string; synced?: boolean } | null>(null);
 
-  displayedColumns = ['subject', 'expiry', 'status', 'actions'];
+  displayedColumns = computed(() =>
+    this.showAllCerts()
+      ? ['select', 'subject', 'certtype', 'expiry', 'status', 'actions']
+      : ['select', 'subject', 'expiry', 'status', 'actions']
+  );
   /** Hostnames currently being renewed (per-row spinner state). */
   renewingHostnames = signal<Set<string>>(new Set());
+  /** Selected rows keyed by `${hostname}|${file}` for batch renew. */
+  selectedRowKeys = signal<Set<string>>(new Set());
+  renewingSelected = signal(false);
+
+  certRowKey(cert: ICertificateStatus): string {
+    return `${cert.hostname ?? ''}|${cert.file ?? ''}`;
+  }
+
+  isRowSelected(cert: ICertificateStatus): boolean {
+    return this.selectedRowKeys().has(this.certRowKey(cert));
+  }
+
+  toggleRow(cert: ICertificateStatus, checked: boolean): void {
+    const next = new Set(this.selectedRowKeys());
+    const key = this.certRowKey(cert);
+    if (checked) next.add(key); else next.delete(key);
+    this.selectedRowKeys.set(next);
+  }
+
+  /** Renewable cert rows that are currently displayed. */
+  renewableCerts = computed(() =>
+    this.certificates().filter((c) => this.canRenewCert(c))
+  );
+
+  selectionState = computed<'none' | 'some' | 'all'>(() => {
+    const renewable = this.renewableCerts();
+    if (renewable.length === 0) return 'none';
+    const selected = this.selectedRowKeys();
+    let hits = 0;
+    for (const c of renewable) if (selected.has(this.certRowKey(c))) hits++;
+    if (hits === 0) return 'none';
+    if (hits === renewable.length) return 'all';
+    return 'some';
+  });
+
+  toggleSelectAll(checked: boolean): void {
+    if (!checked) {
+      this.selectedRowKeys.set(new Set());
+      return;
+    }
+    const next = new Set<string>();
+    for (const c of this.renewableCerts()) next.add(this.certRowKey(c));
+    this.selectedRowKeys.set(next);
+  }
+
+  selectedHostnames = computed(() => {
+    const keys = this.selectedRowKeys();
+    if (keys.size === 0) return [] as string[];
+    const hosts = new Set<string>();
+    for (const c of this.certificates()) {
+      if (keys.has(this.certRowKey(c)) && c.hostname) hosts.add(c.hostname);
+    }
+    return Array.from(hosts);
+  });
 
   /** Group certificates by (host, issuer) so the group header can show CA info. */
   certificatesByHostIssuer = computed(() => {
@@ -782,14 +893,12 @@ export class CertificateManagementDialog implements OnInit {
     this.loadingCerts.set(true);
     this.configService.getAllCertificates().subscribe({
       next: (res) => {
-        const serverCerts = res.certificates.filter(c =>
-          c.certtype === 'server' || (c.certtype === 'ca' && c.status !== 'ok')
-        );
         const statusOrder: Record<string, number> = { expired: 0, warning: 1, ok: 2 };
-        const sorted = serverCerts.sort((a, b) =>
+        const sorted = [...res.certificates].sort((a, b) =>
           (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3)
         );
-        this.certificates.set(sorted);
+        this.allCertificates.set(sorted);
+        this.selectedRowKeys.set(new Set());
         this.loadingCerts.set(false);
       },
       error: () => { this.loadingCerts.set(false); }
@@ -1089,6 +1198,37 @@ export class CertificateManagementDialog implements OnInit {
   isRenewing(cert: ICertificateStatus): boolean {
     const hn = (cert as { hostname?: string }).hostname;
     return !!hn && this.renewingHostnames().has(hn);
+  }
+
+  renewSelected(): void {
+    const hosts = this.selectedHostnames();
+    if (hosts.length === 0) return;
+    const label = hosts.length === 1 ? `"${hosts[0]}"` : `${hosts.length} hosts`;
+    if (!confirm(`Re-issue certificates for ${label} using the current CA? The private key is regenerated along with the cert.`)) return;
+
+    this.renewingSelected.set(true);
+    const tracking = new Set(this.renewingHostnames());
+    for (const h of hosts) tracking.add(h);
+    this.renewingHostnames.set(tracking);
+
+    this.configService.renewAllCertificates(hosts).subscribe({
+      next: (status) => {
+        const done = new Set(this.renewingHostnames());
+        for (const h of hosts) done.delete(h);
+        this.renewingHostnames.set(done);
+        this.renewingSelected.set(false);
+        this.autoRenewalStatus.set(status);
+        this.selectedRowKeys.set(new Set());
+        this.loadCertificates();
+      },
+      error: (err) => {
+        this.errorHandler.handleError(`Failed to renew selected certificates`, err);
+        const done = new Set(this.renewingHostnames());
+        for (const h of hosts) done.delete(h);
+        this.renewingHostnames.set(done);
+        this.renewingSelected.set(false);
+      }
+    });
   }
 
   renewOne(cert: ICertificateStatus): void {

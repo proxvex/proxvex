@@ -158,6 +158,18 @@ export class OutputProcessor {
       const actualOutputIds = new Set<string>();
 
       if (Array.isArray(outputsJson)) {
+        // Scripts emit `[]` when their enum is legitimately empty (e.g. no USB
+        // adapters plugged in on the host). Accept this as a valid enumValues
+        // result instead of failing the "missing expected outputs" check.
+        if (outputsJson.length === 0 && tmplCommand.outputs?.length === 1) {
+          const onlyOutput = tmplCommand.outputs[0];
+          const expectedId =
+            typeof onlyOutput === "string" ? onlyOutput : onlyOutput?.id;
+          if (expectedId === "enumValues") {
+            (this as any).outputsRawResult = [];
+            return;
+          }
+        }
         const first = outputsJson[0];
         if (
           first &&
