@@ -1,12 +1,88 @@
 import { EventEmitter } from "events";
 import { ICommand, IVeExecuteMessage, IJsonError } from "../types.mjs";
 import { JsonError } from "../jsonvalidator.mjs";
+import type { IVarSubstitution } from "../variable-resolver.mjs";
+
+/**
+ * Debug events emitted on the `"debug"` channel of the VeExecution
+ * EventEmitter. Consumed by the DebugCollector to assemble the per-task
+ * markdown bundle.
+ */
+export type IVeDebugEvent =
+  | {
+      type: "script-start";
+      index: number;
+      command: string;
+      executeOn: string | undefined;
+      template?: string;
+      redactedScript: string;
+      substitutions: IVarSubstitution[];
+      ts: number;
+    }
+  | {
+      type: "script-end";
+      index: number;
+      command: string;
+      exitCode: number;
+      ts: number;
+    };
 
 /**
  * Handles message emission for VeExecution.
  */
 export class VeExecutionMessageEmitter {
+  /**
+   * Sequential script index. Owned by the emitter (which lives for the
+   * entire VeExecution lifetime) rather than the command processor, because
+   * `updateHelperModules` recreates the command processor on every state
+   * change and a counter on the processor would reset to 1 each time.
+   */
+  private scriptCounter = 0;
+
   constructor(private eventEmitter: EventEmitter) {}
+
+  /**
+   * Emits a debug event recording that a script is about to execute. Carries
+   * the redacted twin and the substitution list so the DebugCollector can
+   * file the script into its bundle. Returns the assigned script index so
+   * the caller can pair it with `emitDebugScriptEnd`.
+   */
+  emitDebugScriptStart(
+    cmd: ICommand,
+    redactedScript: string,
+    substitutions: IVarSubstitution[],
+  ): number {
+    const index = ++this.scriptCounter;
+    const sourceTemplate = (cmd as unknown as { _sourceTemplate?: string })
+      ._sourceTemplate;
+    const event: IVeDebugEvent = {
+      type: "script-start",
+      index,
+      command: cmd.name ?? "",
+      executeOn: typeof cmd.execute_on === "string" ? cmd.execute_on : undefined,
+      ...(sourceTemplate ? { template: sourceTemplate } : {}),
+      redactedScript,
+      substitutions,
+      ts: Date.now(),
+    };
+    this.eventEmitter.emit("debug", event);
+    return index;
+  }
+
+  /**
+   * Emits a debug event marking the end of a script execution window, used
+   * by the DebugCollector to close the per-script trace bucket.
+   */
+  emitDebugScriptEnd(cmd: ICommand, index: number, exitCode: number): void {
+    const event: IVeDebugEvent = {
+      type: "script-end",
+      index,
+      command: cmd.name ?? "",
+      exitCode,
+      ts: Date.now(),
+    };
+    this.eventEmitter.emit("debug", event);
+  }
 
   /**
    * Emits a partial message for streaming output.

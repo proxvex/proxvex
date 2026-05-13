@@ -2,13 +2,68 @@ Run a live integration test against the active workspace instance (green or yell
 
 ## Usage
 The user provides: `$ARGUMENTS`
-Format: `[--fresh] [--fix] [--config <instance>] [test-filter]`
+Format: `[--fresh] [--fix] [--debug <level>] [--config <instance>] [test-filter]`
+
+### When `$ARGUMENTS` is empty (no parameters)
+
+**Do not run any test.** Show the help text below to the user verbatim, then use `AskUserQuestion` to find out what to run. After the user answers, restart this skill with the chosen arguments as if the user had typed them — go through all steps below.
+
+Help text to print:
+
+```
+Usage: /livetest [--fresh] [--fix] [--debug <level>] [--config <instance>] [test-filter]
+
+Test filter   Application name (eclipse-mosquitto), scenario (zitadel/default),
+              "--all" for the full suite, or any tag selector.
+--debug LV    off | extLog (default) | script. Sets debug_level on the target
+              scenario; bundle lands in livetest-results/<runId>/<scenarioId>/.
+              "script" adds set -x to every shell script.
+--fresh       Wipe .livetest-data and roll back the nested VM to deployer-installed
+              before starting. Use after suspected dependency corruption.
+--fix         Autonomously analyse failures (via the debug bundle) and retry
+              until all tests pass or you give up.
+--config INST Target the nested-VM deployer of <inst> instead of the local
+              backend. Runs step2b first (~2 min).
+
+Examples:
+  /livetest eclipse-mosquitto
+  /livetest --debug script zitadel/default
+  /livetest --fresh --all
+  /livetest --fix pgadmin
+  /livetest --config github-action --all
+```
+
+Then ask via `AskUserQuestion`:
+
+- **Question**: "Welcher Test soll ausgeführt werden?"
+- **Header**: `Test`
+- **Options** (single-select, last is Other-auto):
+  - `eclipse-mosquitto/default` — single scenario, ~1 min, no dependencies (Recommended)
+  - `--all` — full suite, ~30+ min, all 43 scenarios
+  - `zitadel/default` — docker-compose app with postgres dependency
+  - `pgadmin` — quick docker-compose test with postgres dependency
+
+When the user picks an option, also ask in a second question whether to enable `--debug` (single-select):
+- **Question**: "Debug-Level?"
+- **Header**: `Debug`
+- **Options**:
+  - `extLog (default)` — bundle written, no `set -x` (Recommended)
+  - `script` — bundle with `set -x` in shell scripts (slower)
+  - `off` — no bundle
+
+Once both answers are in, treat the inputs as if the user had originally typed `/livetest [--debug <level>] <test>` and execute the steps below.
 
 Examples:
 - `--fresh zitadel/default` — green/yellow auto-detected, local backend
 - `--fix pgadmin` — fix loop, local backend
+- `--debug script eclipse-mosquitto` — collect rich debug bundle for the target scenario (set -x in shell scripts + interleaved backend logger + per-script trace)
+- `--debug extLog zitadel/default` — extLog level: redacted scripts + var annotations + logger trace, but no `set -x`
 - `--config github-action --all` — full suite against the **nested-VM deployer** of the github-action instance, after step2b refresh
 - `--config green --all` — same but against the green nested-VM deployer (skips local backend)
+
+**`--debug <level>` values**: `off` | `extLog` | `script`. Defaults to `extLog` when omitted — the livetest writes the debug bundle into `livetest-results/<runId>/<scenarioId>/` regardless of test outcome, and the bundle is the primary failure-analysis tool (see Fix-loop section). `--debug script` adds `set -x` to every shell script — slower but ideal when you need to see exact command expansions.
+
+**Dependencies are not debugged**: the debug bundle is collected only for the user-requested target scenario, not for dependencies pulled in via `depends_on`. To debug a dependency, request it explicitly as the target.
 
 ## Two modes
 
@@ -57,7 +112,7 @@ Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SS
 
 ## Steps
 
-1. **Parse arguments**: Check for `--fresh`, `--fix`, `--config <instance>`. Remove them from the test filter. Validate `--config` value exists in `e2e/config.json`'s `.instances` (else fail with clear error). Apply the instance-derivation block above.
+1. **Parse arguments**: Check for `--fresh`, `--fix`, `--config <instance>`. Remove them from the test filter — these are skill-side flags. Validate `--config` value exists in `e2e/config.json`'s `.instances` (else fail with clear error). Apply the instance-derivation block above. **Keep `--debug <level>` in the argument list** — it is consumed by `live-test-runner.mts` (not by the skill) and propagates to the backend as the `debug_level` parameter on the target scenario.
 
 2. **Build if needed**: Only build if backend TypeScript was changed. For JSON/script-only changes, a deployer reload is sufficient.
    - Check if backend was edited: `test -f .claude/claude.backend-edited`
@@ -140,13 +195,15 @@ Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SS
 
 5. **(reserved)** — historically this slot held the manual deployer-start; now folded into step 4.
 
-6. **Run the livetest** (with flags removed from arguments):
-   - Local-backend mode (default): `DEPLOYER_PORT=$DEPLOYER_PORT npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <test-filter>`
-   - Nested-deployer mode (`--config`): `npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <test-filter>` — no `DEPLOYER_PORT` env override; live-test-runner derives the URL from the patched config (`pveHost:ports.deployer + portOffset`).
+6. **Run the livetest** (with skill-only flags stripped, but `--debug <level>` kept):
+   - Local-backend mode (default): `DEPLOYER_PORT=$DEPLOYER_PORT npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <remaining-args>`
+   - Nested-deployer mode (`--config`): `npx tsx backend/tests/livetests/src/live-test-runner.mts $INSTANCE <remaining-args>` — no `DEPLOYER_PORT` env override; live-test-runner derives the URL from the patched config (`pveHost:ports.deployer + portOffset`).
+
+   `<remaining-args>` includes any `--debug <level>` flag and the test filter. The runner defaults `debug_level=extLog` when no `--debug` was passed, so the debug bundle is always produced for the target scenario.
 
    Use a 10 minute timeout (15 in `--config` mode to allow for step2b). Show the full output to the user.
 
-7. **Report results** — summarize pass/fail status.
+7. **Report results** — summarize pass/fail status. Always mention the debug-bundle location: `livetest-results/$(ls -1t livetest-results/ | head -1)/`. For failed scenarios, the bundle's `livetest-index.md` is the first place the user (or fix loop) should look.
 
 8. **If `--fix` and tests failed**: Enter the fix loop (see below).
 
@@ -155,11 +212,43 @@ Throughout the rest of the skill, substitute `$VMID`, `$DEPLOYER_PORT`, `$PVE_SS
 When `--fix` is set, time does not matter — the goal is to get all tests green with minimal user interaction. Work autonomously through failures.
 
 ### For each failed scenario:
-1. **Analyze the failure**:
-   - Extract the diagnostic tarball to `/tmp/` and read the CLI output for the failed VM
-   - Look for `"exitCode":-1` or `"exitCode":1` in `cli-output.log` — the `stderr` field contains the error
-   - Also check: `lxc.conf`, `lxc.log`, `docker-ps.txt`, `docker-compose.yml` in the diagnostic dir
-   - Common causes: template variable not resolved, script syntax error, `from __future__` in prepended library, container failed to start, docker service not healthy, check template running when it shouldn't (missing skip condition)
+1. **Analyze the failure via the debug bundle**:
+
+   Every livetest run writes a per-scenario debug bundle to `livetest-results/<runId>/<scenarioId>/`. This is the primary failure-analysis tool — far richer than the legacy `cli-output.log`. Use it first.
+
+   The latest run directory is `livetest-results/$(ls -1t livetest-results/ | head -1)`. Inside each scenario directory:
+
+   ```
+   <scenarioId>/
+     livetest-index.md          ← entry point (status + links to everything)
+     test-result.md             ← pass/fail JSON (status, verify_results, error_message)
+     host-diagnostics.md        ← LXC log, dmesg, docker logs (legacy diagnostics)
+     index.md                   ← backend debug bundle entry (start here for "why did it fail")
+     variables.md               ← variable cross-reference (which var, which script, which line)
+     scripts/NN-<slug>.md       ← per-script: redacted body + chronological trace (logger+stderr interleaved)
+     scripts/NN-<slug>.meta.json       ← parseable: exitCode, durations, command, executeOn
+     scripts/NN-<slug>.trace.json      ← parseable: full trace events with timestamps
+     scripts/NN-<slug>.substitutions.json ← parseable: which {{var}} got which value (redacted for secrets)
+   ```
+
+   **Recommended analysis flow**:
+   1. Read `test-result.md` to confirm `status: "failed"` and grab `error_message`.
+   2. Find the failed script: `jq 'select(.exitCode != 0) | {index, command, exitCode}' scripts/*.meta.json` — gives index + name of every non-zero script.
+   3. Open `scripts/<NN>-<slug>.md` for that script — Trace section shows logger lines, stderr, and (if `--debug script` was used) `set -x` output interleaved chronologically. Each `.md` has CSS toggle checkboxes to hide noise (logger debug lines, stderr-only view, etc.).
+   4. If a variable looks wrong, open `variables.md` to see every line where it was used. Secure values are redacted as `*** redacted ***`.
+   5. If the failure is post-script (docker container couldn't start), check `host-diagnostics.md`.
+
+   **Bundle availability prerequisite**: the bundle exists only when `debug_level != off` for the scenario. The livetest defaults to `extLog`. If the user explicitly passed `--debug off`, redo the run with the default (or `--debug script`) before fix-loop analysis.
+
+   **Common failure causes** (which the bundle makes obvious):
+   - Template variable not resolved → check `variables.md` for `NOT_DEFINED` entries.
+   - Script syntax error → script's `.md` Trace shows the shell parser error.
+   - `from __future__` in prepended library → trace shows the python import error.
+   - Container failed to start → `host-diagnostics.md` + last script's Post-Trace.
+   - Docker service not healthy → `verify_results` in `test-result.md` flags it.
+   - Check template ran when it shouldn't → script in scripts/ with name "check…" that has exitCode != 0; review skip condition.
+
+   **Legacy fallback**: If the bundle is empty or missing (e.g. backend died before task end), fall back to reading the deployer log at `/tmp/livetest-deployer-${INSTANCE}.log` and the CLI stdout the runner captured under `livetest-results/<runId>/<scenarioId>/test-result.md`'s `error_message` field.
 
 2. **Fix the issue** in the codebase (templates, scripts, backend code, application JSON)
 
@@ -235,6 +324,47 @@ If a test fails and you want a clean retry:
 - **Target VMs**: Destroyed after test (unless `KEEP_VM=1`)
 - **Dependency VMs**: Never destroyed (kept for snapshot reuse across runs)
 - `KEEP_VM=1`: Prevents target VM destruction for debugging
+
+## Debug bundle reference
+
+Every livetest run with `debug_level != off` (default: `extLog`) produces a per-scenario debug bundle. Knowing the layout speeds up failure analysis.
+
+**Levels** (set via `--debug <level>`):
+- `off` — no bundle, fastest, no analysis aid.
+- `extLog` (default) — redacted-script twin + `# vars: …` line annotations + Logger debug lines pulled into the trace + per-script chronological trace (logger + stderr interleaved).
+- `script` — everything from `extLog` **plus** `set -x` injected into every shell script, so the trace shows each expanded command. Pick this when you need to see why a shell command behaved unexpectedly.
+
+**Layout** (per `livetest-results/<runId>/<scenarioId>/`):
+
+| File | Audience | When to read |
+|---|---|---|
+| `livetest-index.md` | human | start here — overview + links |
+| `test-result.md` | human + machine (PostgREST-shaped JSON inside) | confirm pass/fail, get `error_message` |
+| `host-diagnostics.md` | human | LXC log, dmesg, docker logs (post-mortem) |
+| `index.md` | human | backend bundle entry: script table with exit/duration, preamble/postamble trace |
+| `variables.md` | human | which variable was used where; secure values redacted |
+| `scripts/NN-<slug>.md` | human | redacted script body + chronological trace per command |
+| `header.json`, `variables.json`, `scripts/NN-….meta.json`, `.substitutions.json`, `.trace.json` | machine | jq-parseable structured data — same content as the .md, no formatting noise |
+
+**Trace section format**: HTML `<div class="trace">` with per-row CSS classes (`source-logger`, `source-stderr`, `source-subst`, `source-docker`, `level-debug`, `level-warn`, `level-error`). Each trace section has filter checkboxes (Logger / Stderr / Substitutions / per-level toggles) that hide rows via `:has()`-based CSS. Works in VS Code preview and any modern browser. Codeblock fallback exists for plain-text viewers (`glow`, GitHub strips `<style>`).
+
+**Quick analysis recipes**:
+
+```sh
+# Find all failed scripts across all scenarios of the latest run
+RUN=livetest-results/$(ls -1t livetest-results/ | head -1)
+jq -r 'select(.exitCode != null and .exitCode != 0)
+       | "\(.index)\t\(.exitCode)\t\(.command)"' \
+   "$RUN"/*/scripts/*.meta.json
+
+# Show all variables that were NOT_DEFINED at substitution time
+jq -r '.[] | select(.redactedValue == "NOT_DEFINED")
+       | "\(.var)\tline \(.line)"' \
+   "$RUN"/*/scripts/*.substitutions.json
+
+# Open the bundle for one scenario in a browser-renderer
+npx markserv "$RUN/zitadel-default/"
+```
 
 ## Notes
 - `green` / `yellow` instances in `e2e/config.json` connect to the deployer at `localhost:${DEPLOYER_PORT}` (3201 green, 3301 yellow)

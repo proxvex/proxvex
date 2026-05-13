@@ -142,23 +142,30 @@ cd frontend && pnpm run lint:fix && pnpm run build && pnpm test
 
 ## Live Integration Tests
 
-When templates or scripts in `json/` are modified, suggest running the live integration tests:
+**Livetests are the preferred validation tool for every script and template change.** They reproduce real deploy behavior in a controlled nested-VM environment and (since Extended Logging) produce a complete debug bundle for failure analysis.
 
-```bash
-# Run with default alpine-packages on pve1.cluster
-./backend/tests/livetests/run-live-test.sh pve1.cluster
+**Workflow rule**: When a problem appears or a change needs validation, **always first consider whether it can be reproduced in livetest**. Production tests (against `pve1.cluster`) are only the right tool when:
+- The problem demonstrably only occurs in the real cluster environment (network topology, external services, hardware specifics), or
+- The cluster configuration itself is the subject of the change.
 
-# Test specific application
-./backend/tests/livetests/run-live-test.sh pve1.cluster node-red installation
+In all other cases: livetest first, production second.
 
-# Keep container for debugging
-KEEP_VM=1 ./backend/tests/livetests/run-live-test.sh pve1.cluster
+**Invocation**: `/livetest` (no arguments → help text + interactive selection). Common patterns:
+
+```
+/livetest eclipse-mosquitto/default       # quick smoke test (~1 min)
+/livetest --debug script <scenario>       # with set -x in shell scripts and full debug bundle
+/livetest --fix <scenario>                # autonomous fix loop: analyzes bundle, iterates
+/livetest --all                           # full suite
 ```
 
-The test creates a real container on a Proxmox host and verifies:
+Each scenario run writes a debug bundle to `livetest-results/<runId>/<scenarioId>/` (`index.md`, per-script trace, JSON sidecars, `variables.md`, …). The first place to look for failure analysis is always that bundle's `livetest-index.md`.
+
+What the tests verify:
 - Container creation and startup
-- Notes contain `proxvex:managed` marker
+- Notes contain the `proxvex:managed` marker
 - Notes contain log-url, icon-url, and Links section
+- Per-scenario additionally: application-specific health checks (TLS, Postgres SSL, Docker services up, …)
 
 ## Import Resolution
 

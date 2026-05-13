@@ -24,6 +24,7 @@ import { VeExecutionHostDiscovery } from "./ve-execution-host-discovery.mjs";
 import { VeExecutionCommandProcessor } from "./ve-execution-command-processor.mjs";
 import { VeExecutionStateManager } from "./ve-execution-state-manager.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
+import { getParameterDefinitionsRegistry } from "../parameter-definitions.mjs";
 
 // Re-export for backward compatibility
 export type { IOutput, IProxmoxRunResult, IRestartInfo };
@@ -146,12 +147,24 @@ export class VeExecution extends EventEmitter {
 
   /**
    * Initializes or re-initializes the variable resolver with current state.
+   * The 4th callback exposes the set of `secure: true` parameter IDs so the
+   * resolver can produce redacted twin scripts for the debug bundle without
+   * affecting the executed script.
    */
   private initializeVariableResolver(): void {
     this.variableResolver = new VariableResolver(
       () => this.outputs,
       () => this.inputs,
       () => this.defaults,
+      () => {
+        try {
+          const pm = PersistenceManager.getInstance();
+          const jsonPath = pm.getPathes().jsonPath;
+          return getParameterDefinitionsRegistry(jsonPath).getSecureIds();
+        } catch {
+          return new Set<string>();
+        }
+      },
     );
   }
 
@@ -216,6 +229,7 @@ export class VeExecution extends EventEmitter {
     this.commandProcessor = new VeExecutionCommandProcessor({
       outputs: this.outputs,
       inputs: this.inputs,
+      defaults: this.defaults,
       variableResolver: this.variableResolver,
       messageEmitter: this.messageEmitter,
       runOnLxc: (vm_id, cmd, tmplCmd, timeoutMs?) =>

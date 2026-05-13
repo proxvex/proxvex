@@ -11,12 +11,38 @@ const VAR_CAPTURE_RE = /{{\s*([a-zA-Z_][^}\s]*)\s*}}/g;
 /** Tests whether a string still contains unresolved deployer variables. */
 const VAR_TEST_RE = /{{\s*[a-zA-Z_][^}\s]*\s*}}/;
 
+/**
+ * Substitution record produced by `replaceVarsAnnotated`. Tells the
+ * DebugCollector which variable was placed at which 1-based line of the
+ * annotated output (the redacted twin). `secure` reflects whether the
+ * parameter is flagged `secure: true` and got redacted in the twin.
+ */
+export interface IVarSubstitution {
+  var: string;
+  redactedValue: string;
+  line: number;
+  secure: boolean;
+}
+
+export interface IAnnotatedReplaceResult {
+  /** Real resolved string (identical to what `replaceVars()` returns). */
+  resolved: string;
+  /** Redacted twin with `# vars: ...` annotations at end of each touched line. */
+  redactedAnnotated: string;
+  substitutions: IVarSubstitution[];
+}
+
 export class VariableResolver {
+  private getSecureParamIds: () => Set<string>;
+
   constructor(
     private getOutputs: () => Map<string, string | number | boolean>,
     private getInputs: () => Record<string, string | number | boolean>,
     private getDefaults: () => Map<string, string | number | boolean>,
-  ) {}
+    getSecureParamIds?: () => Set<string>,
+  ) {
+    this.getSecureParamIds = getSecureParamIds ?? (() => new Set<string>());
+  }
 
   private get outputs() {
     return this.getOutputs();
@@ -227,5 +253,109 @@ export class VariableResolver {
       // Scripts must check for this value and generate appropriate error messages
       return "NOT_DEFINED";
     });
+  }
+
+  /**
+   * Produce both the real resolved string and a redacted twin with
+   * `# vars: …` annotations at the end of every line that had at least one
+   * `{{ var }}` substitution. The annotations are only ever applied to the
+   * twin — the executed script returned by `replaceVars()` stays untouched
+   * to avoid breaking heredocs, backslash continuations, or string literals.
+   *
+   * Secure parameters (flagged `secure: true`) appear as `*** redacted ***`
+   * in the twin and as `<name>=***` inside the comment.
+   *
+   * List variables (e.g. `{{ volumes }}`) expand to multi-line content; the
+   * annotation is attached to the line where the marker originally sat and
+   * the expanded body is left un-annotated.
+   *
+   * Performs a second annotation pass when expansion introduces new markers
+   * (matches `replaceVars`'s two-pass behavior for cases like
+   * `{{ envs }}` → `FOO={{ FOO }}`).
+   */
+  replaceVarsAnnotated(str: string): IAnnotatedReplaceResult {
+    const secureSet = this.getSecureParamIds();
+    const resolved = this.replaceVars(str);
+
+    const firstPass = this.annotateOnePass(str, secureSet, 0);
+    let { redactedAnnotated, substitutions } = firstPass;
+
+    if (VAR_TEST_RE.test(redactedAnnotated)) {
+      const secondPass = this.annotateOnePass(
+        redactedAnnotated,
+        secureSet,
+        substitutions.length,
+      );
+      redactedAnnotated = secondPass.redactedAnnotated;
+      substitutions = substitutions.concat(secondPass.substitutions);
+    }
+
+    return { resolved, redactedAnnotated, substitutions };
+  }
+
+  private annotateOnePass(
+    str: string,
+    secureSet: Set<string>,
+    _substOffset: number,
+  ): { redactedAnnotated: string; substitutions: IVarSubstitution[] } {
+    const lines = str.split("\n");
+    const outLines: string[] = [];
+    const substitutions: IVarSubstitution[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? "";
+      const lineVars: Array<{ name: string; secure: boolean }> = [];
+
+      const redactedLine = line.replace(
+        VAR_CAPTURE_RE,
+        (_match: string, v: string) => {
+          const isSecure = secureSet.has(v);
+          const listResult = this.resolveListVariable(v, {});
+          let redactedValue: string;
+          if (listResult !== null) {
+            redactedValue = isSecure ? "*** redacted ***" : listResult;
+          } else if (isSecure) {
+            redactedValue = "*** redacted ***";
+          } else if (this.outputs.has(v)) {
+            redactedValue = String(this.outputs.get(v));
+          } else if (this.inputs[v] !== undefined) {
+            redactedValue = String(this.inputs[v]);
+          } else if (this.defaults.has(v)) {
+            redactedValue = String(this.defaults.get(v));
+          } else {
+            redactedValue = "NOT_DEFINED";
+          }
+          lineVars.push({ name: v, secure: isSecure });
+          substitutions.push({
+            var: v,
+            redactedValue,
+            line: outLines.length + 1,
+            secure: isSecure,
+          });
+          return redactedValue;
+        },
+      );
+
+      if (lineVars.length === 0) {
+        outLines.push(redactedLine);
+        continue;
+      }
+
+      const annotation = lineVars
+        .map((v) => (v.secure ? `${v.name}=***` : v.name))
+        .join(", ");
+
+      // Multi-line redacted value (list variable): keep the annotation on the
+      // first expanded line; the rest of the expansion stays un-annotated.
+      const expanded = redactedLine.split("\n");
+      if (expanded.length === 1) {
+        outLines.push(`${redactedLine}  # vars: ${annotation}`);
+      } else {
+        outLines.push(`${expanded[0]}  # vars: ${annotation}`);
+        for (let j = 1; j < expanded.length; j++) outLines.push(expanded[j]!);
+      }
+    }
+
+    return { redactedAnnotated: outLines.join("\n"), substitutions };
   }
 }

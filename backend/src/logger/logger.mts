@@ -2,9 +2,23 @@ import winston from "winston";
 
 export type LogLevel = "error" | "warn" | "info" | "debug";
 
+/**
+ * Per-line callback that receives every log line regardless of the
+ * `shouldLogDebug()` component filter. Used by the DebugCollector to assemble
+ * the per-task debug bundle.
+ */
+export type DebugSink = (entry: {
+  ts: number;
+  level: LogLevel;
+  component: string;
+  message: string;
+  meta?: Record<string, unknown>;
+}) => void;
+
 interface LoggerState {
   level: LogLevel;
   debugComponents: Set<string>;
+  debugSink: DebugSink | null;
 }
 
 // Singleton configuration state
@@ -13,6 +27,7 @@ const state: LoggerState = {
   debugComponents: new Set<string>(
     (process.env.DEBUG_COMPONENTS || "").split(",").filter(Boolean),
   ),
+  debugSink: null,
 };
 
 // Console format: human-readable with timestamps
@@ -59,22 +74,49 @@ export class Logger {
     );
   }
 
+  private sink(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>,
+  ): void {
+    const fn = state.debugSink;
+    if (fn) {
+      try {
+        fn({
+          ts: Date.now(),
+          level,
+          component: this.component,
+          message,
+          ...(meta ? { meta } : {}),
+        });
+      } catch {
+        /* sink errors must never break logging */
+      }
+    }
+  }
+
   error(message: string, meta?: Record<string, unknown>): void {
     baseLogger.error({ message, component: this.component, ...meta });
+    this.sink("error", message, meta);
   }
 
   warn(message: string, meta?: Record<string, unknown>): void {
     baseLogger.warn({ message, component: this.component, ...meta });
+    this.sink("warn", message, meta);
   }
 
   info(message: string, meta?: Record<string, unknown>): void {
     baseLogger.info({ message, component: this.component, ...meta });
+    this.sink("info", message, meta);
   }
 
   debug(message: string, meta?: Record<string, unknown>): void {
     if (this.shouldLogDebug()) {
       baseLogger.debug({ message, component: this.component, ...meta });
     }
+    // Sink bypasses the shouldLogDebug filter so the debug bundle is complete
+    // even when DEBUG_COMPONENTS does not include this component.
+    this.sink("debug", message, meta);
   }
 
   // Static methods for runtime configuration
@@ -121,6 +163,23 @@ export class Logger {
   static setDebugComponents(components: string[]): void {
     state.debugComponents.clear();
     components.forEach((c) => state.debugComponents.add(c));
+  }
+
+  /**
+   * Register a sink that receives every log line (all levels, no component
+   * filter). Pass `null` to clear. Designed for the per-task DebugCollector
+   * to capture the full backend log stream into the debug bundle.
+   *
+   * Only one sink can be active at a time; the assumption is that the UI
+   * runs at most one task at a time. For concurrent tasks, layer an
+   * AsyncLocalStorage-aware sink that filters by current restartKey.
+   */
+  static setDebugSink(sink: DebugSink | null): void {
+    state.debugSink = sink;
+  }
+
+  static getDebugSink(): DebugSink | null {
+    return state.debugSink;
   }
 }
 

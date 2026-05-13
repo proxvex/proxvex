@@ -299,6 +299,19 @@
       "internal": true,
       "project": true
     },
+    "debug_level": {
+      "name": "Debug Level",
+      "description": "Capture per-command debug bundle for this task. off = disabled. extLog = redacted script twin + variable annotations + interleaved backend logger trace. script = additionally injects 'set -x' into shell scripts.",
+      "type": "enum",
+      "default": "off",
+      "enumValues": [
+        "off",
+        "extLog",
+        "script"
+      ],
+      "group": "Diagnostics",
+      "advanced": true
+    },
     "docker_registry_mirror": {
       "name": "Docker Hub Registry Mirror URL",
       "description": "Optional pull-through cache URL for Docker Hub (e.g. https://docker-registry-mirror). When set as a project default, post-start-dockerd.sh adds it to /etc/docker/daemon.json `registry-mirrors` so docker.io pulls from any docker-compose-based application go via the mirror instead of hitting Docker Hub directly. Empty disables the feature.",

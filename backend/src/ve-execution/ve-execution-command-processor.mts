@@ -3,6 +3,21 @@ import { VariableResolver } from "../variable-resolver.mjs";
 import { getNextMessageIndex } from "./ve-execution-constants.mjs";
 import { VeExecutionMessageEmitter } from "./ve-execution-message-emitter.mjs";
 
+export type DebugLevel = "off" | "extLog" | "script";
+
+/** Parse the `debug_level` parameter from inputs/defaults, defaulting to `off`. */
+function readDebugLevel(
+  inputs: Record<string, string | number | boolean>,
+  defaults?: Map<string, string | number | boolean>,
+): DebugLevel {
+  const raw =
+    (inputs["debug_level"] as string | undefined) ??
+    (defaults?.get("debug_level") as string | undefined) ??
+    "off";
+  if (raw === "extLog" || raw === "script") return raw;
+  return "off";
+}
+
 /**
  * Derive the on_start.d filename for a hook command. The dispatcher
  * (`/etc/proxvex/on_start_container`) iterates `*.sh` in alphabetical order,
@@ -70,6 +85,10 @@ export interface CommandProcessorDependencies {
 export class VeExecutionCommandProcessor {
   constructor(private deps: CommandProcessorDependencies) {}
 
+  private currentDebugLevel(): DebugLevel {
+    return readDebugLevel(this.deps.inputs, this.deps.defaults);
+  }
+
   /**
    * Debug-dump the command's inputs/defaults (before) or outputs (after) if
    * the user enabled it via the `ve_debug_commands` parameter. Matching is
@@ -126,6 +145,63 @@ export class VeExecutionCommandProcessor {
       );
     } catch {
       /* debug-only; never break execution */
+    }
+  }
+
+  /**
+   * Inject `set -x` after the shebang of a shell script when
+   * `debug_level=script`. No-op for Python scripts (Python has no equivalent
+   * one-liner) and for command-strings without a shebang.
+   */
+  private maybeInjectSetX(cmd: ICommand, scriptContent: string): string {
+    if (this.currentDebugLevel() !== "script") return scriptContent;
+    if (this.detectLanguage(cmd.script) !== "sh") return scriptContent;
+
+    const newlineIdx = scriptContent.indexOf("\n");
+    if (newlineIdx < 0 || !scriptContent.startsWith("#!")) {
+      // No shebang to insert after; prepend a debug guard line. This is the
+      // exotic case (raw command string passed as scriptContent without a
+      // shebang) — kept simple, no behavior change for the normal path.
+      return `set -x\n${scriptContent}`;
+    }
+    const shebang = scriptContent.slice(0, newlineIdx);
+    const rest = scriptContent.slice(newlineIdx + 1);
+    return `${shebang}\nset -x\n${rest}`;
+  }
+
+  /**
+   * If debug_level≠off, build the redacted-annotated twin of `rawStr` and
+   * emit a `script-start` debug event. Returns the scriptIndex so the caller
+   * can pair it with the `script-end` event after execution.
+   */
+  private emitDebugScriptStart(cmd: ICommand, rawStr: string): number | null {
+    if (this.currentDebugLevel() === "off") return null;
+    try {
+      const { redactedAnnotated, substitutions } =
+        this.deps.variableResolver.replaceVarsAnnotated(rawStr);
+      // Counter lives on the MessageEmitter (single instance per VeExecution);
+      // it returns the assigned index so we can pair with `script-end`.
+      return this.deps.messageEmitter.emitDebugScriptStart(
+        cmd,
+        redactedAnnotated,
+        substitutions,
+      );
+    } catch {
+      /* never break the real execution because of a debug-twin failure */
+      return null;
+    }
+  }
+
+  private emitDebugScriptEnd(
+    cmd: ICommand,
+    scriptIndex: number | null,
+    exitCode: number,
+  ): void {
+    if (scriptIndex === null) return;
+    try {
+      this.deps.messageEmitter.emitDebugScriptEnd(cmd, scriptIndex, exitCode);
+    } catch {
+      /* swallow */
     }
   }
 
@@ -329,7 +405,7 @@ export class VeExecutionCommandProcessor {
     }
 
     if (cmd.scriptContent !== undefined) {
-      const scriptContent = cmd.scriptContent;
+      let scriptContent = cmd.scriptContent;
 
       // Extract interpreter from script's shebang if:
       // - No library is present, OR
@@ -340,6 +416,10 @@ export class VeExecutionCommandProcessor {
           (cmd as any)._interpreter = interpreter;
         }
       }
+
+      // debug_level=script: inject `set -x` after the shebang for shell scripts
+      // so the LXC/VE-side execution emits a per-command trace into stderr.
+      scriptContent = this.maybeInjectSetX(cmd, scriptContent);
 
       // Assemble: global VE library + template library + script
       const globalLib = this.isVeTarget(cmd)
@@ -418,6 +498,12 @@ export class VeExecutionCommandProcessor {
     // Debug-dump inputs + defaults before execution (gated by ve_debug_commands).
     this.debugDumpContext(cmd, "before");
 
+    // Per-task debug bundle: emit a `script-start` event with the redacted
+    // twin + substitution list. Paired with `script-end` in the finally
+    // block so the DebugCollector knows the time window this script ran in.
+    const debugScriptIdx = this.emitDebugScriptStart(cmd, rawStr);
+    let debugExitCode = -1;
+
     // Normalize execute_on: extract target string and optional uid/gid flags
     let target: string;
     let useUid = false;
@@ -456,11 +542,14 @@ export class VeExecutionCommandProcessor {
             throw new Error(msg);
           }
           await this.deps.runOnLxc(vm_id, execStrLxc, cmd, execUid, execGid);
+          debugExitCode = 0;
           return undefined;
         }
         case "ve": {
           const execStrVe = this.deps.variableResolver.replaceVars(rawStr);
-          return await this.deps.runOnVeHost(execStrVe, cmd);
+          const veResult = await this.deps.runOnVeHost(execStrVe, cmd);
+          debugExitCode = veResult.exitCode ?? 0;
+          return veResult;
         }
         case "hook": {
           // Deploy the script as an on-start hook into /etc/proxvex/on_start.d/.
@@ -495,12 +584,14 @@ export class VeExecutionCommandProcessor {
             const triggerScript = `'${hookPath}' '${u}' '${g}'`;
             await this.deps.runOnLxc(vm_id, triggerScript, cmd, execUid, execGid);
           }
+          debugExitCode = 0;
           return undefined;
         }
         default: {
           if (/^host:.*/.test(target)) {
             const hostname = target.split(":")[1] ?? "";
             await this.deps.executeOnHost(hostname, rawStr, cmd);
+            debugExitCode = 0;
             return undefined;
           } else if (/^application:.*/.test(target)) {
             const appId = target.slice("application:".length).trim();
@@ -510,6 +601,7 @@ export class VeExecutionCommandProcessor {
             const vm_id = await this.deps.resolveApplicationToVmId(appId);
             const execStr = this.deps.variableResolver.replaceVars(rawStr);
             await this.deps.runOnLxc(vm_id, execStr, cmd, execUid, execGid);
+            debugExitCode = 0;
             return undefined;
           } else {
             throw new Error(
@@ -522,6 +614,9 @@ export class VeExecutionCommandProcessor {
       // Debug-dump outputs after execution (gated by ve_debug_commands).
       // Runs even on error so we see the state at failure point.
       this.debugDumpContext(cmd, "after");
+      // Close the per-task debug bundle's script-window for this command;
+      // exitCode stays -1 if we threw before reaching the success branch.
+      this.emitDebugScriptEnd(cmd, debugScriptIdx, debugExitCode);
     }
   }
 

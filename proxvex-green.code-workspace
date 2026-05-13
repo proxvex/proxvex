@@ -91,7 +91,8 @@
           "${workspaceFolder:backend}/../secret.txt"
         ],
         "env": {
-          "DEPLOYER_PORT": "3201"
+          "DEPLOYER_PORT": "3201",
+          "HUB_URL": "http://ubuntupve:1080"
         },
         "trace": true,
         "outFiles": [
