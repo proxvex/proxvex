@@ -1,0 +1,6 @@
+{
+  "application": "playwright",
+  "task": "installation",
+  "selectedAddons": [],
+  "wait_seconds": 30
+}

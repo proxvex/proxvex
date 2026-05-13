@@ -1,0 +1,14 @@
+{
+  "description": "End-to-end Playwright OIDC test: deploys proxvex with addon-ssl + addon-oidc (livetest-local overlay sets PROXVEX_E2E_MODE=1), then runs proxvex.spec.ts which obtains a Zitadel access token via client_credentials, posts it to /api/auth/dev-session and asserts the authenticated UI loads.",
+  "task": "installation",
+  "selectedAddons": ["addon-ssl", "addon-oidc"],
+  "stack_name": "default",
+  "depends_on": ["zitadel/default", "playwright/default"],
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "memory", "value": "1024" }
+  ],
+  "wait_seconds": 60,
+  "cli_timeout": 600,
+  "playwright_spec": "proxvex.spec.ts"
+}

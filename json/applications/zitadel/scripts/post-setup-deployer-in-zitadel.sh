@@ -132,12 +132,22 @@ PROTOCOL="http"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
 fi
+# Append the port the Zitadel listener actually binds.
+# - HTTP path (ssl_mode=none): Traefik in the Zitadel LXC binds 0.0.0.0:8080
+#   (matches ZITADEL_EXTERNALPORT=8080); without the explicit port, curl would
+#   try the protocol default (80) and fail with connection-refused.
+# - HTTPS path: Zitadel's TLS listener is on the default 443.
+if [ "$PROTOCOL" = "http" ]; then
+  PORT_SUFFIX=":8080"
+else
+  PORT_SUFFIX=""
+fi
 if [ -n "$ZITADEL_EXTERNALDOMAIN" ]; then
   ZITADEL_HOST="$ZITADEL_EXTERNALDOMAIN"
-  ISSUER_URL="${PROTOCOL}://${ZITADEL_EXTERNALDOMAIN}"
+  ISSUER_URL="${PROTOCOL}://${ZITADEL_EXTERNALDOMAIN}${PORT_SUFFIX}"
 else
   ZITADEL_HOST="${HOSTNAME}"
-  ISSUER_URL="${PROTOCOL}://${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
+  ISSUER_URL="${PROTOCOL}://${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}${PORT_SUFFIX}"
 fi
 
 echo "Zitadel API URL: ${ZITADEL_URL} (Host: ${ZITADEL_HOST})" >&2

@@ -113,7 +113,7 @@ export class VeExecutionSshExecutor {
         "-o",
         "ServerAliveInterval=30", // send keepalive every 30s
         "-o",
-        "ServerAliveCountMax=3", // fail after 3 missed keepalives
+        "ServerAliveCountMax=20", // tolerate ~10 min of idle (long pct create / image extract)
         "-T", // disable pseudo-tty to avoid MOTD banners
       ];
       // Only suppress output in non-verbose mode
@@ -236,9 +236,20 @@ export class VeExecutionSshExecutor {
       }
     }
 
+    // Use idle-timeout semantics: the legacy `timeoutMs` parameter is
+    // reinterpreted as "max silence" rather than absolute runtime. Long-running
+    // commands that emit progress (skopeo, pct create on big images, npm
+    // install) are unaffected. Truly hung scripts still die on time. A hard
+    // upper bound catches infinite loops that keep printing.
+    const idleTimeoutMs = timeoutMs;
+    const hardTimeoutMs = Math.max(
+      VeExecutionConstants.DEFAULT_HARD_TIMEOUT_MS,
+      timeoutMs * 4,
+    );
     while (retryCount < maxRetries) {
       proc = await spawnAsync(actualCommand, actualArgs, {
-        timeout: timeoutMs,
+        idleTimeoutMs,
+        hardTimeoutMs,
         input: actualInput,
         onStdout: (chunk: string) => {
           // Emit partial message for real-time output (especially useful for hanging scripts)
@@ -325,6 +336,7 @@ export class VeExecutionSshExecutor {
       exitCode: proc!.exitCode,
       hasStdout: !!proc!.stdout,
       stderrLength: proc!.stderr?.length || 0,
+      killedBy: proc!.killedBy,
     });
 
     // Log error details if execution failed
@@ -334,7 +346,18 @@ export class VeExecutionSshExecutor {
         exitCode: proc!.exitCode,
         stderr: proc!.stderr?.slice(0, 500), // Truncate for logging
         host: this.deps.veContext?.host,
+        killedBy: proc!.killedBy,
       });
+      // Surface the kill reason in stderr so callers / UI see WHY it died.
+      if (proc!.killedBy) {
+        const note =
+          proc!.killedBy === "idle"
+            ? `\n[killed: no stdout/stderr for ${idleTimeoutMs}ms — likely hung]`
+            : proc!.killedBy === "hard"
+              ? `\n[killed: exceeded hard timeout ${hardTimeoutMs}ms]`
+              : `\n[killed: timeout]`;
+        proc!.stderr = (proc!.stderr || "") + note;
+      }
     }
 
     return {

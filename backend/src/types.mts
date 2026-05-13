@@ -498,6 +498,12 @@ export interface ITestScenarioResponse {
    *  *requires* the failure), allowed2fail only relaxes a failure: pass-or-
    *  exit-with-listed-code is OK. */
   allowed2fail?: Record<string, number>;
+  /** Optional Playwright spec(s) to run after the scenario's verifications.
+   *  Filename (or array of filenames) relative to
+   *  json/applications/<app>/tests/playwright/. The livetest runner invokes
+   *  them via `pnpm run test:applications` after running the test-deployer
+   *  grant refresh on the matching Zitadel dependency. */
+  playwright_spec?: string | string[];
 }
 
 export interface ITestScenariosResponse {

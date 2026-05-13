@@ -85,6 +85,9 @@
           "--secretsFilePath",
           "${workspaceFolder:backend}/../secret.txt"
         ],
+        "env": {
+          "HUB_URL": "http://ubuntupve:1280"
+        },
         "envFile": "${workspaceFolder:backend}/../.dev/launch-backend.env",
         "trace": true,
         "outFiles": [

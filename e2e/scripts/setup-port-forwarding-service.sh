@@ -77,17 +77,42 @@ def run(cmd, check=True):
         sys.exit(1)
     return result
 
-def cleanup_rules(ip, subnet):
-    \"\"\"Remove ALL existing iptables rules for an instance by IP.\"\"\"
+def cleanup_rules(ip, subnet, claimed_ports=()):
+    \"\"\"Remove existing iptables rules for an instance.
+
+    Cleans by IP (rules pointing at this instance), by subnet (POSTROUTING
+    masquerade), AND by --dport for every port this instance owns. The
+    last bit is what keeps another instance's stale DNAT for the same port
+    from stealing traffic — e.g. green's 2810->10.99.1.10:2810 must be
+    purged when yellow takes 2810->10.99.3.10:2810.
+    \"\"\"
+    claimed = set(str(p) for p in claimed_ports)
     # Clean PREROUTING NAT rules
     result = run('iptables -t nat -S PREROUTING', check=False)
     for line in result.stdout.splitlines():
+        keep = True
         if ip in line:
+            keep = False
+        else:
+            # Match --dport <p> followed by space or end-of-string
+            for p in claimed:
+                if f'--dport {p} ' in line or line.endswith(f'--dport {p}'):
+                    keep = False
+                    break
+        if not keep:
             run('iptables -t nat ' + line.replace('-A ', '-D ', 1), check=False)
     # Clean FORWARD rules
     result = run('iptables -S FORWARD', check=False)
     for line in result.stdout.splitlines():
+        keep = True
         if ip in line:
+            keep = False
+        else:
+            for p in claimed:
+                if f'--dport {p} ' in line or line.endswith(f'--dport {p}'):
+                    keep = False
+                    break
+        if not keep:
             run('iptables ' + line.replace('-A ', '-D ', 1), check=False)
     # Clean POSTROUTING NAT rules
     result = run('iptables -t nat -S POSTROUTING', check=False)
@@ -124,11 +149,23 @@ def main():
         port_deployer = base_deployer + offset
         port_deployer_https = base_deployer_https + offset
 
+        # Per-instance extra port forwards from config.json -> portForwarding.
+        # Forwards external_port -> nested_ip:external_port (the matching inner
+        # DNAT inside the nested VM, external_port -> container_ip:container_port,
+        # is configured by live-test-runner at run time and survives via dnsmasq
+        # static leases — see live-test-runner.mts setupPortForwarding).
+        extra_fwds = inst.get('portForwarding', []) or []
+        extra_ports = [int(f['port']) for f in extra_fwds]
+
         print(f'[INFO] Setting up port forwarding for instance: {name}')
         print(f'       Subnet: {subnet}.0/24, IP: {nested_ip}, Offset: {offset}')
 
-        # Remove ALL existing rules for this instance's IP
-        cleanup_rules(nested_ip, subnet)
+        # Remove existing rules: by IP (this instance) AND by --dport for every
+        # port we own. The latter purges stale rules another instance left
+        # behind on the same external port (e.g. an old yellow 2810->10.99.3.10
+        # rule when green now wants 1810, or vice versa after a hardcoded-IP bug).
+        owned_ports = [port_pve_web, port_pve_ssh, port_deployer, port_deployer_https] + extra_ports
+        cleanup_rules(nested_ip, subnet, owned_ports)
 
         # Add port forwarding rules
         run(f'iptables -t nat -A PREROUTING -p tcp --dport {port_pve_web} -j DNAT --to-destination {nested_ip}:8006')
@@ -143,11 +180,19 @@ def main():
         # NAT for nested VM network
         run(f'iptables -t nat -A POSTROUTING -s {subnet}.0/24 -o vmbr0 -j MASQUERADE')
 
+        # Extra portForwarding entries (Playwright WS, Zitadel, proxvex external...).
+        for fwd in extra_fwds:
+            ext_port = int(fwd['port'])
+            run(f'iptables -t nat -A PREROUTING -p tcp --dport {ext_port} -j DNAT --to-destination {nested_ip}:{ext_port}')
+            run(f'iptables -A FORWARD -p tcp -d {nested_ip} --dport {ext_port} -j ACCEPT')
+
         print(f'[OK] Port forwarding configured:')
         print(f'     {port_pve_web} -> {nested_ip}:8006 (Web UI)')
         print(f'     {port_pve_ssh} -> {nested_ip}:22 (SSH)')
         print(f'     {port_deployer} -> {nested_ip}:3080 (Deployer HTTP)')
         print(f'     {port_deployer_https} -> {nested_ip}:3443 (Deployer HTTPS)')
+        for fwd in extra_fwds:
+            print(f'     {fwd[\"port\"]} -> {nested_ip}:{fwd[\"port\"]} ({fwd.get(\"hostname\", \"?\")})')
 
     print('[OK] All port forwarding rules applied')
 

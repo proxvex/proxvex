@@ -15,13 +15,15 @@
  * - Comprehensive verification suite (container, notes, services, TLS, SSL)
  *
  * Usage:
- *   tsx live-test-runner.mts [instance] [test-name|--all] [--queue] [--fixtures]
+ *   tsx live-test-runner.mts [instance] [test-name|--all] [--queue] [--fixtures] [--deps-only]
  *
  * Examples:
  *   tsx live-test-runner.mts github-action postgres/ssl
  *   tsx live-test-runner.mts github-action zitadel        # runs all zitadel/* + deps
  *   tsx live-test-runner.mts github-action --all
  *   tsx live-test-runner.mts github-action --queue         # parallel queue worker mode
+ *   tsx live-test-runner.mts yellow proxvex/playwright-oidc --deps-only
+ *                                                          # install deps + snapshot, skip target
  *   KEEP_VM=1 tsx live-test-runner.mts github-action zitadel/ssl
  */
 
@@ -84,6 +86,7 @@ function loadConfig(instanceName?: string): {
   snapshot: { enabled: boolean } | undefined;
   registryMirror: { dnsForwarder: string } | undefined;
   portForwarding: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
+  nestedVmIp: string;
   zitadelPat: string | undefined;
 } {
   const projectRoot = path.resolve(import.meta.dirname, "../../../..");
@@ -163,6 +166,9 @@ function loadConfig(instanceName?: string): {
     snapshot,
     registryMirror,
     portForwarding,
+    // Nested VM static IP (always .10 in step1's subnet allocation). Used by
+    // outer-host iptables DNAT rules so port-forwards reach the right nested VM.
+    nestedVmIp: `${inst.subnet}.10`,
     zitadelPat,
   };
 }
@@ -217,6 +223,107 @@ async function discoverApiUrl(httpUrl: string, httpsUrl: string): Promise<string
 
 // ── CLI execution (extracted to cli-executor.mts) ──
 
+// ── Port forwarding ──
+
+/**
+ * (Re)apply iptables DNAT + dnsmasq DHCP-host entries for every container
+ * declared in `config.portForwarding`. Idempotent: each rule is checked with
+ * `iptables -C` before being added. Safe to call multiple times — typically:
+ * once at runner startup, and again after `restoreBestSnapshot` since
+ * `qm rollback` wipes the nested-VM iptables + dnsmasq state.
+ *
+ * Outer-host rules (DNAT on the PVE host itself) survive snapshot rollback
+ * but are re-checked anyway so this stays the single source of truth.
+ */
+/**
+ * Static IP of the Hub-LXC inside the nested VM (set by install-proxvex.sh in
+ * step2b). Any portForwarding entry pointing at this IP would race with the
+ * Hub's static IP allocation — the test container would steal the IP via
+ * dhcp-host and the Spoke would unknowingly talk to the test target instead
+ * of the Hub.
+ */
+const HUB_LXC_STATIC_IP = "10.0.0.100";
+
+export function setupPortForwarding(config: {
+  pveHost: string;
+  portPveSsh: number;
+  portForwarding: Array<{ port: number; hostname: string; ip: string; containerPort: number }>;
+  nestedVmIp: string;
+}): void {
+  if (config.portForwarding.length === 0) return;
+  // Refuse any entry that collides with the Hub-LXC's static IP. dnsmasq
+  // would then issue 10.0.0.100 to the test container, ARP would resolve
+  // to that container, and the Hub becomes unreachable — symptom: spurious
+  // HTTP→HTTPS redirects from a *test* proxvex (with addon-ssl) instead of
+  // the Hub's plain HTTP.
+  const conflicts = config.portForwarding.filter((f) => f.ip === HUB_LXC_STATIC_IP);
+  if (conflicts.length > 0) {
+    const detail = conflicts.map((f) => `${f.hostname}:${f.port}`).join(", ");
+    throw new Error(
+      `portForwarding IP ${HUB_LXC_STATIC_IP} is reserved for the Hub-LXC — `
+      + `remove the colliding entries from e2e/config.json (${detail}). `
+      + `Tests that need external access from the laptop should not use this IP; `
+      + `tests that only need internal access via the remote Playwright browser `
+      + `do not need a portForwarding entry at all.`,
+    );
+  }
+  try {
+    for (const fwd of config.portForwarding) {
+      // a) dnsmasq static DHCP lease on nested VM
+      const dhcpCheck = nestedSsh(config.pveHost, config.portPveSsh,
+        `grep -q 'dhcp-host=${fwd.hostname}' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null && echo "exists" || echo "missing"`,
+        5000);
+      if (dhcpCheck.trim() === "missing") {
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `echo "dhcp-host=${fwd.hostname},${fwd.ip}" >> /etc/dnsmasq.d/e2e-nat.conf`,
+          5000);
+      }
+
+      // b) iptables DNAT on nested VM (inner forwarding)
+      const innerCheck = nestedSsh(config.pveHost, config.portPveSsh,
+        `iptables -t nat -C PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${fwd.ip}:${fwd.containerPort} 2>/dev/null && echo "exists" || echo "missing"`,
+        5000);
+      if (innerCheck.trim() === "missing") {
+        nestedSsh(config.pveHost, config.portPveSsh,
+          `iptables -t nat -A PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${fwd.ip}:${fwd.containerPort} && iptables -A FORWARD -p tcp -d ${fwd.ip} --dport ${fwd.containerPort} -j ACCEPT`,
+          5000);
+      }
+
+      // c) iptables DNAT on outer PVE host. Forwards external port to nested
+      // VM which then forwards to container. The nested-VM IP comes from
+      // `${instance.subnet}.10` (step1 always allocates .10 to the nested VM).
+      //
+      // Important: another instance (green vs yellow) may have left a DNAT
+      // rule pointing at *its* nested VM IP for the same port. iptables
+      // PREROUTING is order-first-match, so a stale green rule (10.99.1.10)
+      // would steal traffic meant for yellow (10.99.3.10). Delete every
+      // existing rule for this --dport before installing ours.
+      try {
+        // Convert every matching `-A PREROUTING ... --dport <p> ... DNAT ...`
+        // line into a `-D` and replay it, then install the canonical rule.
+        // iptables -D requires the full rule-spec to match, so we cannot do a
+        // partial delete-while-loop — awk-rewriting the -S output is the
+        // simplest way to drop any rule for this port regardless of target.
+        nestedSsh(config.pveHost, 22,
+          `iptables -t nat -S PREROUTING | awk '/--dport ${fwd.port} / && /DNAT/ { sub(/^-A/, "-D"); print }' | ` +
+          `while IFS= read -r rule; do [ -n "$rule" ] && iptables -t nat $rule; done; ` +
+          `iptables -t nat -A PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${config.nestedVmIp}:${fwd.port}; ` +
+          `iptables -C FORWARD -p tcp -d ${config.nestedVmIp} --dport ${fwd.port} -j ACCEPT 2>/dev/null || iptables -A FORWARD -p tcp -d ${config.nestedVmIp} --dport ${fwd.port} -j ACCEPT`,
+          10000);
+      } catch {
+        // Outer host may not be directly accessible via SSH port 22
+      }
+
+      logOk(`Port forwarding: ${fwd.hostname} (${fwd.ip}:${fwd.containerPort}) -> external port ${fwd.port}`);
+    }
+
+    // Restart dnsmasq to apply DHCP changes
+    nestedSsh(config.pveHost, config.portPveSsh, `systemctl restart dnsmasq`, 10000);
+  } catch {
+    logInfo("Warning: Could not configure port forwarding (non-fatal)");
+  }
+}
+
 // ── Cleanup ──
 
 function cleanupVms(
@@ -250,6 +357,7 @@ async function main() {
   const queueFlag = args.includes("--queue");
   const failFastFlag = args.includes("--fail-fast");
   const includeUntestable = args.includes("--include-untestable");
+  const depsOnlyFlag = args.includes("--deps-only");
 
   // Coverage-report short-circuits before any deployer interaction.
   if (args.includes("--coverage-report")) {
@@ -290,6 +398,7 @@ async function main() {
     a !== "--include-untestable" &&
     a !== "--coverage-report" &&
     a !== "--gaps-only" &&
+    a !== "--deps-only" &&
     !(arr[i - 1] === "--format")
   );
   const instance = positionalArgs[0] || undefined;
@@ -425,50 +534,11 @@ async function main() {
     logInfo(`dnsmasq + skopeo mirror config baked into mirrors-ready snapshot (dnsForwarder=${fwd})`);
   }
 
-  // Set up port forwarding for containers that need external access (e.g. Zitadel for OIDC)
-  if (config.portForwarding.length > 0) {
-    try {
-      for (const fwd of config.portForwarding) {
-        // a) dnsmasq static DHCP lease on nested VM
-        const dhcpCheck = nestedSsh(config.pveHost, config.portPveSsh,
-          `grep -q 'dhcp-host=${fwd.hostname}' /etc/dnsmasq.d/e2e-nat.conf 2>/dev/null && echo "exists" || echo "missing"`,
-          5000);
-        if (dhcpCheck.trim() === "missing") {
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `echo "dhcp-host=${fwd.hostname},${fwd.ip}" >> /etc/dnsmasq.d/e2e-nat.conf`,
-            5000);
-        }
-
-        // b) iptables DNAT on nested VM (inner forwarding)
-        const innerCheck = nestedSsh(config.pveHost, config.portPveSsh,
-          `iptables -t nat -C PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${fwd.ip}:${fwd.containerPort} 2>/dev/null && echo "exists" || echo "missing"`,
-          5000);
-        if (innerCheck.trim() === "missing") {
-          nestedSsh(config.pveHost, config.portPveSsh,
-            `iptables -t nat -A PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${fwd.ip}:${fwd.containerPort} && iptables -A FORWARD -p tcp -d ${fwd.ip} --dport ${fwd.containerPort} -j ACCEPT`,
-            5000);
-        }
-
-        // c) iptables DNAT on outer PVE host (port 22, not nested port)
-        // Forwards external port to nested VM which then forwards to container
-        const nestedVmIp = "10.99.1.10";
-        try {
-          nestedSsh(config.pveHost, 22,
-            `iptables -t nat -C PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${nestedVmIp}:${fwd.port} 2>/dev/null || (iptables -t nat -A PREROUTING -p tcp --dport ${fwd.port} -j DNAT --to-destination ${nestedVmIp}:${fwd.port} && iptables -A FORWARD -p tcp -d ${nestedVmIp} --dport ${fwd.port} -j ACCEPT)`,
-            10000);
-        } catch {
-          // Outer host may not be directly accessible via SSH port 22
-        }
-
-        logOk(`Port forwarding: ${fwd.hostname} (${fwd.ip}:${fwd.containerPort}) -> external port ${fwd.port}`);
-      }
-
-      // Restart dnsmasq to apply DHCP changes
-      nestedSsh(config.pveHost, config.portPveSsh, `systemctl restart dnsmasq`, 10000);
-    } catch {
-      logInfo("Warning: Could not configure port forwarding (non-fatal)");
-    }
-  }
+  // Set up port forwarding for containers that need external access (e.g. Zitadel for OIDC).
+  // Called BOTH before scenarios run AND after snapshot rollback in restoreBestSnapshot,
+  // because qm rollback wipes the nested-VM iptables + dnsmasq state. Outer-host rules
+  // (set via `nestedSsh(pveHost, 22, ...)`) survive rollback and are kept idempotent.
+  setupPortForwarding(config);
 
   // Fetch application metadata (stacktypes, extends, tags)
   const appStacktypes = new Map<string, string | string[]>();
@@ -574,6 +644,24 @@ async function main() {
       !selectedIdSet.has(p.scenario.id) || dependedOn.has(p.scenario.id);
   }
 
+  // --deps-only: drop non-dependency steps so we install all providers, create
+  // the dep-stacks-ready snapshot, and skip the target tests. Iteration loop
+  // for the target test (e.g. tweaking a Playwright spec or a single template)
+  // can then re-run without paying the dep-install cost.
+  if (depsOnlyFlag) {
+    const dropped = planned.filter((p) => !p.isDependency).map((p) => p.scenario.id);
+    if (dropped.length > 0) {
+      logInfo(`--deps-only: skipping target test(s): ${dropped.join(", ")}`);
+    }
+    for (let i = planned.length - 1; i >= 0; i--) {
+      if (!planned[i]!.isDependency) planned.splice(i, 1);
+    }
+    if (planned.length === 0) {
+      logInfo("--deps-only: no dependencies to install, nothing to do");
+      return;
+    }
+  }
+
   // Show plan
   console.log("");
   logInfo("Execution plan:");
@@ -586,6 +674,10 @@ async function main() {
   // VM preparation: snapshot restore → pre-cleanup
   if (testArg === "--all") rollbackToBaseline(config, projectRoot);
   await restoreBestSnapshot(planned, allTests, config, apiUrl, projectRoot);
+  // qm rollback wipes the nested-VM iptables + dnsmasq state, so reapply
+  // port forwarding (idempotent) so Playwright specs and OIDC redirect URIs
+  // still reach the right inner containers.
+  setupPortForwarding(config);
   prepareVms(planned, config, appStacktypes);
 
   // Stack management: cleanup SQL, stale VM detection, stack creation

@@ -70,6 +70,11 @@ fi
 export DEPLOYER_PORT
 
 HUB_URL="$DEPLOYER_URL"   # http://$PVE_HOST:$PORT_DEPLOYER, port-forwarded to proxvex-LXC
+# Plain HTTP works because the Hub-LXC itself does not enable HTTPS
+# (no /etc/ssl/addon certs in the Hub container). Older runs saw spurious
+# HTTPS redirects from a *test* container that had collided with the Hub
+# IP (10.0.0.100) due to dnsmasq dhcp-host=proxvex-default,10.0.0.100 in
+# e2e/config.json — those entries are removed now.
 
 info() { echo "[INFO $(date +%H:%M:%S)] $*" >&2; }
 ok()   { echo "[OK   $(date +%H:%M:%S)] $*" >&2; }

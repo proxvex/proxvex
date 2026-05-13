@@ -9,6 +9,7 @@
     "name": "Volkmar Nissen"
   },
   "scripts": {
+    "prebuild": "node scripts/sync-playwright-version.mjs",
     "build": "pnpm build:backend && pnpm build:cli && pnpm build:frontend",
     "build:backend": "cd backend && pnpm build",
     "build:cli": "cd cli && pnpm build",
@@ -16,6 +17,7 @@
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "e2e:debug": "PWDEBUG=1 playwright test --headed",
+    "test:applications": "playwright test --config json/applications/playwright.config.ts",
     "install-hooks": "sh scripts/install-git-hooks.sh",
     "lint:lang": "node scripts/check-language.js",
     "postinstall": "pnpm install-hooks",

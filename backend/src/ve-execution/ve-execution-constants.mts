@@ -48,6 +48,23 @@ export function determineExecutionMode(
  * Execution constants for VeExecution.
  */
 export class VeExecutionConstants {
+  /**
+   * Default kill timeout if a script produces no stdout/stderr for this long.
+   * Replaces the previous DEFAULT_SCRIPT_TIMEOUT_MS as primary timeout.
+   * Adaptive: long-running commands that keep emitting progress (skopeo, pct
+   * create, npm install) don't trip; truly hung scripts do.
+   */
+  static readonly DEFAULT_IDLE_TIMEOUT_MS = 180000; // 3 minutes of silence
+
+  /**
+   * Hard upper bound. Catches infinite loops that keep printing.
+   */
+  static readonly DEFAULT_HARD_TIMEOUT_MS = 1800000; // 30 minutes absolute
+
+  /**
+   * Legacy alias kept for callers that haven't migrated to idle/hard split.
+   * Used as fallback when only `timeout` is given.
+   */
   static readonly DEFAULT_SCRIPT_TIMEOUT_MS = 120000; // 2 minutes
   static readonly HOST_PROBE_TIMEOUT_MS = 10000; // 10 seconds
   static readonly RETRY_DELAY_MS = 3000; // 3 seconds

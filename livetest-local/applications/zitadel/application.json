@@ -4,7 +4,8 @@
   "installation": {
     "post_start": [
       "350-post-setup-test-project.json",
-      "357-post-create-test-oidc-user.json"
+      "357-post-create-test-oidc-user.json",
+      "358-post-grant-test-deployer-all-roles.json"
     ]
   }
 }

@@ -37,7 +37,7 @@
     },
     {
       "id": "ssl_mode",
-      "value": "native"
+      "default": "native"
     },
     {
       "id": "local_https_port",

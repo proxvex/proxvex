@@ -134,11 +134,27 @@ fi
 echo "Client credentials generated" >&2
 
 # --- 4. Build issuer URL ---
+# Traefik in the Zitadel LXC binds 0.0.0.0:8080 (HTTP) / 0.0.0.0:1443 (HTTPS),
+# not standard 80/443 — plain HTTP must include :8080 in the issuer; HTTPS
+# strips the port (1443 is internal-only; downstream OIDC consumers expect 443
+# in the issuer claim).
+#
+# The bare hostname is used (no PROJECT_DOMAIN_SUFFIX `.local` tail): this URL
+# is consumed by the Playwright spec running on the remote playwright-default
+# LXC, which resolves `zitadel-default` directly via the nested-VM dnsmasq
+# (template 106 writes the `<static_ip> <hostname>` entry to /etc/hosts). The
+# `.local` alias is not served by dnsmasq for explicit /etc/hosts entries,
+# which would otherwise break the token-endpoint POST.
 PROTOCOL="http"
 if [ -n "$SSL_MODE" ] && [ "$SSL_MODE" != "none" ]; then
   PROTOCOL="https"
 fi
-ISSUER_URL="${PROTOCOL}://${HOSTNAME}${PROJECT_DOMAIN_SUFFIX}"
+if [ "$PROTOCOL" = "http" ]; then
+  PORT_SUFFIX=":8080"
+else
+  PORT_SUFFIX=""
+fi
+ISSUER_URL="${PROTOCOL}://${HOSTNAME}${PORT_SUFFIX}"
 
 # --- 5. Store credentials ---
 cat > "$CRED_FILE" <<ENDOFCRED

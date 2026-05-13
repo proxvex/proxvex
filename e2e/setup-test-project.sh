@@ -71,8 +71,15 @@ success "Deployer VMID: ${deployer_vmid}"
 # Hub-side rm -rf + extract keeps the destination an exact mirror of the
 # source (files removed locally disappear on the Hub too).
 info "Syncing livetest-local/shared/ → Hub LXC ${deployer_vmid} /config/shared/"
-tar -C "$PROJECT_ROOT/livetest-local" -czf - shared \
-    | nested_ssh "pct exec ${deployer_vmid} -- sh -c 'rm -rf /config/shared && mkdir -p /config && tar -xzf - -C /config && chown -R \$(stat -c %u:%g /config) /config/shared'" \
+# Suppress macOS resource-fork sidecar files (._*) that bsdtar would otherwise
+# pack as pax extended headers — these materialise on the Linux extract side
+# as zero-content "._<filename>" files, which the deployer then tries to load
+# as JSON templates and crashes.
+#   - COPYFILE_DISABLE=1 stops bsdtar from embedding the metadata at create
+#   - --exclude='._*' belt-and-braces in case the env var doesn't kick in
+# Without this, every run on a Mac risks killing the Hub deployer at startup.
+COPYFILE_DISABLE=1 tar -C "$PROJECT_ROOT/livetest-local" --exclude='._*' -czf - shared \
+    | nested_ssh "pct exec ${deployer_vmid} -- sh -c 'rm -rf /config/shared && mkdir -p /config && tar -xzf - -C /config && find /config/shared -name \"._*\" -delete && chown -R \$(stat -c %u:%g /config) /config/shared'" \
     || error "Failed to sync livetest-local/shared/ into Hub LXC ${deployer_vmid}"
 success "Hub /config/shared synced from livetest-local/shared/"
 

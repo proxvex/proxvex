@@ -1,0 +1,11 @@
+{
+  "name": "proxvex",
+  "extends": "json:proxvex",
+  "description": "Test overlay: enables the OIDC dev-session bypass endpoint via PROXVEX_E2E_MODE=1 so Playwright specs can establish authenticated sessions without going through the Zitadel UI.",
+  "properties": [
+    {
+      "id": "envs",
+      "default": "HTTP_PORT=3080\nHTTPS_PORT=3443\nPROXVEX_E2E_MODE=1"
+    }
+  ]
+}
