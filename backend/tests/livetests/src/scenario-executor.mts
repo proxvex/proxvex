@@ -957,6 +957,19 @@ export async function executeScenarios(
           );
         }
 
+        // Per-scenario artifact dir: lives next to the backend bundle so
+        // everything related to the failing run sits in one place. Playwright
+        // writes trace.zip / screenshot / video / report.json here (see
+        // playwright.config.ts), and we mirror its stdout/stderr into
+        // playwright-output.log so the spec's own assertion text is preserved
+        // without needing to scroll the terminal.
+        const scenarioResultDir = resultWriter
+          ? path.join(resultWriter.getOutputDir(), scenario.id.replace("/", "-"))
+          : path.join(projectRoot, "livetest-results", "_no-writer", scenario.id.replace("/", "-"));
+        const pwArtifactsDir = path.join(scenarioResultDir, "playwright-artifacts");
+        const pwLogPath = path.join(scenarioResultDir, "playwright-output.log");
+        try { writeFileSync(pwLogPath, ""); } catch { /* dir may not exist yet — runner creates it */ }
+
         for (const spec of specs) {
           const specPath = path.join(
             "json/applications",
@@ -970,16 +983,33 @@ export async function executeScenarios(
               `playwright_spec missing: ${specPath} (resolved to ${absSpec})`,
             );
           }
-          logInfo(`Playwright: ${specPath}`);
+          logInfo(`Playwright: ${specPath} (artifacts → ${path.relative(projectRoot, pwArtifactsDir)})`);
           const proc = spawnSync(
             "pnpm",
             ["run", "test:applications", "--", specPath],
             {
               cwd: projectRoot,
-              env: { ...process.env, ...playwrightEnv },
-              stdio: "inherit",
+              env: {
+                ...process.env,
+                ...playwrightEnv,
+                PLAYWRIGHT_OUTPUT_DIR: pwArtifactsDir,
+              },
+              stdio: "pipe",
+              encoding: "utf-8",
             },
           );
+          // Mirror to terminal (so the live run is still watchable) AND
+          // persist to disk for the bundle.
+          const combined = `${proc.stdout ?? ""}${proc.stderr ?? ""}`;
+          process.stdout.write(combined);
+          try {
+            const { appendFileSync, mkdirSync } = await import("node:fs");
+            mkdirSync(scenarioResultDir, { recursive: true });
+            appendFileSync(
+              pwLogPath,
+              `\n=== ${specPath} (exit ${proc.status}) ===\n${combined}`,
+            );
+          } catch { /* non-fatal — we still threw above */ }
           if (proc.status !== 0) {
             // Write a `status: failed` result before bubbling out, otherwise
             // the run directory stays empty (the success-path write at the

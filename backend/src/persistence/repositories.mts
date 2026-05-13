@@ -627,19 +627,23 @@ export class FileSystemRepositories
         }
       }
     } else {
-      // Search through application hierarchy (child -> parent) for the script
+      // Search through application hierarchy (child -> parent) for the script.
+      // For each app in the hierarchy, try every base path it lives at
+      // (overlay first, canonical second) — an overlay may extend a
+      // canonical app additively without re-providing its scripts/ tree.
       const hierarchy = ref.applicationId ? this.getApplicationHierarchy(ref.applicationId) : [];
-      for (const appId of hierarchy) {
-        const appPath = this.getApplicationPath(appId);
-        if (!appPath) continue;
-        scriptPath = TemplatePathResolver.resolveScriptPath(
-          ref.name,
-          appPath,
-          this.pathes,
-          ref.category || "root",
-        );
-        if (scriptPath && fs.existsSync(scriptPath)) break;
-        scriptPath = null;
+      outer: for (const appId of hierarchy) {
+        const appPaths = this.getApplicationPaths(appId);
+        for (const appPath of appPaths) {
+          scriptPath = TemplatePathResolver.resolveScriptPath(
+            ref.name,
+            appPath,
+            this.pathes,
+            ref.category || "root",
+          );
+          if (scriptPath && fs.existsSync(scriptPath)) break outer;
+          scriptPath = null;
+        }
       }
     }
     return scriptPath;
@@ -708,21 +712,39 @@ export class FileSystemRepositories
   }
 
   private getApplicationPath(applicationId?: string): string | null {
-    if (!applicationId) return null;
+    const paths = this.getApplicationPaths(applicationId);
+    return paths[0] ?? null;
+  }
 
-    // "json:" prefix forces resolution to json/ directory (skips local)
+  /**
+   * Return every base path where this application is materialised, in
+   * resolution-priority order (overlay first, canonical last).
+   *
+   * Why a list and not a single path: a livetest-local overlay can extend a
+   * canonical app additively — e.g. `livetest-local/applications/proxvex/
+   * application.json` switches PROXVEX_E2E_MODE on while inheriting all of
+   * `json/applications/proxvex/scripts/` from the canonical tree. The
+   * single-path variant returned only the overlay and silently masked the
+   * canonical's `scripts/pre_start/conf-configure-oidc-app.sh`, falling back
+   * to the shared no-op — symptom: OIDC env vars never landed on the
+   * deployed container.
+   */
+  private getApplicationPaths(applicationId?: string): string[] {
+    if (!applicationId) return [];
+
+    // "json:" prefix forces resolution to json/ directory (skips local).
     if (applicationId.startsWith("json:")) {
       const name = applicationId.replace(/^json:/, "");
       const jsonCandidate = path.join(this.pathes.jsonPath, "applications", name);
       if (fs.existsSync(path.join(jsonCandidate, "application.json"))) {
-        return jsonCandidate;
+        return [jsonCandidate];
       }
-      return null;
+      return [];
     }
 
     const allApps = this.persistence.getAllAppNames();
     const cached = allApps.get(applicationId);
-    if (cached) return cached;
+    const out: string[] = [];
 
     const localCandidate = path.join(
       this.pathes.localPath,
@@ -730,7 +752,7 @@ export class FileSystemRepositories
       applicationId,
     );
     if (fs.existsSync(path.join(localCandidate, "application.json"))) {
-      return localCandidate;
+      out.push(localCandidate);
     }
 
     const jsonCandidate = path.join(
@@ -739,10 +761,14 @@ export class FileSystemRepositories
       applicationId,
     );
     if (fs.existsSync(path.join(jsonCandidate, "application.json"))) {
-      return jsonCandidate;
+      if (!out.includes(jsonCandidate)) out.push(jsonCandidate);
     }
 
-    return null;
+    // `cached` from persistence may point to a path we haven't enumerated
+    // (e.g. hub-side checkout); include it as a final fallback.
+    if (cached && !out.includes(cached)) out.push(cached);
+
+    return out;
   }
 
   private normalizePath(targetPath: string): string {
