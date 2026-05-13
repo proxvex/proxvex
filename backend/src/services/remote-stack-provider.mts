@@ -55,7 +55,10 @@ export class RemoteStackProvider implements IStackProvider {
     // Plain -s would silently swallow "Could not resolve host" / connection
     // errors and surface only `result.status != 0` with empty stderr — making
     // DNS-related Spoke→Hub failures undebuggable.
-    const args: string[] = ["-sS", "--max-time", "10"];
+    // -L: follow 3xx redirects. The Hub-LXC auto-redirects plain HTTP /api/*
+    // to HTTPS; without -L curl returns the redirect HTML body and JSON.parse
+    // throws "Invalid JSON from Hub: Moved Permanently".
+    const args: string[] = ["-sSL", "--max-time", "10"];
 
     if (this.isHttps && !this.trustedHubCa) {
       args.push("-k"); // TOFU — trust any cert

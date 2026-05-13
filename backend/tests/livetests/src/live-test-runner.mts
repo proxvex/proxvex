@@ -235,6 +235,15 @@ async function discoverApiUrl(httpUrl: string, httpsUrl: string): Promise<string
  * Outer-host rules (DNAT on the PVE host itself) survive snapshot rollback
  * but are re-checked anyway so this stays the single source of truth.
  */
+/**
+ * Static IP of the Hub-LXC inside the nested VM (set by install-proxvex.sh in
+ * step2b). Any portForwarding entry pointing at this IP would race with the
+ * Hub's static IP allocation — the test container would steal the IP via
+ * dhcp-host and the Spoke would unknowingly talk to the test target instead
+ * of the Hub.
+ */
+const HUB_LXC_STATIC_IP = "10.0.0.100";
+
 export function setupPortForwarding(config: {
   pveHost: string;
   portPveSsh: number;
@@ -242,6 +251,22 @@ export function setupPortForwarding(config: {
   nestedVmIp: string;
 }): void {
   if (config.portForwarding.length === 0) return;
+  // Refuse any entry that collides with the Hub-LXC's static IP. dnsmasq
+  // would then issue 10.0.0.100 to the test container, ARP would resolve
+  // to that container, and the Hub becomes unreachable — symptom: spurious
+  // HTTP→HTTPS redirects from a *test* proxvex (with addon-ssl) instead of
+  // the Hub's plain HTTP.
+  const conflicts = config.portForwarding.filter((f) => f.ip === HUB_LXC_STATIC_IP);
+  if (conflicts.length > 0) {
+    const detail = conflicts.map((f) => `${f.hostname}:${f.port}`).join(", ");
+    throw new Error(
+      `portForwarding IP ${HUB_LXC_STATIC_IP} is reserved for the Hub-LXC — `
+      + `remove the colliding entries from e2e/config.json (${detail}). `
+      + `Tests that need external access from the laptop should not use this IP; `
+      + `tests that only need internal access via the remote Playwright browser `
+      + `do not need a portForwarding entry at all.`,
+    );
+  }
   try {
     for (const fwd of config.portForwarding) {
       // a) dnsmasq static DHCP lease on nested VM
