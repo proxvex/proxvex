@@ -50,7 +50,11 @@
       "script": "post-create-test-oidc-user.sh",
       "outputs": [
         "test_deployer_client_id",
-        "test_deployer_client_secret"
+        "test_deployer_client_secret",
+        "test_deployer_issuer_url",
+        "provides_TEST_DEPLOYER_OIDC_MACHINE_CLIENT_ID",
+        "provides_TEST_DEPLOYER_OIDC_MACHINE_CLIENT_SECRET",
+        "provides_TEST_DEPLOYER_OIDC_ISSUER_URL"
       ]
     }
   ]

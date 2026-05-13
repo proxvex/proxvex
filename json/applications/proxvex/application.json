@@ -25,6 +25,10 @@
       "default": "HTTP_PORT=3080\nHTTPS_PORT=3443"
     },
     {
+      "id": "wait_for_network",
+      "value": "true"
+    },
+    {
       "id": "hostname",
       "default": "proxvex"
     },

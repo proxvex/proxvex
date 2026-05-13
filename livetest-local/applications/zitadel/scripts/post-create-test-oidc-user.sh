@@ -169,9 +169,18 @@ chmod 0600 "$CRED_FILE"
 echo "Test deployer credentials stored in ${CRED_FILE}" >&2
 
 # --- Output ---
+# These also propagate into the oidc-stack provides (via Zitadel's stacktype
+# "oidc" + parameter-definitions marking them as `provides`). The livetest
+# runner reads TEST_DEPLOYER_OIDC_* from the stack to invoke proxvex test
+# specs as the role-laden test-deployer instead of the bare deployer-cli,
+# which doesn't carry per-project admin grants.
 cat <<ENDOFOUTPUT
 [
   {"id": "test_deployer_client_id", "value": "${CLIENT_ID}"},
-  {"id": "test_deployer_client_secret", "value": "${CLIENT_SECRET}"}
+  {"id": "test_deployer_client_secret", "value": "${CLIENT_SECRET}"},
+  {"id": "test_deployer_issuer_url", "value": "${ISSUER_URL}"},
+  {"id": "provides_TEST_DEPLOYER_OIDC_MACHINE_CLIENT_ID", "value": "${CLIENT_ID}"},
+  {"id": "provides_TEST_DEPLOYER_OIDC_MACHINE_CLIENT_SECRET", "value": "${CLIENT_SECRET}"},
+  {"id": "provides_TEST_DEPLOYER_OIDC_ISSUER_URL", "value": "${ISSUER_URL}"}
 ]
 ENDOFOUTPUT

@@ -345,9 +345,22 @@ export async function executeScenarios(
       const data = await resp.json() as { stack?: { provides?: Array<{ name: string; value: string }> } };
       const provides = data.stack?.provides ?? [];
       const get = (name: string): string | undefined => provides.find((p) => p.name === name)?.value;
-      const issuerUrl = get("DEPLOYER_OIDC_ISSUER_URL");
-      const clientId = get("DEPLOYER_OIDC_MACHINE_CLIENT_ID");
-      const clientSecret = get("DEPLOYER_OIDC_MACHINE_CLIENT_SECRET");
+      // Prefer TEST_DEPLOYER_OIDC_* — emitted by template 357 (livetest-local
+      // overlay), this user gets ALL project roles granted (template 358 +
+      // Phase D refresh-grant hook). Falls back to DEPLOYER_OIDC_* (deployer-cli
+      // machine user from template 340) when test-deployer wasn't created —
+      // that user has ORG_OWNER but no per-project role, so apps with
+      // OIDC_REQUIRED_ROLE will reject its access token (HTTP 403 from
+      // /api/auth/dev-session).
+      const issuerUrl =
+        get("TEST_DEPLOYER_OIDC_ISSUER_URL")
+        ?? get("DEPLOYER_OIDC_ISSUER_URL");
+      const clientId =
+        get("TEST_DEPLOYER_OIDC_MACHINE_CLIENT_ID")
+        ?? get("DEPLOYER_OIDC_MACHINE_CLIENT_ID");
+      const clientSecret =
+        get("TEST_DEPLOYER_OIDC_MACHINE_CLIENT_SECRET")
+        ?? get("DEPLOYER_OIDC_MACHINE_CLIENT_SECRET");
       if (issuerUrl && clientId && clientSecret) {
         return { issuerUrl, clientId, clientSecret };
       }
