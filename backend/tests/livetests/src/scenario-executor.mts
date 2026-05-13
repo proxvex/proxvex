@@ -329,6 +329,44 @@ export async function executeScenarios(
   // OIDC credentials for delegated access (loaded after Zitadel installation)
   // Only used if the deployer itself has OIDC enabled (not for app-level OIDC addons)
   let oidcCredentials: { issuerUrl: string; clientId: string; clientSecret: string } | undefined;
+
+  /**
+   * Pull the test-deployer credentials from the oidc_<stackName> stack the
+   * way addon-oidc-consuming applications do: Zitadel install emits
+   * `DEPLOYER_OIDC_MACHINE_CLIENT_ID/SECRET` and `DEPLOYER_OIDC_ISSUER_URL`
+   * as stack provides, so any consumer (including the livetest runner that
+   * needs to call the Zitadel token endpoint from the remote Playwright
+   * spec) reads them from there — never from the LXC bootstrap files.
+   */
+  async function loadOidcCredsFromStack(stackName: string): Promise<typeof oidcCredentials> {
+    try {
+      const resp = await fetch(`${apiUrl}/api/stack/oidc_${stackName}`, { signal: AbortSignal.timeout(5000) });
+      if (!resp.ok) return undefined;
+      const data = await resp.json() as { stack?: { provides?: Array<{ name: string; value: string }> } };
+      const provides = data.stack?.provides ?? [];
+      const get = (name: string): string | undefined => provides.find((p) => p.name === name)?.value;
+      // Prefer TEST_DEPLOYER_OIDC_* — emitted by template 357 (livetest-local
+      // overlay), this user gets ALL project roles granted (template 358 +
+      // Phase D refresh-grant hook). Falls back to DEPLOYER_OIDC_* (deployer-cli
+      // machine user from template 340) when test-deployer wasn't created —
+      // that user has ORG_OWNER but no per-project role, so apps with
+      // OIDC_REQUIRED_ROLE will reject its access token (HTTP 403 from
+      // /api/auth/dev-session).
+      const issuerUrl =
+        get("TEST_DEPLOYER_OIDC_ISSUER_URL")
+        ?? get("DEPLOYER_OIDC_ISSUER_URL");
+      const clientId =
+        get("TEST_DEPLOYER_OIDC_MACHINE_CLIENT_ID")
+        ?? get("DEPLOYER_OIDC_MACHINE_CLIENT_ID");
+      const clientSecret =
+        get("TEST_DEPLOYER_OIDC_MACHINE_CLIENT_SECRET")
+        ?? get("DEPLOYER_OIDC_MACHINE_CLIENT_SECRET");
+      if (issuerUrl && clientId && clientSecret) {
+        return { issuerUrl, clientId, clientSecret };
+      }
+    } catch { /* stack not ready yet */ }
+    return undefined;
+  }
   let deployerOidcEnabled = false;
   try {
     const authResp = await fetch(`${apiUrl}/api/auth/config`, { signal: AbortSignal.timeout(3000) });
