@@ -281,6 +281,10 @@ export enum ApiUri {
   VeRestartInstallation = "/api/:veContext/ve/restart-installation/:vmInstallKey",
   VeExecute = "/api/:veContext/ve/execute",
   VeExecuteStream = "/api/:veContext/ve/execute/stream",
+  /** Debug bundle manifest for a given restartKey (JSON listing the files). */
+  VeDebug = "/api/ve/debug/:restartKey",
+  /** Single file from a debug bundle (path may contain slashes). */
+  VeDebugFile = "/api/ve/debug/:restartKey/*",
   VeLogs = "/api/:veContext/ve/logs/:vmId",
   VeLogsHostname = "/api/:veContext/ve/logs/:vmId/hostname",
   VeDockerLogs = "/api/:veContext/ve/logs/:vmId/docker",

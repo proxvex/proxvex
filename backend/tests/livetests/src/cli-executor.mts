@@ -33,6 +33,9 @@ export interface CliJsonResult {
   messages: CliMessage[];
   exitCode: number;
   vmId?: number;
+  /** Backend restartKey from the CLI's final summary line; used by
+   *  TestResultWriter to fetch the per-task debug bundle. */
+  restartKey?: string;
   output: string;                          // raw stdout for backward compat
   resolvedVersions: Map<string, string>;   // "POSTGRES" -> "16-alpine"
 }
@@ -166,6 +169,21 @@ export function runCli(
       const finishedMsg = messages.find((m) => m.finished);
       const vmId = finishedMsg?.vmId;
 
+      // The CLI emits a final summary line in --json mode containing
+      // { success, vmId, restartKey }. Scan stdout for the restartKey.
+      let restartKey: string | undefined;
+      for (const line of stdout.split("\n")) {
+        const t = line.trim();
+        if (!t || t[0] !== "{") continue;
+        try {
+          const obj = JSON.parse(t) as { restartKey?: string };
+          if (typeof obj.restartKey === "string" && obj.restartKey.length > 0) {
+            restartKey = obj.restartKey;
+            break;
+          }
+        } catch { /* skip non-JSON */ }
+      }
+
       const resolvedVersions = extractVersions(messages);
 
       // On failure, append captured stderr to output so diagnostics has at
@@ -180,6 +198,7 @@ export function runCli(
         messages,
         exitCode,
         vmId,
+        ...(restartKey ? { restartKey } : {}),
         output,
         resolvedVersions,
       });

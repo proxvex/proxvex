@@ -321,7 +321,13 @@ export class RemoteCli {
     // 11. Output final result
     if (this.options.quiet || this.options.json) {
       process.stdout.write(
-        JSON.stringify({ success: result.success, vmId: result.vmId }) + "\n",
+        JSON.stringify({
+          success: result.success,
+          vmId: result.vmId,
+          // restartKey lets downstream tools (e.g. livetest) fetch the
+          // per-task debug bundle from /api/ve/debug/:restartKey.
+          ...(configResp.restartKey ? { restartKey: configResp.restartKey } : {}),
+        }) + "\n",
       );
     }
   }

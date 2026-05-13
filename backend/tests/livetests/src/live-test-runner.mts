@@ -269,6 +269,19 @@ async function main() {
   const tagFlags = popAllValueFlags(args, "--tag");
   const tagsFlag = popValueFlag(args, "--tags");
   const excludeTagFlags = popAllValueFlags(args, "--exclude-tag");
+  // --debug [off|extLog|script] — sets `debug_level` param on every scenario,
+  // which switches on per-task debug bundle collection in the backend. The
+  // resulting bundle is fetched by the TestResultWriter into livetest-results.
+  let debugLevel = popValueFlag(args, "--debug");
+  if (debugLevel && !["off", "extLog", "script"].includes(debugLevel)) {
+    console.error(
+      `Invalid --debug value "${debugLevel}". Expected: off | extLog | script`,
+    );
+    process.exit(2);
+  }
+  // Default to extLog when livetest is run without --debug, so livetest-results
+  // always carry a debug bundle. Suppress with --debug off.
+  if (!debugLevel) debugLevel = "extLog";
 
   const positionalArgs = args.filter((a, i, arr) =>
     a !== "--fixtures" &&
@@ -586,10 +599,10 @@ async function main() {
     ? path.join(projectRoot, "frontend/src/test-fixtures")
     : undefined;
   const commandLine = process.argv.join(" ");
-  const resultWriter = new TestResultWriter(projectRoot, config.instance, testArg, commandLine);
+  const resultWriter = new TestResultWriter(projectRoot, config.instance, testArg, commandLine, apiUrl);
   logInfo(`Results: ${resultWriter.getOutputDir()}`);
   if (failFastFlag) logInfo("--fail-fast enabled: aborting on first scenario failure");
-  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, allTests, appStackIdsMap, resultWriter, fixtureBaseDir, { failFast: failFastFlag });
+  const result = await executeScenarios(planned, config, apiUrl, veHost, projectRoot, appMetaMap, allTests, appStackIdsMap, resultWriter, fixtureBaseDir, { failFast: failFastFlag, debugLevel });
   const allResults = [result];
 
   // Cleanup

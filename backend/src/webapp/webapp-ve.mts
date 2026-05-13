@@ -12,6 +12,7 @@ import { WebAppVeRestartManager } from "./webapp-ve-restart-manager.mjs";
 import { WebAppVeParameterProcessor } from "./webapp-ve-parameter-processor.mjs";
 import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
 import { WebAppVeRouteHandlers } from "./webapp-ve-route-handlers.mjs";
+import { WebAppDebugCollector } from "./webapp-debug-collector.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { registerVeLogsRoutes } from "./webapp-ve-logs-routes.mjs";
 
@@ -21,6 +22,7 @@ export class WebAppVE {
   private parameterProcessor: WebAppVeParameterProcessor;
   private executionSetup: WebAppVeExecutionSetup;
   private routeHandlers: WebAppVeRouteHandlers;
+  private debugCollector: WebAppDebugCollector;
   // Getter, not field — see WebAppVeRouteHandlers for rationale.
   private get pm(): PersistenceManager {
     return PersistenceManager.getInstance();
@@ -31,11 +33,13 @@ export class WebAppVE {
     this.restartManager = new WebAppVeRestartManager();
     this.parameterProcessor = new WebAppVeParameterProcessor();
     this.executionSetup = new WebAppVeExecutionSetup();
+    this.debugCollector = new WebAppDebugCollector();
     this.routeHandlers = new WebAppVeRouteHandlers(
       this.messageManager,
       this.restartManager,
       this.parameterProcessor,
       this.executionSetup,
+      this.debugCollector,
     );
   }
 
@@ -44,6 +48,14 @@ export class WebAppVE {
    */
   get messages(): IVeExecuteMessagesResponse {
     return this.messageManager.messages;
+  }
+
+  /**
+   * Exposes the debug collector so other webapp modules / tests can render
+   * bundles or trigger cleanup.
+   */
+  getDebugCollector(): WebAppDebugCollector {
+    return this.debugCollector;
   }
 
   private returnResponse<T>(
@@ -260,6 +272,55 @@ export class WebAppVE {
         this.messageManager.removeListener(listener);
       });
     });
+
+    // GET /api/ve/debug/:restartKey — manifest of the debug bundle.
+    // Returns 404 when debug_level was off for the originating task or the
+    // bundle has expired from RAM (30-min retention).
+    this.app.get<{ restartKey: string }>(
+      "/api/ve/debug/:restartKey",
+      (req, res) => {
+        // Trigger retention cleanup opportunistically; cheap.
+        this.debugCollector.cleanup();
+        const bundle = this.debugCollector.renderBundle(req.params.restartKey);
+        if (!bundle) {
+          res.status(404).json({ error: "Debug bundle not found" });
+          return;
+        }
+        res.json({
+          restartKey: req.params.restartKey,
+          files: Array.from(bundle.keys()),
+          indexUrl: `/api/ve/debug/${req.params.restartKey}/index.md`,
+        });
+      },
+    );
+
+    // GET /api/ve/debug/:restartKey/<file-path> — one file from the bundle.
+    // Express 5 path-to-regexp requires a named splat (`*name`); the value
+    // arrives in req.params.filePath (possibly as a string[] of segments).
+    this.app.get(
+      "/api/ve/debug/:restartKey/*filePath",
+      (req, res) => {
+        const params = req.params as {
+          restartKey: string;
+          filePath?: string | string[];
+        };
+        const restartKey = params.restartKey;
+        const filePath = Array.isArray(params.filePath)
+          ? params.filePath.join("/")
+          : params.filePath ?? "";
+        const bundle = this.debugCollector.renderBundle(restartKey);
+        const content = bundle?.get(filePath);
+        if (!content) {
+          res.status(404).json({ error: "File not found in debug bundle" });
+          return;
+        }
+        const ct = filePath.endsWith(".json")
+          ? "application/json; charset=utf-8"
+          : "text/markdown; charset=utf-8";
+        res.setHeader("Content-Type", ct);
+        res.send(content);
+      },
+    );
 
     // POST /api/ve/restart/:restartKey/:veContext
     this.app.post(ApiUri.VeRestart, express.json(), async (req, res) => {

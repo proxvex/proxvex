@@ -78,6 +78,20 @@ export class ParameterDefinitionsRegistry {
   }
 
   /**
+   * Returns the set of parameter IDs flagged `secure: true`. Used by the
+   * debug-bundle path in VariableResolver to redact values of these
+   * parameters in the redacted twin script.
+   */
+  getSecureIds(): Set<string> {
+    this.load();
+    const out = new Set<string>();
+    for (const [id, def] of this.byId.entries()) {
+      if (def.secure === true) out.add(id);
+    }
+    return out;
+  }
+
+  /**
    * Expand a parameters[] array into full IParameter[].
    *   - string entries: looked up in the registry; missing IDs throw.
    *   - object entries: passed through as-is (legacy / migration window).

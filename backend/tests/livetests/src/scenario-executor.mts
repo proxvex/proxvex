@@ -278,6 +278,7 @@ export async function executeScenarios(
   stackIdMap: Map<string, string[]>,
   resultWriter?: TestResultWriter,
   fixtureBaseDir?: string,
+  options?: { failFast?: boolean; debugLevel?: string },
 ): Promise<TestResult> {
   const result: TestResult = {
     name: planned.map((p) => p.scenario.id).join(", "),
@@ -410,6 +411,16 @@ export async function executeScenarios(
         { name: "bridge", value: "vmbr1" },
         ...(!isReplaceCt ? [{ name: "vm_id", value: String(step.vmId) }] : []),
         ...(isReplaceCt ? [{ name: "vm_id_start", value: String(step.vmId) }] : []),
+        // Enable per-task debug bundle on the backend when --debug was passed
+        // to the livetest. Only the user-requested scenario gets the bundle —
+        // dependencies (e.g. postgres for a zitadel test) stay quiet so the
+        // result directory only carries the artefact for the test the user
+        // actually asked for.
+        ...(options?.debugLevel
+          && options.debugLevel !== "off"
+          && !step.isDependency
+          ? [{ name: "debug_level", value: options.debugLevel }]
+          : []),
       ];
 
       const templateVars: Record<string, string> = {
@@ -698,7 +709,7 @@ export async function executeScenarios(
         });
 
         if (resultWriter) {
-          resultWriter.write(TestResultWriter.buildResult({
+          await resultWriter.write(TestResultWriter.buildResult({
             runId: resultWriter.getRunId(),
             scenarioId: scenario.id, application: scenario.application, task,
             status: "failed", vmId: step.vmId, hostname: step.hostname,
@@ -708,6 +719,7 @@ export async function executeScenarios(
             commandLine: resultWriter.getCommandLine(),
             dependencies: [], verifyResults: {}, errorMessage: errMsg,
             logs: failureLogs,
+            ...(cliResult.restartKey ? { restartKey: cliResult.restartKey } : {}),
           }));
         }
 
@@ -853,7 +865,7 @@ export async function executeScenarios(
             snapshot_date: null,
           };
         });
-        resultWriter.write(TestResultWriter.buildResult({
+        await resultWriter.write(TestResultWriter.buildResult({
           runId: resultWriter.getRunId(),
           scenarioId: scenario.id, application: scenario.application, task,
           status: "passed", vmId: step.vmId, hostname: step.hostname,
@@ -865,6 +877,7 @@ export async function executeScenarios(
           verifyResults: Object.fromEntries(
             Object.entries(finalVerify).map(([k, v]) => [k, !!v]),
           ),
+          ...(cliResult.restartKey ? { restartKey: cliResult.restartKey } : {}),
         }));
       }
 
