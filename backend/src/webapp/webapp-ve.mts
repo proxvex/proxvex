@@ -278,9 +278,13 @@ export class WebAppVE {
     // bundle has expired from RAM (30-min retention).
     this.app.get<{ restartKey: string }>(
       "/api/ve/debug/:restartKey",
-      (req, res) => {
+      async (req, res) => {
         // Trigger retention cleanup opportunistically; cheap.
         this.debugCollector.cleanup();
+        // Wait for any async post-task diagnostic capture (LXC log + conf)
+        // to finish before exposing the manifest — otherwise the runner
+        // races and reads a partial bundle.
+        await this.debugCollector.waitForFinish(req.params.restartKey);
         const bundle = this.debugCollector.renderBundle(req.params.restartKey);
         if (!bundle) {
           res.status(404).json({ error: "Debug bundle not found" });
@@ -299,7 +303,7 @@ export class WebAppVE {
     // arrives in req.params.filePath (possibly as a string[] of segments).
     this.app.get(
       "/api/ve/debug/:restartKey/*filePath",
-      (req, res) => {
+      async (req, res) => {
         const params = req.params as {
           restartKey: string;
           filePath?: string | string[];
@@ -308,6 +312,7 @@ export class WebAppVE {
         const filePath = Array.isArray(params.filePath)
           ? params.filePath.join("/")
           : params.filePath ?? "";
+        await this.debugCollector.waitForFinish(restartKey);
         const bundle = this.debugCollector.renderBundle(restartKey);
         const content = bundle?.get(filePath);
         if (!content) {
@@ -316,7 +321,9 @@ export class WebAppVE {
         }
         const ct = filePath.endsWith(".json")
           ? "application/json; charset=utf-8"
-          : "text/markdown; charset=utf-8";
+          : filePath.endsWith(".log")
+            ? "text/plain; charset=utf-8"
+            : "text/markdown; charset=utf-8";
         res.setHeader("Content-Type", ct);
         res.send(content);
       },
