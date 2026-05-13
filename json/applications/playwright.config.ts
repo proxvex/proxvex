@@ -32,14 +32,34 @@ function resolveWsEndpoint(): string {
   return `ws://${pveHost}:${fwd.port}`;
 }
 
+// When the livetest runner invokes a spec it sets PLAYWRIGHT_OUTPUT_DIR to
+// `livetest-results/<runId>/<scenarioId>/playwright-artifacts/` so Playwright's
+// `outputDir` (trace.zip, screenshots, videos, error context) lands in the
+// debug bundle alongside the backend index.md. Stand-alone runs fall back to
+// the default `test-results/` next to playwright.config.ts.
+const playwrightOutputDir = process.env.PLAYWRIGHT_OUTPUT_DIR
+  || resolve(repoRoot, "test-results");
+
 export default defineConfig({
   testDir: resolve(repoRoot, "json/applications"),
   testMatch: "**/tests/playwright/*.spec.ts",
+  outputDir: playwrightOutputDir,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: "list",
+  // Reporters:
+  // - `list`        — live console output during the run
+  // - `json`        — machine-readable summary at report.json (for tooling)
+  // - `html`        — self-contained report with an embedded trace viewer at
+  //                   report-html/index.html (open in a browser, no server
+  //                   needed). Disables auto-opening (`open: never`) because
+  //                   livetests run headless on CI / nested-VM dev loops.
+  reporter: [
+    ["list"],
+    ["json", { outputFile: resolve(playwrightOutputDir, "report.json") }],
+    ["html", { outputFolder: resolve(playwrightOutputDir, "report-html"), open: "never" }],
+  ],
   use: {
     connectOptions: { wsEndpoint: resolveWsEndpoint() },
     launchOptions: { args: ["--no-sandbox", "--disable-setuid-sandbox"] },
@@ -48,5 +68,11 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     actionTimeout: 15000,
     navigationTimeout: 30000,
+    // Retain rich post-mortem artifacts on failure: trace.zip (replayable via
+    // `npx playwright show-trace`), screenshot + video. Pure-pass runs stay
+    // lean — these only land in outputDir for the failing test attempt.
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
 });

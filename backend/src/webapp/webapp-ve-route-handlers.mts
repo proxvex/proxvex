@@ -106,7 +106,8 @@ export class WebAppVeRouteHandlers {
     });
 
     const routeFor = (name: string): string =>
-      name.startsWith("DEPLOYER_OIDC_") && oidcStackId
+      (name.startsWith("DEPLOYER_OIDC_") || name.startsWith("TEST_DEPLOYER_OIDC_"))
+        && oidcStackId
         ? oidcStackId
         : firstStackId;
 

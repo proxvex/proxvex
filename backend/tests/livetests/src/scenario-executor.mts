@@ -329,6 +329,44 @@ export async function executeScenarios(
   // OIDC credentials for delegated access (loaded after Zitadel installation)
   // Only used if the deployer itself has OIDC enabled (not for app-level OIDC addons)
   let oidcCredentials: { issuerUrl: string; clientId: string; clientSecret: string } | undefined;
+
+  /**
+   * Pull the test-deployer credentials from the oidc_<stackName> stack the
+   * way addon-oidc-consuming applications do: Zitadel install emits
+   * `DEPLOYER_OIDC_MACHINE_CLIENT_ID/SECRET` and `DEPLOYER_OIDC_ISSUER_URL`
+   * as stack provides, so any consumer (including the livetest runner that
+   * needs to call the Zitadel token endpoint from the remote Playwright
+   * spec) reads them from there — never from the LXC bootstrap files.
+   */
+  async function loadOidcCredsFromStack(stackName: string): Promise<typeof oidcCredentials> {
+    try {
+      const resp = await fetch(`${apiUrl}/api/stack/oidc_${stackName}`, { signal: AbortSignal.timeout(5000) });
+      if (!resp.ok) return undefined;
+      const data = await resp.json() as { stack?: { provides?: Array<{ name: string; value: string }> } };
+      const provides = data.stack?.provides ?? [];
+      const get = (name: string): string | undefined => provides.find((p) => p.name === name)?.value;
+      // Prefer TEST_DEPLOYER_OIDC_* — emitted by template 357 (livetest-local
+      // overlay), this user gets ALL project roles granted (template 358 +
+      // Phase D refresh-grant hook). Falls back to DEPLOYER_OIDC_* (deployer-cli
+      // machine user from template 340) when test-deployer wasn't created —
+      // that user has ORG_OWNER but no per-project role, so apps with
+      // OIDC_REQUIRED_ROLE will reject its access token (HTTP 403 from
+      // /api/auth/dev-session).
+      const issuerUrl =
+        get("TEST_DEPLOYER_OIDC_ISSUER_URL")
+        ?? get("DEPLOYER_OIDC_ISSUER_URL");
+      const clientId =
+        get("TEST_DEPLOYER_OIDC_MACHINE_CLIENT_ID")
+        ?? get("DEPLOYER_OIDC_MACHINE_CLIENT_ID");
+      const clientSecret =
+        get("TEST_DEPLOYER_OIDC_MACHINE_CLIENT_SECRET")
+        ?? get("DEPLOYER_OIDC_MACHINE_CLIENT_SECRET");
+      if (issuerUrl && clientId && clientSecret) {
+        return { issuerUrl, clientId, clientSecret };
+      }
+    } catch { /* stack not ready yet */ }
+    return undefined;
+  }
   let deployerOidcEnabled = false;
   try {
     const authResp = await fetch(`${apiUrl}/api/auth/config`, { signal: AbortSignal.timeout(3000) });
@@ -363,27 +401,10 @@ export async function executeScenarios(
         // specs still need DEPLOYER_OIDC_* env vars. The bootstrap file lives
         // in the LXC volume so it survives skipped installs — read it now.
         if (scenario.application === "zitadel" && !oidcCredentials) {
-          try {
-            const credJson = nestedSsh(
-              config.pveHost, config.portPveSsh,
-              `pct exec ${step.vmId} -- cat /bootstrap/test-deployer.json 2>/dev/null`,
-              10000,
-            );
-            const creds = JSON.parse(credJson.trim());
-            if (creds.client_id && creds.client_secret && creds.issuer_url) {
-              // Keep the internal issuer URL — the Playwright spec dispatches
-              // the token request via the remote APIRequestContext (inside the
-              // playwright-default LXC in the nested VM), so the hostname
-              // resolves against the nested-VM dnsmasq directly. No outer
-              // port-forward for Zitadel needed.
-              oidcCredentials = {
-                issuerUrl: creds.issuer_url as string,
-                clientId: creds.client_id,
-                clientSecret: creds.client_secret,
-              };
-              logOk("Test OIDC deployer credentials loaded from skipped Zitadel container");
-            }
-          } catch { /* no test-deployer in this snapshot — Phase D will fail later */ }
+          oidcCredentials = await loadOidcCredsFromStack(step.stackName);
+          if (oidcCredentials) {
+            logOk(`Test OIDC deployer credentials loaded from oidc_${step.stackName} stack (skipped Zitadel)`);
+          }
         }
         continue;
       }
@@ -819,26 +840,16 @@ export async function executeScenarios(
         cliOutput: cliResult.output,
       });
 
-      // After Zitadel installation: load test-deployer credentials for OIDC addon
+      // After Zitadel installation: load test-deployer credentials from the
+      // oidc_<stack> stack (Zitadel emits DEPLOYER_OIDC_* as provides during
+      // its post_start templates — same mechanism every addon-oidc consumer
+      // uses to wire its container envs).
       if (scenario.application === "zitadel" && task === "installation" && !oidcCredentials) {
-        try {
-          const credJson = await nestedSsh(
-            config.pveHost, config.portPveSsh,
-            `pct exec ${step.vmId} -- cat /bootstrap/test-deployer.json`,
-          );
-          const creds = JSON.parse(credJson.trim());
-          if (creds.client_id && creds.client_secret && creds.issuer_url) {
-            // Keep the internal issuer URL — see the matching block above
-            // for the skip-path; rationale identical.
-            oidcCredentials = {
-              issuerUrl: creds.issuer_url as string,
-              clientId: creds.client_id,
-              clientSecret: creds.client_secret,
-            };
-            logOk("Test OIDC deployer credentials loaded from Zitadel bootstrap");
-          }
-        } catch {
-          logInfo("No test-deployer.json found (OIDC delegated access not available)");
+        oidcCredentials = await loadOidcCredsFromStack(step.stackName);
+        if (oidcCredentials) {
+          logOk(`Test OIDC deployer credentials loaded from oidc_${step.stackName} stack`);
+        } else {
+          logInfo(`OIDC credentials not in oidc_${step.stackName} stack (delegated access not available)`);
         }
       }
 
@@ -959,6 +970,19 @@ export async function executeScenarios(
           );
         }
 
+        // Per-scenario artifact dir: lives next to the backend bundle so
+        // everything related to the failing run sits in one place. Playwright
+        // writes trace.zip / screenshot / video / report.json here (see
+        // playwright.config.ts), and we mirror its stdout/stderr into
+        // playwright-output.log so the spec's own assertion text is preserved
+        // without needing to scroll the terminal.
+        const scenarioResultDir = resultWriter
+          ? path.join(resultWriter.getOutputDir(), scenario.id.replace("/", "-"))
+          : path.join(projectRoot, "livetest-results", "_no-writer", scenario.id.replace("/", "-"));
+        const pwArtifactsDir = path.join(scenarioResultDir, "playwright-artifacts");
+        const pwLogPath = path.join(scenarioResultDir, "playwright-output.log");
+        try { writeFileSync(pwLogPath, ""); } catch { /* dir may not exist yet — runner creates it */ }
+
         for (const spec of specs) {
           const specPath = path.join(
             "json/applications",
@@ -972,20 +996,53 @@ export async function executeScenarios(
               `playwright_spec missing: ${specPath} (resolved to ${absSpec})`,
             );
           }
-          logInfo(`Playwright: ${specPath}`);
+          logInfo(`Playwright: ${specPath} (artifacts → ${path.relative(projectRoot, pwArtifactsDir)})`);
           const proc = spawnSync(
             "pnpm",
             ["run", "test:applications", "--", specPath],
             {
               cwd: projectRoot,
-              env: { ...process.env, ...playwrightEnv },
-              stdio: "inherit",
+              env: {
+                ...process.env,
+                ...playwrightEnv,
+                PLAYWRIGHT_OUTPUT_DIR: pwArtifactsDir,
+              },
+              stdio: "pipe",
+              encoding: "utf-8",
             },
           );
-          if (proc.status !== 0) {
-            throw new Error(
-              `Playwright spec failed: ${specPath} (exit ${proc.status})`,
+          // Mirror to terminal (so the live run is still watchable) AND
+          // persist to disk for the bundle.
+          const combined = `${proc.stdout ?? ""}${proc.stderr ?? ""}`;
+          process.stdout.write(combined);
+          try {
+            const { appendFileSync, mkdirSync } = await import("node:fs");
+            mkdirSync(scenarioResultDir, { recursive: true });
+            appendFileSync(
+              pwLogPath,
+              `\n=== ${specPath} (exit ${proc.status}) ===\n${combined}`,
             );
+          } catch { /* non-fatal — we still threw above */ }
+          if (proc.status !== 0) {
+            // Write a `status: failed` result before bubbling out, otherwise
+            // the run directory stays empty (the success-path write at the
+            // bottom of this iteration never executes), which makes the
+            // post-mortem (test-result.md + debug bundle) inaccessible.
+            const errMsg = `Playwright spec failed: ${specPath} (exit ${proc.status})`;
+            if (resultWriter) {
+              await resultWriter.write(TestResultWriter.buildResult({
+                runId: resultWriter.getRunId(),
+                scenarioId: scenario.id, application: scenario.application, task,
+                status: "failed", vmId: step.vmId, hostname: step.hostname,
+                stackName: step.stackName, addons: scenario.selectedAddons ?? [],
+                startedAt: stepStartTime, finishedAt: new Date(),
+                deployerVersion, deployerGitHash,
+                commandLine: resultWriter.getCommandLine(),
+                dependencies: [], verifyResults: {}, errorMessage: errMsg,
+                ...(cliResult.restartKey ? { restartKey: cliResult.restartKey } : {}),
+              }));
+            }
+            throw new Error(errMsg);
           }
           logOk(`Playwright passed: ${specPath}`);
         }

@@ -24,7 +24,6 @@ import { getDeployerToken } from "../../../_fixtures/oidc.js";
 test("proxvex authenticated home loads via dev-session bypass", async ({
   page,
   context,
-  request,
 }) => {
   const hostname = process.env.APP_HOSTNAME;
   if (!hostname) throw new Error("APP_HOSTNAME env var is required");
@@ -34,11 +33,14 @@ test("proxvex authenticated home loads via dev-session bypass", async ({
   const port = scheme === "https" ? 3443 : 3080;
   const appUrl = `${scheme}://${hostname}:${port}`;
 
-  // `request` runs on the remote Playwright server (inside the
-  // playwright-default LXC in the nested VM), so the Zitadel token-endpoint
-  // call resolves the internal hostname via the nested-VM dnsmasq and never
-  // needs to leave the test network.
-  const token = await getDeployerToken(request);
+  // `context.request` is the BrowserContext's APIRequestContext — it routes
+  // through the remote Playwright server (inside the playwright-default LXC
+  // in the nested VM), so the Zitadel token-endpoint hostname resolves via
+  // the nested-VM dnsmasq. The bare `request` test-fixture from
+  // @playwright/test runs in the LOCAL Node process and would resolve the
+  // hostname against the laptop's DNS / /etc/hosts — that's a footgun (the
+  // dev laptop may have a stale `127.0.0.1 zitadel-default` mapping).
+  const token = await getDeployerToken(context.request);
 
   // POST the token via the request context — this lands in the same cookie
   // jar as page.goto(), so the session cookie applies on the subsequent
