@@ -505,6 +505,11 @@ export interface ITestScenarioResponse {
    *  them via `pnpm run test:applications` after running the test-deployer
    *  grant refresh on the matching Zitadel dependency. */
   playwright_spec?: string | string[];
+  /** Environment variables that must be set (and non-empty) on the dev box
+   *  before this scenario is selectable. The livetest runner drops the
+   *  scenario from the plan with a warning when any of these are missing
+   *  (e.g. `["CF_TOKEN"]` for ACME Cloudflare DNS-01 scenarios). */
+  requires_env?: string[];
 }
 
 export interface ITestScenariosResponse {
