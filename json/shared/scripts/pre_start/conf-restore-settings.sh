@@ -79,6 +79,14 @@ if [ -n "$OLD_HOSTNAME" ]; then
   if [ "$OLD_HOSTNAME" != "$NEW_HOSTNAME" ]; then
     log "Restoring hostname from old container: $OLD_HOSTNAME"
     pct set "$NEW_VMID" --hostname "$OLD_HOSTNAME" >&2
+    # Truncate the post-rename console log so later checks (e.g.
+    # 920-host-check-lxc-log.json) don't trip over stale error lines from
+    # an earlier upgrade attempt with the same VMID+hostname pair.
+    # conf-create-lxc-container.sh truncated the pre-rename path; the
+    # rename moves the active log to a different file that may already
+    # exist on disk from a previous test run.
+    POST_RENAME_LOG="/var/log/lxc/${OLD_HOSTNAME}-${NEW_VMID}.log"
+    : > "$POST_RENAME_LOG" 2>/dev/null || true
     CHANGED=1
   fi
 fi

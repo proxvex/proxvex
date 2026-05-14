@@ -13,6 +13,20 @@
 VM_ID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
 
+# Prefer the container's CURRENT hostname over the template-substituted one.
+# Upgrade flows create the CT with the new scenario hostname (e.g.
+# `modbus2mqtt-upgrade`) and then 101-conf-restore-settings renames it back
+# to the previous container's hostname (`modbus2mqtt-default`). The active
+# console log lives at `/var/log/lxc/<current-hostname>-<vmid>.log`, while
+# the stale pre-rename log path may still hold error lines from an earlier
+# run — causing this check to flag historical (cleaned-up) failures and
+# fail an otherwise green install/upgrade.
+ACTUAL_HOSTNAME=$(pct config "$VM_ID" 2>/dev/null | awk '/^hostname:/ {print $2; exit}' || true)
+if [ -n "$ACTUAL_HOSTNAME" ] && [ "$ACTUAL_HOSTNAME" != "$HOSTNAME" ]; then
+  echo "Using actual container hostname '$ACTUAL_HOSTNAME' (template gave '$HOSTNAME')" >&2
+  HOSTNAME="$ACTUAL_HOSTNAME"
+fi
+
 LOG_FILE="/var/log/lxc/${HOSTNAME}-${VM_ID}.log"
 
 if [ ! -f "$LOG_FILE" ]; then
