@@ -1,0 +1,33 @@
+# ZITADEL FirstInstance bootstrap configuration.
+#
+# Loaded as an additional --config ONLY during the initial bootstrap. The
+# post-bootstrap hardening step (360-post-harden-zitadel-yaml) deletes this
+# file from the config volume and rewrites the compose command from
+# `start-from-init ... --config zitadel.init.yaml` to plain `start` so the
+# (non-idempotent) FirstInstance migration never runs a second time.
+FirstInstance:
+  PatPath: /zitadel/bootstrap/admin-client.pat
+  LoginClientPatPath: /zitadel/bootstrap/login-client.pat
+  Org:
+    Human:
+      UserName: admin
+      Password: "{{ ZITADEL_ADMIN_PASSWORD }}!Aa1"
+      FirstName: Admin
+      LastName: User
+      Email:
+        Address: "admin@{{ ZITADEL_EXTERNALDOMAIN }}"
+        Verified: true
+      PreferredLanguage: en
+      PasswordChangeRequired: false
+    Machine:
+      Machine:
+        Username: admin-client
+        Name: Admin Client
+      Pat:
+        ExpirationDate: "2099-01-01T00:00:00Z"
+    LoginClient:
+      Machine:
+        Username: login-client
+        Name: Login Client
+      Pat:
+        ExpirationDate: "2099-01-01T00:00:00Z"

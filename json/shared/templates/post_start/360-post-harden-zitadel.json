@@ -1,6 +1,6 @@
 {
-  "name": "Harden Zitadel Compose",
-  "description": "Post-bootstrap hardening: Changes Zitadel command from start-from-init to start, sets bootstrap volume to read-only, removes FIRSTINSTANCE env vars, and empties admin PAT file. Only runs after successful bootstrap (requires zitadel_project_id output).",
+  "name": "Harden Zitadel",
+  "description": "Post-bootstrap hardening for the YAML-config Zitadel layout: deletes zitadel.init.yaml from the config volume, rewrites the compose command (drops the init.yaml --config, switches start-from-init -> start), sets the bootstrap volume read-only and reduces the healthcheck start_period. Only runs after a successful bootstrap (requires zitadel_project_id output); a no-op for non-Zitadel apps.",
   "execute_on": "lxc",
   "skip_if_all_missing": [
     "zitadel_project_id"
@@ -11,9 +11,9 @@
   ],
   "commands": [
     {
-      "name": "Harden Zitadel Compose",
-      "script": "post-harden-zitadel-compose.sh",
-      "description": "Modify deployed compose file for production security"
+      "name": "Harden Zitadel",
+      "script": "post-harden-zitadel.sh",
+      "description": "Delete init.yaml, rewrite command, restart compose"
     }
   ]
 }

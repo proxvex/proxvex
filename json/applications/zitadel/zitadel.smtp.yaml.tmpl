@@ -1,0 +1,21 @@
+# ZITADEL SMTP overlay — loaded as an additional --config only matters when
+# SMTP is configured at install time.
+#
+# Zitadel's FirstInstance migration rejects partial/blank SMTP config with
+# InvalidArgument, so this overlay is written verbatim ONLY when SMTP_PASSWORD
+# is set. When SMTP is not configured, conf-write-zitadel-yaml.sh writes a
+# comment-only file in its place so the static --config reference still
+# resolves but contributes no SMTPConfiguration key (absence, not blanks).
+#
+# Separate top-level DefaultInstance file: Zitadel merges multiple --config
+# files (viper deep-merge), combining this SMTPConfiguration with the base
+# file's DefaultInstance.Features.
+DefaultInstance:
+  SMTPConfiguration:
+    SMTP:
+      Host: "{{ SMTP_HOST }}:{{ SMTP_PORT }}"
+      User: "{{ SMTP_USER }}"
+      Password: "{{ SMTP_PASSWORD }}"
+    TLS: true
+    From: "{{ SMTP_SENDER }}"
+    FromName: Zitadel

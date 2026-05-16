@@ -17,57 +17,31 @@ services:
   zitadel-api:
     image: ghcr.io/zitadel/zitadel:${DOCKER_zitadel_TAG}
     restart: unless-stopped
-    command: 'start-from-init --masterkey "{{ ZITADEL_MASTERKEY }}" --tlsMode disabled'
+    # Static command. All configuration lives in the YAML files on the
+    # `config` managed volume (written pre-start by conf-write-zitadel-yaml),
+    # incl. the masterkey file (--masterkeyFile; Zitadel ignores the env/
+    # config-key forms under start-from-init). DB password secrets stay as
+    # env vars below (normal viper keys, env overrides the absent YAML).
+    # After successful bootstrap, 360-post-harden-zitadel rewrites this line
+    # to plain `start --config /zitadel/config/zitadel.yaml --config
+    # /zitadel/config/zitadel.smtp.yaml --masterkeyFile
+    # /zitadel/config/masterkey --tlsMode disabled` and deletes
+    # zitadel.init.yaml (FirstInstance migration is not idempotent).
+    command: 'start-from-init --config /zitadel/config/zitadel.yaml --config /zitadel/config/zitadel.smtp.yaml --config /zitadel/config/zitadel.init.yaml --masterkeyFile /zitadel/config/masterkey --tlsMode disabled'
     environment:
-      ZITADEL_EXTERNALDOMAIN: "{{ ZITADEL_EXTERNALDOMAIN }}"
-      ZITADEL_EXTERNALSECURE: "{{ ZITADEL_EXTERNALSECURE }}"
-      ZITADEL_EXTERNALPORT: "{{ ZITADEL_EXTERNALPORT }}"
-      ZITADEL_TLS_ENABLED: "false"
-      ZITADEL_DATABASE_POSTGRES_HOST: "{{ POSTGRES_HOST }}"
-      ZITADEL_DATABASE_POSTGRES_PORT: 5432
-      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
-      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      # DB password secrets only (normal viper keys — env overrides the
+      # absent YAML values and keeps the stack-secret rotation mechanism
+      # working via compose-env replacement). The masterkey is NOT here:
+      # Zitadel ignores ZITADEL_MASTERKEY env under `start-from-init
+      # --config`, so it lives in zitadel.yaml as the top-level Masterkey.
       ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: "{{ ZITADEL_DB_PASSWORD }}"
-      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
-      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: postgres
       ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: "{{ POSTGRES_PASSWORD }}"
-      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/"
-      ZITADEL_OIDC_DEFAULTLOGINURLV2: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/login?authRequest="
-      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/logout?post_logout_redirect="
-      ZITADEL_SAML_DEFAULTLOGINURLV2: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/login?samlRequest="
-      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
-      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin-client.pat
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: admin-client
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Admin Client
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "{{ ZITADEL_ADMIN_PASSWORD }}!Aa1"
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_FIRSTNAME: Admin
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_LASTNAME: User
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL: "admin@{{ ZITADEL_EXTERNALDOMAIN }}"
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PREFERREDLANGUAGE: en
-      # --- Optional: pre-configure SMTP at FirstInstance init ---
-      # These five SMTP_* ENV vars are referenced here so the deployer's
-      # compose scanner discovers them as template parameters. When
-      # SMTP_PASSWORD is empty the entire SMTP block is stripped from the
-      # rendered compose by conf-strip-empty-smtp.sh (pre-start) — Zitadel's
-      # FirstInstance migration rejects partial/blank SMTP config with
-      # InvalidArgument, so we can't just let them resolve to empty strings.
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: "{{ SMTP_HOST }}:{{ SMTP_PORT }}"
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_USER: "{{ SMTP_USER }}"
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_PASSWORD: "{{ SMTP_PASSWORD }}"
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS: "true"
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: "{{ SMTP_SENDER }}"
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: Zitadel
+      # Dependency-runtime value, resolved after the YAML is written, so it
+      # is provided here (env overrides YAML) rather than in zitadel.yaml.
+      ZITADEL_DATABASE_POSTGRES_HOST: "{{ POSTGRES_HOST }}"
     volumes:
       - /bootstrap:/zitadel/bootstrap
+      - /config:/zitadel/config:ro
     healthcheck:
       test: ["CMD", "/app/zitadel", "ready"]
       interval: 10s

@@ -1,0 +1,34 @@
+{
+  "name": "Write ZITADEL YAML Config",
+  "description": "Writes zitadel.yaml, zitadel.smtp.yaml and zitadel.init.yaml into the `config` managed volume before LXC start. Replaces the old approach of configuring Zitadel through ~40 ZITADEL_* compose env vars plus the conf-strip-empty-smtp sed hack. Runs after volume creation (150) and before SSL enable (159) so the SSL addon can patch the on-volume zitadel.yaml.",
+  "execute_on": "ve",
+  "skip_if_all_missing": [
+    "zitadel_yaml_content"
+  ],
+  "parameters": [
+    "zitadel_yaml_content",
+    "zitadel_smtp_yaml_content",
+    "zitadel_init_yaml_content",
+    "compose_file",
+    "ZITADEL_MASTERKEY",
+    "SMTP_PASSWORD",
+    "hostname",
+    "mapped_uid",
+    "mapped_gid",
+    "vm_id"
+  ],
+  "commands": [
+    {
+      "name": "Write ZITADEL YAML Config",
+      "script": "conf-write-zitadel-yaml.sh",
+      "library": "upload-file-common.sh",
+      "outputs": [
+        "zitadel_yaml_written",
+        {
+          "id": "compose_file",
+          "default": true
+        }
+      ]
+    }
+  ]
+}

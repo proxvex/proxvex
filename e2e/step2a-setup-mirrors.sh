@@ -332,6 +332,26 @@ fi
 # Idempotent replace: BEGIN/END fence lets re-runs or schema migrations
 # rewrite the block in place; legacy un-fenced lines from older schemas
 # are also stripped.
+#
+# ghcr.io routing: normally DNS-redirected to the zot-mirror pull-through
+# cache. When the zot-mirror is broken and intentionally skipped
+# (STEP2A_SKIP_ZOT_MIRROR=1), redirecting ghcr.io to a dead IP would break
+# every ghcr.io consumer (zitadel, zitadel-login, traefik, proxvex base
+# images). Instead omit the redirect so ghcr.io resolves to the real
+# upstream (anonymous-friendly, no rate-limit concern) until zot is fixed.
+if [ "${STEP2A_SKIP_ZOT_MIRROR:-}" = "1" ]; then
+    GHCR_REDIRECT_BLOCK="# ghcr.io NOT redirected — zot-mirror skipped (STEP2A_SKIP_ZOT_MIRROR=1).
+# Resolves to the real upstream ghcr.io until the zot-mirror is fixed."
+    GHCR_TARGET_DESC="upstream (zot skipped)"
+else
+    GHCR_REDIRECT_BLOCK="# ghcr.io -> zot-mirror IP. Docker has no per-registry mirror switch for
+# ghcr.io, so the DNS-redirect handles transparent routing for any client
+# that hasn't been explicitly told about ghcr_registry_mirror. Cert SAN
+# on the zot LXC includes DNS:ghcr.io, so TLS validates cleanly.
+address=/ghcr.io/${ZOT_MIRROR_IP}
+address=/ghcr.io/::"
+    GHCR_TARGET_DESC="${ZOT_MIRROR_IP}"
+fi
 header "Wiring dnsmasq registry redirects + mirror hostnames"
 nested_ssh "
     cfg=/etc/dnsmasq.d/e2e-nat.conf
@@ -358,12 +378,7 @@ address=/${TEST_MIRROR_HOST}/::
 # project param + post-start-dockerd's /etc/hosts redirect).
 address=/${ZOT_MIRROR_HOST}/${ZOT_MIRROR_IP}
 address=/${ZOT_MIRROR_HOST}/::
-# ghcr.io -> zot-mirror IP. Docker has no per-registry mirror switch for
-# ghcr.io, so the DNS-redirect handles transparent routing for any client
-# that hasn't been explicitly told about ghcr_registry_mirror. Cert SAN
-# on the zot LXC includes DNS:ghcr.io, so TLS validates cleanly.
-address=/ghcr.io/${ZOT_MIRROR_IP}
-address=/ghcr.io/::
+${GHCR_REDIRECT_BLOCK}
 # docker.io -> production Docker Hub mirror (pve1.cluster). Test mirrors
 # on ubuntupve hold only ghcr.io upstream; for docker.io pulls in livetest
 # (e.g. traefik:v3.6) we redirect to the production-side mirror at
@@ -385,7 +400,7 @@ server=/docker-registry-mirror/192.168.4.1
 DNS
     systemctl restart dnsmasq
 "
-success "dnsmasq configured (${TEST_MIRROR_HOST} -> ${TEST_MIRROR_IP}, ${ZOT_MIRROR_HOST} -> ${ZOT_MIRROR_IP}, ghcr.io -> ${ZOT_MIRROR_IP})"
+success "dnsmasq configured (${TEST_MIRROR_HOST} -> ${TEST_MIRROR_IP}, ${ZOT_MIRROR_HOST} -> ${ZOT_MIRROR_IP}, ghcr.io -> ${GHCR_TARGET_DESC})"
 
 # Step 5b: write /etc/containers/registries.conf so skopeo routes
 # docker.io pulls through the test mirror. Skopeo itself ships with
@@ -397,7 +412,27 @@ nested_ssh "command -v skopeo >/dev/null 2>&1" \
     || error "skopeo not found on nested VM — expected to be present in
     Proxmox VE 9.1+ (pulled in via pve-manager). Verify the baseline:
         ssh -p $PORT_PVE_SSH root@$PVE_HOST 'pveversion && dpkg -l skopeo'"
-nested_ssh "
+# When the docker.io test mirror is broken and intentionally skipped
+# (STEP2A_SKIP_DOCKER_MIRROR_TEST=1), do NOT pin skopeo to it. Without the
+# [[registry.mirror]] block skopeo uses canonical docker.io, which dnsmasq
+# resolves (registry-1.docker.io / index.docker.io -> 192.168.4.45) to the
+# production Docker Hub mirror — the path the dnsmasq block itself documents
+# as the working livetest docker.io route. Falls back until the test mirror
+# is fixed (analogous to STEP2A_SKIP_ZOT_MIRROR for ghcr.io).
+if [ "${STEP2A_SKIP_DOCKER_MIRROR_TEST:-}" = "1" ]; then
+    nested_ssh "
+    set -e
+    mkdir -p /etc/containers
+    cat > /etc/containers/registries.conf <<REG
+unqualified-search-registries = ['docker.io']
+
+[[registry]]
+location = 'docker.io'
+REG
+"
+    success "/etc/containers/registries.conf wired (docker.io -> upstream via dnsmasq prod mirror; test mirror skipped)"
+else
+    nested_ssh "
     set -e
     mkdir -p /etc/containers
     cat > /etc/containers/registries.conf <<REG
@@ -415,7 +450,8 @@ location = 'docker.io'
 location = '${TEST_MIRROR_HOST}:443'
 REG
 "
-success "/etc/containers/registries.conf wired (docker.io -> ${TEST_MIRROR_HOST})"
+    success "/etc/containers/registries.conf wired (docker.io -> ${TEST_MIRROR_HOST})"
+fi
 
 # Step 6: Smoketests — two orthogonal checks that the mirror routing
 # is wired up correctly.
@@ -427,16 +463,19 @@ success "/etc/containers/registries.conf wired (docker.io -> ${TEST_MIRROR_HOST}
 #    mirror this is a cache hit. On a cold mirror this triggers exactly
 #    one Docker Hub pull-through (the mirror fetches alpine, caches it,
 #    answers) — well below the 100/6h anonymous limit.
-header "Smoketest: mirror reachability via dnsmasq"
-nested_ssh "curl -sf --connect-timeout 5 https://${TEST_MIRROR_HOST}/v2/ >/dev/null" \
-    || error "https://${TEST_MIRROR_HOST}/v2/ unreachable via dnsmasq.
+if [ "${STEP2A_SKIP_DOCKER_MIRROR_TEST:-}" = "1" ]; then
+    info "STEP2A_SKIP_DOCKER_MIRROR_TEST=1 — skipping docker.io test-mirror smoketests (using prod mirror via dnsmasq)"
+else
+    header "Smoketest: mirror reachability via dnsmasq"
+    nested_ssh "curl -sf --connect-timeout 5 https://${TEST_MIRROR_HOST}/v2/ >/dev/null" \
+        || error "https://${TEST_MIRROR_HOST}/v2/ unreachable via dnsmasq.
     - Check the dnsmasq A-record: ssh -p $PORT_PVE_SSH root@$PVE_HOST 'getent hosts ${TEST_MIRROR_HOST}'
     - Verify the dnsmasq block was rewritten: grep ${TEST_MIRROR_HOST} /etc/dnsmasq.d/e2e-nat.conf"
-success "Test mirror reachable via dnsmasq (TLS validated, hostname resolved)"
+    success "Test mirror reachable via dnsmasq (TLS validated, hostname resolved)"
 
-header "Smoketest: skopeo inspect via test mirror"
-nested_ssh "skopeo inspect docker://docker.io/library/alpine:latest >/dev/null" \
-    || error "skopeo inspect docker://docker.io/library/alpine:latest failed.
+    header "Smoketest: skopeo inspect via test mirror"
+    nested_ssh "skopeo inspect docker://docker.io/library/alpine:latest >/dev/null" \
+        || error "skopeo inspect docker://docker.io/library/alpine:latest failed.
     - Inspect /etc/containers/registries.conf in the nested VM.
     - Check ${TEST_MIRROR_HOST} resolves: nslookup ${TEST_MIRROR_HOST}
     - Probe the mirror directly:
@@ -445,7 +484,8 @@ nested_ssh "skopeo inspect docker://docker.io/library/alpine:latest >/dev/null" 
     - Last resort if the mirror's pull-through to Docker Hub is broken
       (e.g. credentials expired, upstream rate-limited): seed the cache
       from the prod mirror via ./production/reseed-docker-mirror-test.sh"
-success "Skopeo routes docker.io through ${TEST_MIRROR_HOST}"
+    success "Skopeo routes docker.io through ${TEST_MIRROR_HOST}"
+fi
 
 # Step 6c: ghcr.io smoketest via the dnsmasq-redirect path. ghcr.io
 # resolves to ${ZOT_MIRROR_IP}, the mirror serves /v2/ at that IP with
