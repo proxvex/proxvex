@@ -67,11 +67,24 @@ fi
 # Explode the bundle into <WORK>/<cn>.name / .key.b64 / .cert.b64 via python3
 # (available on the PVE host). JSON parsing is not POSIX-shell friendly.
 WORK=$(mktemp -d)
-if ! echo "$BUNDLE_B64" | base64 -d | python3 - "$WORK" <<'PY'
+# Decode the base64 bundle to a file first. python3 reads its PROGRAM from
+# stdin (the heredoc), so the JSON must be passed as a file argument, not
+# piped on stdin (the heredoc redirection would otherwise win and python
+# would see an empty stdin → "Expecting value: line 1 column 1").
+BUNDLE_JSON="$WORK/.bundle.json"
+if ! echo "$BUNDLE_B64" | base64 -d > "$BUNDLE_JSON" 2>/dev/null; then
+  echo "mtls: failed to base64-decode bundle" >&2
+  [ -n "$CA_TMP" ] && rm -f "$CA_TMP"
+  rm -rf "$WORK"
+  exit 1
+fi
+if ! python3 - "$WORK" "$BUNDLE_JSON" <<'PY'
 import json, sys, os, re
 work = sys.argv[1]
+bundle_path = sys.argv[2]
 try:
-    data = json.load(sys.stdin)
+    with open(bundle_path) as fh:
+        data = json.load(fh)
 except Exception as e:
     sys.stderr.write("mtls: failed to parse cert bundle JSON: %s\n" % e)
     sys.exit(1)
