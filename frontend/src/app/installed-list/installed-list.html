@@ -10,6 +10,8 @@
   [loading]="loading"
   [error]="error"
   [trackByFn]="trackByInstallation"
+  [getCardId]="getCardIdForInstallation"
+  [getCardClasses]="getCardClassesForInstallation"
   theme="green"
   loadingText="Lade installierte Container ...">
 
@@ -29,7 +31,10 @@
         }
       </div>
       @if (it.status) {
-        <span class="status-badge" [class.running]="it.status === 'running'" [class.stopped]="it.status === 'stopped'">{{ it.status }}</span>
+        <span class="status-badge"
+          [class.running]="it.status === 'running'"
+          [class.stopped]="it.status === 'stopped'"
+          [ngClass]="getCardClassesForInstallation(it)">{{ it.status }}</span>
       }
     </div>
 

@@ -35,7 +35,7 @@
           @if (!group.collapsed) {
             <div class="card-grid">
               @for (item of group.items; track trackByFn($index, item)) {
-                <div class="card" [class.is-internal]="isInternal(item)">
+                <div class="card" [class.is-internal]="isInternal(item)" [ngClass]="getCardClasses?.(item) || []" [attr.id]="getCardId?.(item) || null">
                   <ng-container *ngTemplateOutlet="cardTemplate; context: { $implicit: item }"></ng-container>
                 </div>
               }

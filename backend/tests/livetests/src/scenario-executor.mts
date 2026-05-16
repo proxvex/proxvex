@@ -12,7 +12,7 @@ import { buildParams, partitionAfterFailure } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import { collectFailureLogs } from "./diagnostics.mjs";
 import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-types.mjs";
@@ -334,6 +334,7 @@ function findHostnameCollisions(
 export async function executeScenarios(
   planned: PlannedScenario[],
   config: {
+    instance?: string;
     pveHost: string;
     vmId: number;
     portPveSsh: number;
@@ -368,6 +369,55 @@ export async function executeScenarios(
 
   const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
+
+  // Phase: pre-test proxvex rebuild.
+  //
+  // The proxvex application is a special case among test targets — the
+  // image under test is OUR OWN code. The standard pull path
+  // (host-get-oci-image.py → ghcr.io/proxvex/proxvex) returns the upstream
+  // published version, which by definition lags the local dev tree. For
+  // scenarios that exercise unreleased backend behaviour (e.g.
+  // proxvex/playwright-oidc relies on the spoke-sync overlay symlink + the
+  // dev-session endpoint), running the test against the upstream image
+  // produces a confusing 403 / "endpoint not found" instead of the bug
+  // we're actually changing.
+  //
+  // Solution: when any planned target scenario installs the proxvex
+  // application, rebuild + stage the local OCI tarball into the nested-VM
+  // template cache as `proxvex_latest.tar` and `proxvex_<version>.tar`.
+  // host-get-oci-image.py finds those before reaching for the registry.
+  //
+  // No currency check (per design) — always rebuild when triggered. Set
+  // LIVETEST_SKIP_PROXVEX_REBUILD=1 to skip (for iteration loops that
+  // intentionally test against whatever's already in cache).
+  const hasProxvexTarget = planned.some(
+    (p) => p.scenario.application === "proxvex" && !p.skipExecution && !p.isDependency,
+  );
+  if (hasProxvexTarget && process.env.LIVETEST_SKIP_PROXVEX_REBUILD !== "1") {
+    const instanceName = config.instance;
+    if (!instanceName) {
+      logWarn("Cannot rebuild proxvex: config.instance is undefined — skipping pre-test build");
+    } else {
+      const helper = path.join(projectRoot, "e2e/build-proxvex-oci-image.sh");
+      if (!existsSync(helper)) {
+        throw new Error(`build-proxvex-oci-image.sh missing at ${helper} — cannot stage fresh proxvex image for test`);
+      }
+      logStep("Pre-test", `Building + staging proxvex OCI image for instance=${instanceName}`);
+      try {
+        execSync(`"${helper}" "${instanceName}"`, {
+          cwd: projectRoot,
+          stdio: "inherit",
+        });
+      } catch (err) {
+        throw new Error(
+          `proxvex rebuild failed: ${err instanceof Error ? err.message : String(err)} — ` +
+            `set LIVETEST_SKIP_PROXVEX_REBUILD=1 to bypass and run against the stale cached image`,
+        );
+      }
+    }
+  } else if (hasProxvexTarget) {
+    logInfo("LIVETEST_SKIP_PROXVEX_REBUILD=1 — using whatever proxvex image is already cached");
+  }
 
   // Fetch deployer version for test results
   let deployerVersion = "unknown";

@@ -36,6 +36,27 @@ export class InstalledList implements OnInit {
   trackByInstallation = (_: number, item: IManagedOciContainer): string | number =>
     item.is_host ? `host:${item.hostname}` : item.vm_id;
 
+  // DOM-id for each .card so UI tests can target a specific entry via
+  // `#<hostname>` and reach its `.card-actions button` directly. Falls back
+  // to `vm-<vm_id>` when hostname is absent (rare — host entries always
+  // have a hostname, LXC entries usually do too).
+  getCardIdForInstallation = (item: IManagedOciContainer): string => {
+    const host = (item.hostname || '').trim();
+    if (host) return host;
+    return item.is_host ? 'pve-host' : `vm-${item.vm_id}`;
+  };
+
+  // Per-card class list — currently exposes the LXC status as
+  // `status-<state>` so callers can identify each container's state with
+  // `.card.status-running` / `.card.status-stopped` / … without parsing
+  // text. Status values are sanitised (lowercased, non-alphanumeric → `-`)
+  // because the raw value can be any pct-reported string.
+  getCardClassesForInstallation = (item: IManagedOciContainer): string[] => {
+    if (!item.status) return [];
+    const slug = String(item.status).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return slug ? [`status-${slug}`] : [];
+  };
+
   ngOnInit(): void {
     this.veContextKey = this.route.snapshot.paramMap.get('veContextKey') ?? this.svc.getVeContextKey();
     this.cacheService.getInstallations().subscribe({

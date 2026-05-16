@@ -45,6 +45,23 @@ export class CardGridComponent<T> implements OnInit, OnChanges {
   @Input() filterFn?: (item: T, tagsConfig: ITagsConfig, showInternal: boolean) => boolean;
   @Input() getItemId?: (item: T) => string;
 
+  /**
+   * Optional function returning a DOM-`id` for each `.card` element so
+   * downstream code (e.g. UI tests, deep links, scroll-into-view) can target
+   * a specific card without scanning text content. Returning `undefined` or
+   * an empty string leaves the card without an `id`.
+   */
+  @Input() getCardId?: (item: T) => string | undefined;
+
+  /**
+   * Optional function returning extra CSS class names to apply to each
+   * `.card` element — typically status flags (`status-running`,
+   * `status-stopped`, …) so downstream code can identify per-card state
+   * with a CSS selector instead of inspecting text. Returned values are
+   * appended to the existing `.card` + `.is-internal` classes.
+   */
+  @Input() getCardClasses?: (item: T) => string[];
+
   // Grouping configuration
   @Input() enableGrouping = false;
   @Input() getItemTags?: (item: T) => string[] | undefined;
