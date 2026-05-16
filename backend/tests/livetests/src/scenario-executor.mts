@@ -1208,8 +1208,10 @@ export async function executeScenarios(
           ...collectScenarioEnv({
             instance,
             pveHost: config.pveHost,
+            pveSshPort: config.portPveSsh,
             projectRoot,
             appHostname: step.hostname,
+            appVmId: step.vmId,
             appHttps: usesSsl,
           }),
         };
