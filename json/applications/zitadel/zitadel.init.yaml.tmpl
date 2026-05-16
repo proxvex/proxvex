@@ -3,7 +3,7 @@
 # Loaded as an additional --config ONLY during the initial bootstrap. The
 # post-bootstrap hardening step (360-post-harden-zitadel-yaml) deletes this
 # file from the config volume and rewrites the compose command from
-# `start-from-init ... --config zitadel.init.yaml` to plain `start` so the
+# `start-from-init ... --steps zitadel.init.yaml` to plain `start` so the
 # (non-idempotent) FirstInstance migration never runs a second time.
 FirstInstance:
   PatPath: /zitadel/bootstrap/admin-client.pat

@@ -7,7 +7,7 @@
 #
 #   1. Delete zitadel.init.yaml from the `config` volume (FirstInstance
 #      bootstrap data is no longer needed and must not linger).
-#   2. Rewrite the compose command: drop `--config .../zitadel.init.yaml`
+#   2. Rewrite the compose command: drop `--steps .../zitadel.init.yaml`
 #      and switch `start-from-init` -> `start`. start-from-init is NOT
 #      idempotent (unique-index errors on restart); plain `start` skips the
 #      FirstInstance migration. Two narrow seds keep this independent of the
@@ -67,12 +67,12 @@ else
   echo "  /config/zitadel.init.yaml already absent (no change)" >&2
 fi
 
-# --- 2a. Drop the init.yaml --config argument from the command ---
-if grep -q -- '--config /zitadel/config/zitadel.init.yaml' "$COMPOSE_FILE"; then
-  sed -i 's| --config /zitadel/config/zitadel.init.yaml||g' "$COMPOSE_FILE"
-  echo "  Removed --config zitadel.init.yaml from command" >&2
+# --- 2a. Drop the init.yaml --steps argument from the command ---
+if grep -q -- '--steps /zitadel/config/zitadel.init.yaml' "$COMPOSE_FILE"; then
+  sed -i 's| --steps /zitadel/config/zitadel.init.yaml||g' "$COMPOSE_FILE"
+  echo "  Removed --steps zitadel.init.yaml from command" >&2
 else
-  echo "  init.yaml --config already removed (no change)" >&2
+  echo "  init.yaml --steps already removed (no change)" >&2
 fi
 
 # --- 2b. start-from-init -> start ---

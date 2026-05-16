@@ -22,12 +22,15 @@ services:
     # incl. the masterkey file (--masterkeyFile; Zitadel ignores the env/
     # config-key forms under start-from-init). DB password secrets stay as
     # env vars below (normal viper keys, env overrides the absent YAML).
+    # FirstInstance bootstrap is a SETUP-STEPS config (Zitadel reads it from
+    # the --steps file, not --config; it is absent from defaults.yaml and
+    # only defined in cmd/setup/steps.yaml), hence --steps zitadel.init.yaml.
     # After successful bootstrap, 360-post-harden-zitadel rewrites this line
     # to plain `start --config /zitadel/config/zitadel.yaml --config
     # /zitadel/config/zitadel.smtp.yaml --masterkeyFile
     # /zitadel/config/masterkey --tlsMode disabled` and deletes
     # zitadel.init.yaml (FirstInstance migration is not idempotent).
-    command: 'start-from-init --config /zitadel/config/zitadel.yaml --config /zitadel/config/zitadel.smtp.yaml --config /zitadel/config/zitadel.init.yaml --masterkeyFile /zitadel/config/masterkey --tlsMode disabled'
+    command: 'start-from-init --config /zitadel/config/zitadel.yaml --config /zitadel/config/zitadel.smtp.yaml --steps /zitadel/config/zitadel.init.yaml --masterkeyFile /zitadel/config/masterkey --tlsMode disabled'
     environment:
       # DB password secrets only (normal viper keys — env overrides the
       # absent YAML values and keeps the stack-secret rotation mechanism
