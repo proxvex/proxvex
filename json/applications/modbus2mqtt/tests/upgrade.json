@@ -5,7 +5,8 @@
   "wait_seconds": 30,
   "cli_timeout": 600,
   "params": [
-    { "name": "oci_image_tag", "value": "latest" }
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "upload_modbus2mqtt_config_content", "value": "file:config-plain.zip" }
   ],
   "description": "Upgrade modbus2mqtt with OIDC addon in place. Closes oci-image/oidc/upgrade gap — critical (auth-related)."
 }

@@ -14,11 +14,8 @@
     {
       "name": "Resolve Dependency Hosts",
       "script": "host-resolve-dependency-hosts.py",
-      "library": "lxc_config_parser_lib.py",
-      "outputs": [
-        "POSTGRES_HOST",
-        "POSTGRES_IP"
-      ]
+      "library": "lxc_config_parser_lib.py"
     }
   ]
 }
+

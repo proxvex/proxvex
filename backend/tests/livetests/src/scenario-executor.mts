@@ -12,7 +12,7 @@ import { buildParams, partitionAfterFailure } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import { collectFailureLogs } from "./diagnostics.mjs";
 import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ResolvedScenario, PlannedScenario, TestResult } from "./livetest-types.mjs";
@@ -150,13 +150,21 @@ async function findExistingVm(
   pveHost: string,
   sshPort: number,
   expectedHostname?: string,
-): Promise<{ vm_id: number; addons?: string[] } | null> {
+  /**
+   * When true, *only* a CT whose hostname matches `expectedHostname` exactly
+   * is acceptable — no falling back to the first application-id match. Used
+   * by the `--all` driver where the planner has already resolved the right
+   * source via depends_on, and a "first match" fallback would pick the wrong
+   * sibling (e.g. `nginx-acme` for a `nginx/default`-depending reconfigure).
+   */
+  strictHostname = false,
+): Promise<{ vm_id: number; addons?: string[]; hostname?: string } | null> {
   // Scan PVE host directly for running managed containers.
   // More reliable than deployer context which may be stale after rollbacks.
   try {
     const pctList = nestedSsh(pveHost, sshPort,
       `pct list 2>/dev/null | tail -n +2 | awk '{print $1}'`, 10000);
-    let firstAppMatch: { vm_id: number; addons?: string[] } | null = null;
+    let firstAppMatch: { vm_id: number; addons?: string[]; hostname?: string } | null = null;
     for (const line of pctList.split("\n")) {
       const vmId = parseInt(line.trim(), 10);
       if (isNaN(vmId)) continue;
@@ -175,18 +183,85 @@ async function findExistingVm(
         if (appId !== applicationId) continue;
         const addonMatches = conf.matchAll(/addon\s+(\S+)/g);
         const addons = [...addonMatches].map(m => m[1]!).filter(Boolean);
-        const result = { vm_id: vmId, addons: addons.length > 0 ? addons : undefined };
+        const hostMatch = conf.match(/^hostname:\s*(\S+)/m);
+        const hostname = hostMatch?.[1];
+        const result = {
+          vm_id: vmId,
+          addons: addons.length > 0 ? addons : undefined,
+          hostname,
+        };
         if (expectedHostname) {
-          const hostMatch = conf.match(/^hostname:\s*(\S+)/m);
-          if (hostMatch?.[1] === expectedHostname) return result;
+          if (hostname === expectedHostname) return result;
           if (!firstAppMatch) firstAppMatch = result;
           continue;
         }
         return result;
       } catch { continue; }
     }
-    if (firstAppMatch) return firstAppMatch;
+    if (firstAppMatch && !strictHostname) return firstAppMatch;
   } catch { /* ignore */ }
+  return null;
+}
+
+/** Verify a planner-resolved VMID still corresponds to a usable source container.
+ *  Returns null if the CT doesn't exist, was retired by replace-ct, or is
+ *  locked. Returns hostname/addons when usable. */
+function verifyDependencyVm(
+  pveHost: string,
+  sshPort: number,
+  vmId: number,
+  applicationId: string,
+): { vm_id: number; addons?: string[]; hostname?: string } | null {
+  try {
+    const conf = nestedSsh(pveHost, sshPort,
+      `pct config ${vmId} 2>/dev/null | head -40`, 5000);
+    if (!conf.includes("proxvex") || !conf.includes("managed")) return null;
+    if (/proxvex(%3A|:)replaced-by/.test(conf)) return null;
+    // Locked CTs (migrate/backup/snapshot) can't serve as a clone source.
+    if (/^lock:\s*\S+/m.test(conf)) return null;
+    const appMatch = conf.match(/application-id\s+(\S+)/);
+    const appId = appMatch?.[1]?.replace(/%20/g, " ");
+    if (appId !== applicationId) return null;
+    const addonMatches = conf.matchAll(/addon\s+(\S+)/g);
+    const addons = [...addonMatches].map(m => m[1]!).filter(Boolean);
+    const hostMatch = conf.match(/^hostname:\s*(\S+)/m);
+    const result: { vm_id: number; addons?: string[]; hostname?: string } = { vm_id: vmId };
+    if (addons.length > 0) result.addons = addons;
+    if (hostMatch?.[1]) result.hostname = hostMatch[1];
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/** Allocate a fresh VMID for a source-isolation clone. Picks a slot well
+ *  above the planner's `step.vmId` range so it can't collide with any
+ *  scenario the planner has already reserved. Returns null when no slot is
+ *  available in the configured search range. */
+function allocateCloneVmId(
+  pveHost: string,
+  sshPort: number,
+  startAbove: number,
+): number | null {
+  // Search 1000–1999 ABOVE the consumer's planner VMID. step.vmId is in the
+  // 200+ range, so cloneVmId lands at 1200+ — clearly out of band of the
+  // 200-block the planner uses, easy to recognise in `pct list`, and out of
+  // the way of test scenarios.
+  const baseStart = Math.max(startAbove + 1000, 1200);
+  try {
+    const taken = nestedSsh(
+      pveHost, sshPort,
+      `pct list 2>/dev/null | tail -n +2 | awk '{print $1}'`,
+      10000,
+    )
+      .split("\n")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !Number.isNaN(n));
+    const takenSet = new Set(taken);
+    for (let id = baseStart; id < baseStart + 800; id++) {
+      if (!takenSet.has(id)) return id;
+    }
+  } catch { /* ignore — return null below */ }
   return null;
 }
 
@@ -259,6 +334,7 @@ function findHostnameCollisions(
 export async function executeScenarios(
   planned: PlannedScenario[],
   config: {
+    instance?: string;
     pveHost: string;
     vmId: number;
     portPveSsh: number;
@@ -293,6 +369,55 @@ export async function executeScenarios(
 
   const verifier = new Verifier(config.pveHost, config.portPveSsh, apiUrl, veHost);
   const tmpDir = mkdtempSync(path.join(tmpdir(), "livetest-"));
+
+  // Phase: pre-test proxvex rebuild.
+  //
+  // The proxvex application is a special case among test targets — the
+  // image under test is OUR OWN code. The standard pull path
+  // (host-get-oci-image.py → ghcr.io/proxvex/proxvex) returns the upstream
+  // published version, which by definition lags the local dev tree. For
+  // scenarios that exercise unreleased backend behaviour (e.g.
+  // proxvex/playwright-oidc relies on the spoke-sync overlay symlink + the
+  // dev-session endpoint), running the test against the upstream image
+  // produces a confusing 403 / "endpoint not found" instead of the bug
+  // we're actually changing.
+  //
+  // Solution: when any planned target scenario installs the proxvex
+  // application, rebuild + stage the local OCI tarball into the nested-VM
+  // template cache as `proxvex_latest.tar` and `proxvex_<version>.tar`.
+  // host-get-oci-image.py finds those before reaching for the registry.
+  //
+  // No currency check (per design) — always rebuild when triggered. Set
+  // LIVETEST_SKIP_PROXVEX_REBUILD=1 to skip (for iteration loops that
+  // intentionally test against whatever's already in cache).
+  const hasProxvexTarget = planned.some(
+    (p) => p.scenario.application === "proxvex" && !p.skipExecution && !p.isDependency,
+  );
+  if (hasProxvexTarget && process.env.LIVETEST_SKIP_PROXVEX_REBUILD !== "1") {
+    const instanceName = config.instance;
+    if (!instanceName) {
+      logWarn("Cannot rebuild proxvex: config.instance is undefined — skipping pre-test build");
+    } else {
+      const helper = path.join(projectRoot, "e2e/build-proxvex-oci-image.sh");
+      if (!existsSync(helper)) {
+        throw new Error(`build-proxvex-oci-image.sh missing at ${helper} — cannot stage fresh proxvex image for test`);
+      }
+      logStep("Pre-test", `Building + staging proxvex OCI image for instance=${instanceName}`);
+      try {
+        execSync(`"${helper}" "${instanceName}"`, {
+          cwd: projectRoot,
+          stdio: "inherit",
+        });
+      } catch (err) {
+        throw new Error(
+          `proxvex rebuild failed: ${err instanceof Error ? err.message : String(err)} — ` +
+            `set LIVETEST_SKIP_PROXVEX_REBUILD=1 to bypass and run against the stale cached image`,
+        );
+      }
+    }
+  } else if (hasProxvexTarget) {
+    logInfo("LIVETEST_SKIP_PROXVEX_REBUILD=1 — using whatever proxvex image is already cached");
+  }
 
   // Fetch deployer version for test results
   let deployerVersion = "unknown";
@@ -388,6 +513,20 @@ export async function executeScenarios(
       );
 
       const stepStartTime = new Date();
+
+      // VMIDs of source clones created for Phase-2 isolation. Always cleaned
+      // up at iteration end (pass, fail, OR crash) so they don't leak across
+      // the --all run. Populated below when consumes_source === "isolate".
+      const sourceCloneVmIds: number[] = [];
+
+      // Per-iteration crash safety: an uncaught exception inside the loop
+      // body would kill the runner mid-plan, leaving the result dir nearly
+      // empty (we've seen this with --all: scenario 1 throws → 42 remaining
+      // scenarios never run, no result.md anywhere). Catching here turns the
+      // throw into a "crashed" test result and lets the rest of the plan
+      // proceed; downstream scenarios that depend on this one will be
+      // filtered out by the existing partitionAfterFailure logic.
+      try {
 
       // Skip dependencies that were restored from snapshot or are already running
       if (step.skipExecution) {
@@ -492,16 +631,20 @@ export async function executeScenarios(
 
       const buildResult = buildParams(scenario, baseParams, templateVars, tmpDir);
 
-      // For upgrade/reconfigure: find existing VM. Prefer a same-application
-      // dependency declared in `depends_on` (e.g. nginx/reconf-addons-on
-      // explicitly clones from nginx/default — without this, when multiple
-      // siblings exist, findExistingVm picked the lowest VMID and cloned the
-      // wrong container).
-      let existingVm: { vm_id: number; addons?: string[] } | null = null;
+      // For upgrade/reconfigure: find existing VM. Resolution order:
+      //   1. explicit previous_vm_id from scenario params (e.g. proxmox/oidc-ssl
+      //      sets "0" because the PVE host itself is the reconfigure target).
+      //   2. same-application entry in depends_on — but VERIFIED on the host
+      //      (CT exists, not retired/locked, app-id matches). The planner's
+      //      vmId can be stale when an earlier scenario in the run already
+      //      consumed the source (lock=migrate after replace-ct).
+      //   3. hostname-strict findExistingVm — only accept a CT whose hostname
+      //      exactly matches one of the depends_on apps' planner-hostnames.
+      //      No silent "first nginx-* CT" fallback: that picked nginx-acme
+      //      instead of nginx-default for reconf-addons-off, leaking ACME
+      //      errors into the post-rename log.
+      let existingVm: { vm_id: number; addons?: string[]; hostname?: string } | null = null;
       if (isReplaceCt) {
-        // Scenario carries an explicit previous_vm_id (e.g. proxmox/oidc-ssl
-        // sets "0" because the PVE host is the reconfigure target — there
-        // is no LXC findExistingVm could match). Trust it; skip discovery.
         const explicitPrev = buildResult.params.find((p) => p.name === "previous_vm_id");
         if (explicitPrev) {
           existingVm = { vm_id: Number(explicitPrev.value) };
@@ -510,17 +653,44 @@ export async function executeScenarios(
         if (!existingVm && scenario.depends_on) {
           for (const depId of scenario.depends_on) {
             const depStep = planned.find((p) => p.scenario.id === depId);
-            if (depStep && depStep.scenario.application === scenario.application) {
-              existingVm = { vm_id: depStep.vmId };
-              logInfo(`Using depended-on VM ${depStep.vmId} for ${task} (from ${depId})`);
+            if (!depStep || depStep.scenario.application !== scenario.application) continue;
+            const verified = verifyDependencyVm(
+              config.pveHost, config.portPveSsh, depStep.vmId, scenario.application,
+            );
+            if (verified) {
+              existingVm = verified;
+              logInfo(`Using depended-on VM ${verified.vm_id} (hostname=${verified.hostname ?? "?"}) for ${task} (from ${depId})`);
               break;
             }
+            logWarn(
+              `Planner mapped ${depId} → VM ${depStep.vmId} but that CT is missing/retired/locked — falling back to hostname-strict scan`,
+            );
           }
         }
         if (!existingVm) {
-          // Pre-replace lookup: the source container should match the
-          // scenario's hostname before reconfigure runs.
-          existingVm = await findExistingVm(apiUrl, veHost, scenario.application, config.pveHost, config.portPveSsh, step.hostname);
+          // Strict hostname match: no "first app-id match" fallback.
+          // Try each same-application depends_on hostname.
+          const candidateHostnames: string[] = [step.hostname];
+          if (scenario.depends_on) {
+            for (const depId of scenario.depends_on) {
+              const depStep = planned.find((p) => p.scenario.id === depId);
+              if (depStep && depStep.scenario.application === scenario.application) {
+                if (!candidateHostnames.includes(depStep.hostname)) {
+                  candidateHostnames.push(depStep.hostname);
+                }
+              }
+            }
+          }
+          for (const host of candidateHostnames) {
+            existingVm = await findExistingVm(
+              apiUrl, veHost, scenario.application,
+              config.pveHost, config.portPveSsh, host, true /* strictHostname */,
+            );
+            if (existingVm) {
+              logInfo(`Found CT ${existingVm.vm_id} by hostname '${host}' for ${task}`);
+              break;
+            }
+          }
         }
         if (!existingVm) {
           const errMsg = `No existing VM found for ${scenario.application} — cannot ${task}`;
@@ -533,27 +703,173 @@ export async function executeScenarios(
           // torn down by a previous scenario's cleanup.
           continue;
         }
-        // Only push if not already present (explicit case already has it).
-        if (!buildResult.params.some((p) => p.name === "previous_vm_id")) {
-          buildResult.params.push({ name: "previous_vm_id", value: String(existingVm.vm_id) });
+        // From here on existingVm is guaranteed non-null. Bind into a typed
+        // local so TS keeps the narrowing across the reassignment below
+        // (cloning swaps `existingVm` to point at the clone).
+        let sourceVm: { vm_id: number; addons?: string[]; hostname?: string } = existingVm;
+        // Phase 2: source isolation. If the scenario destructively consumes
+        // its source (reconfigure, oci-image upgrade), clone the source into
+        // a private throw-away CT and feed the clone into the scenario as
+        // previous_vm_id. Original source stays available for other
+        // consumers. docker-compose upgrade opts out (in-place modification
+        // — see `consumes_source` doc). The clone is registered for cleanup
+        // at iteration end regardless of pass/fail.
+        const appMetaForVmId = appMetaMap.get(scenario.application) ?? {};
+        const isDockerComposeForVmId =
+          (appMetaForVmId.framework ?? appMetaForVmId.extends) === "docker-compose";
+        const defaultStrategy: "isolate" | "in-place" | "shared" =
+          isDockerComposeForVmId && task === "upgrade" ? "in-place" : "isolate";
+        const consumesSource = scenario.consumes_source ?? defaultStrategy;
+        // Explicit previous_vm_id (the proxmox/oidc-ssl hack with value "0")
+        // means there is no source CT to isolate — leave as-is.
+        const hasExplicitPrev = !!buildResult.params.find((p) => p.name === "previous_vm_id");
+        if (consumesSource === "isolate" && !hasExplicitPrev) {
+          const cloneVmId = allocateCloneVmId(config.pveHost, config.portPveSsh, step.vmId);
+          if (cloneVmId !== null) {
+            logInfo(`Isolating source: cloning VM ${sourceVm.vm_id} → ${cloneVmId} for ${scenario.id}`);
+            // `pct clone --full` on a RUNNING source requires `--snapname`
+            // (Proxmox: "Full clone of a running container is only possible
+            // from a snapshot"). Take an ephemeral snapshot, clone from it,
+            // and delete the snapshot afterwards. The source CT stays
+            // running throughout — its kernel mounts keep working until next
+            // stop, so no data is lost.
+            const snapName = `iso-clone-${cloneVmId}`;
+            let snapTaken = false;
+            try {
+              nestedSsh(
+                config.pveHost, config.portPveSsh,
+                `pct snapshot ${sourceVm.vm_id} ${snapName}`,
+                120000,
+              );
+              snapTaken = true;
+              nestedSsh(
+                config.pveHost, config.portPveSsh,
+                `pct clone ${sourceVm.vm_id} ${cloneVmId} --snapname ${snapName} --full 1`,
+                300000,
+              );
+              // `pct clone` does NOT carry over the source's notes by default.
+              // In Proxmox LXC, notes live as `#`-prefixed comment lines at
+              // the very top of `/etc/pve/lxc/<vmid>.conf` (NOT as a
+              // `description:` line). Downstream proxvex templates check the
+              // notes for `proxvex:managed` / `application-id` markers and
+              // refuse to operate on CTs missing them.
+              //
+              // Implementation: prepend the source's leading `#` block to the
+              // target's conf. Encoded as a single-line shell command because
+              // nestedSsh passes the command through JSON.stringify, which
+              // turns embedded newlines into literal `\n` escapes that the
+              // remote shell does NOT re-interpret as command separators.
+              const SRC_CONF = `/etc/pve/lxc/${sourceVm.vm_id}.conf`;
+              const DST_CONF = `/etc/pve/lxc/${cloneVmId}.conf`;
+              // Pipe the script via stdin (`sh -s`) so we don't fight nested
+              // shell quoting: the runner→ssh→remote-sh chain otherwise
+              // expands $(mktemp) on the LOCAL machine before reaching the
+              // remote, which clobbers the cloned CT's conf and yields
+              // `missing 'arch' - internal error` on `pct start`.
+              const copyNotesScript =
+                `set -e\n` +
+                `T=$(mktemp)\n` +
+                `awk 'BEGIN{skip=1} skip && /^[^#]/ {skip=0} !skip {print}' '${DST_CONF}' > "$T"\n` +
+                `{ awk '/^[^#]/ {exit} {print}' '${SRC_CONF}'; cat "$T"; } > '${DST_CONF}'\n` +
+                `rm -f "$T"\n`;
+              try {
+                nestedSshStrict(
+                  config.pveHost, config.portPveSsh,
+                  "sh -s",
+                  30000,
+                  copyNotesScript,
+                );
+              } catch (descErr) {
+                logWarn(`Could not copy notes from ${sourceVm.vm_id} to ${cloneVmId}: ${descErr instanceof Error ? descErr.message : String(descErr)}`);
+              }
+              // Delete the source-side snapshot — we don't need it again.
+              try {
+                nestedSsh(
+                  config.pveHost, config.portPveSsh,
+                  `pct delsnapshot ${sourceVm.vm_id} ${snapName}`,
+                  60000,
+                );
+                snapTaken = false;
+              } catch {
+                // Non-fatal: the leftover snapshot is cleanup-able later but
+                // a) it occupies disk, b) repeated isolations stack up. Log
+                // for visibility.
+                logWarn(`Could not delete source snapshot ${snapName} on VM ${sourceVm.vm_id}`);
+              }
+              // Start the clone so downstream `pct exec` works (the clone is
+              // stopped by default).
+              try {
+                nestedSsh(
+                  config.pveHost, config.portPveSsh,
+                  `pct start ${cloneVmId} 2>&1 || true`,
+                  60000,
+                );
+                // Poll until lxc-attach succeeds (init PID is reachable).
+                // nestedSsh swallows errors; use nestedSshStrict here so the
+                // poll loop sees failures and retries.
+                const deadline = Date.now() + 30000;
+                while (Date.now() < deadline) {
+                  try {
+                    nestedSshStrict(
+                      config.pveHost, config.portPveSsh,
+                      `pct exec ${cloneVmId} -- /bin/true 2>/dev/null`,
+                      5000,
+                    );
+                    break;
+                  } catch {
+                    await new Promise((r) => setTimeout(r, 1000));
+                  }
+                }
+              } catch (startErr) {
+                logWarn(`pct start on clone ${cloneVmId} failed: ${startErr instanceof Error ? startErr.message : String(startErr)}`);
+              }
+              sourceCloneVmIds.push(cloneVmId);
+              const cloned: { vm_id: number; addons?: string[]; hostname?: string } = { vm_id: cloneVmId };
+              if (sourceVm.addons) cloned.addons = sourceVm.addons;
+              if (sourceVm.hostname) cloned.hostname = sourceVm.hostname;
+              sourceVm = cloned;
+              logOk(`Source clone ready: VM ${cloneVmId} (will be destroyed after scenario)`);
+            } catch (err) {
+              logWarn(`pct clone failed (${err instanceof Error ? err.message : String(err)}) — falling back to shared source`);
+              // Best-effort cleanup of a snapshot we may have created.
+              if (snapTaken) {
+                try {
+                  nestedSsh(
+                    config.pveHost, config.portPveSsh,
+                    `pct delsnapshot ${sourceVm.vm_id} ${snapName} 2>/dev/null || true`,
+                    60000,
+                  );
+                } catch { /* ignore */ }
+              }
+            }
+          } else {
+            logWarn(`Could not allocate a clone VMID — falling back to shared source for ${scenario.id}`);
+          }
+        } else if (consumesSource === "shared") {
+          logInfo(`consumes_source=shared: ${scenario.id} runs against original source ${sourceVm.vm_id}`);
         }
-        logInfo(`Found existing VM ${existingVm.vm_id} for ${task} (previous_vm_id)`);
+
+        // Keep existingVm in sync so downstream code (addon resolution, etc.)
+        // also sees the (possibly cloned) source.
+        existingVm = sourceVm;
+
+        if (!buildResult.params.some((p) => p.name === "previous_vm_id")) {
+          buildResult.params.push({ name: "previous_vm_id", value: String(sourceVm.vm_id) });
+        }
+        logInfo(`Found existing VM ${sourceVm.vm_id} for ${task} (previous_vm_id, strategy=${consumesSource})`);
 
         // For in-place upgrade (docker-compose), also push vm_id =
-        // existingVm.vm_id so the auto-appended check templates
+        // sourceVm.vm_id so the auto-appended check templates
         // (900-host-check-container etc.) can resolve `{{ vm_id }}`.
         // Without this, post-upgrade verification runs with VM='' and
         // fails. Skip for clone-replace flows (oci-image upgrade, all
         // reconfigures): there `vm_id` is the *new* clone's id which the
         // create_ct/replace-ct chain allocates — pushing it here makes
         // source=target → "must differ" abort.
-        const appMetaForVmId = appMetaMap.get(scenario.application) ?? {};
-        const isDockerComposeForVmId =
-          (appMetaForVmId.framework ?? appMetaForVmId.extends) === "docker-compose";
         if (isDockerComposeForVmId && task === "upgrade") {
           if (!buildResult.params.some((p) => p.name === "vm_id")) {
-            buildResult.params.push({ name: "vm_id", value: String(existingVm.vm_id) });
-            logInfo(`In-place docker-compose upgrade: vm_id=${existingVm.vm_id}`);
+            buildResult.params.push({ name: "vm_id", value: String(sourceVm.vm_id) });
+            logInfo(`In-place docker-compose upgrade: vm_id=${sourceVm.vm_id}`);
           }
         }
       }
@@ -875,6 +1191,7 @@ export async function executeScenarios(
       // remote browser is on the same vmbr1 network and resolves it via
       // dnsmasq). Specs receive APP_HOSTNAME and decide port/scheme based
       // on app convention. Opt-out via LIVETEST_SKIP_PLAYWRIGHT=1.
+      let playwrightFailed = false;
       if (
         scenario.playwright_spec &&
         process.env.LIVETEST_SKIP_PLAYWRIGHT !== "1"
@@ -891,8 +1208,10 @@ export async function executeScenarios(
           ...collectScenarioEnv({
             instance,
             pveHost: config.pveHost,
+            pveSshPort: config.portPveSsh,
             projectRoot,
             appHostname: step.hostname,
+            appVmId: step.vmId,
             appHttps: usesSsl,
           }),
         };
@@ -1024,10 +1343,10 @@ export async function executeScenarios(
             );
           } catch { /* non-fatal — we still threw above */ }
           if (proc.status !== 0) {
-            // Write a `status: failed` result before bubbling out, otherwise
-            // the run directory stays empty (the success-path write at the
-            // bottom of this iteration never executes), which makes the
-            // post-mortem (test-result.md + debug bundle) inaccessible.
+            // Write a `status: failed` result so the bundle (test-result.md +
+            // artifacts) is accessible post-mortem, then mark this scenario
+            // failed and move on. Previously we threw, which aborted the
+            // entire --all run on the first failing spec.
             const errMsg = `Playwright spec failed: ${specPath} (exit ${proc.status})`;
             if (resultWriter) {
               await resultWriter.write(TestResultWriter.buildResult({
@@ -1042,11 +1361,16 @@ export async function executeScenarios(
                 ...(cliResult.restartKey ? { restartKey: cliResult.restartKey } : {}),
               }));
             }
-            throw new Error(errMsg);
+            logFail(errMsg);
+            result.errors.push(errMsg);
+            result.failed++;
+            playwrightFailed = true;
+            break;  // skip remaining specs for this scenario, fall through to cleanup below
           }
           logOk(`Playwright passed: ${specPath}`);
         }
       }
+      if (playwrightFailed) continue;
 
       // Write test result
       if (resultWriter) {
@@ -1089,12 +1413,24 @@ export async function executeScenarios(
       // Consumer-test success: destroy the consumer LXC. Provider LXCs stay
       // alive for subsequent consumer tests. Test-level cleanup (e.g. dropping
       // a database in postgres) is handled separately via test.json `cleanup`.
-      if (snapMgr && !step.isDependency && !step.skipExecution) {
+      //
+      // Phase 2 caveat: docker-compose in-place upgrade reassigns step.vmId
+      // to the source's VMID (see in-place block above). If the source is a
+      // dependency for downstream consumers (e.g. postgrest/reconf-ssl also
+      // depends on postgrest/ssl), destroying step.vmId here tears down the
+      // shared source. Skip cleanup when step.vmId matches any planned-dep's
+      // vmId — the dep cleanup at end-of-run handles those CTs.
+      const isSharedSourceVm = planned.some(
+        (p) => p.scenario.id !== scenario.id && p.vmId === step.vmId,
+      );
+      if (snapMgr && !step.isDependency && !step.skipExecution && !isSharedSourceVm) {
         try {
           nestedSsh(config.pveHost, config.portPveSsh,
             `pct stop ${step.vmId} 2>/dev/null; pct destroy ${step.vmId} --force --purge 2>/dev/null; true`,
             30000);
         } catch { /* ignore */ }
+      } else if (isSharedSourceVm) {
+        logInfo(`Skipping cleanup of VM ${step.vmId} — shared with another planned scenario (in-place upgrade source)`);
       }
 
       // After the LAST stack-provider step, create the single dep-stacks-ready
@@ -1111,6 +1447,64 @@ export async function executeScenarios(
           snapMgr.createHostSnapshot("dep-stacks-ready", buildHash, capturedDeps);
         } catch (err) {
           logInfo(`Snapshot creation failed (non-fatal): ${err}`);
+        }
+      }
+      } catch (iterErr) {
+        // Uncaught exception during this scenario — turn it into a "failed"
+        // result so the run continues with the remaining scenarios. The
+        // partitionAfterFailure logic above (used by the cliResult.exitCode !== 0
+        // path) is bypassed here because we may have thrown before reaching it,
+        // so blocked downstream scenarios will simply fail their own pre-flight
+        // checks rather than being marked "skipped" — that's acceptable for the
+        // crash path (better than zero results).
+        const errMsg = `Scenario crashed: ${scenario.id} (${task}): ${iterErr instanceof Error ? iterErr.message : String(iterErr)}`;
+        logFail(errMsg);
+        if (iterErr instanceof Error && iterErr.stack) {
+          logInfo(iterErr.stack);
+        }
+        result.errors.push(errMsg);
+        result.failed++;
+        result.steps.push({
+          vmId: step.vmId, hostname: step.hostname,
+          application: scenario.application, scenarioId: scenario.id,
+        });
+        if (resultWriter) {
+          try {
+            await resultWriter.write(TestResultWriter.buildResult({
+              runId: resultWriter.getRunId(),
+              scenarioId: scenario.id, application: scenario.application, task,
+              status: "failed", vmId: step.vmId, hostname: step.hostname,
+              stackName: step.stackName, addons: scenario.selectedAddons ?? [],
+              startedAt: stepStartTime, finishedAt: new Date(),
+              deployerVersion, deployerGitHash,
+              commandLine: resultWriter.getCommandLine(),
+              dependencies: [], verifyResults: {}, errorMessage: errMsg,
+            }));
+          } catch { /* result write failure — already logging the throw above */ }
+        }
+        if (options?.failFast) {
+          throw iterErr;
+        }
+      } finally {
+        // Phase 2: destroy any source clones we made for this scenario.
+        // Runs on pass, fail AND crash so isolated clones never leak across
+        // the --all run. KEEP_VM=1 preserves them for post-mortem inspection
+        // (same flag honoured for the main consumer CT below).
+        if (process.env.KEEP_VM) {
+          for (const cloneVmId of sourceCloneVmIds) {
+            logInfo(`KEEP_VM set — preserving source clone VM ${cloneVmId} for inspection`);
+          }
+        } else {
+          for (const cloneVmId of sourceCloneVmIds) {
+            try {
+              nestedSsh(
+                config.pveHost, config.portPveSsh,
+                `pct stop ${cloneVmId} 2>/dev/null; pct unlock ${cloneVmId} 2>/dev/null; pct destroy ${cloneVmId} --force --purge 2>/dev/null; true`,
+                30000,
+              );
+              logInfo(`Destroyed source clone VM ${cloneVmId}`);
+            } catch { /* best-effort */ }
+          }
         }
       }
     }

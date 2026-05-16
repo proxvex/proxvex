@@ -14,10 +14,18 @@ export interface ScenarioEnvInput {
   instance: string;
   /** Outer PVE host (e.g. ubuntupve). */
   pveHost: string;
+  /** Externally reachable SSH port for the nested-VM PVE host (e.g. 1222 for
+   *  yellow). Used by the diagnostics fixture to read /var/log/lxc and
+   *  `pct config` on the host where the test container actually lives. */
+  pveSshPort: number;
   /** Project root, for resolving e2e/config.json. */
   projectRoot: string;
   /** Container hostname of the application under test (e.g. proxvex-1234). */
   appHostname: string;
+  /** LXC VMID of the application under test. Required by the diagnostics
+   *  fixture to address the right log file (`<hostname>-<vmid>.log`) and to
+   *  run `pct config <vmid>` / `pct exec <vmid> …`. */
+  appVmId: number;
   /** True when addon-ssl is among the scenario's selected addons. */
   appHttps: boolean;
 }
@@ -27,9 +35,14 @@ export interface ScenarioEnv {
   PLAYWRIGHT_WS: string;
   /** Outer PVE host (for tests that compose their own URLs). */
   PVE_HOST: string;
+  /** SSH port for the nested-VM PVE host. The diagnostics fixture SSHs
+   *  there on failure to pull LXC log + pct config + journal. */
+  PVE_SSH_PORT: string;
   /** Container hostname of the app under test. Spec composes the URL with
    *  its own knowledge of the app's port/scheme. */
   APP_HOSTNAME: string;
+  /** LXC VMID of the app under test — addressed by the diagnostics fixture. */
+  APP_VM_ID: string;
   /** "true" | "false" — convenience flag so specs can pick http/https. */
   APP_HTTPS: string;
   /** Active instance (lets tests fork e.g. on github-action vs. dev). */
@@ -83,7 +96,9 @@ export function collectScenarioEnv(input: ScenarioEnvInput): ScenarioEnv {
   return {
     PLAYWRIGHT_WS: `ws://${input.pveHost}:${wsPort}`,
     PVE_HOST: input.pveHost,
+    PVE_SSH_PORT: String(input.pveSshPort),
     APP_HOSTNAME: input.appHostname,
+    APP_VM_ID: String(input.appVmId),
     APP_HTTPS: input.appHttps ? "true" : "false",
     E2E_INSTANCE: input.instance,
   };

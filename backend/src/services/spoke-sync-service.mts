@@ -94,6 +94,33 @@ export async function syncFromHub(
   fs.renameSync(tmpExtract, workspacePath);
   fs.rmSync(prev, { recursive: true, force: true });
 
+  // Symlink Spoke-local overlay dirs (applications/, shared subdirs) into the
+  // extracted workspace's local/. The Hub tarball ships only what the Hub has
+  // (typically `local/shared/` + `local/storagecontext.json`); any
+  // Spoke-local-only directories — most importantly applications/ for
+  // application overlays — must remain visible after the persistence-manager
+  // rebinds localPath to `<workspacePath>/local/`. Without this, e.g.
+  // `livetest-local/applications/zitadel/` (which extends `json:zitadel` and
+  // adds the test-deployer post_start templates) is invisible to the Spoke
+  // after the very first sync, and TEST_DEPLOYER_OIDC_* never gets emitted
+  // into the oidc stack — silently regressing playwright-oidc to a 403.
+  const syncedLocal = path.join(workspacePath, "local");
+  if (fs.existsSync(syncedLocal) && fs.existsSync(spokeLocalPath)) {
+    for (const entry of fs.readdirSync(spokeLocalPath, { withFileTypes: true })) {
+      // Skip the .hubs cache itself and hidden files.
+      if (entry.name.startsWith(".")) continue;
+      const target = path.join(syncedLocal, entry.name);
+      if (fs.existsSync(target)) continue; // Hub-supplied version wins.
+      const source = path.join(spokeLocalPath, entry.name);
+      try {
+        fs.symlinkSync(source, target);
+        logger.info(`[spoke-sync] Overlay symlink: ${entry.name} → ${source}`);
+      } catch (err) {
+        logger.warn(`[spoke-sync] Could not symlink ${entry.name}: ${(err as Error).message}`);
+      }
+    }
+  }
+
   const syncedAt = new Date().toISOString();
   logger.info(
     `[spoke-sync] Repositories synced from ${normalizedHubUrl} → ${workspacePath}`,

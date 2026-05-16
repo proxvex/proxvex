@@ -26,7 +26,24 @@ printf '%s' "$_content_b64" | base64 -d > "$_tmp"
 # Detect ZIP by magic bytes (PK\x03\x04)
 _magic=$(dd if="$_tmp" bs=1 count=2 2>/dev/null)
 if [ "$_magic" = "PK" ]; then
-  _safe_host=$(upload_sanitize_name "{{ hostname }}")
+  # When this runs during an upgrade (previous_vm_id is set and differs from
+  # vm_id), 150-conf-create-storage-volumes-for-lxc names the new container's
+  # mp* volumes after the PREVIOUS container's hostname — i.e. CT 211's
+  # config volume is `subvol-211-modbus2mqtt-default-config`, NOT
+  # `subvol-211-modbus2mqtt-upgrade-config`. resolve_host_volume keys on the
+  # hostname argument, so it would fail with the scenario's planner-hostname
+  # ("modbus2mqtt-upgrade") on an upgrade. Read previous's hostname from pct
+  # config and prefer it when it differs from the scenario's hostname.
+  _effective_host="{{ hostname }}"
+  _prev_vmid="{{ previous_vm_id }}"
+  if [ -n "$_prev_vmid" ] && [ "$_prev_vmid" != "NOT_DEFINED" ] && [ "$_prev_vmid" != "{{ vm_id }}" ]; then
+    _prev_host=$(pct config "$_prev_vmid" 2>/dev/null | awk '/^hostname:/ {print $2; exit}' || true)
+    if [ -n "$_prev_host" ] && [ "$_prev_host" != "$_effective_host" ]; then
+      echo "Upgrade: using previous container's hostname '$_prev_host' for volume lookup (planner hostname was '$_effective_host')" >&2
+      _effective_host="$_prev_host"
+    fi
+  fi
+  _safe_host=$(upload_sanitize_name "$_effective_host")
   _config_dir=$(resolve_host_volume "$_safe_host" "config" "{{ vm_id }}")
   if [ ! -d "$_config_dir" ]; then
     echo "ERROR: config volume directory '$_config_dir' not found" >&2

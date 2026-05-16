@@ -606,6 +606,24 @@ async function main() {
     selectedIds = applyTagFilter(selectedIds, allTests, null, { includeUntestable: false });
   }
 
+  // Drop scenarios whose `requires_env` lists an env var that isn't set on
+  // the dev box. Lets scenarios that need real-world credentials (CF_TOKEN
+  // for ACME Cloudflare DNS-01, etc.) auto-skip on machines without those
+  // secrets instead of failing.
+  const beforeEnvFilter = selectedIds.length;
+  selectedIds = selectedIds.filter((id) => {
+    const reqEnv = (allTests.get(id) as { requires_env?: string[] })?.requires_env ?? [];
+    const missing = reqEnv.filter((name) => !process.env[name] || process.env[name] === "");
+    if (missing.length > 0) {
+      logWarn(`Skipping ${id} (requires_env missing: ${missing.join(", ")})`);
+      return false;
+    }
+    return true;
+  });
+  if (selectedIds.length !== beforeEnvFilter) {
+    logInfo(`requires_env filter dropped ${beforeEnvFilter - selectedIds.length} scenario(s)`);
+  }
+
   if (selectedIds.length === 0) {
     logFail("No scenarios matched after filter — nothing to run.");
     process.exit(1);

@@ -1,11 +1,12 @@
 {
   "params": [
-    {
-      "name": "oci_image_tag",
-      "value": "latest"
-    }
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "upload_modbus2mqtt_config_content", "value": "file:config-plain.zip" }
+  ],
+  "depends_on": [
+    "eclipse-mosquitto/default"
   ],
   "wait_seconds": 30,
   "cli_timeout": 360,
-  "description": "Install modbus2mqtt without addons (open access, base for reconfigure tests)"
+  "description": "Install modbus2mqtt without addons (open access, base for reconfigure tests); MQTT over plain port 1883"
 }

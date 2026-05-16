@@ -13,7 +13,7 @@ import {
 
 describe("collectWithDeps", () => {
   function makeScenarios(
-    defs: Record<string, { depends_on?: string[] }>,
+    defs: Record<string, { depends_on?: string[]; task?: string }>,
   ): Map<string, ResolvedScenario> {
     const all = new Map<string, ResolvedScenario>();
     for (const [id, def] of Object.entries(defs)) {
@@ -94,6 +94,63 @@ describe("collectWithDeps", () => {
     expect(result).toHaveLength(3);
     const ids = result.map((s) => s.id);
     expect(ids.filter((id) => id === "postgres/default")).toHaveLength(1);
+  });
+
+  it("siblings of same source run install < upgrade < reconfigure", () => {
+    // postgrest/ssl is the shared source; upgrade-ssl and reconf-ssl both
+    // depend on it. Without task-priority sort, they'd be ordered
+    // alphabetically (reconf-ssl before upgrade-ssl) and reconfigure would
+    // destroy the source before upgrade runs.
+    const all = makeScenarios({
+      "postgrest/ssl": {},
+      "postgrest/reconf-ssl": {
+        task: "reconfigure",
+        depends_on: ["postgrest/ssl"],
+      },
+      "postgrest/upgrade-ssl": {
+        task: "upgrade",
+        depends_on: ["postgrest/ssl"],
+      },
+    });
+    const result = collectWithDeps(
+      ["postgrest/upgrade-ssl", "postgrest/reconf-ssl"],
+      all,
+    );
+    expect(result.map((s) => s.id)).toEqual([
+      "postgrest/ssl",
+      "postgrest/upgrade-ssl",
+      "postgrest/reconf-ssl",
+    ]);
+  });
+
+  it("task-priority sort still respects depends_on chains", () => {
+    // reconfigure that depends on upgrade must come AFTER upgrade despite
+    // alphabetical order suggesting otherwise.
+    const all = makeScenarios({
+      "app/default": {},
+      "app/upgrade": { task: "upgrade", depends_on: ["app/default"] },
+      "app/reconf-after-upgrade": {
+        task: "reconfigure",
+        depends_on: ["app/upgrade"],
+      },
+    });
+    const result = collectWithDeps(["app/reconf-after-upgrade"], all);
+    expect(result.map((s) => s.id)).toEqual([
+      "app/default",
+      "app/upgrade",
+      "app/reconf-after-upgrade",
+    ]);
+  });
+
+  it("installation always runs before its upgrade/reconfigure consumers", () => {
+    const all = makeScenarios({
+      "app/default": {},
+      "app/upgrade": { task: "upgrade", depends_on: ["app/default"] },
+    });
+    // Even if upgrade is selected first, install (its dep) wins.
+    const result = collectWithDeps(["app/upgrade", "app/default"], all);
+    expect(result[0]!.id).toBe("app/default");
+    expect(result[1]!.id).toBe("app/upgrade");
   });
 });
 

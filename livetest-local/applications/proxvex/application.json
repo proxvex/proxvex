@@ -6,6 +6,10 @@
     {
       "id": "envs",
       "default": "HTTP_PORT=3080\nHTTPS_PORT=3443\nPROXVEX_E2E_MODE=1"
+    },
+    {
+      "id": "oidc_required_role",
+      "value": ""
     }
   ]
 }

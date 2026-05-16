@@ -88,11 +88,11 @@ echo "Deployer URL:  $DEPLOYER_URL"
 echo ""
 
 # Per-instance identifiers so two step2b runs for different instances can
-# coexist on the same dev machine and the same outer PVE host. The Docker
-# image tag also differs per instance, otherwise skopeo copy would race on
-# `proxvex:local` in the shared daemon namespace.
-DOCKER_TAG="proxvex:local-${E2E_INSTANCE}"
-TMP_OCI_NAME="proxvex-${E2E_INSTANCE}-local.tar"
+# coexist on the same dev machine and the same outer PVE host.
+# The OCI tarball is staged into the nested VM at the canonical path used
+# by build-proxvex-oci-image.sh; the Docker image tag follows the same
+# pattern (encoded inside the helper).
+TMP_OCI_NAME="proxvex-${E2E_INSTANCE}-redeploy.oci.tar"
 TMP_INSTALL_NAME="install-proxvex-${E2E_INSTANCE}.sh"
 TMP_SCRIPTS_NAME="proxvex-scripts-${E2E_INSTANCE}.tar.gz"
 LOCAL_SCRIPTS_TARBALL="/tmp/${TMP_SCRIPTS_NAME}"
@@ -127,63 +127,15 @@ echo ""
 [ "$SSH_READY" = "true" ] || error "Cannot connect to nested VM via $PVE_HOST:$PORT_PVE_SSH after 60s"
 success "SSH connection verified"
 
-# Step 3: Build proxvex Docker image locally
-header "Building local proxvex Docker image"
-cd "$PROJECT_ROOT"
-
-command -v docker >/dev/null || error "docker not found on local host (required for build)"
-command -v skopeo >/dev/null || error "skopeo not found on local host (install via brew/apt)"
-command -v pnpm   >/dev/null || error "pnpm not found on local host"
-
-info "Building backend + CLI + frontend..."
-pnpm run build >&2 || error "pnpm run build failed"
-
-info "Creating npm pack tarball..."
-rm -f docker/proxvex*.tgz
-TARBALL_RAW=$(npm pack --pack-destination docker/ 2>&1 | grep -o 'proxvex-.*\.tgz' | tail -n1)
-[ -n "$TARBALL_RAW" ] || error "npm pack did not produce a tarball"
-mv "docker/$TARBALL_RAW" docker/proxvex.tgz
-success "Packed: docker/proxvex.tgz"
-
-info "Building Docker image ${DOCKER_TAG} (linux/amd64)..."
-# Force linux/amd64: the Proxmox host is x86_64, but Apple-Silicon Macs would
-# otherwise produce arm64 binaries and the container fails to start with
-# "Exec format error" when LXC tries to run /usr/local/bin/entrypoint-wrapper.sh.
-docker build --platform linux/amd64 -t "$DOCKER_TAG" -f docker/Dockerfile.npm-pack . >&2 \
-    || error "docker build failed"
-success "Docker image ${DOCKER_TAG} built"
-
-# Step 4: Convert local Docker image to an OCI-archive tarball (pct create
-# accepts the oci-archive format directly — same path the production flow
-# takes via host-get-oci-image.py).
-#
-# Two-stage conversion: docker save → docker-archive → oci-archive. Going
-# directly from `docker-daemon:` requires skopeo to use the live Docker
-# Engine API, and on Ubuntu 24.04 the bundled skopeo (Engine API 1.41) is
-# too old for the bundled dockerd (requires ≥1.44). docker save produces
-# a self-contained tarball that skopeo reads via docker-archive: without
-# touching the daemon, so the version skew goes away.
-OCI_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-local.oci.tar"
-DOCKER_SAVE_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-docker.tar"
-info "Exporting via docker save → skopeo to $OCI_TARBALL..."
-rm -f "$OCI_TARBALL" "$DOCKER_SAVE_TARBALL"
-docker save "$DOCKER_TAG" -o "$DOCKER_SAVE_TARBALL" \
-    || error "docker save failed"
-skopeo copy \
-    "docker-archive:${DOCKER_SAVE_TARBALL}" \
-    "oci-archive:${OCI_TARBALL}:latest" >&2 \
-    || error "skopeo copy failed"
-rm -f "$DOCKER_SAVE_TARBALL"
-success "OCI-archive: $(ls -l "$OCI_TARBALL" | awk '{print $5}') bytes"
-
-# Step 5: Upload tarball directly into the nested VM /tmp via the
-# port-forwarded SSH ($PVE_HOST:$PORT_PVE_SSH lands inside the nested VM,
-# same path as nested_ssh()). No outer-host hop, no outer-host SSH.
-REMOTE_TARBALL="/tmp/${TMP_OCI_NAME}"
-info "Uploading $OCI_TARBALL → $NESTED_IP:$REMOTE_TARBALL ..."
-nested_scp_to "$OCI_TARBALL" "${REMOTE_TARBALL}" \
-    || error "scp to nested VM failed"
-success "Tarball uploaded to $REMOTE_TARBALL (install-proxvex.sh will stage to cache)"
+# Step 3: Build proxvex OCI image locally and stage into the nested VM cache.
+# Shared helper handles pnpm build / npm pack / docker build / docker save /
+# skopeo copy / scp / cache aliasing. Output is the path of the tarball on
+# the nested VM, ready to hand to install-proxvex.sh --tarball.
+header "Building local proxvex OCI image"
+REMOTE_TARBALL="$("$SCRIPT_DIR/build-proxvex-oci-image.sh" "$E2E_INSTANCE")" \
+    || error "build-proxvex-oci-image.sh failed"
+[ -n "$REMOTE_TARBALL" ] || error "build helper produced no tarball path"
+success "Tarball staged at $REMOTE_TARBALL on nested VM"
 
 # Step 6: Copy local install-proxvex.sh + shared scripts directly to the
 # nested VM (install-proxvex.sh's LOCAL_SCRIPT_PATH bypasses GitHub so the

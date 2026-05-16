@@ -2,16 +2,7 @@
   "name": "Grant Test Deployer Roles",
   "description": "Iterates over every Zitadel project and binds all of its defined roles to the test-deployer machine user as UserGrants. Required so an OIDC access token issued for test-deployer carries the project-role claims, otherwise apps that enforce OIDC_REQUIRED_ROLE reject the dev-session login. Idempotent; safe to re-run after each new application deployment.",
   "execute_on": "lxc",
-  "skip_if_all_missing": ["zitadel_project_id"],
   "parameters": [
-    {
-      "id": "zitadel_project_id",
-      "name": "Zitadel Project ID",
-      "type": "string",
-      "required": false,
-      "advanced": true,
-      "description": "Internal Zitadel project ID emitted by 340-post-setup-deployer-in-zitadel. Must be declared as a parameter here so skip_if_all_missing can resolve to a real value; otherwise the check always sees NOT_DEFINED and the grant template is silently skipped."
-    },
     {
       "id": "hostname",
       "name": "Hostname",

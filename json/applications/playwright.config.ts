@@ -40,6 +40,13 @@ function resolveWsEndpoint(): string {
 const playwrightOutputDir = process.env.PLAYWRIGHT_OUTPUT_DIR
   || resolve(repoRoot, "test-results");
 
+// HTML reporter wants its own folder; it MUST be a sibling of outputDir, not
+// nested inside (Playwright refuses to start otherwise). Place it next to
+// playwright-artifacts so both end up in livetest-results/<runId>/<scenarioId>/.
+const playwrightReportDir = playwrightOutputDir.endsWith("playwright-artifacts")
+  ? resolve(playwrightOutputDir, "..", "playwright-report-html")
+  : resolve(playwrightOutputDir, "report-html");
+
 export default defineConfig({
   testDir: resolve(repoRoot, "json/applications"),
   testMatch: "**/tests/playwright/*.spec.ts",
@@ -58,7 +65,7 @@ export default defineConfig({
   reporter: [
     ["list"],
     ["json", { outputFile: resolve(playwrightOutputDir, "report.json") }],
-    ["html", { outputFolder: resolve(playwrightOutputDir, "report-html"), open: "never" }],
+    ["html", { outputFolder: playwrightReportDir, open: "never" }],
   ],
   use: {
     connectOptions: { wsEndpoint: resolveWsEndpoint() },

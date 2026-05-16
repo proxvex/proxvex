@@ -106,39 +106,18 @@ nested_ssh "pct status $DEPLOYER_VMID 2>/dev/null | grep -q running || pct start
 #     deployer-installed snapshot from step2b, which gets stale across
 #     livetest iterations.
 if [ "$REFRESH_HUB" = "true" ]; then
-  command -v docker >/dev/null || err "docker not found on local host (required for build)"
-  command -v skopeo >/dev/null || err "skopeo not found on local host (install via brew/apt)"
-  command -v pnpm   >/dev/null || err "pnpm not found on local host"
+  info "Building + staging proxvex OCI image for ${E2E_INSTANCE}"
+  REMOTE_TARBALL="$("$SCRIPT_DIR/build-proxvex-oci-image.sh" "$E2E_INSTANCE")" \
+    || err "build-proxvex-oci-image.sh failed"
+  [ -n "$REMOTE_TARBALL" ] || err "build helper produced no tarball path"
 
-  info "Building proxvex Docker image (linux/amd64) for ${E2E_INSTANCE}"
-  ( cd "$PROJECT_ROOT" && pnpm run build >&2 ) || err "pnpm build failed"
-  rm -f "$PROJECT_ROOT/docker"/proxvex*.tgz
-  TARBALL_RAW=$(cd "$PROJECT_ROOT" && npm pack --pack-destination docker/ 2>&1 | grep -o 'proxvex-.*\.tgz' | tail -n1)
-  [ -n "$TARBALL_RAW" ] || err "npm pack did not produce a tarball"
-  mv "$PROJECT_ROOT/docker/$TARBALL_RAW" "$PROJECT_ROOT/docker/proxvex.tgz"
-  DOCKER_TAG="proxvex:local-${E2E_INSTANCE}"
-  ( cd "$PROJECT_ROOT" && docker build --platform linux/amd64 -t "$DOCKER_TAG" -f docker/Dockerfile.npm-pack . >&2 ) \
-    || err "docker build failed"
-  OCI_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-local.oci.tar"
-  DOCKER_SAVE_TARBALL="$PROJECT_ROOT/docker/proxvex-${E2E_INSTANCE}-docker.tar"
-  rm -f "$OCI_TARBALL" "$DOCKER_SAVE_TARBALL"
-  # docker save → skopeo via docker-archive: avoids the live-daemon API path,
-  # which mismatches between Ubuntu 24.04's bundled skopeo (1.41) and dockerd (≥1.44).
-  docker save "$DOCKER_TAG" -o "$DOCKER_SAVE_TARBALL" || err "docker save failed"
-  skopeo copy "docker-archive:${DOCKER_SAVE_TARBALL}" "oci-archive:${OCI_TARBALL}:latest" >&2 \
-    || err "skopeo copy failed"
-  rm -f "$DOCKER_SAVE_TARBALL"
-
-  REMOTE_TARBALL="/tmp/proxvex-${E2E_INSTANCE}-redeploy.oci.tar"
   REMOTE_INSTALLER="/tmp/install-proxvex-${E2E_INSTANCE}.sh"
-  info "Uploading OCI tarball + installer to ${PVE_HOST}:${PORT_PVE_SSH}"
-  nested_scp_to "$OCI_TARBALL" "$REMOTE_TARBALL" \
-    || err "scp of OCI tarball failed"
+  info "Uploading installer to ${PVE_HOST}:${PORT_PVE_SSH}"
   nested_scp_to "$PROJECT_ROOT/install-proxvex.sh" "$REMOTE_INSTALLER" \
     || err "scp of install-proxvex.sh failed"
 
   info "Redeploying proxvex-LXC $DEPLOYER_VMID via install-proxvex.sh --tarball"
-  nested_ssh "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --tarball $REMOTE_TARBALL --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL && rm -f $REMOTE_TARBALL $REMOTE_INSTALLER" \
+  nested_ssh "chmod +x $REMOTE_INSTALLER && $REMOTE_INSTALLER --tarball $REMOTE_TARBALL --vm-id $DEPLOYER_VMID --bridge $DEPLOYER_BRIDGE --static-ip $DEPLOYER_STATIC_IP --gateway $DEPLOYER_GATEWAY --nameserver $DEPLOYER_GATEWAY --deployer-url $DEPLOYER_URL && rm -f $REMOTE_INSTALLER" \
     || err "install-proxvex.sh --tarball failed inside nested VM"
 
   ok "Hub redeployed; proxvex-LXC $DEPLOYER_VMID running with fresh image"

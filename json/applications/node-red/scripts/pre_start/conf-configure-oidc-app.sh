@@ -201,4 +201,46 @@ else
   exit 1
 fi
 
+# Wrap the container's `entrypoint:` so passport-openidconnect is npm-installed
+# into /data/node_modules BEFORE node-red starts. Without this, node-red parses
+# /data/settings.js on boot, hits `require("passport-openidconnect")`, throws
+# MODULE_NOT_FOUND, and exits — and the post_start npm-install template never
+# runs (container is already dead).
+#
+# Why /data and not -g (npm install -g): the entrypoint runs as uid 1000
+# (lxc.init.uid). /usr/local/lib/node_modules (npm's default global prefix) is
+# root-owned and not writable. /usr/src/node-red is owned by uid 1001, also
+# not writable. Only /data is uid-1000-owned. NODE_PATH already includes
+# /data/node_modules (set as lxc.environment.runtime in the OCI image), so
+# Node.js resolves the require correctly. `cd /data` first so npm uses
+# /data/.npm as its cache (also uid-1000-owned).
+#
+# Idempotent: the `test -d` guard skips the install on subsequent boots once
+# the module exists. The marker prefix on the entrypoint line guards against
+# double-wrapping when this script re-runs during reconfigure.
+LXC_CONF="/etc/pve/lxc/${VM_ID}.conf"
+if [ ! -f "$LXC_CONF" ]; then
+  echo "ERROR: LXC config $LXC_CONF not found — cannot wrap entrypoint" >&2
+  exit 1
+fi
+
+WRAP_PREFIX="test -d /data/node_modules/passport-openidconnect"
+if grep -qE '^entrypoint:.*passport-openidconnect' "$LXC_CONF"; then
+  echo "entrypoint already OIDC-wrapped — skipping" >&2
+else
+  ORIG_EP=$(grep -E '^entrypoint:' "$LXC_CONF" | head -1 | sed -E 's/^entrypoint:\s*//')
+  if [ -z "$ORIG_EP" ]; then
+    echo "WARN: no entrypoint line in $LXC_CONF — cannot wrap; post-start npm install may not run because the container will exit on first boot" >&2
+  else
+    # Escape single quotes in the original for /bin/sh -c '…' embedding.
+    ESCAPED_EP=$(printf '%s' "$ORIG_EP" | sed "s/'/'\\\\''/g")
+    WRAPPED="entrypoint: /bin/sh -c '${WRAP_PREFIX} || (cd /data && npm install --no-save passport-openidconnect); exec ${ESCAPED_EP}'"
+    awk -v new="$WRAPPED" '
+      /^entrypoint:/ { print new; next }
+      { print }
+    ' "$LXC_CONF" > "${LXC_CONF}.tmp" && mv "${LXC_CONF}.tmp" "$LXC_CONF"
+    echo "Wrapped entrypoint with passport-openidconnect install: $WRAPPED" >&2
+  fi
+fi
+
 echo '[]'
