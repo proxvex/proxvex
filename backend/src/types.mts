@@ -510,6 +510,11 @@ export interface ITestScenarioResponse {
    *  scenario from the plan with a warning when any of these are missing
    *  (e.g. `["CF_TOKEN"]` for ACME Cloudflare DNS-01 scenarios). */
   requires_env?: string[];
+  /** Source-consumption strategy for upgrade/reconfigure scenarios.
+   *  `isolate` (default) clones the source first so the original stays
+   *  available to other consumers. `in-place` runs against the source
+   *  directly (docker-compose upgrade). `shared` is the legacy behaviour. */
+  consumes_source?: "isolate" | "in-place" | "shared";
 }
 
 export interface ITestScenariosResponse {

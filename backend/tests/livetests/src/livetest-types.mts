@@ -79,6 +79,28 @@ export interface TestScenario {
    * (e.g. `["CF_TOKEN"]` for ACME Cloudflare DNS-01 challenges).
    */
   requires_env?: string[];
+
+  /**
+   * Declares how this upgrade/reconfigure scenario interacts with its source
+   * (the CT named in depends_on as a same-application entry).
+   *
+   * - `isolate` (default for upgrade + reconfigure): before running, the
+   *   runner takes a host-side `pct clone` of the source CT into a private
+   *   throw-away CT and feeds *that* into the scenario as `previous_vm_id`.
+   *   The original source stays untouched and is available to subsequent
+   *   consumers (e.g. postgrest/upgrade-ssl can still find postgrest/ssl
+   *   intact after postgrest/reconf-ssl has run).
+   * - `in-place`: the scenario modifies the source CT directly (no clone).
+   *   Required for docker-compose `upgrade` where `vm_id = previous_vm_id`
+   *   is set explicitly by scenario-executor and a clone would orphan the
+   *   docker-compose state.
+   * - `shared`: legacy behaviour — pre-Phase-2. No isolation. Use only when
+   *   you need to inspect the actual destructive sequence (e.g. debugging
+   *   replace-ct).
+   *
+   * Installation scenarios ignore this field.
+   */
+  consumes_source?: "isolate" | "in-place" | "shared";
 }
 
 /** Discovered scenario with resolved identity */

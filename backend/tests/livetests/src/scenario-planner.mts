@@ -26,6 +26,29 @@ export interface BuildParamsResult {
  * Returns topologically sorted (dependencies first).
  * Detects circular dependencies.
  */
+/**
+ * Tie-breaking priority for scenarios in the same depends_on layer: install
+ * runs before upgrade before reconfigure. Reasoning:
+ *  - installation creates the source from scratch — must precede any consumer.
+ *  - upgrade modifies in place (docker-compose) or clone-replaces with version
+ *    bump (oci-image). It typically preserves the source's identity / addons.
+ *  - reconfigure can destructively reshape addons and *always* clone-replaces.
+ * Running reconfigure last minimises the blast radius when multiple
+ * destructive consumers share a source (e.g. postgrest/reconf-ssl and
+ * postgrest/upgrade-ssl both depend on postgrest/ssl — without this order the
+ * one that runs first puts the source into `lock=migrate` and the second
+ * fails with `resolve_host_volume failed for postgrest-ssl/proxvex`).
+ */
+const TASK_PRIORITY: Record<string, number> = {
+  installation: 0,
+  upgrade: 1,
+  reconfigure: 2,
+};
+
+function taskPriority(s: ResolvedScenario): number {
+  return TASK_PRIORITY[s.task ?? "installation"] ?? 99;
+}
+
 export function collectWithDeps(
   selected: string[],
   all: Map<string, ResolvedScenario>,
@@ -44,7 +67,20 @@ export function collectWithDeps(
     const s = all.get(id);
     if (!s) throw new Error(`Unknown test scenario: ${id}`);
 
-    for (const dep of s.depends_on ?? []) {
+    // Visit deps in deterministic order — task priority first (install
+    // before upgrade before reconfigure), then alphabetical. With strict
+    // depends_on this is a no-op (only one dep per layer typically), but it
+    // becomes load-bearing in the top-level driver below where selected[]
+    // can carry multiple sibling consumers.
+    const deps = [...(s.depends_on ?? [])].sort((a, b) => {
+      const sa = all.get(a);
+      const sb = all.get(b);
+      const pa = sa ? taskPriority(sa) : 99;
+      const pb = sb ? taskPriority(sb) : 99;
+      if (pa !== pb) return pa - pb;
+      return a.localeCompare(b);
+    });
+    for (const dep of deps) {
       visit(dep, [...chain, id]);
     }
 
@@ -53,7 +89,19 @@ export function collectWithDeps(
     ordered.push(s);
   }
 
-  for (const id of selected) {
+  // Pre-sort the top-level selected[] by (task_priority, id) so siblings
+  // that share a source (e.g. `postgrest/upgrade-ssl`, `postgrest/reconf-ssl`)
+  // visit in the right order. Topological visit already preserves dep-chain
+  // ordering, so this only affects the layer where multiple roots are equal.
+  const sortedSelected = [...selected].sort((a, b) => {
+    const sa = all.get(a);
+    const sb = all.get(b);
+    const pa = sa ? taskPriority(sa) : 99;
+    const pb = sb ? taskPriority(sb) : 99;
+    if (pa !== pb) return pa - pb;
+    return a.localeCompare(b);
+  });
+  for (const id of sortedSelected) {
     visit(id, []);
   }
 

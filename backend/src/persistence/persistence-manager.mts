@@ -698,6 +698,7 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
         if (data.playwright_spec)
           scenario.playwright_spec = data.playwright_spec as string | string[];
         if (data.requires_env) scenario.requires_env = data.requires_env as string[];
+        if (data.consumes_source) scenario.consumes_source = data.consumes_source as "isolate" | "in-place" | "shared";
         if (data.description) scenario.description = data.description as string;
 
         // Auto-generate description if not explicitly set
