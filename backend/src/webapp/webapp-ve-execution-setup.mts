@@ -14,6 +14,10 @@ import type {
   DebugLevel,
   WebAppDebugCollector,
 } from "./webapp-debug-collector.mjs";
+import type { AppLogMonitor } from "@src/ve-execution/app-log-monitor.mjs";
+
+/** Marker emitted on stderr by lxc-start.sh once the container is running. */
+const PCT_START_MARKER = /PROXVEX_PCT_START_EXECUTED vmid=(\d+)/;
 
 /**
  * Sets up and configures VeExecution instances.
@@ -41,6 +45,7 @@ export class WebAppVeExecutionSetup {
     sshCommand: string = "ssh",
     processedTemplates?: IProcessedTemplate[],
     debugCollector?: WebAppDebugCollector,
+    appLogMonitor?: AppLogMonitor,
   ): { exec: VeExecution; restartKey: string } {
     const exec = new VeExecution(
       commands,
@@ -73,6 +78,37 @@ export class WebAppVeExecutionSetup {
       });
     }
 
+    // Finalise the debug bundle exactly once — on success ("finished" event,
+    // carries the IVMContext) or on terminal failure (the "Failed" message;
+    // ve-execution does NOT emit "finished" then). Without the failure path
+    // the bundle would never finalise for failed scenarios — precisely when
+    // the app-log timeline matters most.
+    let finalized = false;
+    const finalizeBundle = (ctx: IVMContext | null) => {
+      if (finalized) return;
+      finalized = true;
+      if (ctx) veContext.getStorageContext().setVMContext(ctx);
+      // Stop log followers first so no applog event arrives after the
+      // bundle's finishedAt timestamp (would land in a phantom postamble).
+      appLogMonitor?.stop(restartKey);
+      if (debugCollector && debugLevel !== "off") {
+        // Capture the LXC config for the current and (reconfigure/upgrade)
+        // previous VM. Best-effort: failures land in the bundle as error
+        // notes, never block finish().
+        void captureLxcDiagnostics(
+          debugCollector,
+          restartKey,
+          veContext,
+          ctx,
+          inputs,
+          defaults,
+        ).finally(() => {
+          debugCollector.finish(restartKey);
+          Logger.setDebugSink(null);
+        });
+      }
+    };
+
     exec.on("message", (msg: IVeExecuteMessage) => {
       messageManager.handleExecutionMessage(msg, application, task, restartKey);
       // Stream stderr chunks into the debug bundle so the per-script trace
@@ -90,27 +126,31 @@ export class WebAppVeExecutionSetup {
         msg.kind !== "skipped"
       ) {
         debugCollector.attachStderr(restartKey, msg.stderr);
+        // The container is up — start tailing its application logs into the
+        // timeline. Idempotent per (restartKey, vmId); a second marker with a
+        // new vmId (container swap on reconfigure/upgrade) adds that VM too.
+        if (appLogMonitor) {
+          const m = PCT_START_MARKER.exec(msg.stderr);
+          if (m) {
+            const vmId = parseInt(m[1]!, 10);
+            appLogMonitor.start(
+              restartKey,
+              vmId,
+              veContext,
+              (channel, vm, line) =>
+                debugCollector.attachAppLog(restartKey, channel, vm, line),
+            );
+          }
+        }
+      }
+      // Terminal failure: ve-execution emits a final "Failed" message but no
+      // "finished" event. Finalise here so the bundle (with the app-log
+      // timeline up to the failure) is fetchable by the test runner / UI.
+      if (msg.command === "Failed" && msg.finished === true) {
+        finalizeBundle(null);
       }
     });
-    exec.on("finished", (msg: IVMContext) => {
-      veContext.getStorageContext().setVMContext(msg);
-      if (debugCollector && debugLevel !== "off") {
-        // Capture LXC console log + config for the current and (for
-        // reconfigure/upgrade) previous VM. Best-effort: failures land in
-        // the bundle as error notes, never block finish().
-        void captureLxcDiagnostics(
-          debugCollector,
-          restartKey,
-          veContext,
-          msg,
-          inputs,
-          defaults,
-        ).finally(() => {
-          debugCollector.finish(restartKey);
-          Logger.setDebugSink(null);
-        });
-      }
-    });
+    exec.on("finished", (msg: IVMContext) => finalizeBundle(msg));
 
     return { exec, restartKey };
   }
@@ -235,11 +275,13 @@ function toVmId(v: string | number | boolean | undefined): number | undefined {
 }
 
 /**
- * After the task finishes, fetch the LXC console log (via VeLogsService —
- * same code path as the live /logs/<ve>/<vmid> endpoint) and the
- * `/etc/pve/lxc/<vmid>.conf` snapshot for each VM of interest, and attach
- * them to the debug bundle. Covers the current vm_id plus previous_vm_id
- * when set (reconfigure/upgrade).
+ * After the task finishes, fetch the `/etc/pve/lxc/<vmid>.conf` snapshot for
+ * each VM of interest and attach it to the debug bundle. Covers the current
+ * vm_id plus previous_vm_id when set (reconfigure/upgrade).
+ *
+ * The LXC console log is NOT captured here anymore — it streams live into the
+ * timeline via the AppLogMonitor. Raw logs remain on the PVE host in
+ * production and are reproducible in tests.
  *
  * Best-effort: any per-VM failure is recorded as an error string in the
  * bundle rather than thrown, so a missing previous container or an SSH
@@ -249,12 +291,13 @@ async function captureLxcDiagnostics(
   debugCollector: WebAppDebugCollector,
   restartKey: string,
   veContext: IVEContext,
-  finishedCtx: IVMContext,
+  finishedCtx: IVMContext | null,
   inputs: Array<{ id: string; value: string | number | boolean }>,
   defaults: Map<string, string | number | boolean>,
 ): Promise<void> {
   const targets: Array<{ vmId: number; label: string }> = [];
-  const currentVmId = finishedCtx.vmid || toVmId(resolveInput("vm_id", inputs, defaults));
+  const currentVmId =
+    finishedCtx?.vmid || toVmId(resolveInput("vm_id", inputs, defaults));
   if (currentVmId) targets.push({ vmId: currentVmId, label: "current" });
   const prevVmId = toVmId(resolveInput("previous_vm_id", inputs, defaults));
   if (prevVmId && prevVmId !== currentVmId) {
@@ -269,95 +312,39 @@ async function captureLxcDiagnostics(
 
   const sshHost = buildSshTarget(veContext);
 
-  // Single SSH call per VM that returns both conf and log in one go,
-  // separated by sentinel lines. Avoids VeLogsService's 4-5 sequential
-  // SSH round-trips (checkStatus / getHostname / findLogFile / cat) that
-  // routinely exceeded the runner's 10s bundle-fetch timeout.
+  // One short SSH call per VM: just `cat /etc/pve/lxc/<vmid>.conf`.
   await Promise.all(
     targets.map(async ({ vmId, label }) => {
       const diag: {
         vmId: number;
         label: string;
-        log?: string;
-        logSource?: string;
-        logError?: string;
         conf?: string;
         confError?: string;
       } = { vmId, label };
 
       const confPath = `/etc/pve/lxc/${vmId}.conf`;
-      // Try the two canonical LXC log locations directly. The first match
-      // wins. tail -c limits to ~256 KB so a runaway log can't bloat the
-      // bundle indefinitely.
-      const remoteScript = [
-        `echo "===CONF==="`,
-        `cat ${confPath} 2>&1 || true`,
-        `echo "===HOSTNAME==="`,
-        `awk -F': *' '/^hostname:/ {print $2; exit}' ${confPath} 2>/dev/null || true`,
-        `HN=$(awk -F': *' '/^hostname:/ {print $2; exit}' ${confPath} 2>/dev/null)`,
-        `LOG="/var/log/lxc/$HN-${vmId}.log"`,
-        `[ -n "$HN" ] && [ -f "$LOG" ] || LOG="/var/log/lxc/container-${vmId}.log"`,
-        `echo "===LOGPATH==="`,
-        `echo "$LOG"`,
-        `echo "===LOG==="`,
-        `[ -f "$LOG" ] && tail -c 262144 "$LOG" 2>/dev/null || echo "(log file missing: $LOG)"`,
-      ].join("; ");
-
       try {
-        const res = await sshExec(sshHost, remoteScript, 15000);
-        if (res.exitCode === 0) {
-          parseDiagnosticBlocks(res.stdout, diag, vmId);
+        const res = await sshExec(sshHost, `cat ${confPath} 2>&1`, 15000);
+        if (res.exitCode === 0 && res.stdout.trim().length > 0) {
+          diag.conf = res.stdout.trim();
         } else {
-          diag.confError = `ssh exit ${res.exitCode}: ${res.stderr?.trim() || "(no stderr)"}`;
-          diag.logError = diag.confError;
+          diag.confError =
+            res.stdout.trim() ||
+            `ssh exit ${res.exitCode}: ${res.stderr?.trim() || "(no stderr)"}`;
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        diag.confError = msg;
-        diag.logError = msg;
+        diag.confError = err instanceof Error ? err.message : String(err);
       }
 
       diagLogger.info("capture done", {
         restartKey,
         vmId,
         confBytes: diag.conf?.length ?? 0,
-        logBytes: diag.log?.length ?? 0,
         confError: diag.confError,
-        logError: diag.logError,
       });
       debugCollector.attachDiagnostic(restartKey, diag);
     }),
   );
-}
-
-function parseDiagnosticBlocks(
-  stdout: string,
-  diag: {
-    log?: string;
-    logSource?: string;
-    logError?: string;
-    conf?: string;
-    confError?: string;
-  },
-  vmId: number,
-): void {
-  const sections = stdout.split(/^===(CONF|HOSTNAME|LOGPATH|LOG)===\s*$/m);
-  // sections: ["", "CONF", "<conf>", "HOSTNAME", "<hostname>", "LOGPATH", "<path>", "LOG", "<log>"]
-  const map = new Map<string, string>();
-  for (let i = 1; i + 1 < sections.length; i += 2) {
-    map.set(sections[i]!, sections[i + 1] ?? "");
-  }
-  const conf = map.get("CONF")?.trim();
-  if (conf) diag.conf = conf;
-  else diag.confError = `/etc/pve/lxc/${vmId}.conf not readable`;
-  const logPath = map.get("LOGPATH")?.trim();
-  if (logPath) diag.logSource = logPath;
-  const log = map.get("LOG");
-  if (log && !log.startsWith("(log file missing")) {
-    diag.log = log;
-  } else {
-    diag.logError = log?.trim() || "log not captured";
-  }
 }
 
 /** Resolve the ssh `[user@]host` target plus port from veContext. */

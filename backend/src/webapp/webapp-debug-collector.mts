@@ -18,6 +18,13 @@ type TraceEvent =
   | { ts: number; source: "stderr"; line: string }
   | {
       ts: number;
+      source: "applog";
+      channel: "lxc" | "docker";
+      vmId: number;
+      line: string;
+    }
+  | {
+      ts: number;
       source: "substitution";
       varName: string;
       redactedValue: string;
@@ -42,9 +49,6 @@ interface DebugScript {
 interface DebugDiagnostic {
   vmId: number;
   label: string; // e.g. "current", "previous"
-  log?: string;
-  logSource?: string; // resolved log file path on the ve host
-  logError?: string;
   conf?: string;
   confError?: string;
 }
@@ -182,10 +186,43 @@ export class WebAppDebugCollector {
   }
 
   /**
-   * Attach captured per-VM diagnostics: the LXC console log and the LXC
-   * config file. Called once per VM-of-interest after the task finishes.
-   * The bundle writes each log as `diagnostics/lxc-<vmid>.log` and embeds the
-   * conf inline in `index.md`.
+   * Attach a live application-log line (LXC console log or docker-compose
+   * service log) captured by the AppLogMonitor while the task runs. Fed
+   * line-by-line; each line becomes its own timestamped trace event so it
+   * interleaves with logger/stderr lines via bucketEvents(). ts is the
+   * backend read time (Date.now()) — cache/clock skew is accepted by design.
+   */
+  attachAppLog(
+    restartKey: string,
+    channel: "lxc" | "docker",
+    vmId: number,
+    line: string,
+  ): void {
+    const e = this.entries.get(restartKey);
+    if (!e) return;
+    const parts = line.split("\n");
+    for (const p of parts) {
+      // `docker compose logs` prefixes lines with cursor-control escapes
+      // (e.g. ESC[2K) even with --no-color, which would hide the leading
+      // "<service>-1 |" prefix. Strip ANSI/CSI so the originating docker
+      // service stays immediately recognizable in the trace.
+      const clean = stripAnsi(p).replace(/\r$/, "").replace(/^\s+/, "");
+      if (clean.length === 0) continue;
+      e.events.push({
+        ts: Date.now(),
+        source: "applog",
+        channel,
+        vmId,
+        line: clean,
+      });
+    }
+  }
+
+  /**
+   * Attach captured per-VM diagnostics: the LXC config file. Called once per
+   * VM-of-interest after the task finishes. The conf is embedded inline in
+   * `index.md`. (The LXC console log is no longer captured here — it streams
+   * live into the timeline via the AppLogMonitor.)
    */
   attachDiagnostic(restartKey: string, diag: DebugDiagnostic): void {
     const e = this.entries.get(restartKey);
@@ -301,14 +338,9 @@ export class WebAppDebugCollector {
       files.set(`scripts/${base}.trace.json`, scriptFiles.traceJson);
     }
 
-    // Captured diagnostics: LXC console log goes into its own file in the
-    // diagnostics/ subdir, the (small) /etc/pve/lxc/<vmid>.conf is embedded
-    // inline in index.md.
-    for (const diag of entry.diagnostics) {
-      if (typeof diag.log === "string" && diag.log.length > 0) {
-        files.set(`diagnostics/lxc-${diag.vmId}.log`, diag.log);
-      }
-    }
+    // Captured diagnostics: only the (small) /etc/pve/lxc/<vmid>.conf is kept,
+    // embedded inline in index.md. The LXC console log is no longer captured
+    // post-hoc — it streams live into the timeline via the AppLogMonitor.
 
     return files;
   }
@@ -555,6 +587,14 @@ export class WebAppDebugCollector {
       }
       if (e.source === "stderr")
         return { ts: e.ts, source: "stderr", line: e.line };
+      if (e.source === "applog")
+        return {
+          ts: e.ts,
+          source: "applog",
+          channel: e.channel,
+          vmId: e.vmId,
+          line: e.line,
+        };
       return {
         ts: e.ts,
         source: "substitution",
@@ -645,22 +685,14 @@ function section(title: string, anchor?: string): string {
 }
 
 /**
- * Render the captured-diagnostics section: link to the LXC console log
- * (preserved as diagnostics/lxc-<vmid>.log) and embed the (small)
- * /etc/pve/lxc/<vmid>.conf inline as a fenced code block.
+ * Render the captured-diagnostics section: embed the (small)
+ * /etc/pve/lxc/<vmid>.conf inline as a fenced code block. (The LXC console
+ * log lives in the live timeline now, not here.)
  */
 function renderDiagnostics(diagnostics: DebugDiagnostic[]): string[] {
   const lines: string[] = [section("Diagnostics")];
   for (const d of diagnostics) {
     lines.push(``, `### CT ${d.vmId} (${d.label})`);
-    if (typeof d.log === "string" && d.log.length > 0) {
-      const src = d.logSource ? ` — source: \`${d.logSource}\`` : "";
-      lines.push(
-        `- LXC console log: [diagnostics/lxc-${d.vmId}.log](diagnostics/lxc-${d.vmId}.log)${src}`,
-      );
-    } else if (d.logError) {
-      lines.push(`- LXC console log: _unavailable — ${d.logError}_`);
-    }
     if (typeof d.conf === "string" && d.conf.length > 0) {
       lines.push(``, `**/etc/pve/lxc/${d.vmId}.conf:**`, "```", d.conf.trimEnd(), "```");
     } else if (d.confError) {
@@ -674,6 +706,14 @@ function renderDiagnostics(diagnostics: DebugDiagnostic[]): string[] {
 function formatTime(ts: number): string {
   const d = new Date(ts);
   return d.toISOString().slice(11, 23); // HH:MM:SS.mmm
+}
+
+// Strip ANSI/CSI/OSC escape sequences (colour, cursor-control like ESC[2K,
+// title sets). Keeps the visible text so log lines stay grep-/read-able.
+ 
+const ANSI_RE = /\[[0-9;?]*[ -/]*[@-~]|\][^]*(?:|\\)|[@-_]/g;
+function stripAnsi(s: string): string {
+  return s.replace(ANSI_RE, "");
 }
 
 function escapeHtml(s: string): string {
@@ -703,6 +743,8 @@ function traceStyleBlock(): string {
     "  .trace .component { color: #666; margin-right: 0.5em; }",
     "  .trace .msg { color: inherit; }",
     "  .trace .tr.source-stderr .tag { color: #888; }",
+    "  .trace .tr.source-applog .tag { color: #093; }",
+    "  .trace .tr.source-applog.channel-docker .tag { color: #2563eb; }",
     "  .trace .tr.source-subst .tag { color: #a60; }",
     "  .trace .tr.level-debug { color: #888; }",
     "  .trace .tr.level-warn .msg { color: #c80; }",
@@ -710,6 +752,8 @@ function traceStyleBlock(): string {
     "  /* Toggle rules — scoped to the containing .trace-block via :has() */",
     "  .trace-block:has(.filter-logger:not(:checked)) .tr.source-logger { display: none; }",
     "  .trace-block:has(.filter-stderr:not(:checked)) .tr.source-stderr { display: none; }",
+    "  .trace-block:has(.filter-applog-lxc:not(:checked))    .tr.source-applog.channel-lxc    { display: none; }",
+    "  .trace-block:has(.filter-applog-docker:not(:checked)) .tr.source-applog.channel-docker { display: none; }",
     "  .trace-block:has(.filter-subst:not(:checked))  .tr.source-subst  { display: none; }",
     "  .trace-block:has(.filter-debug:not(:checked))  .tr.level-debug   { display: none; }",
     "  .trace-block:has(.filter-info:not(:checked))   .tr.level-info    { display: none; }",
@@ -736,6 +780,8 @@ function renderTraceHtml(events: TraceEvent[]): string {
     logger: false,
     stderr: false,
     subst: false,
+    applogLxc: false,
+    applogDocker: false,
     debug: false,
     info: false,
     warn: false,
@@ -746,7 +792,10 @@ function renderTraceHtml(events: TraceEvent[]): string {
       present.logger = true;
       present[e.level as "debug" | "info" | "warn" | "error"] = true;
     } else if (e.source === "stderr") present.stderr = true;
-    else if (e.source === "substitution") present.subst = true;
+    else if (e.source === "applog") {
+      if (e.channel === "lxc") present.applogLxc = true;
+      else present.applogDocker = true;
+    } else if (e.source === "substitution") present.subst = true;
   }
 
   const filters: string[] = [];
@@ -754,6 +803,10 @@ function renderTraceHtml(events: TraceEvent[]): string {
     `<label><input type="checkbox" class="${cls}" checked /> ${label}</label>`;
   if (present.logger) filters.push(filter("filter-logger", "Logger"));
   if (present.stderr) filters.push(filter("filter-stderr", "Stderr"));
+  if (present.applogLxc)
+    filters.push(filter("filter-applog-lxc", "App Log (LXC)"));
+  if (present.applogDocker)
+    filters.push(filter("filter-applog-docker", "App Log (Docker)"));
   if (present.subst) filters.push(filter("filter-subst", "Substitutions"));
   // Level toggles only meaningful when there's logger output
   if (present.logger) {
@@ -770,6 +823,11 @@ function renderTraceHtml(events: TraceEvent[]): string {
     }
     if (e.source === "stderr") {
       return `<div class="tr source-stderr"><span class="ts">${t}</span><span class="tag">[stderr]</span><span class="msg">${escapeHtml(e.line)}</span></div>`;
+    }
+    if (e.source === "applog") {
+      // The docker line already carries the compose service prefix
+      // ("<service>-1  | …") so the originating service stays visible.
+      return `<div class="tr source-applog channel-${e.channel}"><span class="ts">${t}</span><span class="tag">[applog:${e.channel}]</span><span class="component">[ct ${e.vmId}]</span><span class="msg">${escapeHtml(e.line)}</span></div>`;
     }
     const secureMark = e.secure ? " (secure)" : "";
     return `<div class="tr source-subst"><span class="ts">${t}</span><span class="tag">[subst]</span><span class="msg">${escapeHtml(e.varName)}=${escapeHtml(e.redactedValue)}${secureMark} (line ${e.line})</span></div>`;

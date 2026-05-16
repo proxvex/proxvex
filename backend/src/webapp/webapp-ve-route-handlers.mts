@@ -12,6 +12,7 @@ import { WebAppVeRestartManager } from "./webapp-ve-restart-manager.mjs";
 import { WebAppVeParameterProcessor } from "./webapp-ve-parameter-processor.mjs";
 import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
 import type { WebAppDebugCollector } from "./webapp-debug-collector.mjs";
+import type { AppLogMonitor } from "../ve-execution/app-log-monitor.mjs";
 import { WebAppVeAddonCommandBuilder } from "./webapp-ve-addon-command-builder.mjs";
 import { parseVersionsLib, getOciImageTag } from "@src/versions-parser.mjs";
 import { WebAppVeCertificateInjector } from "./webapp-ve-certificate-injector.mjs";
@@ -54,6 +55,7 @@ export class WebAppVeRouteHandlers {
     private parameterProcessor: WebAppVeParameterProcessor,
     private executionSetup: WebAppVeExecutionSetup,
     private debugCollector?: WebAppDebugCollector,
+    private appLogMonitor?: AppLogMonitor,
   ) {
     this.addonCommandBuilder = new WebAppVeAddonCommandBuilder();
     this.certificateInjector = new WebAppVeCertificateInjector();
@@ -769,6 +771,7 @@ export class WebAppVeRouteHandlers {
         sshCommand,
         loaded.processedTemplates,
         this.debugCollector,
+        this.appLogMonitor,
       );
 
       // Persist shared_volpath per VE context whenever it appears in outputs
@@ -952,6 +955,7 @@ export class WebAppVeRouteHandlers {
         sshCommand,
         loaded.processedTemplates,
         this.debugCollector,
+        this.appLogMonitor,
       );
 
     this.executionSetup.setupRestartExecutionResultHandlers(
@@ -1079,6 +1083,7 @@ export class WebAppVeRouteHandlers {
       sshCommand,
       loaded.processedTemplates,
       this.debugCollector,
+      this.appLogMonitor,
     );
 
     // Respond immediately with restartKey, run execution in background

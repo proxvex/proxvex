@@ -13,6 +13,7 @@ import { WebAppVeParameterProcessor } from "./webapp-ve-parameter-processor.mjs"
 import { WebAppVeExecutionSetup } from "./webapp-ve-execution-setup.mjs";
 import { WebAppVeRouteHandlers } from "./webapp-ve-route-handlers.mjs";
 import { WebAppDebugCollector } from "./webapp-debug-collector.mjs";
+import { AppLogMonitor } from "../ve-execution/app-log-monitor.mjs";
 import { PersistenceManager } from "../persistence/persistence-manager.mjs";
 import { registerVeLogsRoutes } from "./webapp-ve-logs-routes.mjs";
 
@@ -23,6 +24,7 @@ export class WebAppVE {
   private executionSetup: WebAppVeExecutionSetup;
   private routeHandlers: WebAppVeRouteHandlers;
   private debugCollector: WebAppDebugCollector;
+  private appLogMonitor: AppLogMonitor;
   // Getter, not field — see WebAppVeRouteHandlers for rationale.
   private get pm(): PersistenceManager {
     return PersistenceManager.getInstance();
@@ -34,13 +36,23 @@ export class WebAppVE {
     this.parameterProcessor = new WebAppVeParameterProcessor();
     this.executionSetup = new WebAppVeExecutionSetup();
     this.debugCollector = new WebAppDebugCollector();
+    this.appLogMonitor = new AppLogMonitor();
     this.routeHandlers = new WebAppVeRouteHandlers(
       this.messageManager,
       this.restartManager,
       this.parameterProcessor,
       this.executionSetup,
       this.debugCollector,
+      this.appLogMonitor,
     );
+  }
+
+  /**
+   * Stop all live application-log followers. Called from the process
+   * shutdown handler so tail/docker-logs ssh children don't outlive proxvex.
+   */
+  stopAppLogMonitors(): void {
+    this.appLogMonitor.stopAll();
   }
 
   /**
