@@ -1303,12 +1303,14 @@ export async function executeScenarios(
         try { writeFileSync(pwLogPath, ""); } catch { /* dir may not exist yet — runner creates it */ }
 
         for (const spec of specs) {
-          const specPath = path.join(
-            "json/applications",
-            scenario.application,
-            "tests/playwright",
-            spec,
-          );
+          // Persistence layer hands us the project-root-relative path to
+          // this app's directory via scenario.appDir (local → hub → json
+          // resolution). Fall back to the legacy json/applications/<app>
+          // shape for backward compatibility with deployers that haven't
+          // shipped the appDir field yet.
+          const appDir =
+            scenario.appDir ?? path.join("json/applications", scenario.application);
+          const specPath = path.join(appDir, "tests/playwright", spec);
           const absSpec = path.join(projectRoot, specPath);
           if (!existsSync(absSpec)) {
             throw new Error(

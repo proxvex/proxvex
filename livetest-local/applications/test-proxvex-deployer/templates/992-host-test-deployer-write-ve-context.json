@@ -1,0 +1,22 @@
+{
+  "execute_on": "ve",
+  "name": "Test Deployer VE Context",
+  "description": "Writes storagecontext.json into the test-deployer's /config volume before first start, with a `ve_<pve-host>` VEContext entry pointing at the PVE host. This is the same shape install-proxvex.sh writes for a real deployer. Lets the test deployer SSH back to the PVE host on first boot.",
+  "parameters": [
+    "vm_id",
+    "hostname",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid"
+  ],
+  "commands": [
+    {
+      "name": "Test Deployer VE Context",
+      "script": "host-test-deployer-write-ve-context.sh",
+      "outputs": [
+        "test_deployer_ve_context_written"
+      ]
+    }
+  ]
+}

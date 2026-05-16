@@ -1,0 +1,39 @@
+{
+  "name": "test-proxvex-deployer",
+  "extends": "json:proxvex",
+  "description": "Livetest overlay: installs a separate proxvex deployer LXC and bootstraps it (SSH key into PVE, VE context registered) so a Playwright spec can drive a self-upgrade against it without touching the production Hub. Admin-only — no OIDC dependency.",
+  "properties": [
+    {
+      "id": "hostname",
+      "default": "test-proxvex-deployer"
+    },
+    {
+      "id": "envs",
+      "default": "HTTP_PORT=3080\nHTTPS_PORT=3443"
+    }
+  ],
+  "installation": {
+    "pre_start": [
+      {
+        "name": "991-host-test-deployer-ssh-setup.json",
+        "position": "end"
+      },
+      {
+        "name": "992-host-test-deployer-write-ve-context.json",
+        "position": "end"
+      }
+    ]
+  },
+  "upgrade": {
+    "pre_start": [
+      {
+        "name": "991-host-test-deployer-ssh-setup.json",
+        "position": "end"
+      },
+      {
+        "name": "992-host-test-deployer-write-ve-context.json",
+        "position": "end"
+      }
+    ]
+  }
+}
