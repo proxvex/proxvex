@@ -289,6 +289,64 @@ export class CertificateAuthorityService implements ICaProvider {
   }
 
   /**
+   * Sign a client certificate for a single Common Name (mTLS user identity).
+   * CN-only — no SAN — `basicConstraints=CA:FALSE`,
+   * `extendedKeyUsage=clientAuth`. Cert validity 825 days, RSA 2048-bit.
+   *
+   * The CN is also embedded directly in the `-subj` string passed to openssl,
+   * so it is strictly validated against `[A-Za-z0-9._-]+` to prevent subject
+   * injection / shell breakout. Invalid names throw.
+   */
+  signClientCert(veContextKey: string, cn: string): { key: string; cert: string } {
+    if (!/^[A-Za-z0-9._-]+$/.test(cn)) {
+      throw new Error(`Invalid client certificate CN: ${JSON.stringify(cn)}`);
+    }
+    const ca = this.ensureCA(veContextKey);
+
+    const tmpDir = mkdtempSync(path.join(tmpdir(), "cli-cert-gen-"));
+    try {
+      const keyPath = path.join(tmpDir, "client.key");
+      const certPath = path.join(tmpDir, "client.crt");
+      const csrPath = path.join(tmpDir, "client.csr");
+      const extPath = path.join(tmpDir, "client.ext");
+      const caKeyPath = path.join(tmpDir, "ca.key");
+      const caCertPath = path.join(tmpDir, "ca.crt");
+
+      writeFileSync(caKeyPath, Buffer.from(ca.key, "base64"), "utf-8");
+      writeFileSync(caCertPath, Buffer.from(ca.cert, "base64"), "utf-8");
+
+      const extContent = [
+        "[v3_req]",
+        "basicConstraints = CA:FALSE",
+        "keyUsage = digitalSignature",
+        "extendedKeyUsage = clientAuth",
+      ].join("\n");
+      writeFileSync(extPath, extContent, "utf-8");
+
+      execSync(
+        `openssl req -newkey rsa:2048 -keyout "${keyPath}" -out "${csrPath}" ` +
+        `-nodes -subj "/CN=${cn}/O=proxvex"`,
+        { encoding: "utf-8", stdio: "pipe" },
+      );
+
+      execSync(
+        `openssl x509 -req -in "${csrPath}" -CA "${caCertPath}" -CAkey "${caKeyPath}" ` +
+        `-CAcreateserial -out "${certPath}" -days 825 -extensions v3_req -extfile "${extPath}"`,
+        { encoding: "utf-8", stdio: "pipe" },
+      );
+
+      const keyB64 = Buffer.from(readFileSync(keyPath, "utf-8")).toString("base64");
+      const certB64 = Buffer.from(readFileSync(certPath, "utf-8")).toString("base64");
+
+      logger.info("Client certificate signed (CA-signed)", { cn, veContextKey });
+
+      return { key: keyB64, cert: certB64 };
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  /**
    * Validate PEM format and check that key matches cert.
    */
   validateCaPem(key: string, cert: string): { valid: boolean; subject?: string; error?: string } {

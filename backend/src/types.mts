@@ -210,7 +210,7 @@ export interface ICompletionInfo {
 
 export type ParameterType = "string" | "number" | "boolean" | "enum";
 export type IParameterValue = string | number | boolean;
-export type CertType = "ca" | "ca_pub" | "server" | "fullchain";
+export type CertType = "ca" | "ca_pub" | "server" | "fullchain" | "client";
 
 export interface IParameter {
   id: string;

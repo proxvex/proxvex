@@ -727,6 +727,14 @@ export class WebAppVeRouteHandlers {
         veContextKey,
         loaded.application?.properties as Array<{ id: string; value?: unknown; default?: unknown }> | undefined,
       );
+      // mTLS client certs (addon-mtls). Independent of SSL — only fires when a
+      // certtype="client" param is present, i.e. addon-mtls is selected.
+      this.certificateInjector.injectClientCertificateRequests(
+        processedParams,
+        allCertParameters,
+        caProvider,
+        veContextKey,
+      );
 
       // Start ProxmoxExecution
       const inputs = processedParams.map((p) => ({

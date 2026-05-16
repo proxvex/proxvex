@@ -65,7 +65,7 @@
           "description": "Marks sensitive values (PATs, passwords, secrets) — UI masks input and avoids logging."
         },
         "certtype": {
-          "enum": ["ca", "ca_pub", "server", "fullchain"],
+          "enum": ["ca", "ca_pub", "server", "fullchain", "client"],
           "description": "Certificate type. Enables auto-generation when upload has no value."
         },
         "validatePattern": {

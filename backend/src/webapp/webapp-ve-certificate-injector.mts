@@ -74,4 +74,64 @@ export class WebAppVeCertificateInjector {
     processedParams.push({ id: "ca_cert_b64", value: ca.cert });
     processedParams.push({ id: "project_domain_suffix", value: projectDomainSuffix });
   }
+
+  /**
+   * Injects `mtls_client_certs_b64` (and `ca_cert_b64` if not already set) when
+   * the mTLS addon is active. Activation gate: a parameter with
+   * `certtype="client"` is only present in `loadedParameters` when `addon-mtls`
+   * is in `selectedAddons` (merged by the route handler) — exactly mirroring
+   * how `certtype="server"` gates the SSL path. No base application declares
+   * `mtls_cns`, so without the addon this is a no-op.
+   *
+   * The bundle is base64(JSON) of `{ "<cn>": { key, cert }, ... }` where
+   * key/cert are already base64 PEM. The CA private key is never exposed —
+   * signing happens here (Hub) or via the Hub API (Spoke). Template 161 only
+   * writes the decoded files to the managed `mtls` volume.
+   *
+   * Kept separate from injectCertificateRequests because that method early-
+   * returns when SSL is absent; mTLS must work independently of SSL.
+   */
+  injectClientCertificateRequests(
+    processedParams: Array<{ id: string; value: string | number | boolean }>,
+    loadedParameters: IParameter[],
+    caProvider: ICaProvider,
+    veContextKey: string,
+  ): void {
+    const mtlsParam = loadedParameters.find((p) => p.certtype === "client");
+    if (!mtlsParam) return;
+
+    // mtlsParam.default is the literal "{{ hostname }}" — NOT resolved here.
+    // When the CN list is empty, fall back to the resolved hostname param.
+    const raw = processedParams.find((p) => p.id === mtlsParam.id)?.value;
+    let cnsStr = typeof raw === "string" && raw.length > 0 ? raw : "";
+    if (!cnsStr) {
+      const hn = processedParams.find((p) => p.id === "hostname")?.value;
+      cnsStr = typeof hn === "string" ? hn : "";
+    }
+    const cns = [
+      ...new Set(cnsStr.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)),
+    ];
+    if (cns.length === 0) return;
+
+    const ca = caProvider.getCA(veContextKey);
+    if (!ca) {
+      // No CA available (e.g. Hub unreachable). Inject nothing; template 161
+      // skips via skip_if_all_missing on mtls_client_certs_b64.
+      return;
+    }
+
+    const bundle: Record<string, { key: string; cert: string }> = {};
+    for (const cn of cns) {
+      const signed = caProvider.signClientCert(veContextKey, cn);
+      bundle[cn] = { key: signed.key, cert: signed.cert };
+    }
+
+    processedParams.push({
+      id: "mtls_client_certs_b64",
+      value: Buffer.from(JSON.stringify(bundle)).toString("base64"),
+    });
+    if (!processedParams.find((p) => p.id === "ca_cert_b64")) {
+      processedParams.push({ id: "ca_cert_b64", value: ca.cert });
+    }
+  }
 }

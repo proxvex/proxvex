@@ -166,19 +166,31 @@
 					}
 				</div>
 			} @else {
-				<mat-form-field appearance="outline" class="param-field" [class.param-field-multiline]="param.multiline">
-					<mat-label>{{ param.name }}</mat-label>
-					@if (param.multiline) {
-						<textarea matInput rows="5" [formControl]="$any(form.controls[param.id])" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above"></textarea>
-					} @else {
-						<input matInput [formControl]="$any(form.controls[param.id])" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
+			@if (param.multiline) {
+				<div class="param-field param-field-multiline">
+					<app-text-table-control
+						[formControl]="$any(form.controls[param.id])"
+						[label]="param.name"
+						[required]="!!param.required"
+						[testId]="param.id">
+					</app-text-table-control>
+					@if (hasExpandableHelp(param)) {
+						<button type="button" mat-icon-button class="help-toggle" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
+							<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
+						</button>
 					}
+				</div>
+			} @else {
+				<mat-form-field appearance="outline" class="param-field">
+					<mat-label>{{ param.name }}</mat-label>
+					<input matInput [formControl]="$any(form.controls[param.id])" [required]="!!param.required" [matTooltip]="getTooltip(param)" matTooltipPosition="above" />
 					@if (hasExpandableHelp(param)) {
 						<button type="button" mat-icon-button matSuffix class="help-toggle-suffix" (click)="toggleHelp(param.id)" [matTooltip]="'Show/hide help'" matTooltipPosition="above">
 							<mat-icon>{{ isHelpExpanded(param.id) ? 'expand_less' : 'help_outline' }}</mat-icon>
 						</button>
 					}
 				</mat-form-field>
+			}
 			}
 		}
 		@case ('number') {

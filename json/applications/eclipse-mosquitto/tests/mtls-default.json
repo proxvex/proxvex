@@ -1,0 +1,5 @@
+{
+  "selectedAddons": ["addon-mtls"],
+  "wait_seconds": 30,
+  "description": "addon-mtls with default mtls_cns — issues one client cert for the hostname (check_file_paths default = /etc/mtls/<hostname>/cert.pem)"
+}

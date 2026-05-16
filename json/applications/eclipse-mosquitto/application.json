@@ -2,6 +2,9 @@
   "name": "Eclipse Mosquitto",
   "description": "Eclipse Mosquitto MQTT Broker",
   "extends": "oci-image",
+  "supported_addons": [
+    "addon-mtls"
+  ],
   "icon": "icon.svg",
   "properties": [
     { "id": "hostname", "default": "eclipse-mosquitto" },
