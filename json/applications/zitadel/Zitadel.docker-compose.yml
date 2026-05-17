@@ -46,7 +46,12 @@ services:
       - /bootstrap:/zitadel/bootstrap
       - /config:/zitadel/config:ro
     healthcheck:
-      test: ["CMD", "/app/zitadel", "ready"]
+      # `ready` must read the same config as the server: without --config it
+      # falls back to Zitadel defaults (TLS.Enabled: true) and probes HTTPS,
+      # while the server runs plaintext h2c (--tlsMode disabled / TLS off in
+      # zitadel.yaml) — the probe would never succeed. The old env-var setup
+      # worked because `ready` read ZITADEL_TLS_ENABLED from the environment.
+      test: ["CMD", "/app/zitadel", "ready", "--config", "/zitadel/config/zitadel.yaml"]
       interval: 10s
       timeout: 5s
       retries: 15
