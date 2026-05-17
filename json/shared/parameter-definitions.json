@@ -1234,6 +1234,12 @@
       "type": "string",
       "internal": true
     },
+    "ZITADEL_MASTERKEY": {
+      "name": "ZITADEL_MASTERKEY",
+      "description": "Zitadel encryption masterkey (32 chars) from the oidc stack. Written by conf-write-zitadel-yaml to the `config` volume as the plain `masterkey` file and passed via the static `--masterkeyFile` flag (Zitadel ignores the env/config-key forms under start-from-init).",
+      "type": "string",
+      "internal": true
+    },
     "ZITADEL_EXTERNALDOMAIN": {
       "name": "Zitadel External Domain",
       "type": "string",
@@ -1298,6 +1304,33 @@
       "type": "string",
       "required": false,
       "internal": true
+    },
+    "zitadel_yaml_content": {
+      "name": "ZITADEL Base Config (zitadel.yaml)",
+      "description": "Base64 of the rendered zitadel.yaml (from file:zitadel.yaml.tmpl). Written to the `config` managed volume pre-start and loaded by Zitadel via --config. Holds external domain/port, database connection, login/OIDC/SAML URLs, and the top-level Masterkey (Zitadel ignores ZITADEL_MASTERKEY env under start-from-init --config). DB passwords stay as compose env vars (normal viper keys) for stack rotation.",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application",
+      "advanced": true
+    },
+    "zitadel_smtp_yaml_content": {
+      "name": "ZITADEL SMTP Overlay (zitadel.smtp.yaml)",
+      "description": "Base64 of the rendered zitadel.smtp.yaml (from file:zitadel.smtp.yaml.tmpl). Loaded as an additional --config. Written verbatim only when SMTP_PASSWORD is set; otherwise conf-write-zitadel-yaml.sh writes a comment-only file so the static --config reference resolves but contributes no SMTPConfiguration (Zitadel rejects partial/blank SMTP).",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application",
+      "advanced": true
+    },
+    "zitadel_init_yaml_content": {
+      "name": "ZITADEL FirstInstance Config (zitadel.init.yaml)",
+      "description": "Base64 of the rendered zitadel.init.yaml (from file:zitadel.init.yaml.tmpl). FirstInstance bootstrap config (admin user, machine users, PAT paths) loaded as an additional --config only during initial bootstrap. The post-bootstrap hardening step deletes this file and drops its --config so the non-idempotent FirstInstance migration never re-runs.",
+      "type": "string",
+      "required": false,
+      "upload": true,
+      "group": "Application",
+      "advanced": true
     },
     "ZITADEL_PUBLIC_BASE_URL": {
       "name": "Public Base URL",

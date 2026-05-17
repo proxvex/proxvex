@@ -3,7 +3,8 @@
   "description": "Application-specific SSL cleanup when the SSL addon is disabled. The default shared script is a no-op. Applications can override conf-disable-ssl-app.sh in their own scripts/ directory.",
   "execute_on": "ve",
   "parameters": [
-    "hostname"
+    "hostname",
+    "vm_id"
   ],
   "commands": [
     {

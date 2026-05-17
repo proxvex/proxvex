@@ -1,0 +1,49 @@
+# ZITADEL base configuration.
+#
+# Rendered by proxvex at install time and written to the `config` managed
+# volume (mounted read-only at /zitadel/config in the container).
+#
+# The masterkey is NOT a config-file key. Zitadel resolves it before loading
+# config and only accepts --masterkey / ZITADEL_MASTERKEY env / --masterkeyFile.
+# The static command uses `--masterkeyFile /zitadel/config/masterkey`; that
+# file is written to this same managed volume by conf-write-zitadel-yaml.
+#
+# Database passwords stay as ZITADEL_* compose env vars: they are normal
+# viper config keys, so the env override works regardless of --config, and
+# keeping them in compose preserves the stack-secret rotation mechanism and
+# prepares for the future mTLS switch (Database.postgres.User.SSL + certs).
+ExternalDomain: "{{ ZITADEL_EXTERNALDOMAIN }}"
+ExternalSecure: {{ ZITADEL_EXTERNALSECURE }}
+ExternalPort: {{ ZITADEL_EXTERNALPORT }}
+
+TLS:
+  Enabled: false
+
+Database:
+  postgres:
+    # Host is injected as ZITADEL_DATABASE_POSTGRES_HOST in the compose env
+    # (resolved at post-start by the dependency-host template, which runs
+    # after this file is written). Env overrides YAML, so it is omitted here.
+    Port: 5432
+    Database: zitadel
+    User:
+      Username: zitadel
+      SSL:
+        Mode: disable
+    Admin:
+      Username: postgres
+      SSL:
+        Mode: disable
+
+DefaultInstance:
+  Features:
+    LoginV2:
+      Required: true
+      BaseURI: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/"
+
+OIDC:
+  DefaultLoginURLV2: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/login?authRequest="
+  DefaultLogoutURLV2: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/logout?post_logout_redirect="
+
+SAML:
+  DefaultLoginURLV2: "{{ ZITADEL_PUBLIC_BASE_URL }}/ui/v2/login/login?samlRequest="

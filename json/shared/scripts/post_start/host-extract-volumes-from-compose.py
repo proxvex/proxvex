@@ -66,7 +66,11 @@ def main():
     compose_file_base64 = "{{ compose_file }}"
     compose_project = "{{ compose_project }}"
     hostname = "{{ hostname }}"
-    existing_volumes = "{{ volumes }}"
+    # Triple-quoted so a multi-line `volumes` property (one "key=path,opts"
+    # per line, newline-separated — e.g. zitadel's bootstrap + config) does
+    # not break this generated source as an unterminated string literal.
+    # Volume specs never contain a triple-double-quote, so this is safe.
+    existing_volumes = """{{ volumes }}"""
     
     # Use hostname as default if compose_project is not set
     if not compose_project or compose_project == "NOT_DEFINED" or compose_project == "":

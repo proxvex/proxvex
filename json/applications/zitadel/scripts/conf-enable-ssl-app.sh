@@ -51,17 +51,14 @@ sed -i '/^    configs:$/i\
 # 5. Switch tlsMode from disabled to external (Traefik handles TLS)
 sed -i 's/--tlsMode disabled/--tlsMode external/' "$TMPFILE"
 
-# 6. Update env values for HTTPS
-# EXTERNALSECURE / EXTERNALPORT / X-Forwarded-Proto / login URLs are now
-# driven by template variables (ZITADEL_EXTERNALSECURE, ZITADEL_EXTERNALPORT,
-# ZITADEL_FORWARDED_PROTO, ZITADEL_PUBLIC_BASE_URL) — set them in the app
-# parameters (production/zitadel.json) instead of patching the compose here.
-# The sed lines that did this in earlier versions are removed because they
-# (a) silently no-op'd against template-var compose lines and (b) corrupted
-# `https` into `httpss` by matching `http` as a substring.
-sed -i 's/SSL_MODE: disable/SSL_MODE: require/g' "$TMPFILE"
+# 6. Database SSL mode now lives in zitadel.yaml on the `config` managed
+# volume (written pre-start by conf-write-zitadel-yaml, step 155, which runs
+# before this script at step 159). Patch it there instead of in the compose
+# env. EXTERNALSECURE / EXTERNALPORT / FORWARDED_PROTO / PUBLIC_BASE_URL are
+# template-var driven into zitadel.yaml — set them via app parameters
+# (production/zitadel.json), not here.
 
-# Re-encode
+# Re-encode (compose now only carries the Traefik HTTPS changes + tlsMode)
 COMPOSE_SSL_B64=$(base64 < "$TMPFILE" | tr -d '\n')
 
 # Fix cert permissions for non-root Traefik user.
@@ -74,5 +71,16 @@ if [ -d "$CERT_DIR" ]; then
   echo "Cert permissions relaxed for non-root Traefik user" >&2
 fi
 
-echo "SSL enabled: HTTPS on :8443, HTTP redirect, POSTGRES_SSL_MODE=require" >&2
+# Patch Database SSL mode in the on-volume zitadel.yaml (disable -> require).
+# Covers both User.SSL.Mode and Admin.SSL.Mode. Idempotent: re-runs find no
+# `Mode: disable` and no-op.
+CONFIG_DIR=$(resolve_host_volume "$SAFE_HOST" "config" "$VM_ID")
+if [ -f "$CONFIG_DIR/zitadel.yaml" ]; then
+  sed -i 's/^\([[:space:]]*\)Mode: disable/\1Mode: require/g' "$CONFIG_DIR/zitadel.yaml"
+  echo "Patched zitadel.yaml Database SSL Mode -> require" >&2
+else
+  echo "Warning: $CONFIG_DIR/zitadel.yaml not found — SSL mode not patched" >&2
+fi
+
+echo "SSL enabled: HTTPS on :8443, HTTP redirect, DB SSL Mode=require" >&2
 echo "[{\"id\":\"ssl_app_enabled\",\"value\":\"true\"},{\"id\":\"compose_file\",\"value\":\"$COMPOSE_SSL_B64\"}]"
