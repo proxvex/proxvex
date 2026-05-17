@@ -78,12 +78,18 @@ export class WebAppStack {
       const newId = `${typePrefix}_${body.name}`;
       const incomingId = body.id;
 
-      // Snapshot the pre-update entries (if the stack exists) so we can
-      // detect value changes and flip `dirty` accordingly. Must happen BEFORE
-      // the rename/delete below, otherwise we lose the old state.
-      const preUpdate = incomingId
-        ? this.stackProvider.getStack(incomingId)
-        : null;
+      // Snapshot the pre-update stack so we can (a) preserve already-generated
+      // secrets and (b) detect value changes for the `dirty` flag. Resolve by
+      // the COMPUTED id (`newId`) first — a create-by-name with no `body.id`
+      // (the common path: livetest runner, recreate-after-delete) must still
+      // see the existing stack, otherwise its secrets get regenerated and the
+      // (Hub-)persisted POSTGRES_PASSWORD is silently overwritten while
+      // reused volumes keep the old one. Fall back to `incomingId` so the
+      // rename path below still resolves the old record. Must happen BEFORE
+      // the rename/delete, otherwise we lose the old state.
+      const preUpdate =
+        this.stackProvider.getStack(newId) ??
+        (incomingId ? this.stackProvider.getStack(incomingId) : null);
 
       // Rename / stacktype change: drop the old entry so we don't leave a
       // duplicate under the previous id.
@@ -126,13 +132,22 @@ export class WebAppStack {
               body.entries.push({ name: variable.name, value: "" });
             }
           } else {
-            // Auto-generated variables: generate a secret if not already set.
+            // Auto-generated variables: keep the existing value if this
+            // stack already has one (idempotent recreate — the secret must
+            // stay stable so reused volumes / dependents keep matching), and
+            // only mint a fresh secret when there is genuinely none yet.
             if (!existing || !existing.value) {
-              const generated = generateSecret(variable.length ?? 32);
+              const prior = preUpdate?.entries.find(
+                (e) => e.name === variable.name,
+              );
+              const value =
+                prior && prior.value
+                  ? String(prior.value)
+                  : generateSecret(variable.length ?? 32);
               if (existing) {
-                existing.value = generated;
+                existing.value = value;
               } else {
-                body.entries.push({ name: variable.name, value: generated });
+                body.entries.push({ name: variable.name, value });
               }
             }
           }
