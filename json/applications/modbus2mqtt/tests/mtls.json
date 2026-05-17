@@ -1,15 +1,17 @@
 {
   "selectedAddons": [
-    "addon-ssl"
+    "addon-ssl",
+    "addon-mtls"
   ],
   "params": [
     { "name": "oci_image_tag", "value": "latest" },
-    { "name": "upload_modbus2mqtt_config_content", "value": "file:config.zip" }
+    { "name": "upload_modbus2mqtt_config_content", "value": "file:config.zip" },
+    { "name": "mtls_cns", "value": "modbus2mqtt" }
   ],
   "depends_on": [
     "eclipse-mosquitto/ssl"
   ],
   "wait_seconds": 60,
   "cli_timeout": 360,
-  "description": "modbus2mqtt connects to eclipse-mosquitto on port 8883 via mTLS using addon-ssl certs as client identity"
+  "description": "modbus2mqtt connects to eclipse-mosquitto on port 8883 via mTLS using the addon-mtls default client certificate (CN = hostname) from /etc/mtls/modbus2mqtt/"
 }

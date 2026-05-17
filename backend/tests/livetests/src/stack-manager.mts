@@ -203,21 +203,18 @@ export async function ensureStacks(
     } catch { /* ignore */ }
 
     if (stackExists) {
-      const stackVms = planned.filter(p => {
-        const ids = appStackIdsMap.get(`${p.scenario.application}/${p.stackName}`);
-        return ids?.includes(stackId);
-      });
-      const allDestroyed = stackVms.every(p => !p.skipExecution);
-      if (allDestroyed) {
-        try {
-          await fetch(`${apiUrl}/api/stack/${stackId}`, {
-            method: "DELETE", signal: AbortSignal.timeout(5000),
-          });
-        } catch { /* ignore */ }
-        stackExists = false;
-      } else {
-        logOk(`Stack '${stackId}' exists — reusing (passwords unchanged)`);
-      }
+      // Never delete an existing stack. A stack is the single source of
+      // truth for secrets shared across apps (e.g. POSTGRES_PASSWORD), and
+      // must outlive container churn: persistent data volumes (pgdata) and
+      // whole-VM snapshots survive a destroy+reinstall, so rotating the
+      // secret here would desync it from the surviving data and break auth
+      // ("password authentication failed"). The legitimate "fresh app user
+      // on a reused dependency" case is handled by runCleanupSql (drops the
+      // consumer's DB objects) — that does NOT require rotating the shared
+      // password. Secret rotation is an explicit user action (refresh-stack)
+      // only. The POST handler is idempotent, so even a redundant recreate
+      // preserves the existing value.
+      logOk(`Stack '${stackId}' exists — reusing (passwords unchanged)`);
     }
 
     if (!stackExists) {

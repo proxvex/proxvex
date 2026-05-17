@@ -210,7 +210,7 @@ export interface ICompletionInfo {
 
 export type ParameterType = "string" | "number" | "boolean" | "enum";
 export type IParameterValue = string | number | boolean;
-export type CertType = "ca" | "ca_pub" | "server" | "fullchain";
+export type CertType = "ca" | "ca_pub" | "server" | "fullchain" | "client";
 
 export interface IParameter {
   id: string;
@@ -501,7 +501,7 @@ export interface ITestScenarioResponse {
   allowed2fail?: Record<string, number>;
   /** Optional Playwright spec(s) to run after the scenario's verifications.
    *  Filename (or array of filenames) relative to
-   *  json/applications/<app>/tests/playwright/. The livetest runner invokes
+   *  <appDir>/tests/playwright/. The livetest runner invokes
    *  them via `pnpm run test:applications` after running the test-deployer
    *  grant refresh on the matching Zitadel dependency. */
   playwright_spec?: string | string[];
@@ -515,6 +515,12 @@ export interface ITestScenarioResponse {
    *  available to other consumers. `in-place` runs against the source
    *  directly (docker-compose upgrade). `shared` is the legacy behaviour. */
   consumes_source?: "isolate" | "in-place" | "shared";
+  /** Project-root-relative path to this scenario's application directory,
+   *  resolved via the persistence layer (local → hub → json). The livetest
+   *  runner uses this to locate uploads, the Playwright spec dir, etc.,
+   *  so a livetest-local overlay app's specs are found just as readily as
+   *  json/applications ones. */
+  appDir?: string;
 }
 
 export interface ITestScenariosResponse {

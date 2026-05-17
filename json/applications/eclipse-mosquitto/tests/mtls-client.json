@@ -1,0 +1,9 @@
+{
+  "selectedAddons": ["addon-mtls"],
+  "params": [
+    { "name": "mtls_cns", "value": "alice\nbob" },
+    { "name": "check_file_paths", "value": "/etc/mtls/alice/cert.pem\n/etc/mtls/alice/privkey.pem\n/etc/mtls/alice/chain.pem\n/etc/mtls/bob/cert.pem" }
+  ],
+  "wait_seconds": 30,
+  "description": "addon-mtls issues CA-signed client certs for alice + bob into /etc/mtls/<cn>/"
+}

@@ -25,12 +25,14 @@ export function registerHubRoutes(app: express.Application): void {
 
   /**
    * POST /api/hub/ca/sign — Sign a CSR with the local CA.
-   * Body: { hostname: string, extraSans?: string[] }
+   * Body: { hostname: string, extraSans?: string[], mode?: "server" | "client" }
+   *   mode "client" → CN-only client cert (clientAuth, no SAN); hostname is the CN.
+   *   mode omitted/"server" → server cert (backward compatible).
    * Response: { cert: string, key: string } (both base64 PEM)
    */
   app.post(ApiUri.HubCaSign, express.json(), (req, res) => {
     try {
-      const { hostname, extraSans } = req.body;
+      const { hostname, extraSans, mode } = req.body;
       if (!hostname) {
         res.status(400).json({ error: "Missing hostname" });
         return;
@@ -39,11 +41,17 @@ export function registerHubRoutes(app: express.Application): void {
         res.status(400).json({ error: "extraSans must be an array of strings" });
         return;
       }
+      if (mode !== undefined && mode !== "server" && mode !== "client") {
+        res.status(400).json({ error: 'mode must be "server" or "client"' });
+        return;
+      }
       const caProvider = pm.getCaProvider();
       // Use the default VE context key for CA operations
       const veContextKey = "ca_global";
-      const result = caProvider.generateSelfSignedCert(veContextKey, hostname, extraSans);
-      logger.info("CA signed certificate for spoke", { hostname, extraSans: extraSans ?? [] });
+      const result = mode === "client"
+        ? caProvider.signClientCert(veContextKey, hostname)
+        : caProvider.generateSelfSignedCert(veContextKey, hostname, extraSans);
+      logger.info("CA signed certificate for spoke", { hostname, mode: mode ?? "server", extraSans: extraSans ?? [] });
       res.json({ cert: result.cert, key: result.key });
     } catch (err: any) {
       sendErrorResponse(res, err);

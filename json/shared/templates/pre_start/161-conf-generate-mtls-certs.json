@@ -1,0 +1,30 @@
+{
+  "execute_on": "ve",
+  "name": "Write mTLS Client Certificates",
+  "skip_if_all_missing": [
+    "mtls_client_certs_b64"
+  ],
+  "parameters": [
+    "vm_id",
+    "mtls_client_certs_b64",
+    "ca_cert_b64",
+    "hostname",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid"
+  ],
+  "commands": [
+    {
+      "name": "Write mTLS Client Certificates",
+      "script": "conf-generate-mtls-certs.sh",
+      "library": [
+        "pve-common.sh",
+        "cert-common.sh"
+      ],
+      "outputs": [
+        "mtls_certs_generated"
+      ]
+    }
+  ]
+}

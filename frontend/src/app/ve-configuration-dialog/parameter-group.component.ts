@@ -19,6 +19,7 @@ import { IParameter, IJsonError, IStack, ParameterTarget } from '../../shared/ty
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
 import { DockerComposeService } from '../shared/services/docker-compose.service';
 import { StackSelectorComponent } from '../shared/components/stack-selector/stack-selector.component';
+import { TextTableControlComponent } from '../shared/components/text-table-control/text-table-control.component';
 
 @Component({
   selector: 'app-parameter-group',
@@ -37,7 +38,8 @@ import { StackSelectorComponent } from '../shared/components/stack-selector/stac
     MatExpansionModule,
     MatButtonToggleModule,
     MatCardModule,
-    StackSelectorComponent
+    StackSelectorComponent,
+    TextTableControlComponent
   ],
   templateUrl: './parameter-group.component.html',
   styleUrl: './parameter-group.component.scss'

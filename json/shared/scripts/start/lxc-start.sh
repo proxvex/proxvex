@@ -93,6 +93,11 @@ EOF
     exit 1
   fi
 
+  # Marker: container is up. Tells the backend to start tailing the
+  # application logs (LXC console log + docker compose) into the diagnosis
+  # timeline. Must go to stderr — stdout is JSON-only.
+  echo "PROXVEX_PCT_START_EXECUTED vmid=$VMID" >&2
+
   # Stop OLD detached. Stopping OLD severs this script's SSH session — `setsid`
   # puts pct stop in its own session so it survives the SIGHUP that follows.
   # We log to a file on the host because stderr/stdout get torn down with
@@ -135,6 +140,7 @@ fi
 # If container is already running, exit successfully
 if [ "$CONTAINER_STATUS" = "running" ]; then
   echo "Container $VMID is already running" >&2
+  echo "PROXVEX_PCT_START_EXECUTED vmid=$VMID" >&2
   echo '[{"id":"started","value":"true"}]'
   exit 0
 fi
@@ -197,5 +203,9 @@ if [ "$POST_STATUS" != "running" ]; then
 
   exit 1
 fi
+
+# Marker: container is up. Tells the backend to start tailing the application
+# logs (LXC console log + docker compose) into the diagnosis timeline.
+echo "PROXVEX_PCT_START_EXECUTED vmid=$VMID" >&2
 
 exit 0

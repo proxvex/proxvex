@@ -1,0 +1,13 @@
+{
+  "task": "installation",
+  "depends_on": [],
+  "selectedAddons": [],
+  "params": [
+    { "name": "oci_image_tag", "value": "0.5.67" },
+    { "name": "memory", "value": "1024" },
+    { "name": "is_deployer", "value": "true" }
+  ],
+  "wait_seconds": 30,
+  "cli_timeout": 600,
+  "description": "Bootstraps a separate test-proxvex-deployer LXC (admin-only, no OIDC) at a fixed older version. SSH keys and storagecontext.json are written by the overlay's 991/992 pre_start templates. Empty depends_on + selectedAddons override the proxvex base test which pulls in zitadel + addon-oidc — we want plain admin-only."
+}

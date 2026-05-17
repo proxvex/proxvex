@@ -241,6 +241,10 @@ async function startWebApp(
     // Stop certificate auto-renewal timer
     webApp.stopAutoRenewal();
 
+    // Stop live app-log followers (tail / docker logs ssh children) so they
+    // don't outlive proxvex. Before the SSH-master cleanup below.
+    webApp.stopAppLogMonitors();
+
     // Close PersistenceManager (FileWatchers)
     try {
       PersistenceManager.getInstance().close();

@@ -1,0 +1,16 @@
+{
+  "task": "installation",
+  "depends_on": [
+    "playwright/default"
+  ],
+  "selectedAddons": [],
+  "params": [
+    { "name": "oci_image_tag", "value": "0.5.67" },
+    { "name": "memory", "value": "1024" },
+    { "name": "is_deployer", "value": "true" }
+  ],
+  "wait_seconds": 60,
+  "cli_timeout": 600,
+  "playwright_spec": "test-deployer-upgrade.spec.ts",
+  "description": "Installs test-proxvex-deployer at 0.5.67, then runs a Playwright spec that drives a UI-triggered upgrade against itself. Verifies replace-ct.sh's self-upgrade switchover (the .pending-post-upgrade.json marker + new-container reboot path) end-to-end."
+}

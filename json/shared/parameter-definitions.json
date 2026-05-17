@@ -538,6 +538,23 @@
       "group": "Storage",
       "advanced": true
     },
+    "mtls_client_certs_b64": {
+      "name": "mTLS Client Certs Bundle",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
+    "mtls_cns": {
+      "name": "Client Certificate CNs",
+      "type": "string",
+      "multiline": true,
+      "required": false,
+      "default": "{{ hostname }}",
+      "certtype": "client",
+      "group": "Authentication",
+      "description": "One Common Name per line. Each gets a CA-signed client certificate written to /etc/mtls/<CN>/."
+    },
     "nameserver4": {
       "name": "nameserver4",
       "type": "string",

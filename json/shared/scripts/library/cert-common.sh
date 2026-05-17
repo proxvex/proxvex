@@ -197,6 +197,44 @@ cert_write_server() {
 }
 
 # ============================================================================
+# cert_write_client()
+# Write a pre-signed client certificate (signed by the backend CA) to three
+# target files: privkey.pem, cert.pem, chain.pem. Client setups don't need a
+# fullchain.pem. The key/cert base64 are read from FILES (not args) to avoid
+# passing large base64 blobs on the command line.
+# Does NOT touch any CA private key.
+# Arguments:
+#   $1 - key_b64_file:  Path to a file containing base64 client private key PEM
+#   $2 - cert_b64_file: Path to a file containing base64 client certificate PEM
+#   $3 - ca_cert_b64:   Base64-encoded CA public certificate PEM
+#   $4 - target_dir:    Directory to write certificate files
+# Returns: 0 on success, 1 on failure
+# ============================================================================
+cert_write_client() {
+  _kf="$1"
+  _cf="$2"
+  _ca_b64="$3"
+  _td="$4"
+
+  if ! base64 -d < "$_kf" > "$_td/privkey.pem" 2>/dev/null; then
+    echo "cert_write_client: failed to decode client key" >&2
+    return 1
+  fi
+  if ! base64 -d < "$_cf" > "$_td/cert.pem" 2>/dev/null; then
+    echo "cert_write_client: failed to decode client cert" >&2
+    return 1
+  fi
+  if ! echo "$_ca_b64" | base64 -d > "$_td/chain.pem" 2>/dev/null; then
+    echo "cert_write_client: failed to decode ca_cert_b64" >&2
+    return 1
+  fi
+  chmod 600 "$_td/privkey.pem" 2>/dev/null || true
+  CERT_FILES_WRITTEN=$((CERT_FILES_WRITTEN + 3))
+  echo "Wrote client cert files in ${_td} (privkey.pem, cert.pem, chain.pem)" >&2
+  return 0
+}
+
+# ============================================================================
 # cert_write_ca_pub()
 # Write CA public certificate only (chain.pem)
 # Arguments:

@@ -48,8 +48,11 @@ const playwrightReportDir = playwrightOutputDir.endsWith("playwright-artifacts")
   : resolve(playwrightOutputDir, "report-html");
 
 export default defineConfig({
-  testDir: resolve(repoRoot, "json/applications"),
-  testMatch: "**/tests/playwright/*.spec.ts",
+  // testDir is the repo root so testMatch can pick up specs from both
+  // json/applications (production apps) and livetest-local/applications
+  // (test-only overlays like test-proxvex-deployer).
+  testDir: repoRoot,
+  testMatch: "**/applications/**/tests/playwright/*.spec.ts",
   outputDir: playwrightOutputDir,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -59,9 +62,10 @@ export default defineConfig({
   // - `list`        — live console output during the run
   // - `json`        — machine-readable summary at report.json (for tooling)
   // - `html`        — self-contained report with an embedded trace viewer at
-  //                   report-html/index.html (open in a browser, no server
-  //                   needed). Disables auto-opening (`open: never`) because
-  //                   livetests run headless on CI / nested-VM dev loops.
+  //                   <outputDir>-html/index.html (sibling of outputDir to
+  //                   avoid the "HTML reporter folder clashes with tests
+  //                   output folder" guard Playwright raises when its html
+  //                   path sits inside outputDir).
   reporter: [
     ["list"],
     ["json", { outputFile: resolve(playwrightOutputDir, "report.json") }],

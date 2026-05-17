@@ -1,0 +1,22 @@
+{
+  "execute_on": "ve",
+  "name": "Test Deployer SSH Setup",
+  "description": "Bootstraps the test-proxvex-deployer container with SSH access to the PVE host before first start. Mirrors install-proxvex.sh's SSH setup: generate Ed25519 keypair in /secure/.ssh, add pubkey to PVE root's authorized_keys, populate known_hosts via ssh-keyscan. Only needed for the test-proxvex-deployer overlay; production deployers get this from install-proxvex.sh.",
+  "parameters": [
+    "vm_id",
+    "hostname",
+    "uid",
+    "gid",
+    "mapped_uid",
+    "mapped_gid"
+  ],
+  "commands": [
+    {
+      "name": "Test Deployer SSH Setup",
+      "script": "host-test-deployer-ssh-setup.sh",
+      "outputs": [
+        "test_deployer_ssh_configured"
+      ]
+    }
+  ]
+}

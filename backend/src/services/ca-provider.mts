@@ -33,4 +33,13 @@ export interface ICaProvider {
   // Reconfigure flow, but does not persist anything across restarts.
   generateSelfSignedCert(veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string };
   ensureServerCert(veContextKey: string, hostname?: string, extraSans?: string[]): { key: string; cert: string };
+
+  // Client certificates (mTLS user identities)
+  //
+  // Issues a CA-signed client certificate for a single Common Name. CN-only
+  // (no SAN), `basicConstraints=CA:FALSE`, `extendedKeyUsage=clientAuth`.
+  // Like server certs, nothing is persisted by the provider — the
+  // container-side `conf-generate-mtls-certs.sh` keeps the on-disk cert when
+  // its identity matches. Hub signs locally; Spoke delegates to the Hub API.
+  signClientCert(veContextKey: string, cn: string): { key: string; cert: string };
 }

@@ -206,6 +206,49 @@ export class RemoteCaProvider implements ICaProvider {
     return signed;
   }
 
+  // --- Client certificates (signed by Hub) ---
+
+  /** Cache of client certs keyed by CN — kept separate from serverCertCache. */
+  private clientCertCache = new Map<string, { key: string; cert: string }>();
+
+  signClientCert(_veContextKey: string, cn: string): { key: string; cert: string } {
+    const cached = this.clientCertCache.get(cn);
+    if (cached) return cached;
+
+    // Synchronous Hub call, same pattern as ensureServerCert. The Hub
+    // distinguishes client from server signing via the `mode` field.
+    const url = `${this.hubUrl}/api/hub/ca/sign`;
+    const args: string[] = ["-sS", "--max-time", "15"];
+    if (this.isHttps) args.push("-k");
+    args.push("-X", "POST");
+    const token = this.getBearerToken?.();
+    if (token) args.push("-H", `Authorization: Bearer ${token}`);
+    args.push("-H", "Content-Type: application/json");
+    args.push("-d", JSON.stringify({ hostname: cn, mode: "client" }));
+    args.push(url);
+
+    const result = spawnSync("curl", args, { encoding: "utf-8", timeout: 20000 });
+    if (result.error) {
+      throw new Error(`Hub /api/hub/ca/sign (client) failed: ${result.error.message}`);
+    }
+    if (result.status !== 0) {
+      throw new Error(`Hub /api/hub/ca/sign (client) curl failed (rc=${result.status}): ${result.stderr}`);
+    }
+    let parsed: { cert?: string; key?: string };
+    try {
+      parsed = JSON.parse(result.stdout);
+    } catch {
+      throw new Error(`Hub /api/hub/ca/sign (client) returned non-JSON: ${result.stdout.slice(0, 200)}`);
+    }
+    if (!parsed.cert || !parsed.key) {
+      throw new Error(`Hub /api/hub/ca/sign (client) returned empty cert/key for ${cn}`);
+    }
+    const signed = { cert: parsed.cert, key: parsed.key };
+    this.clientCertCache.set(cn, signed);
+    logger.info("Client cert signed by Hub", { cn });
+    return signed;
+  }
+
   // --- Internal helpers ---
 
   private cachedCaCert: string | null = null;

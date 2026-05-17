@@ -39,6 +39,15 @@ export class VEWebApp {
   app: express.Application;
   public httpServer: http.Server;
   public httpsServer?: https.Server;
+  private webAppVE?: WebAppVE;
+
+  /**
+   * Stop all live application-log followers (tail/docker-logs ssh children)
+   * so they don't outlive the proxvex process. Called on shutdown.
+   */
+  stopAppLogMonitors(): void {
+    this.webAppVE?.stopAppLogMonitors();
+  }
 
   createHttpsServer(options: { key: string; cert: string }): https.Server {
     this.httpsServer = https.createServer(options, this.app);
@@ -185,6 +194,7 @@ export class VEWebApp {
 
     const webAppVE = new WebAppVE(this.app);
     webAppVE.init();
+    this.webAppVE = webAppVE;
 
     // Use the PersistenceManager-provided stack provider: in Hub/standalone
     // mode this is a LocalStackProvider; in Spoke mode it is a

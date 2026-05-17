@@ -673,11 +673,21 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
         }
       }
 
+      // appDir is the project-root-relative path to this app's directory
+      // (resolves to json/applications/<app>, livetest-local/applications/<app>,
+      // or hub/applications/<app> depending on where the persistence layer
+      // found the app). The runner uses this to locate the Playwright spec
+      // dir without hard-coding json/applications/ — keeps overlay apps
+      // testable.
+      const projectRoot = path.dirname(this.pathes.jsonPath);
+      const relAppDir = path.relative(projectRoot, appDir);
+
       for (const [name, data] of scenarioData) {
         const scenario: ITestScenarioResponse = {
           id: `${appId}/${name}`,
           application: appId,
           description: "",
+          appDir: relAppDir,
         };
 
         // Apply all known fields

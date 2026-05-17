@@ -277,6 +277,39 @@ export class WebAppVeAddonCommandBuilder {
       }
     }
 
+    // Merge the unprefixed `addon_volumes` alias across ALL selected addons.
+    // Each addon emits its own properties command with an `addon_volumes`
+    // entry; since they share one variable, the variable resolver would let
+    // the last one win and the earlier addon's volumes (e.g. addon-ssl's
+    // `proxvex`) would never be created — breaking that addon's on-start
+    // hooks. Volume specs are newline-separated `key=path[,opts]`; merge by
+    // key, first occurrence wins, and write the union back to every
+    // `addon_volumes` entry so the resolved value is order-independent.
+    const volumeEntriesByKey = new Map<string, string>();
+    const addonVolumeProps: IOutputObject[] = [];
+    for (const cmd of commands) {
+      if (!cmd.properties) continue;
+      const props = Array.isArray(cmd.properties) ? cmd.properties : [cmd.properties];
+      for (const prop of props) {
+        if (prop.id !== "addon_volumes") continue;
+        addonVolumeProps.push(prop);
+        for (const line of String(prop.value ?? "").split("\n")) {
+          const entry = line.trim();
+          if (!entry) continue;
+          const key = entry.split("=")[0] ?? entry;
+          if (!volumeEntriesByKey.has(key)) {
+            volumeEntriesByKey.set(key, entry);
+          }
+        }
+      }
+    }
+    if (addonVolumeProps.length > 1) {
+      const merged = [...volumeEntriesByKey.values()].join("\n");
+      for (const prop of addonVolumeProps) {
+        prop.value = merged;
+      }
+    }
+
     return commands;
   }
 
