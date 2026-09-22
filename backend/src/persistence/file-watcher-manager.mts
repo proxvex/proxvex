@@ -2,20 +2,52 @@ import { watch, FSWatcher } from "fs";
 import path from "path";
 import fs from "fs";
 import { IConfiguredPathes } from "../backend-types.mjs";
+import { createLogger } from "../logger/index.mjs";
 
 /**
  * Manages file system watchers for local directories
  * Handles fs.watch initialization and cache invalidation callbacks
  */
 export class FileWatcherManager {
-  private localAppsWatcher?: FSWatcher;
-  private localTemplatesWatcher?: FSWatcher;
-  private localFrameworksWatcher?: FSWatcher;
-  private localAddonsWatcher?: FSWatcher;
+  private localAppsWatcher?: FSWatcher | undefined;
+  private localTemplatesWatcher?: FSWatcher | undefined;
+  private localFrameworksWatcher?: FSWatcher | undefined;
+  private localAddonsWatcher?: FSWatcher | undefined;
   private invalidateTimeout: NodeJS.Timeout | undefined;
   private readonly DEBOUNCE_MS = 300;
+  private logger = createLogger("file-watcher");
 
   constructor(private pathes: IConfiguredPathes) {}
+
+  /**
+   * fs.watch with an 'error' handler. Without one, a single unreadable
+   * directory in the local layer (e.g. EACCES on a folder copied in as root
+   * with mode 0700) emits an unhandled 'error' event and crashes the whole
+   * process. A failing watcher is closed and logged; changes below that
+   * directory are then only picked up after a reload/restart.
+   */
+  private watchSafe(
+    dir: string,
+    options: { recursive: boolean },
+    listener: (eventType: string, filename: string | null) => void,
+  ): FSWatcher | undefined {
+    try {
+      const watcher = watch(dir, options, listener);
+      watcher.on("error", (err: NodeJS.ErrnoException) => {
+        this.logger.warn(
+          `File watcher for ${dir} failed (${err.code ?? err.message}${err.path ? `: ${err.path}` : ""}) — watching stopped; check permissions`,
+        );
+        watcher.close();
+      });
+      return watcher;
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      this.logger.warn(
+        `Could not watch ${dir} (${e.code ?? e.message}) — changes need a reload`,
+      );
+      return undefined;
+    }
+  }
 
   /**
    * Initialisiert fs.watch für local-Verzeichnisse
@@ -38,7 +70,7 @@ export class FileWatcherManager {
 
     // Watch local applications (rekursiv)
     if (fs.existsSync(localAppsDir)) {
-      this.localAppsWatcher = watch(
+      this.localAppsWatcher = this.watchSafe(
         localAppsDir,
         { recursive: true },
         (eventType: string, filename: string | null) => {
@@ -52,7 +84,7 @@ export class FileWatcherManager {
     // Watch local shared templates (rekursiv)
     // Bei Template-Änderungen: gesamten Template-Cache invalidieren
     if (fs.existsSync(localTemplatesDir)) {
-      this.localTemplatesWatcher = watch(
+      this.localTemplatesWatcher = this.watchSafe(
         localTemplatesDir,
         { recursive: true },
         (eventType: string, filename: string | null) => {
@@ -66,7 +98,7 @@ export class FileWatcherManager {
 
     // Watch local frameworks (rekursiv)
     if (fs.existsSync(localFrameworksDir)) {
-      this.localFrameworksWatcher = watch(
+      this.localFrameworksWatcher = this.watchSafe(
         localFrameworksDir,
         { recursive: true },
         (eventType: string, filename: string | null) => {
@@ -79,7 +111,7 @@ export class FileWatcherManager {
 
     // Watch local addons
     if (onAddonChange && fs.existsSync(localAddonsDir)) {
-      this.localAddonsWatcher = watch(
+      this.localAddonsWatcher = this.watchSafe(
         localAddonsDir,
         { recursive: false },
         (eventType: string, filename: string | null) => {
