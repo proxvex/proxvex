@@ -1,0 +1,16 @@
+{
+  "depends_on": [
+    "postgres/ssl-prev"
+  ],
+  "selectedAddons": [
+    "addon-ssl"
+  ],
+  "wait_seconds": 30,
+  "params": [
+    {
+      "name": "compose_tag_overrides",
+      "value": "DOCKER_postgrest_TAG=v14.14"
+    }
+  ],
+  "description": "postgrest/ssl pinned one release behind versions.sh — upgrade source for postgrest/upgrade-ssl so the upgrade is a real old->new jump instead of a no-op recreate (or, with a stale pin, an accidental downgrade). Own postgres instance so it can't collide with postgrest/ssl's database."
+}

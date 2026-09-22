@@ -1,0 +1,23 @@
+{
+  "depends_on": [
+    "postgres/default-prev"
+  ],
+  "cleanup": {
+    "postgres": "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='zitadel' AND pid<>pg_backend_pid(); DROP DATABASE IF EXISTS zitadel; DROP USER IF EXISTS zitadel;"
+  },
+  "wait_seconds": 90,
+  "params": [
+    {
+      "name": "ssl_mode",
+      "value": "none"
+    },
+    {
+      "name": "ZITADEL_EXTERNALDOMAIN",
+      "value": "{{ hostname }}"
+    },
+    {
+      "name": "compose_tag_overrides",
+      "value": "DOCKER_zitadel_TAG=v4.16.0,DOCKER_zitadel_login_TAG=v4.16.0"
+    }
+  ]
+}

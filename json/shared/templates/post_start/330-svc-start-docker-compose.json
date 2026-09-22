@@ -5,7 +5,8 @@
   "parameters": [
     "vm_id",
     "compose_project",
-    "startup_timeout"
+    "startup_timeout",
+    "compose_tag_overrides"
   ],
   "commands": [
     {

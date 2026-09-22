@@ -15,10 +15,32 @@
 COMPOSE_PROJECT="{{ compose_project }}"
 VMID="{{ vm_id }}"
 STARTUP_TIMEOUT="{{ startup_timeout }}"
+COMPOSE_TAG_OVERRIDES="{{ compose_tag_overrides }}"
 
 # Default timeout if not set
 if [ -z "$STARTUP_TIMEOUT" ] || [ "$STARTUP_TIMEOUT" = "NOT_DEFINED" ]; then
   STARTUP_TIMEOUT=120
+fi
+
+# Optional per-deploy image-tag overrides ("VAR=tag,VAR=tag", e.g.
+# "DOCKER_zitadel_TAG=v4.16.0"). The versions.sh library (prepended above)
+# only sets ${VAR:-default} defaults, so re-exporting here wins and the
+# compose file's ${DOCKER_*_TAG} placeholders resolve to the override.
+# Used by livetest upgrade scenarios to install a real OLD version and then
+# upgrade to the current versions.sh pin (old -> new instead of a no-op
+# recreate or an accidental downgrade).
+if [ -n "$COMPOSE_TAG_OVERRIDES" ] && [ "$COMPOSE_TAG_OVERRIDES" != "NOT_DEFINED" ]; then
+  _old_ifs=$IFS; IFS=','
+  for _kv in $COMPOSE_TAG_OVERRIDES; do
+    case "$_kv" in
+      [A-Za-z_]*=*)
+        echo "compose tag override: $_kv" >&2
+        export "$_kv"
+        ;;
+      *) echo "Warning: ignoring malformed tag override '$_kv'" >&2 ;;
+    esac
+  done
+  IFS=$_old_ifs
 fi
 
 if [ -z "$COMPOSE_PROJECT" ]; then

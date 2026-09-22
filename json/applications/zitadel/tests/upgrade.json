@@ -1,17 +1,17 @@
 {
   "task": "upgrade",
   "depends_on": [
-    "zitadel/default"
+    "zitadel/default-prev"
   ],
   "wait_seconds": 90,
   "params": [
     {
       "name": "target_versions",
-      "value": "zitadel=v4.13.1,zitadel-login=v4.13.1,traefik=v3.6.13"
+      "value": "zitadel=v4.16.1,zitadel-login=v4.16.1,traefik=v3.7"
     },
     {
       "name": "expected_versions",
-      "value": "zitadel=v4.13.1,zitadel-login=v4.13.1,traefik=v3.6.13"
+      "value": "zitadel=v4.16.1,zitadel-login=v4.16.1,traefik=v3.7"
     }
   ]
 }

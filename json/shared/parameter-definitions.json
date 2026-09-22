@@ -339,6 +339,14 @@
       "group": "Other",
       "advanced": true
     },
+    "compose_tag_overrides": {
+      "name": "Compose Image Tag Overrides",
+      "description": "Comma-separated VAR=tag pairs (e.g. DOCKER_zitadel_TAG=v4.16.0) re-exported after the versions.sh library so docker-compose resolves these tags instead of the pins. Used by livetest -prev scenarios to install a real old version as an upgrade source.",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true
+    },
     "container_device_path": {
       "name": "Container Device Path",
       "type": "string",

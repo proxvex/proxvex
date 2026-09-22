@@ -7,11 +7,11 @@
 
 # --- Zitadel Stack ---
 DOCKER_traefik_TAG="${DOCKER_traefik_TAG:-v3.7}"              # traefik
-DOCKER_zitadel_TAG="${DOCKER_zitadel_TAG:-v4.16.0}"           # ghcr.io/zitadel/zitadel
-DOCKER_zitadel_login_TAG="${DOCKER_zitadel_login_TAG:-v4.16.0}" # ghcr.io/zitadel/zitadel-login
+DOCKER_zitadel_TAG="${DOCKER_zitadel_TAG:-v4.16.1}"           # ghcr.io/zitadel/zitadel
+DOCKER_zitadel_login_TAG="${DOCKER_zitadel_login_TAG:-v4.16.1}" # ghcr.io/zitadel/zitadel-login
 
 # --- PostgREST ---
-DOCKER_postgrest_TAG="${DOCKER_postgrest_TAG:-v14.14}"        # postgrest/postgrest
+DOCKER_postgrest_TAG="${DOCKER_postgrest_TAG:-v14.15}"        # postgrest/postgrest
 DOCKER_cloudflare_tunnel_TAG="${DOCKER_cloudflare_tunnel_TAG:-2026.7.1}" # cloudflare/cloudflared (remote-managed tunnel connector)
 
 # --- OCI Image Apps ---

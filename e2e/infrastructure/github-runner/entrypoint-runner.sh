@@ -48,6 +48,22 @@ if [ -z "$REG_TOKEN" ] || [ "$REG_TOKEN" = "null" ]; then
     exit 1
 fi
 
+# --- Idempotent re-registration ------------------------------------
+# The LXC rootfs (and with it /home/runner/.runner + .credentials*) survives
+# `pct stop/start`, and config.sh refuses to configure over existing local
+# state — "Cannot configure the runner because it is already configured" —
+# which under `set -e` killed this entrypoint on every restart after the
+# first. `--replace` does NOT help: it only replaces the *server-side*
+# registration for the same name. So deregister/clear local state first.
+# (The previous `trap cleanup EXIT` never fired — `exec ./run.sh` replaces
+# the shell, so EXIT traps are dead code. Removed rather than kept as a
+# false promise; a hard `pct stop` wouldn't have run it either.)
+if [ -f .runner ]; then
+    echo "Existing runner state found — deregistering before re-configure..."
+    ./config.sh remove --token "$REG_TOKEN" 2>/dev/null \
+        || rm -f .runner .credentials .credentials_rsaparams
+fi
+
 echo "Configuring runner '$RUNNER_NAME' with labels: $LABELS"
 ./config.sh \
     --url "$REPO_URL" \
@@ -57,11 +73,5 @@ echo "Configuring runner '$RUNNER_NAME' with labels: $LABELS"
     --work "$RUNNER_WORKDIR" \
     --unattended \
     --replace
-
-cleanup() {
-    echo "Removing runner registration..."
-    ./config.sh remove --token "$REG_TOKEN" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
 
 exec ./run.sh

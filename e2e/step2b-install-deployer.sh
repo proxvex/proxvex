@@ -250,6 +250,48 @@ header "Writing project defaults into deployer (for snapshot)"
 "$SCRIPT_DIR/setup-test-project.sh" "$E2E_INSTANCE" \
     || error "setup-test-project.sh failed — project defaults missing in snapshot"
 
+# Step 9c: Pre-warm the OCI image cache so a `livetest --all` run does NOT trigger
+# ~4 concurrent skopeo extractions on the 4-core/8GB nested VM. That resource
+# spike (fresh multi-GB image downloads under concurrency) is what pushed deploys
+# past the 600s CLI timeout and produced a spurious "mass break" (see memory:
+# livetest-mass-break-is-environmental). Fetching serially here — then baking the
+# tarballs into the deployer-installed snapshot below — means every rollback
+# starts with a warm cache and each deploy's host-get-oci-image.py hits the cache.
+# proxvex is deliberately excluded (see e2e/prewarm-images.lst) so proxvex/*
+# scenarios keep exercising the skopeo download+extract branch.
+header "Pre-warming OCI image cache (for snapshot)"
+PREWARM_LST="$SCRIPT_DIR/prewarm-images.lst"
+if [ -f "$PREWARM_LST" ]; then
+    # host-get-oci-image.py declares `library: oci_version_lib.py`; libraries are
+    # prepended before execution, so build the runnable file the same way and ship
+    # it once. The {{ oci_image }} etc. placeholders are substituted per image on
+    # the nested VM (skopeo's own {{json .}} template is left intact).
+    PREWARM_PY="/tmp/prewarm-oci-${E2E_INSTANCE}.py"
+    cat "$PROJECT_ROOT/json/shared/scripts/library/oci_version_lib.py" \
+        "$PROJECT_ROOT/json/shared/scripts/image/host-get-oci-image.py" > "$PREWARM_PY" \
+        || error "Failed to assemble pre-warm script"
+    nested_scp_to "$PREWARM_PY" "/tmp/prewarm-oci.py" \
+        || error "Failed to copy pre-warm script to nested VM"
+    rm -f "$PREWARM_PY"
+    prewarm_ok=0; prewarm_miss=0
+    # Read the list on FD 3 — nested_ssh (ssh) reads FD 0, so a plain
+    # `done < file` would let the first ssh slurp the rest of the list and the
+    # loop would run exactly once.
+    while IFS= read -r ref <&3; do
+        case "$ref" in ''|\#*) continue ;; esac
+        if nested_ssh "sed -e 's|{{ oci_image }}|$ref|g' -e 's|{{ storage }}|local|g' -e 's|{{ platform }}||g' -e 's|{{ registry_username }}||g' -e 's|{{ registry_password }}||g' -e 's|{{ application_id }}||g' -e 's|{{ target_versions }}||g' /tmp/prewarm-oci.py > /tmp/prewarm-run.py && python3 /tmp/prewarm-run.py >/dev/null 2>&1"; then
+            prewarm_ok=$((prewarm_ok + 1)); info "  cached: $ref"
+        else
+            # Non-fatal: a miss just means that image is fetched by skopeo at
+            # deploy time (graceful — and keeps the skopeo branch a little warmer).
+            prewarm_miss=$((prewarm_miss + 1)); info "  MISS (skopeo at deploy): $ref"
+        fi
+    done 3< "$PREWARM_LST"
+    success "Pre-warm complete: $prewarm_ok cached, $prewarm_miss missed"
+else
+    info "No $PREWARM_LST — skipping OCI cache pre-warm"
+fi
+
 # Step 10: Snapshot — clean shutdown, then qm snapshot deployer-installed
 header "Creating 'deployer-installed' snapshot"
 info "Stopping nested VM $TEST_VMID..."

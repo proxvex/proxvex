@@ -1,0 +1,35 @@
+# OCI images pre-warmed into the `deployer-installed` snapshot by step2b, so a
+# `livetest --all` run does NOT trigger ~4 concurrent skopeo extractions on the
+# 4-core/8GB nested VM (that resource spike is what made deploys blow past the
+# 600s CLI timeout — see memory: livetest-mass-break-is-environmental).
+#
+# Each line is an `oci_image` ref fed to host-get-oci-image.py (same code path
+# as a real deploy → identical vztmpl tarball name → guaranteed cache hit).
+# One `#`-comment or blank line is ignored.
+#
+# ONE image is deliberately left OUT so the skopeo download+extract branch keeps
+# getting exercised by a real scenario: **eclipse-mosquitto** (smallest image at
+# ~10 MB, simplest scenario with no deps). NOTE: ghcr.io/proxvex/proxvex can NOT
+# serve this purpose — build-proxvex-oci-image.sh always aliases the locally-built
+# deployer into the cache as proxvex_latest.tar / proxvex_<ver>.tar (so tests use
+# the build under test), so proxvex/* always cache-hit regardless of this list.
+#
+# Regenerate tags after image bumps from a warm run:
+#   ssh -p 1222 root@ubuntupve 'ls /var/lib/vz/template/cache/*.tar'
+# and map <name>_<tag>.tar back to the app's oci_image base.
+ghcr.io/proxvex/debian-docker:latest
+distribution/distribution:3.1.1
+ghcr.io/esphome/esphome:2026.7.2
+gitea/gitea:1.26.4
+misterbabou/gptwol:7.1.5
+homebridge/homebridge:2026-07-20
+ghcr.io/modbus2mqtt/modbus2mqtt:0.32.1
+nginxinc/nginx-unprivileged:1-alpine
+nginxinc/nginx-unprivileged:1.31.3
+nginx:alpine
+nodered/node-red:5.0.1
+dpage/pgadmin4:9.16
+ghcr.io/proxvex/playwright:v1.57.0-noble
+postgres:16-alpine
+ghcr.io/proxvex/wolproxy:latest
+ghcr.io/koenkk/zigbee2mqtt:2.12.1
