@@ -314,3 +314,32 @@ describe("FileWatcherManager", () => {
     });
   });
 });
+
+describe("FileWatcherManager error handling", () => {
+  it("survives an error event of a watcher instead of crashing the process", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "watcher-error-"));
+    try {
+      const localPath = path.join(dir, "local");
+      mkdirSync(path.join(localPath, "applications", "app"), { recursive: true });
+      const manager = new FileWatcherManager({
+        jsonPath: path.join(dir, "json"),
+        localPath,
+        schemaPath: path.join(dir, "schemas"),
+      });
+      manager.initWatchers(() => {}, () => {}, () => {});
+      const appsWatcher = (manager as unknown as { localAppsWatcher?: import("fs").FSWatcher })
+        .localAppsWatcher;
+      expect(appsWatcher).toBeDefined();
+      // Without an 'error' listener, emit('error') throws synchronously —
+      // exactly what crashed the deployer on EACCES.
+      const err = Object.assign(new Error("permission denied"), {
+        code: "EACCES",
+        path: path.join(localPath, "applications", "app"),
+      });
+      expect(() => appsWatcher!.emit("error", err)).not.toThrow();
+      manager.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
