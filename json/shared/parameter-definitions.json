@@ -246,6 +246,13 @@
       "group": "Network",
       "advanced": true
     },
+    "vlan_tag": {
+      "name": "VLAN tag",
+      "type": "string",
+      "description": "VLAN ID for the container's network interface on a VLAN-aware bridge (net0 tag=). Empty = untagged (native VLAN of the bridge).",
+      "group": "Network",
+      "advanced": true
+    },
     "ca_cert_b64": {
       "name": "CA Cert",
       "type": "string",

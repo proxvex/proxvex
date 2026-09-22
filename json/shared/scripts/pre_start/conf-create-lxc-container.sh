@@ -170,6 +170,24 @@ fi
 OSTYPE_VAL="{{ ostype }}"
 PCT_ERR=$(mktemp)
 
+# net0: DHCP on the configured bridge; optional VLAN tag for VLAN-aware
+# bridges (empty = untagged, i.e. the bridge's native VLAN).
+VLAN_TAG="{{ vlan_tag }}"
+NET0="name=eth0,bridge={{ bridge }},ip=dhcp"
+case "$VLAN_TAG" in
+  ""|NOT_DEFINED) ;;
+  *[!0-9]*)
+    echo "Invalid vlan_tag '$VLAN_TAG' (expected a number 1-4094)" >&2
+    exit 2 ;;
+  *)
+    if [ "$VLAN_TAG" -lt 1 ] || [ "$VLAN_TAG" -gt 4094 ]; then
+      echo "Invalid vlan_tag '$VLAN_TAG' (expected a number 1-4094)" >&2
+      exit 2
+    fi
+    NET0="$NET0,tag=$VLAN_TAG"
+    echo "Using VLAN tag $VLAN_TAG on {{ bridge }}" >&2 ;;
+esac
+
 _pct_create() {
   # $1 = ostype to use
   #
@@ -184,7 +202,7 @@ _pct_create() {
     --rootfs "$ROOTFS" \
     --hostname "{{ hostname }}" \
     --memory "{{ memory }}" \
-    --net0 name=eth0,bridge="{{ bridge }}",ip=dhcp \
+    --net0 "$NET0" \
     --ostype "$1" \
     --unprivileged 1 \
     --onboot 1 \

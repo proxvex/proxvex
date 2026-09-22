@@ -32,6 +32,7 @@ static_ip6="{{ static_ip6 }}"
 static_gw="{{ static_gw }}"
 static_gw6="{{ static_gw6 }}"
 bridge="{{ bridge }}"
+vlan_tag="{{ vlan_tag }}"
 nameserver4="{{ nameserver4 }}"
 nameserver6="{{ nameserver6 }}"
 [ "$static_ip" = "NOT_DEFINED" ] && static_ip=""
@@ -182,6 +183,22 @@ fi
 # and lxc.net.0.flags=up in the LXC config. Without this, OCI containers
 # (which lack an init system to configure networking) get no IP assigned.
 NET_OPTS="$NET_OPTS,host-managed=1"
+
+# VLAN tag: explicit parameter wins; otherwise keep the tag the container
+# already has (pct set --net0 replaces the whole option string).
+case "$vlan_tag" in
+  ""|NOT_DEFINED)
+    vlan_tag=$(pct config {{ vm_id }} 2>/dev/null | sed -n 's/^net0:.*,tag=\([0-9][0-9]*\).*/\1/p' | head -n1) ;;
+esac
+case "$vlan_tag" in
+  "") ;;
+  *[!0-9]*)
+    echo "Invalid vlan_tag '$vlan_tag' (expected a number 1-4094)" >&2
+    output_result "false" ""
+    exit 2 ;;
+  *) NET_OPTS="$NET_OPTS,tag=$vlan_tag" ;;
+esac
+
 pct set {{ vm_id }} --net0 "$NET_OPTS" >&2
 RC=$?
 if [ $RC -ne 0 ]; then
