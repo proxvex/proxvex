@@ -186,6 +186,8 @@ examples/                     # or local/json/
 │       ├── application.json
 │       └── templates/
 │           └── set-parameters.json
+├── stacktypes/               # Site-specific stacktypes (override json/stacktypes/ by name)
+│   └── your-stacktype.json
 └── shared/
     ├── templates/            # Override shared templates
     │   └── 305-set-pkg-mirror.json
@@ -250,6 +252,14 @@ When resolving a script reference, the system searches in this order:
    - `jsonPath/shared/scripts/<script-name>.sh` (e.g., `json/shared/scripts/install-node-application.sh`)
 
 **Result:** The first found script is used. Application-specific scripts override shared scripts, and local shared scripts override repository shared scripts.
+
+### Stacktypes
+
+Stacktypes are merged from `json/stacktypes/*.json` and `localPath/stacktypes/*.json`
+(filename = stacktype name). A local file with the same name replaces the repository
+stacktype. This lets a site-specific application in the local layer ship its own
+stacktype (secrets generated per stack, `external` variables entered by the user)
+without a change to this repository.
 
 ### Practical Examples
 
