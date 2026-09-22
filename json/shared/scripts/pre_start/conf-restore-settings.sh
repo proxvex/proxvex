@@ -60,7 +60,21 @@ CHANGED=0
 if [ -n "$OLD_NET0" ]; then
   case "$OLD_NET0" in
     *ip=dhcp*)
-      log "Old container used DHCP — not restoring net0"
+      # DHCP: the new net0 from pct create stays — except for a VLAN tag
+      # the old container had (often added by hand) and the new one lacks.
+      OLD_TAG=$(printf '%s' "$OLD_NET0" | sed -n 's/.*,tag=\([0-9][0-9]*\).*/\1/p')
+      NEW_NET0=$(awk -F': ' '/^net0:/ { print $2; exit }' "$NEW_CONF")
+      case ",$NEW_NET0," in
+        *,tag=*) NEW_HAS_TAG=1 ;;
+        *) NEW_HAS_TAG=0 ;;
+      esac
+      if [ -n "$OLD_TAG" ] && [ -n "$NEW_NET0" ] && [ "$NEW_HAS_TAG" = 0 ]; then
+        log "Old container used DHCP with VLAN tag $OLD_TAG — keeping the tag"
+        pct set "$NEW_VMID" --net0 "$NEW_NET0,tag=$OLD_TAG" >&2
+        CHANGED=1
+      else
+        log "Old container used DHCP — not restoring net0"
+      fi
       ;;
     *ip=*)
       log "Restoring net0 from old container $OLD_VMID: $OLD_NET0"

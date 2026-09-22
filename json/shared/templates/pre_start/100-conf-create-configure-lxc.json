@@ -12,6 +12,7 @@
     "rootfs_storage",
     "memory",
     "bridge",
+    "vlan_tag",
     "hostname",
     "uid",
     "gid",

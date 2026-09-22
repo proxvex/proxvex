@@ -16,7 +16,8 @@
     "nameserver6",
     "vm_id",
     "hostname",
-    "bridge"
+    "bridge",
+    "vlan_tag"
   ],
   "commands": [
     {
