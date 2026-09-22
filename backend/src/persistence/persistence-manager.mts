@@ -536,20 +536,24 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
   }
 
   /**
-   * Returns the stacktypes configuration from json/stacktypes/ directory.
-   * Each .json file in the directory represents a stacktype (filename = name).
+   * Returns the stacktypes from json/stacktypes/ and <localPath>/stacktypes/.
+   * Each .json file represents a stacktype (filename = name). A local file
+   * overrides a json/ stacktype of the same name, so site-specific apps in
+   * the local layer can ship their own stacktypes.
    */
   getStacktypes(): IStacktypeEntry[] {
-    const stacktypesDir = path.join(this.pathes.jsonPath, "stacktypes");
-    if (!fs.existsSync(stacktypesDir)) {
-      return [];
+    const files = new Map<string, string>();
+    for (const base of [this.pathes.jsonPath, this.pathes.localPath]) {
+      const stacktypesDir = path.join(base, "stacktypes");
+      if (!fs.existsSync(stacktypesDir)) continue;
+      for (const file of fs.readdirSync(stacktypesDir)) {
+        if (file.endsWith(".json")) {
+          files.set(path.basename(file, ".json"), path.join(stacktypesDir, file));
+        }
+      }
     }
-    const files = fs
-      .readdirSync(stacktypesDir)
-      .filter((f) => f.endsWith(".json"));
-    return files.map((file) => {
-      const name = path.basename(file, ".json");
-      const content = fs.readFileSync(path.join(stacktypesDir, file), "utf-8");
+    return [...files.entries()].map(([name, filePath]) => {
+      const content = fs.readFileSync(filePath, "utf-8");
       const parsed = JSON.parse(content);
       // Support both formats: array (legacy) and object with variables+dependencies
       if (Array.isArray(parsed)) {
