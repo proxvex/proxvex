@@ -174,11 +174,42 @@ else
   [ "$SRC_IP" = "$SRC_IPCIDR" ] && SRC_PREFIX="24"
   SRC_NET3=${SRC_IP%.*}
   SRC_LAST=${SRC_IP##*.}
-  _offset=$(( ( $(date +%s) % 9 ) + 1 ))
-  CLONE_LAST=$(( SRC_LAST + _offset ))
-  [ "$CLONE_LAST" -gt 254 ] && CLONE_LAST=$(( 100 + _offset ))
-  [ "$CLONE_LAST" -eq "$SRC_LAST" ] && CLONE_LAST=$(( CLONE_LAST + 1 ))
-  CLONE_IP="${SRC_NET3}.${CLONE_LAST}"
+
+  # Pick a FREE address near the source instead of guessing one. The previous
+  # `SRC_LAST + (epoch % 9) + 1` took whatever it landed on: on a populated
+  # subnet that can be another guest's address, and the orchestrator then waits
+  # its full timeout for an API that answers with RST (ECONNREFUSED) — the
+  # clone itself is fine, someone else owns the address.
+  #
+  # Two probes, both cheap and from the host (which sits in the same VLAN):
+  # any address configured on a container of this node, and anything that
+  # answers a single ping. A host that is up but drops ICMP would slip
+  # through; that is still far better than not looking at all.
+  _used_ips=$(for _id in $(pct list 2>/dev/null | awk 'NR>1 {print $1}'); do
+      pct config "$_id" 2>/dev/null | sed -n 's/^net[0-9]*:.*[,[:space:]]ip=\([0-9.]*\)\/.*/\1/p'
+    done)
+  CLONE_IP=""
+  _try=1
+  while [ "$_try" -le 30 ]; do
+    _cand_last=$(( SRC_LAST + _try ))
+    [ "$_cand_last" -gt 254 ] && _cand_last=$(( _cand_last - 200 ))
+    _try=$(( _try + 1 ))
+    [ "$_cand_last" -lt 2 ] && continue
+    [ "$_cand_last" -eq "$SRC_LAST" ] && continue
+    _cand="${SRC_NET3}.${_cand_last}"
+    if printf '%s\n' "$_used_ips" | grep -qx "$_cand"; then
+      log "Clone IP candidate $_cand is configured on another container — skipping"
+      continue
+    fi
+    if ping -c1 -W1 "$_cand" >/dev/null 2>&1; then
+      log "Clone IP candidate $_cand answers ping — skipping"
+      continue
+    fi
+    CLONE_IP="$_cand"
+    break
+  done
+  [ -n "$CLONE_IP" ] || fail "No free address found near ${SRC_NET3}.${SRC_LAST} for the clone"
+  CLONE_LAST=${CLONE_IP##*.}
   log "Clone net0: bridge=$SRC_BRIDGE ip=${CLONE_IP}/${SRC_PREFIX} gw=${SRC_GW:-none} tag=${SRC_TAG:-none} (source was $SRC_IPCIDR)"
 fi
 
