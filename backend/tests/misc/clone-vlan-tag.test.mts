@@ -57,6 +57,7 @@ describe("self-upgrade clone keeps the VLAN tag", () => {
       path.join(binDir, "pct"),
       `#!/bin/sh
 case "$1" in
+  list)   printf '%s\n%s\n' "VMID       Status     Lock         Name" "502        running                 proxvex" ;;
   config) cat "${confDir}/502.conf" ;;
   clone)  cp "${confDir}/502.conf" "${confDir}/$3.conf" ;;
   set)    shift; printf '%s\\n' "$*" >> "${setLog}" ;;
@@ -67,6 +68,17 @@ exit 0
     );
     // pvesh get /cluster/nextid — the script asks for a free VMID.
     fs.writeFileSync(path.join(binDir, "pvesh"), "#!/bin/sh\necho 400\n", { mode: 0o755 });
+    // ping: every address listed in occupied.txt answers, the rest does not.
+    fs.writeFileSync(
+      path.join(binDir, "ping"),
+      `#!/bin/sh
+for a in "$@"; do :; done
+grep -qx "$a" "${path.join(dir, "occupied.txt")}" 2>/dev/null && exit 0
+exit 1
+`,
+      { mode: 0o755 },
+    );
+    if (!fs.existsSync(path.join(dir, "occupied.txt"))) fs.writeFileSync(path.join(dir, "occupied.txt"), "");
   }
 
   function run() {
@@ -106,6 +118,28 @@ exit 0
     const r = run();
     expect(r.net0).toContain("ip=dhcp");
     expect(r.net0).toContain(",tag=7");
+  });
+
+  it("skips an address that answers ping and takes the next free one", () => {
+    // .52 is what the old heuristic could land on; a foreign Proxmox guest
+    // owns it, which produced ECONNREFUSED after the full clone dance.
+    fs.writeFileSync(path.join(dir, "occupied.txt"), "192.168.4.52\n192.168.4.53\n");
+    fakePct("net0: name=eth0,bridge=vmbr0,tag=4,gw=192.168.4.1,host-managed=1,hwaddr=BC:24:11:01:A9:48,ip=192.168.4.51/24,type=veth");
+    const r = run();
+    expect(r.net0).toContain("--net0");
+    expect(r.net0).not.toContain("192.168.4.52/24");
+    expect(r.net0).not.toContain("192.168.4.53/24");
+    expect(r.net0).toContain("ip=192.168.4.54/24");
+    expect(r.net0).toContain(",tag=4");
+  });
+
+  it("fails with a clear message when the neighbourhood is full", () => {
+    const full = Array.from({ length: 254 }, (_, i) => `192.168.4.${i + 1}`).join("\n");
+    fs.writeFileSync(path.join(dir, "occupied.txt"), `${full}\n`);
+    fakePct("net0: name=eth0,bridge=vmbr0,tag=4,gw=192.168.4.1,host-managed=1,hwaddr=BC:24:11:01:A9:48,ip=192.168.4.51/24,type=veth");
+    const r = run();
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toContain("No free address");
   });
 
   it("stays untagged when the source is untagged", () => {
