@@ -14,6 +14,9 @@
       "script": "host-check-oidc-enabled.sh",
       "outputs": [
         "check_oidc_enabled_result"
+      ],
+      "library": [
+        "ve-global.sh"
       ]
     }
   ]

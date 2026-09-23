@@ -2,7 +2,9 @@
   "execute_on": "ve",
   "name": "Check HTTPS Cert",
   "description": "From the PVE host, openssl-connect to <hostname>:<local_https_port> and assert: TLS handshake succeeds, cert SAN contains the expected hostname, issuer is the proxvex CA, expiry is more than 7 days away. Works for LXC services (via container hostname/IP) and for the PVE host itself (proxmox app) where local_https_port=8006.",
-  "skip_if_all_missing": ["has_addon_ssl"],
+  "skip_if_all_missing": [
+    "has_addon_ssl"
+  ],
   "parameters": [
     "vm_id",
     "hostname",
@@ -14,7 +16,12 @@
     {
       "name": "Check HTTPS Cert",
       "script": "host-check-https-cert.sh",
-      "outputs": ["check_https_cert"]
+      "outputs": [
+        "check_https_cert"
+      ],
+      "library": [
+        "ve-global.sh"
+      ]
     }
   ]
 }

@@ -14,6 +14,20 @@ SSL_MODE="{{ ssl_mode }}"
 [ "$LOCAL_HTTPS_PORT"    = "NOT_DEFINED" ] && LOCAL_HTTPS_PORT=""
 [ "$SSL_MODE"      = "NOT_DEFINED" ] && SSL_MODE=""
 
+# No SSL, nothing to probe. The check sits in the check phase of the
+# docker-compose / oci-image applications, so it also runs for applications
+# installed WITHOUT the ssl addon — and local_https_port has a default (1443),
+# so the port guard below does not catch that case. Without this, every such
+# installation ends in a failed check, which aborts the run: application steps
+# scheduled after the checks (a child application's post_start entries) never
+# execute. Found while installing a Gitea act_runner, which serves no HTTPS at
+# all and consequently never got started.
+if [ -z "$SSL_MODE" ] || [ "$SSL_MODE" = "none" ] || [ "$SSL_MODE" = "off" ]; then
+  echo "CHECK: https_cert skipped (ssl_mode not set)" >&2
+  printf '[{"id":"check_https_cert","value":"skipped"}]'
+  exit 0
+fi
+
 # Native SSL means the app speaks TLS on local_https_port directly. nginx-proxy modes
 # put TLS on a different port. If local_https_port is missing for native mode, abort
 # rather than guessing (most apps set it as a property default).
@@ -28,8 +42,7 @@ fi
 if [ "$VM_ID" = "0" ] || [ -z "$VM_ID" ] || [ "$VM_ID" = "NOT_DEFINED" ]; then
   TARGET="127.0.0.1"
 else
-  TARGET=$(pct exec "$VM_ID" -- ip -4 addr show eth0 2>/dev/null \
-           | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+  TARGET=$(pve_lxc_ip "$VM_ID")
   if [ -z "$TARGET" ]; then
     echo "CHECK: https_cert FAILED (no IP for VM ${VM_ID})" >&2
     printf '[{"id":"check_https_cert","value":"no ip"}]'

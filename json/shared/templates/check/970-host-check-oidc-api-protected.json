@@ -14,6 +14,9 @@
       "script": "host-check-oidc-api-protected.sh",
       "outputs": [
         "check_oidc_api_protected_result"
+      ],
+      "library": [
+        "ve-global.sh"
       ]
     }
   ]

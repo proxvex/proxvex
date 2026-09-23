@@ -15,6 +15,9 @@
       "script": "host-check-tls-connect.sh",
       "outputs": [
         "check_tls_connect"
+      ],
+      "library": [
+        "ve-global.sh"
       ]
     }
   ]

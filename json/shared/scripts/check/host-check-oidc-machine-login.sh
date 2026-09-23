@@ -42,7 +42,7 @@ fi
 echo "CHECK: oidc_machine_login credentials loaded (client_id=${CLIENT_ID})" >&2
 
 # --- 2. Get Zitadel IP and hostname ---
-ZITADEL_IP=$(pct exec "$ZITADEL_VM_ID" -- ip -4 addr show eth0 2>/dev/null | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+ZITADEL_IP=$(pve_lxc_ip "$ZITADEL_VM_ID")
 ZITADEL_HOSTNAME=$(pct exec "$ZITADEL_VM_ID" -- hostname 2>/dev/null | tr -d '\r\n')
 
 if [ -z "$ZITADEL_IP" ]; then
@@ -75,7 +75,7 @@ fi
 echo "CHECK: oidc_machine_login JWT obtained" >&2
 
 # --- 4. Call deployer API with JWT ---
-DEPLOYER_IP=$(pct exec "$VM_ID" -- ip -4 addr show eth0 2>/dev/null | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+DEPLOYER_IP=$(pve_lxc_ip "$VM_ID")
 if [ -z "$DEPLOYER_IP" ]; then
     echo "CHECK: oidc_machine_login FAILED (cannot determine deployer IP)" >&2
     printf '[{"id":"check_oidc_machine_login_result","value":"no deployer IP"}]'

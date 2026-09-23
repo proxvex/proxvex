@@ -170,3 +170,71 @@ resolve_host_volume() {
   echo "ERROR: resolve_host_volume failed for ${_rhv_host}/${_rhv_key} (vmid $_rhv_vmid)" >&2
   return 1
 }
+
+# ----------------------------------------------------------------------------
+# pve_lxc_ip <vmid> [interface]
+#
+# IPv4 address of a running container, determined from the HOST. The obvious
+# `pct exec <vmid> -- ip -4 addr show eth0` needs iproute2 INSIDE the guest,
+# and the pre-baked debian-docker base image does not ship it (no `ip`, no
+# `ps`, no `sysctl`) — every check that resolved the IP that way reported
+# "no IP" for a container that had one, which aborted the run.
+#
+# Order:
+#   1. the statically configured address from `pct config` (net0 ip=…/nn),
+#      which needs neither a running container nor any guest binary;
+#   2. nsenter into the container's network namespace with the HOST's `ip`;
+#   3. `pct exec … ip` as the last resort, for the case where the host lacks
+#      nsenter but the guest happens to have iproute2.
+#
+# Prints the address (no prefix) and returns 0, or returns 1 and prints
+# nothing. Interface defaults to eth0.
+# ----------------------------------------------------------------------------
+pve_lxc_ip() {
+  _pli_vmid="$1"
+  _pli_if="${2:-eth0}"
+  [ -n "$_pli_vmid" ] || return 1
+
+  # 1. Static address from the container config (skip ip=dhcp / ip=manual).
+  _pli_ip=$(pct config "$_pli_vmid" 2>/dev/null \
+    | awk -v ifname="$_pli_if" '
+        /^net[0-9]+:/ {
+          line=$0; sub(/^net[0-9]+:[[:space:]]+/, "", line)
+          n=split(line, a, ",")
+          name=""; addr=""
+          for (i=1;i<=n;i++) {
+            if (a[i] ~ /^name=/)  { name=a[i]; sub(/^name=/, "", name) }
+            if (a[i] ~ /^ip=/)    { addr=a[i]; sub(/^ip=/, "", addr) }
+          }
+          if (name == ifname && addr ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/) {
+            sub(/\/.*/, "", addr); print addr; exit
+          }
+        }')
+  if [ -n "$_pli_ip" ]; then
+    printf '%s' "$_pli_ip"
+    return 0
+  fi
+
+  # 2. Host-side `ip` inside the container's netns. Docker bridges (docker0,
+  #    br-*) live in the same namespace, so ask for the interface by name
+  #    instead of taking the first address found.
+  _pli_pid=$(lxc-info -n "$_pli_vmid" -p -H 2>/dev/null) || \
+    _pli_pid=$(cat "/var/lib/lxc/$_pli_vmid/init.pid" 2>/dev/null) || true
+  if [ -n "$_pli_pid" ] && command -v nsenter >/dev/null 2>&1; then
+    _pli_ip=$(nsenter -t "$_pli_pid" -n ip -4 -o addr show "$_pli_if" 2>/dev/null \
+      | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+    if [ -n "$_pli_ip" ]; then
+      printf '%s' "$_pli_ip"
+      return 0
+    fi
+  fi
+
+  # 3. Guest iproute2, if it happens to be there.
+  _pli_ip=$(pct exec "$_pli_vmid" -- ip -4 addr show "$_pli_if" 2>/dev/null \
+    | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+  if [ -n "$_pli_ip" ]; then
+    printf '%s' "$_pli_ip"
+    return 0
+  fi
+  return 1
+}
