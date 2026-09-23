@@ -1,0 +1,19 @@
+{
+  "execute_on": "ve",
+  "name": "Install Init Wrapper",
+  "description": "Writes /usr/local/sbin/proxvex-init into the container rootfs (offline via vol_mount, container still stopped) when unprivileged_port_start is set. In an oci-image app the service itself is PID 1 and usually runs as a non-root uid, so it cannot bind ports below net.ipv4.ip_unprivileged_port_start (default 1024) — which is why local_https_port defaults to 1443. The wrapper raises that range for the container's network namespace and then execs the original command; conf-oci-lxc-configuration.py points lxc.init.cmd at it. Proxmox rejects the direct route (raw lxc.sysctl.* keys are dropped from the config), and inside the container there is no step before the app. No-op when unprivileged_port_start is empty.",
+  "parameters": [
+    "vm_id",
+    "unprivileged_port_start"
+  ],
+  "commands": [
+    {
+      "name": "Install init wrapper",
+      "script": "host-install-init-wrapper.sh",
+      "library": [
+        "pve-common.sh",
+        "vol-common.sh"
+      ]
+    }
+  ]
+}

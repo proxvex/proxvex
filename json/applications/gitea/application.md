@@ -81,6 +81,17 @@ Gitea uses `ssl_mode: native`. When SSL is enabled:
 
 - `GITEA__server__PROTOCOL` is set to `https`
 - Certificates are placed at `/etc/ssl/addon/`
+- Gitea answers on **443** (`local_https_port: 443`), so clone URLs and the
+  OIDC redirect URI carry no port
+
+Serving 443 needs one extra piece: Gitea runs as `uid 1000` **and** is the
+container's PID 1, so it cannot bind a privileged port and there is no earlier
+step inside the container that could allow it. The app therefore sets
+`unprivileged_port_start: 443`, which installs the init wrapper
+`/usr/local/sbin/proxvex-init` (template `109-host-install-init-wrapper`); the
+wrapper lowers the port limit for the container's network namespace and then
+execs Gitea. Set `local_https_port` back to `1443` (and drop
+`unprivileged_port_start`) if you would rather keep the kernel default.
 
 ## mTLS
 
