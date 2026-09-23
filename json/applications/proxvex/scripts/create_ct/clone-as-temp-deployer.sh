@@ -156,12 +156,17 @@ SRC_BRIDGE=$(printf '%s' "$SRC_NET0" | awk -F'[=,]' '{for(i=1;i<=NF;i++) if ($i=
 SRC_IPCIDR=$(printf '%s' "$SRC_NET0" | awk -F'[=,]' '{for(i=1;i<=NF;i++) if ($i=="ip") print $(i+1)}' | head -1)
 SRC_GW=$(printf '%s' "$SRC_NET0" | awk -F'[=,]' '{for(i=1;i<=NF;i++) if ($i=="gw") print $(i+1)}' | head -1)
 SRC_HOSTMGD=$(printf '%s' "$SRC_NET0" | awk -F'[=,]' '{for(i=1;i<=NF;i++) if ($i=="host-managed") print $(i+1)}' | head -1)
+# VLAN tag of the source. On a VLAN-aware bridge an untagged veth port gets
+# the bridge default PVID (1), not the VLAN the deployer lives in — a clone
+# without the tag then carries a correct-looking static address in the wrong
+# VLAN, and the orchestrator waits 300s for an API that cannot answer.
+SRC_TAG=$(printf '%s' "$SRC_NET0" | awk -F'[=,]' '{for(i=1;i<=NF;i++) if ($i=="tag") print $(i+1)}' | head -1)
 [ -n "$SRC_BRIDGE" ] || SRC_BRIDGE="vmbr0"
 
 if [ -z "$SRC_IPCIDR" ] || [ "$SRC_IPCIDR" = "dhcp" ]; then
   CLONE_MODE="dhcp"
   CLONE_IP=""
-  log "Clone net0: bridge=$SRC_BRIDGE ip=dhcp (source ${SRC_IPCIDR:-no-ip}, host-managed=${SRC_HOSTMGD:-0}) — IP learned post-start"
+  log "Clone net0: bridge=$SRC_BRIDGE ip=dhcp tag=${SRC_TAG:-none} (source ${SRC_IPCIDR:-no-ip}, host-managed=${SRC_HOSTMGD:-0}) — IP learned post-start"
 else
   CLONE_MODE="static"
   SRC_IP=${SRC_IPCIDR%/*}
@@ -174,7 +179,7 @@ else
   [ "$CLONE_LAST" -gt 254 ] && CLONE_LAST=$(( 100 + _offset ))
   [ "$CLONE_LAST" -eq "$SRC_LAST" ] && CLONE_LAST=$(( CLONE_LAST + 1 ))
   CLONE_IP="${SRC_NET3}.${CLONE_LAST}"
-  log "Clone net0: bridge=$SRC_BRIDGE ip=${CLONE_IP}/${SRC_PREFIX} gw=${SRC_GW:-none} (source was $SRC_IPCIDR)"
+  log "Clone net0: bridge=$SRC_BRIDGE ip=${CLONE_IP}/${SRC_PREFIX} gw=${SRC_GW:-none} tag=${SRC_TAG:-none} (source was $SRC_IPCIDR)"
 fi
 
 pct set "$TARGET_VMID" --hostname "$NEW_HOSTNAME" >&2 || fail "pct set hostname failed"
@@ -189,6 +194,10 @@ else
   _net0_args="name=eth0,bridge=${SRC_BRIDGE},ip=dhcp,firewall=0"
   [ "$SRC_HOSTMGD" = "1" ] && _net0_args="${_net0_args},host-managed=1"
 fi
+# The tag applies to both modes: without it the clone sits in the bridge
+# default VLAN and is unreachable (static) or leases from the wrong network
+# (dhcp).
+[ -n "$SRC_TAG" ] && _net0_args="${_net0_args},tag=${SRC_TAG}"
 pct set "$TARGET_VMID" --net0 "$_net0_args" >&2 \
   || fail "pct set --net0 ($CLONE_MODE) failed"
 pct set "$TARGET_VMID" --onboot 0 >&2 || true
