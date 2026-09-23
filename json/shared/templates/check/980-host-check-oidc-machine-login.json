@@ -15,6 +15,9 @@
       "script": "host-check-oidc-machine-login.sh",
       "outputs": [
         "check_oidc_machine_login_result"
+      ],
+      "library": [
+        "ve-global.sh"
       ]
     }
   ]

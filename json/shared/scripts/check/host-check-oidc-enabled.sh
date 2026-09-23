@@ -9,7 +9,7 @@
 
 VM_ID="{{ vm_id }}"
 
-IP=$(pct exec "$VM_ID" -- ip -4 addr show eth0 2>/dev/null | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+IP=$(pve_lxc_ip "$VM_ID")
 
 if [ -z "$IP" ]; then
     echo "CHECK: oidc_enabled FAILED (cannot determine container IP)" >&2

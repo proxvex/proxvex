@@ -10,7 +10,7 @@
 VM_ID="{{ vm_id }}"
 RETRY_TIMEOUT=30
 
-IP=$(pct exec "$VM_ID" -- ip -4 addr show eth0 2>/dev/null | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+IP=$(pve_lxc_ip "$VM_ID")
 
 if [ -z "$IP" ]; then
     echo "CHECK: oidc_api_protected FAILED (cannot determine container IP)" >&2
@@ -22,7 +22,7 @@ STATUS_CODE="000"
 elapsed=0
 while [ "$elapsed" -lt "$RETRY_TIMEOUT" ]; do
     # IP may change after OIDC reboot (DHCP)
-    IP=$(pct exec "$VM_ID" -- ip -4 addr show eth0 2>/dev/null | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+    IP=$(pve_lxc_ip "$VM_ID")
     if [ -n "$IP" ]; then
         STATUS_CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "http://${IP}:3080/api/applications" 2>/dev/null)
         if [ "$STATUS_CODE" = "401" ]; then
