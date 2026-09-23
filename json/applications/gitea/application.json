@@ -18,6 +18,8 @@
     { "id": "username", "value": "git" },
     { "id": "database_name", "default": "gitea" },
     { "id": "ssl_mode", "value": "native" },
+    { "id": "unprivileged_port_start", "value": "443" },
+    { "id": "local_https_port", "value": "443" },
     { "id": "mtls.check_file_paths", "value": "/etc/ssl/addon/mtls/gitea/cert.pem" }
   ],
   "installation": {

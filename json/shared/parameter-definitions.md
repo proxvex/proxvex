@@ -2306,7 +2306,7 @@ Templates / frameworks referencing this parameter:
 
 ## local_https_port
 
-The HTTPS port to listen on (default: 1443, rootless containers cannot bind 443).<!--
+The HTTPS port to listen on (default: 1443). A non-root application that is the container's init cannot bind 443 unless `unprivileged_port_start` lowers the limit — hence the high default.<!--
 Templates / frameworks referencing this parameter:
 - json/applications/modbus2mqtt/templates/0-rest-upload-config.json (via modbus2mqtt)
 - json/applications/modbus2mqtt/templates/post_start/0-rest-upload-config.json (via modbus2mqtt)
@@ -5100,6 +5100,29 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/pre_start/190-host-write-lxc-notes.json (via docker-compose, npm-nodejs, oci-image)
 - json/shared/templates/pre_start/191-host-write-docker-compose-notes.json (via docker-compose, npm-nodejs, oci-image)
 -->
+
+## unprivileged_port_start
+
+Lowest port a non-root process inside the container may bind
+(`net.ipv4.ip_unprivileged_port_start`, kernel default 1024). Set it to `443`
+when the application should answer on the standard HTTPS port instead of a high
+one like `local_https_port`'s 1443.
+
+This is only needed for applications that run **as a non-root user and are the
+container's init** (every `oci-image` app: the service is PID 1). Docker-based
+applications do not need it — there the port is published by dockerd, which runs
+as root.
+
+The sysctl is per network namespace, but it cannot be set the obvious way:
+Proxmox rejects raw `lxc.sysctl.*` keys ("unable to parse config") and drops them
+on the next config write, and there is no step inside the container before the
+app, because the app is the first process. Setting this parameter therefore makes
+`109-host-install-init-wrapper` write `/usr/local/sbin/proxvex-init` into the
+rootfs and `conf-oci-lxc-configuration.py` point `lxc.init.cmd` at it; the wrapper
+lowers the limit and then `exec`s the original command.
+
+Ports below the value stay protected. In a single-application container this is
+barely a relaxation: the only user of the namespace is the app itself.
 
 ## upload_flows_json_content
 
