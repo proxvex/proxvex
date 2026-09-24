@@ -1,3 +1,10 @@
+// Zielhost in der Ueberschrift: gehoert dazu, soll die Ueberschrift aber
+// nicht dominieren — es ist Kontext, nicht der Titel.
+.target-host {
+  font-weight: 400;
+  color: #757575;
+}
+
 .step-counter {
   margin-left: 8px;
   font-size: 0.85em;

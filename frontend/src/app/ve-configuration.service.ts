@@ -5,7 +5,7 @@ import { ICreateStackResponse } from '../shared/types-frontend';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, distinctUntilChanged, throwError } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 import { IApplicationWeb, IParameterValue } from '../shared/types';
 import { ErrorHandlerService } from './shared/services/error-handler.service';
@@ -22,6 +22,22 @@ export class VeConfigurationService {
   private router = inject(Router);
   private errorHandler = inject(ErrorHandlerService);
   private veContextKey?: string;
+
+  /**
+   * Der in der Kopfzeile gewaehlte Proxmox-Host. Gesetzt von der App-Shell,
+   * gelesen von Ansichten, die ihr Ziel anzeigen oder beim Wechsel neu laden
+   * muessen (Process Monitor). Der veContextKey allein reicht dafuer nicht:
+   * er ist ein Schluessel, kein anzeigbarer Name.
+   */
+  private currentHostSubject = new BehaviorSubject<string>('');
+  readonly currentHost$ = this.currentHostSubject.asObservable().pipe(distinctUntilChanged());
+
+  setCurrentHost(host: string): void {
+    if (this.currentHostSubject.value !== host) {
+      this.currentHostSubject.next(host);
+    }
+  }
+
   // Explicit initializer: call early (e.g., AppComponent.ngOnInit or APP_INITIALIZER)
   initVeContext(): Observable<ISsh[]> {
     return this.getSshConfigs().pipe(
