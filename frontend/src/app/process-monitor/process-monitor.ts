@@ -44,7 +44,11 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   redirectUrl?: string;
   redirectCountdown = 0;
   switchoverScheduled = false;
+  /** Gewaehlter Proxmox-Host — steht in der Ueberschrift, damit man sieht,
+   *  wohin der Lauf geht. Leer, solange keiner gewaehlt ist. */
+  targetHost = '';
   private sseSubscription?: Subscription;
+  private hostSubscription?: Subscription;
   private redirectTimer?: number;
   private countdownInterval?: number;
   private initialExpandedState = new Map<string, boolean>();
@@ -73,6 +77,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       this.storedVmInstallKeys[state.restartKey] = state.vmInstallKey;
     }
     this.startStreaming();
+    this.watchHost();
     // Self-upgrade rescue: if a previous task on the OLD deployer marked its
     // diagnosis as "pending" (via persistPendingDiagnosis at completion),
     // try to fetch it from THIS deployer now. After the redirect the NEW CT
@@ -82,6 +87,7 @@ export class ProcessMonitor implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopStreaming();
+    this.hostSubscription?.unsubscribe();
     if (this.redirectTimer) {
       clearTimeout(this.redirectTimer);
     }
@@ -193,6 +199,43 @@ export class ProcessMonitor implements OnInit, OnDestroy {
   }
 
   // --- Streaming & message management (unchanged) ---
+
+  /**
+   * Wechselt der Host in der Kopfzeile, zeigt der Monitor sonst weiter die
+   * Meldungen des alten Ziels — der SSE-Strom haengt am veContext des alten
+   * Hosts und laeuft einfach weiter. Deshalb: Strom trennen, Anzeige leeren
+   * und neu verbinden. Der Zaehler lastSeenIndex gehoert zum alten Host und
+   * muss mit zurueckgesetzt werden, sonst verschluckt das Delta-Polling die
+   * ersten Meldungen des neuen Ziels.
+   *
+   * Der erste Wert kommt sofort (BehaviorSubject) und ist nur das Setzen der
+   * Ueberschrift — dort wird nicht neu verbunden, das hat ngOnInit schon getan.
+   */
+  private watchHost() {
+    let known: string | undefined;
+    this.hostSubscription = this.veConfigurationService.currentHost$.subscribe(host => {
+      this.zone.run(() => {
+        const previous = known;
+        known = host;
+        this.targetHost = host;
+        // Vom Nichts zu einem Host ist kein Wechsel, sondern der Start:
+        // die App-Shell laedt die SSH-Konfiguration asynchron, bei einem
+        // direkten Aufruf von /process-monitor trifft der Host also erst
+        // nach ngOnInit ein. Wuerde das schon als Wechsel zaehlen, wuerde
+        // der Monitor die gerade angezeigten Meldungen wegwerfen.
+        if (previous === undefined || previous === '') {
+          return;
+        }
+        this.stopStreaming();
+        this.messages = undefined;
+        this.lastSeenIndex = -1;
+        this.initialExpandedState.clear();
+        if (host) {
+          this.startStreaming();
+        }
+      });
+    });
+  }
 
   private startStreaming() {
     this.stopStreaming();
@@ -549,13 +592,18 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       }
       const hasNewMessages = newGroup.messages.length > 0;
       const hasNewPlannedSteps = newGroup.plannedSteps && !existing.plannedSteps;
-      if (!hasNewMessages && !newGroup.vmInstallKey && !hasNewPlannedSteps) {
+      // Der Hostname kommt erst mit dem naechsten Schnappschuss, wenn die
+      // Gruppe hier schon aus SSE-Einzelmeldungen entstanden ist. Faengt der
+      // Wachhund ihn nicht ab, faellt er stillschweigend unter den Tisch.
+      const hasNewHostname = !!newGroup.hostname && !existing.hostname;
+      if (!hasNewMessages && !newGroup.vmInstallKey && !hasNewPlannedSteps && !hasNewHostname) {
         return existing;
       }
       return {
         ...existing,
         plannedSteps: newGroup.plannedSteps || existing.plannedSteps,
         vmInstallKey: newGroup.vmInstallKey || existing.vmInstallKey,
+        hostname: newGroup.hostname || existing.hostname,
         messages: [...existing.messages, ...newGroup.messages]
       };
     });

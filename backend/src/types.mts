@@ -592,6 +592,14 @@ export interface ISingleExecuteMessagesResponse {
   plannedSteps?: IPlannedStep[];
   restartKey?: string;
   vmInstallKey?: string;
+  /**
+   * Hostname of the CONTAINER this task works on — not the Proxmox host.
+   * Taken from the `hostname` input at task start. The Process Monitor shows
+   * it per group; application + task alone do not say which container is
+   * meant when several run on one host. Optional: adopted message groups
+   * (clone/self-upgrade) and older bundles carry no hostname.
+   */
+  hostname?: string;
 }
 export interface IApplicationResponse {
   application: IApplicationWeb;

@@ -1,3 +1,22 @@
+// Container-Hostname an der Gruppe: sagt, WELCHER Container gemeint ist.
+// Abgesetzt, weil auf einem Host mehrere Container derselben Anwendung
+// laufen koennen — dann ist das hier das einzige Unterscheidungsmerkmal.
+.group-hostname {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #eceff1;
+  font-size: 0.85em;
+  color: #455a64;
+}
+
+// Zielhost in der Ueberschrift: gehoert dazu, soll die Ueberschrift aber
+// nicht dominieren — es ist Kontext, nicht der Titel.
+.target-host {
+  font-weight: 400;
+  color: #757575;
+}
+
 .step-counter {
   margin-left: 8px;
   font-size: 0.85em;

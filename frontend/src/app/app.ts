@@ -91,6 +91,7 @@ export class App implements OnInit, OnDestroy {
       error: () => {
         this.sshConfigs = [];
         this.currentHost = '';
+        this.cfg.setCurrentHost('');
       }
     });
   }
@@ -98,6 +99,11 @@ export class App implements OnInit, OnDestroy {
   updateCurrentHost(): void {
     const current = this.sshConfigs.find(ssh => ssh.current === true);
     this.currentHost = current ? current.host : '';
+    // Einzige Stelle, an der currentHost gesetzt wird — auch der Fehlerpfad
+    // in onHostChange laeuft hierher zurueck. Deshalb wird der Host genau
+    // hier veroeffentlicht: Ansichten, die am Ziel haengen (Process Monitor),
+    // bekommen jeden Wechsel mit, auch eine zurueckgenommene Auswahl.
+    this.cfg.setCurrentHost(this.currentHost);
     this.refreshSpokeStatus();
   }
 
@@ -151,6 +157,7 @@ export class App implements OnInit, OnDestroy {
             error: () => {
               this.sshConfigs = [];
               this.currentHost = '';
+              this.cfg.setCurrentHost('');
             }
           });
         },
