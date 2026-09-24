@@ -4,7 +4,11 @@
     "moduleResolution": "nodenext",
     "target": "esnext",
     "outDir": "./dist",
-    "rootDir": ".",
+    // rootDir auf ".." wie in tsconfig.production.json: die CLI importiert
+    // ueber @shared aus ../backend/src. Mit rootDir "." liegen diese Dateien
+    // ausserhalb und tsc meldet TS6059 — ein Konfigurationsfehler, der wie
+    // zwei echte Fehler aussieht.
+    "rootDir": "..",
     "strict": true,
     "esModuleInterop": true,
     "declaration": true,

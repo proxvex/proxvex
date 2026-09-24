@@ -578,6 +578,9 @@ export async function executeScenarios(
       finishedAtMap: new Map<string, Date>(),
       storage: new Map<string, string>(),
       errorMessages: new Map<string, string>(),
+      // Der Runner setzt phase an seinen Uebergaengen. Baut der Executor den
+      // Zustand selbst (Unit-Test/Direktaufruf), ist genau das hier der Stand.
+      phase: "running scenarios",
     } : undefined);
   const ownsOverviewLifecycle = !options?.overview && !!overviewState;
   let overviewServer: RunOverviewServer | null = options?.overview?.server ?? null;
@@ -813,8 +816,8 @@ export async function executeScenarios(
         // Same creds power the CLI subprocess via the existing
         // oidcCredentials path below.
         runnerAuth.oidcCreds = creds;
-        runnerAuth.token = undefined;
-        runnerAuth.tokenExp = undefined;
+        delete runnerAuth.token;
+        delete runnerAuth.tokenExp;
         return creds;
       }
     } catch { /* stack not ready yet */ }
@@ -1486,9 +1489,9 @@ export async function executeScenarios(
             apiUrl = ep.url;
             if (!needsOidc) {
               oidcCredentials = undefined;
-              runnerAuth.oidcCreds = undefined;
-              runnerAuth.token = undefined;
-              runnerAuth.tokenExp = undefined;
+              delete runnerAuth.oidcCreds;
+              delete runnerAuth.token;
+              delete runnerAuth.tokenExp;
             } else if (!oidcCredentials) {
               oidcCredentials = await loadOidcCredsFromStack(step.stackName);
               if (oidcCredentials) {

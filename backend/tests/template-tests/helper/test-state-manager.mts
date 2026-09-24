@@ -31,8 +31,15 @@ export class TestStateManager {
     context: string,
   ): void {
     if (result.exitCode !== 0) {
+      // killedBy mitnennen: wurde der Befehl in ein Zeitlimit gelaufen, sieht
+      // das Ergebnis exakt wie ein Absturz aus — Exit 255, abgeschnittenes
+      // stdout, leeres stderr. Ohne diesen Zusatz sucht man den Fehler im
+      // Befehl statt in der Uhr.
+      const why = result.killedBy
+        ? ` — abgebrochen (${result.killedBy}), Zeitlimit erreicht`
+        : "";
       throw new Error(
-        `${context} failed (exit code ${result.exitCode}):\n` +
+        `${context} failed (exit code ${result.exitCode})${why}:\n` +
           `  stdout: ${result.stdout.trim()}\n` +
           `  stderr: ${result.stderr.trim()}`,
       );
@@ -166,7 +173,12 @@ export class TestStateManager {
           ` --rootfs ${storage}:1` +
           ` --net0 name=eth0,bridge=vmbr0,ip=dhcp` +
           ` --unprivileged 1`,
-        60000,
+        // 60 s reichten nicht. Das Debian-Template ist 124 MB und braucht auf
+        // einem unbelasteten Host allein ~40 s zum Entpacken; unter der
+        // parallelen Suite lief es regelmaessig darueber. Das Anlegen ist ein
+        // einmaliger Vorbereitungsschritt — hier zu knapp zu takten kauft
+        // nichts und kostet einen sporadisch roten Lauf.
+        180000,
       ),
       `pct create ${vmId}`,
     );
