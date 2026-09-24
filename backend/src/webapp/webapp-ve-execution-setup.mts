@@ -80,6 +80,15 @@ export class WebAppVeExecutionSetup {
     // Pre-populate planned steps so the frontend can show all steps immediately
     const group = messageManager.findOrCreateMessageGroup(application, task, restartKey);
     group.plannedSteps = this.buildPlannedSteps(commands, processedTemplates);
+    // Which container is this about? application + task do not say — on one
+    // Proxmox host several containers of the same application can run, and
+    // under livetest --all they run at the same time. The hostname input is
+    // the only thing that distinguishes them, so stamp it on the group once
+    // at task start; it cannot change during the run.
+    const hostname = resolveInput("hostname", inputs, defaults);
+    if (typeof hostname === "string" && hostname.length > 0) {
+      group.hostname = hostname;
+    }
 
     // Debug bundle wiring — only attached when debug_level != "off". Now
     // per-task safe under concurrent execution: every emitted event carries

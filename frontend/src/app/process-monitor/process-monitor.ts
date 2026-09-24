@@ -592,13 +592,18 @@ export class ProcessMonitor implements OnInit, OnDestroy {
       }
       const hasNewMessages = newGroup.messages.length > 0;
       const hasNewPlannedSteps = newGroup.plannedSteps && !existing.plannedSteps;
-      if (!hasNewMessages && !newGroup.vmInstallKey && !hasNewPlannedSteps) {
+      // Der Hostname kommt erst mit dem naechsten Schnappschuss, wenn die
+      // Gruppe hier schon aus SSE-Einzelmeldungen entstanden ist. Faengt der
+      // Wachhund ihn nicht ab, faellt er stillschweigend unter den Tisch.
+      const hasNewHostname = !!newGroup.hostname && !existing.hostname;
+      if (!hasNewMessages && !newGroup.vmInstallKey && !hasNewPlannedSteps && !hasNewHostname) {
         return existing;
       }
       return {
         ...existing,
         plannedSteps: newGroup.plannedSteps || existing.plannedSteps,
         vmInstallKey: newGroup.vmInstallKey || existing.vmInstallKey,
+        hostname: newGroup.hostname || existing.hostname,
         messages: [...existing.messages, ...newGroup.messages]
       };
     });

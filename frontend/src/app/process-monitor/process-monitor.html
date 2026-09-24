@@ -7,6 +7,9 @@
         <mat-expansion-panel-header>
           <mat-panel-title>
             {{ group.application }} / {{ group.task }}
+            @if (group.hostname) {
+              <span class="group-hostname">{{ group.hostname }}</span>
+            }
             @if (group.plannedSteps) {
               <span class="step-counter">({{ getCompletedCount(group) }} / {{ group.plannedSteps.length }})</span>
             }
