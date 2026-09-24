@@ -80,7 +80,7 @@ describe("WebAppVeParameterProcessor deploy-params", () => {
       const b64 = Buffer.from(
         JSON.stringify({ v: 1, params: [{ name: "memory", value: 1024 }] }),
       ).toString("base64");
-      expect(proc.decodeDeployParams(b64)?.params[0].value).toBe(1024);
+      expect(proc.decodeDeployParams(b64)?.params[0]!.value).toBe(1024);
     });
   });
 

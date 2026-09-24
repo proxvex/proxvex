@@ -14,7 +14,10 @@ describe("CliApiClient", () => {
 
   beforeEach(() => {
     mockFetch = vi.fn();
-    globalThis.fetch = mockFetch;
+    // vi.fn() ist bewusst untypisiert (die Tests pruefen Aufrufargumente,
+    // nicht Signaturen). Der Cast sagt das ausdruecklich, statt den Fehler
+    // stehen zu lassen.
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -47,7 +50,7 @@ describe("CliApiClient", () => {
       const client = new CliApiClient("http://localhost:3080");
       mockFetch.mockResolvedValueOnce(jsonResponse({ sshs: [] }));
       await client.getSshConfigs();
-      const headers = mockFetch.mock.calls[0][1].headers;
+      const headers = mockFetch.mock.calls[0]![1].headers;
       expect(headers["Authorization"]).toBeUndefined();
     });
 
@@ -58,7 +61,7 @@ describe("CliApiClient", () => {
       );
       mockFetch.mockResolvedValueOnce(jsonResponse({ sshs: [] }));
       await client.getSshConfigs();
-      const headers = mockFetch.mock.calls[0][1].headers;
+      const headers = mockFetch.mock.calls[0]![1].headers;
       expect(headers["Authorization"]).toBe("Bearer my-secret-token");
     });
   });
@@ -115,7 +118,7 @@ describe("CliApiClient", () => {
       );
       const result = await client.getSshConfigKey("pve1.cluster");
       expect(result.key).toBe("ve_pve1");
-      expect(mockFetch.mock.calls[0][0]).toContain(
+      expect(mockFetch.mock.calls[0]![0]).toContain(
         "/api/ssh/config/pve1.cluster",
       );
     });
@@ -125,7 +128,7 @@ describe("CliApiClient", () => {
         jsonResponse({ unresolvedParameters: [] }),
       );
       await client.getUnresolvedParameters("ve_pve1", "zitadel", "installation");
-      expect(mockFetch.mock.calls[0][0]).toContain(
+      expect(mockFetch.mock.calls[0]![0]).toContain(
         "/api/ve_pve1/unresolved-parameters/zitadel?task=installation",
       );
     });
@@ -135,7 +138,7 @@ describe("CliApiClient", () => {
         jsonResponse({ enumValues: [] }),
       );
       await client.postEnumValues("ve_pve1", "zitadel", "installation");
-      const [url, options] = mockFetch.mock.calls[0];
+      const [url, options] = mockFetch.mock.calls[0]!;
       expect(url).toContain("/api/ve_pve1/enum-values/zitadel");
       expect(url).not.toContain("installation");
       expect(options.method).toBe("POST");
@@ -149,7 +152,7 @@ describe("CliApiClient", () => {
         jsonResponse({ stacks: [] }),
       );
       await client.getStacks("postgres");
-      expect(mockFetch.mock.calls[0][0]).toContain(
+      expect(mockFetch.mock.calls[0]![0]).toContain(
         "/api/stacks?stacktype=postgres",
       );
     });
@@ -159,7 +162,7 @@ describe("CliApiClient", () => {
         jsonResponse({ stacks: [] }),
       );
       await client.getStacks();
-      expect(mockFetch.mock.calls[0][0]).toBe(
+      expect(mockFetch.mock.calls[0]![0]).toBe(
         "http://localhost:3080/api/stacks",
       );
     });
@@ -171,7 +174,7 @@ describe("CliApiClient", () => {
       await client.postVeConfiguration("ve_pve1", "zitadel", "installation", {
         params: [{ name: "hostname", value: "test" }],
       });
-      const [url, options] = mockFetch.mock.calls[0];
+      const [url, options] = mockFetch.mock.calls[0]!;
       expect(url).toContain("/api/ve_pve1/ve-configuration/zitadel");
       expect(url).not.toContain("installation");
       expect(options.method).toBe("POST");

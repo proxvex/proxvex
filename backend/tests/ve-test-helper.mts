@@ -66,10 +66,17 @@ export class VeTestHelper {
     this.jsonDir = path.join(this.tempDir, "json");
     this.schemaDir = path.join(this.tempDir, "schema");
     this.localDir = path.join(this.tempDir, "local/json");
+    // Der __dirname-Rueckfall ist der einzige cwd-unabhaengige Kandidat und
+    // zielte um eine Ebene daneben: __dirname ist backend/tests, die Wurzel
+    // liegt also zwei Ebenen darueber, nicht drei. Dadurch half er nie, und
+    // ein Lauf ausserhalb von backend/ (z. B. `vitest --root backend` aus dem
+    // Repo-Wurzelverzeichnis) liess 57 Tests mit "Unable to locate repo root"
+    // scheitern — ein Fehlerbild, das nach kaputter Suite aussieht.
     const candidates = [
+      path.resolve(__dirname, "..", ".."),
       path.resolve(process.cwd(), ".."),
       path.resolve(process.cwd(), "..", ".."),
-      path.resolve(__dirname, "..", "..", ".."),
+      path.resolve(process.cwd()),
     ];
     let repoRoot: string | undefined;
     for (const candidate of candidates) {
