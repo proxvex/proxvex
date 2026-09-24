@@ -324,11 +324,38 @@ export class InMemoryRepositories
   }
 }
 
+/** Ein Skript im Cache, zusammen mit dem, woraus es stammt. */
+interface CachedScript {
+  /** Aufgeloester Pfad — ein anderer Pfad heisst: Layer-Praezedenz hat sich geaendert. */
+  path: string;
+  mtimeMs: number;
+  size: number;
+  content: string;
+}
+
 export class FileSystemRepositories
   implements IApplicationRepository, ITemplateRepository, IResourceRepository
 {
   private templateCache = new Map<string, ITemplate>();
-  private scriptCache = new Map<string, string>();
+  /**
+   * Skript-Cache MIT Herkunft und Stand.
+   *
+   * Ein reiner `Map<key, content>` war still falsch: Er wurde beim Start
+   * befuellt und nie invalidiert, also fuehrte ein laufender Deployer bis
+   * zum naechsten Neustart die Skripte weiter aus, die beim Start auf der
+   * Platte lagen. Beim Self-Upgrade ist das genau der falsche Moment — das
+   * Upgrade legt neue Skripte ab, der laufende Prozess nimmt aber die alten
+   * und klont sich mit ihnen. Diagnostiziert am 24.09.2026: Vier Kopien von
+   * clone-as-temp-deployer.sh trugen den VLAN-Fix, jeder Klon entstand
+   * trotzdem ohne `tag=`, und eine zur Probe eingebaute Logzeile schrieb nie
+   * etwas — weil keine der Dateien gelesen wurde.
+   *
+   * Darum wird bei jedem Zugriff der Pfad neu aufgeloest und gegen Stand und
+   * Groesse der Datei geprueft. Der Cache spart weiterhin das Lesen, aber er
+   * behauptet nicht mehr, die Platte haette sich seit dem Start nicht
+   * geaendert.
+   */
+  private scriptCache = new Map<string, CachedScript>();
   private markdownCache = new Map<string, string>();
   private applicationHierarchyCache = new Map<string, string[]>();
 
@@ -571,15 +598,41 @@ export class FileSystemRepositories
 
   getScript(ref: ScriptRef): string | null {
     const cacheKey = this.getScriptCacheKey(ref);
+    // Den Pfad IMMER neu aufloesen, auch bei einem Cache-Treffer: Sonst
+    // bliebe ein Overlay unsichtbar, das erst nach dem Start angelegt wurde
+    // (local schlaegt json — genau so wurde ein Fix abgelegt, der dann nie
+    // lief). Die Aufloesung sind ein paar existsSync; Skripte werden einmal
+    // je Kommando geholt, nicht in Schleifen.
+    const scriptPath = this.resolveScriptPath(ref);
+    if (!scriptPath) return null;
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(scriptPath);
+    } catch {
+      return null; // zwischen Aufloesung und stat verschwunden
+    }
+
     if (this.enableCache) {
       const cached = this.scriptCache.get(cacheKey);
-      if (cached) return cached;
+      if (
+        cached &&
+        cached.path === scriptPath &&
+        cached.mtimeMs === stat.mtimeMs &&
+        cached.size === stat.size
+      ) {
+        return cached.content;
+      }
     }
-    const scriptPath = this.resolveScriptPath(ref);
-    if (!scriptPath || !fs.existsSync(scriptPath)) return null;
+
     const content = fs.readFileSync(scriptPath, "utf-8");
     if (this.enableCache && this.isManagedBasePath(scriptPath)) {
-      this.scriptCache.set(cacheKey, content);
+      this.scriptCache.set(cacheKey, {
+        path: scriptPath,
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+        content,
+      });
     }
     return content;
   }
@@ -937,14 +990,24 @@ export class FileSystemRepositories
 
       if (!entry.isFile()) continue;
       const fullPath = path.join(dir, entry.name);
+      const stat = fs.statSync(fullPath);
       const content = fs.readFileSync(fullPath, "utf-8");
+      // Stand mitschreiben, sonst koennte getScript den Eintrag nie
+      // revalidieren und der Preload waere eine Hintertuer zurueck in den
+      // alten, nie ablaufenden Cache.
+      const entryValue: CachedScript = {
+        path: fullPath,
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+        content,
+      };
       if (scope === "shared") {
         const ref: ScriptRef = {
           name: entry.name,
           scope: "shared",
           category,
         };
-        this.scriptCache.set(this.getScriptCacheKey(ref), content);
+        this.scriptCache.set(this.getScriptCacheKey(ref), entryValue);
       } else if (applicationId) {
         const ref: ScriptRef = {
           name: entry.name,
@@ -952,7 +1015,7 @@ export class FileSystemRepositories
           applicationId,
           category: "",
         };
-        this.scriptCache.set(this.getScriptCacheKey(ref), content);
+        this.scriptCache.set(this.getScriptCacheKey(ref), entryValue);
       }
     }
   }
