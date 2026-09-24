@@ -862,7 +862,9 @@ export class ApplicationPersistenceHandler {
     opts: IReadApplicationOptions,
   ): void {
     // Installation uses category-based format: { image, pre_start, start, post_start }
-    const installationCategories = ["image", "create_ct", "pre_start", "pre_start_finalize", "start", "post_start", "replace_ct", "check"];
+    // Aus CATEGORY_ORDER abgeleitet: zwei getrennte Listen derselben
+    // Kategorien sind genau einmal auseinandergelaufen, das reicht.
+    const installationCategories = ApplicationPersistenceHandler.CATEGORY_ORDER;
     const installation = (appData as any).installation;
     if (installation && typeof installation === "object") {
       let taskEntry = opts.taskTemplates.find((t) => t.task === "installation");
@@ -1033,6 +1035,22 @@ export class ApplicationPersistenceHandler {
    * Category order for installation tasks.
    * Templates are grouped by category in this order.
    */
+  /**
+   * Reihenfolge der Installationsphasen — maßgeblich für
+   * findCategoryInsertIndex und damit dafür, wo ein geerbtes Template landet.
+   *
+   * "check" gehört ans Ende und MUSS hier stehen: Fehlt eine Kategorie in
+   * dieser Liste, liefert indexOf -1, findCategoryInsertIndex findet keine
+   * "spätere Kategorie" mehr und hängt alles Folgende hinten an. Genau so
+   * rutschte das post_start einer erbenden App hinter die Checks des
+   * Frameworks — und weil ein fehlgeschlagener Check den Lauf abbricht, lief
+   * der eigentliche Schritt der App nie. Gefunden am 24.09.2026 an einem
+   * Gitea-act_runner, dessen ganze Arbeit in post_start steht und der
+   * deshalb nie startete.
+   *
+   * Die Liste ist die einzige Quelle; processTemplates leitet die Kategorien,
+   * die es liest, daraus ab, damit beide nicht wieder auseinanderlaufen.
+   */
   private static readonly CATEGORY_ORDER = [
     "image",
     "create_ct",
@@ -1041,6 +1059,7 @@ export class ApplicationPersistenceHandler {
     "start",
     "post_start",
     "replace_ct",
+    "check",
   ];
 
   /**
