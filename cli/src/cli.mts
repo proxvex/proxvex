@@ -393,6 +393,69 @@ export class RemoteCli {
     }
   }
 
+  /**
+   * Variable names a stacktype expects from a human: `external: true` in the
+   * stacktype definition. Everything else proxvex generates itself, which is
+   * why an auto-created stack is harmless for those stacktypes and harmful
+   * for these.
+   *
+   * Cached because resolveStack asks once per requested stack id.
+   * A failed lookup yields an empty list on purpose — not being able to read
+   * the stacktypes must not turn into a refusal to deploy.
+   */
+  private stacktypeExternals?: Map<string, string[]>;
+
+  private async externalVariablesOf(stacktype: string): Promise<string[]> {
+    if (!this.stacktypeExternals) {
+      const map = new Map<string, string[]>();
+      try {
+        const resp = await this.client.getStacktypes();
+        for (const st of resp.stacktypes ?? []) {
+          map.set(
+            st.name,
+            (st.entries ?? [])
+              .filter((v) => v.external === true)
+              .map((v) => v.name),
+          );
+        }
+      } catch {
+        // Stacktypes unavailable — see the note above.
+      }
+      this.stacktypeExternals = map;
+    }
+    return this.stacktypeExternals.get(stacktype) ?? [];
+  }
+
+  /**
+   * Refuse to conjure a stack that a human has to fill in.
+   *
+   * Auto-creation is a convenience for stacktypes whose values proxvex
+   * generates (passwords, master keys). Where a value can only come from
+   * outside — an API token, a registration token — the created stack is
+   * EMPTY, the deploy runs on, and every `{{ VAR }}` resolves to NOT_DEFINED.
+   * The scripts then report whatever they make of an empty value, which sends
+   * the reader looking in the wrong place: on 24.09.2026 a Gitea act_runner
+   * reported "no GITEA_RUNNER_REGISTRATION_TOKEN in the stack" while the token
+   * sat in the stack, correctly filled in — just not in the one the deploy
+   * had been given. Failing here costs one run; failing there costs an
+   * afternoon.
+   */
+  private async refuseEmptyAutoCreate(
+    stacktype: string,
+    stackName: string,
+  ): Promise<void> {
+    const externals = await this.externalVariablesOf(stacktype);
+    if (externals.length === 0) return;
+    throw new CliError(
+      `Stack '${stackName}' (type: ${stacktype}) does not exist and is not created ` +
+        `automatically: it carries ${externals.length} value(s) proxvex cannot generate ` +
+        `(${externals.join(", ")}). An auto-created stack would be empty and the deploy ` +
+        `would run with unresolved variables. Create the stack with its values first ` +
+        `(proxvex UI > Stacks, or POST /api/stacks), then deploy again.`,
+      1,
+    );
+  }
+
   private async resolveStack(
     requestedStackId: string | undefined,
     appStacktype: string | string[] | undefined,
@@ -407,6 +470,8 @@ export class RemoteCli {
       // Check if the requested stack exists (by id)
       const found = existingStacks.find((s) => s.id === requestedStackId);
       if (found) return found.id;
+
+      await this.refuseEmptyAutoCreate(primaryStacktype, requestedStackId);
 
       // Auto-create the requested stack (name = requestedStackId, server generates the id)
       if (!this.options.quiet) {
@@ -433,6 +498,7 @@ export class RemoteCli {
 
     // No stacks exist — create "default"
     const defaultName = "default";
+    await this.refuseEmptyAutoCreate(primaryStacktype, defaultName);
     if (!this.options.quiet) {
       process.stderr.write(
         `No stacks found. Creating stack '${defaultName}' (type: ${primaryStacktype})...\n`,
