@@ -1,7 +1,7 @@
 {
-  "execute_on": "lxc",
+  "execute_on": "hook",
   "name": "Start Dockerd",
-  "description": "Launch dockerd via nohup. The pre-baked debian-docker LXC base has docker installed but no init system, so we start the daemon directly. 330-svc-start-docker-compose polls for readiness afterwards. The script also wires project-level registry mirrors into /etc/docker/daemon.json (Docker Hub), the LXC nameservers as `dns` upstream in daemon.json (avoids embedded-DNS forwarding glitches in nested LXC-Docker setups), and /etc/hosts (ghcr.io) when the corresponding project defaults are set.",
+  "description": "Deploys the dockerd starter as an on-start hook and runs it once immediately. The pre-baked debian-docker LXC base has docker installed but no init system, so the daemon must be launched explicitly — at deploy time and again on every container start, including after a host reboot. Both moments are served by this one script: `execute_on: \"hook\"` writes it to /etc/proxvex/on_start.d/ (base64, no heredoc) and triggers it now. It waits for the socket and retries once, because a cold host boot can starve the embedded containerd until dockerd gives up (measured: 8.99 s to boot, dockerd exits, nothing retried, container left without Docker). The script also wires project-level registry mirrors into /etc/docker/daemon.json (Docker Hub), the LXC nameservers as `dns` upstream in daemon.json (avoids embedded-DNS forwarding glitches in nested LXC-Docker setups), and /etc/hosts (ghcr.io) when the corresponding project defaults are set. Replaces the host-side generator 167-conf-write-dockerd-on-start.json, whose heredoc produced a second, near-identical copy of the same logic.",
   "persists_container_state": true,
   "parameters": [
     "docker_registry_mirror",
@@ -10,7 +10,8 @@
   "commands": [
     {
       "name": "Start Dockerd",
-      "script": "post-start-dockerd.sh"
+      "script": "post-start-dockerd.sh",
+      "description": "Deploy dockerd on-start hook (runs at deploy + every container start)"
     }
   ]
 }

@@ -53,7 +53,6 @@
       "108-host-push-ca-to-container.json",
       "164-conf-write-on-start-dispatcher.json",
       "165-conf-register-hookscript.json",
-      "167-conf-write-dockerd-on-start.json",
       "168-conf-write-dockerd-on-stop.json"
     ],
     "pre_start_finalize": [
@@ -100,7 +99,6 @@
       "108-host-push-ca-to-container.json",
       "164-conf-write-on-start-dispatcher.json",
       "165-conf-register-hookscript.json",
-      "167-conf-write-dockerd-on-start.json",
       "168-conf-write-dockerd-on-stop.json",
       "191-host-write-docker-compose-notes.json"
     ],

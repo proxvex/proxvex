@@ -6,16 +6,34 @@
 # is too minimal for systemd, and OCI-derived LXC rootfs aren't designed
 # to run an init anyway. So we launch dockerd directly via nohup.
 #
+# THIS IS THE ONLY DOCKERD STARTER. Its template (307-post-start-dockerd.json)
+# runs with `execute_on: "hook"`, which deploys this very file into
+# /etc/proxvex/on_start.d/ *and* runs it once right away. One script therefore
+# covers both moments: the deploy (install/upgrade/reconfigure) and every later
+# container start, including after a host reboot. Until 2026-10 a second,
+# near-identical copy of this logic was generated host-side by
+# conf-write-dockerd-on-start.sh via a two-part heredoc — 54 of its 55 code
+# lines were word-identical with this file, which is exactly how two copies
+# start to drift.
+#
 # Idempotent: a second run notices dockerd already on its socket and
 # exits 0, so post_start replays after rollback don't double-start.
-#
-# 330-svc-start-docker-compose.sh polls `docker info` for up to 30
-# attempts before giving up, so we don't block here on readiness — just
-# ensure dockerd is launched.
 
 set -eu
 
 LOG_FILE="/var/log/dockerd.log"
+
+# Retire the legacy drop-in written by conf-write-dockerd-on-start.sh (removed
+# 2026-10). /etc/proxvex is a persistent volume, so that file survives the
+# switch — and it sorts BEFORE this hook, so on the next container start it
+# would run first, launch dockerd with the old copy of this logic, and leave
+# this script reporting "already responsive". The fix below would then be
+# silently inert. Remove it before doing anything else.
+LEGACY_HOOK="/etc/proxvex/on_start.d/50-start-dockerd.sh"
+if [ -e "$LEGACY_HOOK" ]; then
+  rm -f "$LEGACY_HOOK"
+  echo "removed legacy dockerd hook: ${LEGACY_HOOK}" >&2
+fi
 
 if docker info >/dev/null 2>&1; then
   echo "dockerd already responsive — skipping start" >&2
@@ -133,10 +151,70 @@ if [ -n "$GHCR_REGISTRY_MIRROR" ] && ! grep -q "$GHCR_HOSTS_MARKER" /etc/hosts 2
   fi
 fi
 
-# nohup + setsid so dockerd survives the SSH session that launched it.
-# stdout/stderr → log file; stdin → /dev/null. PID is reaped by the
-# LXC's PID 1.
-nohup setsid /usr/sbin/dockerd \
-  >> "$LOG_FILE" 2>&1 < /dev/null &
+# Launch dockerd, then CHECK THAT IT SURVIVED.
+#
+# Fire-and-forget is not enough, and the failure is a real one (ubuntupve,
+# 2026-10-02): a host reboot started eight containers at once, dockerd's
+# embedded containerd needed 8.99 s to boot in one of them, dockerd's internal
+# wait expired first and the daemon exited:
+#
+#   containerd successfully booted in 8.994800s
+#   failed to start containerd: timeout waiting for containerd to start
+#
+# Nothing retried, so two of four containers came up with no Docker at all and
+# stayed that way until someone noticed. The containers themselves were fine —
+# their restart policies brought all 20 back the moment dockerd ran — so
+# dockerd is the only part that needs to be robust here.
+#
+# That timeout lives inside dockerd and is not exposed in daemon.json, so the
+# lever is a retry rather than a longer wait. One retry is enough because the
+# cause is contention, not a broken daemon: measured on the same host minutes
+# later, containerd was up in 18 ms.
+#
+# nohup + setsid so dockerd survives the SSH/pct exec session that launched it.
+# stdout/stderr → log file; stdin → /dev/null. PID is reaped by the LXC's PID 1.
+start_dockerd() {
+  nohup setsid /usr/sbin/dockerd \
+    >> "$LOG_FILE" 2>&1 < /dev/null &
+  echo "dockerd started (logs at ${LOG_FILE})" >&2
+}
 
-echo "dockerd started (logs at ${LOG_FILE})" >&2
+# Wait for the socket to answer. The same polling shape already exists one file
+# over, in the act_runner forward hook — it waits up to 90 s for dockerd.
+wait_for_dockerd() {
+  waited=0
+  while [ "$waited" -lt "$1" ]; do
+    if docker info >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  return 1
+}
+
+start_dockerd
+if wait_for_dockerd 60; then
+  echo "dockerd responsive" >&2
+else
+  echo "WARN: dockerd did not become responsive within 60s — retrying once" >&2
+  tail -n 5 "$LOG_FILE" >&2 || true
+  # Stale pid/sock files from the dead attempt would make the retry refuse to
+  # start ("process with PID N is still running"), so clear them again.
+  rm -f /var/run/docker.pid /var/run/docker.sock
+  rm -f /run/docker/containerd/containerd.pid \
+        /run/docker/containerd/containerd.sock \
+        /run/docker/containerd/containerd.sock.ttrpc \
+        /run/docker/containerd/containerd-debug.sock
+  start_dockerd
+  if wait_for_dockerd 60; then
+    echo "dockerd responsive after retry" >&2
+  else
+    # Exit non-zero so the on-start dispatcher reports ===OCI_HOOK_ERROR=== and
+    # 350-host-check-hook-log.json sees it. A container silently running without
+    # Docker is the outcome this whole block exists to prevent.
+    echo "Error: dockerd still not responsive after retry" >&2
+    tail -n 20 "$LOG_FILE" >&2 || true
+    exit 1
+  fi
+fi
