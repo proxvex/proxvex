@@ -158,7 +158,7 @@ $_pve_aline" ;;
 # The dispatcher is generic: Proxmox invokes it on container start and it runs
 # every executable drop-in in on_start.d/. Which drop-ins exist is decided by
 # the callers — addons (ssl-proxy.sh, acme-renew.sh, smbd.sh) and the
-# docker-compose hooks (50-start-dockerd.sh) — so the dispatcher itself must
+# docker-compose hooks (307-post-start-dockerd.sh) — so the dispatcher itself must
 # not depend on any addon parameter.
 #
 # Args: $1=volume dir (host-side proxvex volume), $2=owner as "uid:gid"

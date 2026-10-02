@@ -32,8 +32,12 @@ fi
 [ -z "$ACTUAL_HOST" ] && ACTUAL_HOST="$HOSTNAME"
 
 SAFE_HOST=$(pve_sanitize_name "$ACTUAL_HOST")
-# Tolerant lookup — see conf-write-dockerd-on-start.sh: a missing proxvex
-# volume is a skip, not an installation failure.
+# Tolerant lookup: a container without the proxvex volume (e.g. one created
+# before the volume became standard for docker-compose apps) has nowhere to put
+# the hook. That is a skip, not an installation failure — so the lookup must not
+# abort the script under `set -e`. (This note used to point at
+# conf-write-dockerd-on-start.sh, which was removed when the dockerd starter
+# became a single `execute_on: "hook"` script.)
 VOLUME_DIR=$(resolve_host_volume "$SAFE_HOST" "proxvex" "$VM_ID" 2>/dev/null || echo "")
 
 if [ -z "$VOLUME_DIR" ] || [ ! -d "$VOLUME_DIR" ]; then
