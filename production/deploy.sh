@@ -284,7 +284,7 @@ PY
 # upgrade/reconfigure are exempt — they intentionally target the existing
 # container (resolve_previous_vmid handles those).
 _managed_vmids_for_app() {
-  local app="$1" body
+  local app="$1" hostname="${2:-}" body
   body=$(auth_curl -sk --max-time 30 \
     "$SERVER/api/ve_${PVE_HOST}/installations" 2>/dev/null || true)
   [ -z "$body" ] && return 0
@@ -300,8 +300,15 @@ except Exception:
     sys.exit(0)
 if not isinstance(data, list):
     sys.exit(0)
+hostname = '$hostname'
 for entry in data:
     if isinstance(entry, dict) and entry.get('application_id') == '$app':
+        # With a hostname in the params file, only a container of the SAME
+        # hostname counts as a re-install: one application may be installed
+        # several times on a host under different hostnames (e.g. heimvio-green
+        # and heimvio-yellow). Without a hostname the guard stays app-wide.
+        if hostname and entry.get('hostname') != hostname:
+            continue
         vm = entry.get('vm_id')
         if vm is not None:
             print(vm)
@@ -309,7 +316,7 @@ for entry in data:
 }
 
 guard_no_existing_install() {
-  local params_file="$1" task app vmids v
+  local params_file="$1" task app hostname vmids v
   task=$(grep -oE '"task"[[:space:]]*:[[:space:]]*"[^"]+"' "$params_file" 2>/dev/null \
     | head -1 | sed -E 's/.*"task"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
   case "$task" in
@@ -318,7 +325,19 @@ guard_no_existing_install() {
   app=$(grep -oE '"application"[[:space:]]*:[[:space:]]*"[^"]+"' "$params_file" 2>/dev/null \
     | head -1 | sed -E 's/.*"application"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
   [ -z "$app" ] && return 0
-  vmids=$(_managed_vmids_for_app "$app" | grep -E '^[0-9]+$' | sort -u || true)
+  # "hostname" param (if any): scopes the guard to that instance.
+  hostname=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    for p in d.get('params', []):
+        if isinstance(p, dict) and p.get('name') == 'hostname':
+            print(p.get('value', ''))
+            break
+except Exception:
+    pass
+" "$params_file" 2>/dev/null || true)
+  vmids=$(_managed_vmids_for_app "$app" "$hostname" | grep -E '^[0-9]+$' | sort -u || true)
   [ -z "$vmids" ] && return 0
   if [ "${REPLACE:-0}" -eq 1 ]; then
     echo "  --replace: destroying existing '$app' container(s) on ${PVE_HOST}: $(echo $vmids)" >&2
