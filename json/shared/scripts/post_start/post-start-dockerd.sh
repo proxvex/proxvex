@@ -173,8 +173,20 @@ fi
 #
 # nohup + setsid so dockerd survives the SSH/pct exec session that launched it.
 # stdout/stderr → log file; stdin → /dev/null. PID is reaped by the LXC's PID 1.
+#
+# Surviving the session is not enough — dockerd must not INHERIT it either.
+# `pct exec` passes the caller's environment through, and an ssh login on the
+# host carries XDG_RUNTIME_DIR=/run/user/0. dockerd hands it to containerd and
+# runc, and runc puts its exec state files there. The LXC has no logind, so
+# /run/user/0 never exists, and from then on EVERY `docker exec` fails with
+#   OCI runtime exec failed: open /run/user/0/runc-process…: no such file
+# while `docker ps`, `up` and the running containers look perfectly healthy
+# (found 2026-10-02 in heimvio-green: dockerd and containerd both carried
+# XDG_SESSION_ID=18 from the session that had restarted them). Drop the
+# session variables so a start from a login shell equals a start at boot.
 start_dockerd() {
-  nohup setsid /usr/sbin/dockerd \
+  nohup setsid env -u XDG_RUNTIME_DIR -u XDG_SESSION_ID -u XDG_SESSION_TYPE \
+    -u XDG_SESSION_CLASS /usr/sbin/dockerd \
     >> "$LOG_FILE" 2>&1 < /dev/null &
   echo "dockerd started (logs at ${LOG_FILE})" >&2
 }
