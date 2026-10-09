@@ -27,9 +27,9 @@ unset _pvx_self _pvx_rr
 #    ubuntupve, 192.168.4.50) is reachable.
 # 4. Wires registry routing in the nested VM:
 #      - dnsmasq adds A-records `docker-mirror-test → 192.168.4.49` and
-#        `zot-mirror → 192.168.4.50`, plus DNS-redirect `ghcr.io →
-#        192.168.4.50` (Docker has no per-registry mirror switch for
-#        ghcr.io, so DNS-redirect handles it transparently).
+#        `zot-mirror → 192.168.4.50`. The DNS-redirect `ghcr.io → ghcr
+#        mirror` is only active with GHCR_MIRROR_ENABLED=1 (default off:
+#        ghcr.io is pulled directly).
 #      - /etc/containers/registries.conf points docker.io at
 #        `${TEST_MIRROR_HOST}` for any pull through skopeo (used by
 #        step2b-install-deployer.sh, install-ci.sh, and the deployer's
@@ -42,8 +42,8 @@ unset _pvx_self _pvx_rr
 #         registries.conf routing). On a cold mirror this triggers ONE
 #         pull-through to Docker Hub for alpine — well within the 100/6h
 #         anonymous limit. On a warm mirror it's a cache hit.
-#      c) curl https://ghcr.io/v2/ — DNS-redirect lands at zot-mirror,
-#         cert SAN includes DNS:ghcr.io, validates cleanly.
+#      c) curl https://ghcr.io/v2/ — directly (mirror disabled) or via the
+#         DNS-redirect to the ghcr mirror (GHCR_MIRROR_ENABLED=1).
 # 6. Creates the 'mirrors-ready' snapshot so step2b can roll back to a
 #    clean environment with the mirror routing already wired.
 #
@@ -187,7 +187,10 @@ echo ""
 #                            distribution-based ghcr-registry-mirror at .48 is
 #                            no longer in the redirect path (LXC may still
 #                            exist but is unused by the test path).
-SCHEMA_VERSION="v5-zot-mirror"
+# v6-ghcr-direct           = no ghcr.io mirror for now (GHCR_MIRROR_ENABLED=0):
+#                            the ghcr.io redirect is written commented out,
+#                            ghcr.io is pulled directly from the internet.
+SCHEMA_VERSION="v6-ghcr-direct"
 
 # Step 0: idempotency check — only skip when BOTH versions-hash AND schema match.
 # A schema mismatch forces a rebuild even if versions.sh is unchanged, so a
@@ -297,6 +300,9 @@ ZOT_MIRROR_HOST="${ZOT_MIRROR_HOST:-zot-mirror}"
 # zot-mirror (192.168.4.50) as the ghcr.io target.
 GHCR_MIRROR_IP="${GHCR_MIRROR_IP:-192.168.4.48}"
 GHCR_MIRROR_HOST="${GHCR_MIRROR_HOST:-ghcr-mirror}"
+# The ghcr mirror is switched off for now: ghcr.io is pulled directly. Set
+# GHCR_MIRROR_ENABLED=1 once a mirror runs at GHCR_MIRROR_IP again.
+GHCR_MIRROR_ENABLED="${GHCR_MIRROR_ENABLED:-0}"
 # Note: mcr.microsoft.com needs no dedicated mirror. The playwright image
 # (the only mcr consumer) is re-hosted to ghcr.io/proxvex/playwright via
 # .github/workflows/playwright-image-mirror.yml, so it pulls through the
@@ -305,7 +311,9 @@ GHCR_MIRROR_HOST="${GHCR_MIRROR_HOST:-ghcr-mirror}"
 # mirrors-ready snapshot can still be created even when the mirror is down.
 # ghcr.io pulls will then fail at install-time for any consumer that needs
 # them, but the snapshot itself is created and step2b can proceed.
-if [ "${STEP2A_SKIP_ZOT_MIRROR:-}" = "1" ]; then
+if [ "$GHCR_MIRROR_ENABLED" != "1" ]; then
+    info "ghcr mirror disabled (GHCR_MIRROR_ENABLED=0) — ghcr.io is pulled directly"
+elif [ "${STEP2A_SKIP_ZOT_MIRROR:-}" = "1" ]; then
     info "STEP2A_SKIP_ZOT_MIRROR=1 — skipping ghcr-mirror reachability check"
 else
     header "Verifying ghcr-mirror (${GHCR_MIRROR_HOST} @ ${GHCR_MIRROR_IP})"
@@ -361,12 +369,20 @@ fi
 # DNS:ghcr.io). Docker has no per-registry mirror switch for ghcr.io, so the
 # DNS-redirect handles transparent routing for any client; TLS validates
 # against the proxvex CA baked into the nested VM at step1.
-GHCR_REDIRECT_BLOCK="# ghcr.io -> ghcr-registry-mirror IP (distribution pull-through, ghcr.io
+if [ "$GHCR_MIRROR_ENABLED" = "1" ]; then
+    GHCR_REDIRECT_BLOCK="# ghcr.io -> ghcr-registry-mirror IP (distribution pull-through, ghcr.io
 # upstream). Install via production/setup-ghcr-mirror.sh. Cert SAN includes
 # DNS:ghcr.io so TLS validates cleanly.
 address=/ghcr.io/${GHCR_MIRROR_IP}
 address=/ghcr.io/::"
-GHCR_TARGET_DESC="${GHCR_MIRROR_IP}"
+    GHCR_TARGET_DESC="${GHCR_MIRROR_IP}"
+else
+    GHCR_REDIRECT_BLOCK="# ghcr.io mirror disabled (GHCR_MIRROR_ENABLED=0): ghcr.io is pulled
+# directly. Re-enable with GHCR_MIRROR_ENABLED=1 once the mirror runs again.
+#address=/ghcr.io/${GHCR_MIRROR_IP}
+#address=/ghcr.io/::"
+    GHCR_TARGET_DESC="direct (mirror disabled)"
+fi
 header "Wiring dnsmasq registry redirects + mirror hostnames"
 nested_ssh "
     cfg=/etc/dnsmasq.d/e2e-nat.conf
@@ -501,7 +517,17 @@ fi
 # at that IP with a cert SAN matching DNS:ghcr.io, so curl validates
 # cleanly. On a cold cache this triggers one ghcr.io pull-through to
 # populate the index — ghcr.io is anonymous-friendly, no rate-limit concern.
-if [ "${STEP2A_SKIP_ZOT_MIRROR:-}" = "1" ]; then
+if [ "$GHCR_MIRROR_ENABLED" != "1" ]; then
+    # Direct path: /v2/ answers 401 (token challenge) when ghcr.io is reachable.
+    header "Smoketest: ghcr.io direct"
+    _ghcr_code=$(nested_ssh "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 https://ghcr.io/v2/" || true)
+    case "$_ghcr_code" in
+        200|401) success "ghcr.io reachable directly (HTTP $_ghcr_code)" ;;
+        *) error "https://ghcr.io/v2/ unreachable from the nested VM (HTTP '${_ghcr_code}').
+        - Check outbound NAT on the outer PVE host (POSTROUTING MASQUERADE on the
+          default-route interface — see step1-create-vm.sh)." ;;
+    esac
+elif [ "${STEP2A_SKIP_ZOT_MIRROR:-}" = "1" ]; then
     info "STEP2A_SKIP_ZOT_MIRROR=1 — skipping ghcr.io smoketest"
 else
     header "Smoketest: ghcr.io via ghcr-mirror"
