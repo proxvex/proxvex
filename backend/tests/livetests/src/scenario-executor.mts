@@ -7,7 +7,7 @@
 
 import { runCli, type CliJsonResult } from "./cli-executor.mjs";
 import { SnapshotManager } from "./snapshot-manager.mjs";
-import { nestedSsh, nestedSshAsync, nestedSshStrictAsync, waitForServices, waitForContainerStable, waitForLxcInit } from "./ssh-helpers.mjs";
+import { nestedSsh, nestedSshAsync, nestedSshStrictAsync, waitForServices, waitForContainerStable, waitForLxcInit, withZfsCloneRelease } from "./ssh-helpers.mjs";
 import { buildParams, partitionAfterFailure, classifyParallel, assignStoragePerScenario } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import { collectFailureLogs } from "./diagnostics.mjs";
@@ -2197,7 +2197,8 @@ export async function executeScenarios(
             try {
               await nestedSshAsync(
                 config.pveHost, config.portPveSsh,
-                `pct stop ${cloneVmId} 2>/dev/null; pct unlock ${cloneVmId} 2>/dev/null; pct destroy ${cloneVmId} --force --purge 2>/dev/null; true`,
+                `pct stop ${cloneVmId} 2>/dev/null; pct unlock ${cloneVmId} 2>/dev/null; `
+                + withZfsCloneRelease(cloneVmId, `pct destroy ${cloneVmId} --force --purge 2>/dev/null`),
                 30000,
               );
               logInfo(`Destroyed source clone VM ${cloneVmId}`);

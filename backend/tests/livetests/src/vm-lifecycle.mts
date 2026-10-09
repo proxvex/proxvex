@@ -8,7 +8,7 @@
  */
 
 import { SnapshotManager } from "./snapshot-manager.mjs";
-import { nestedSsh, nestedSshStrict, nestedSshAsync } from "./ssh-helpers.mjs";
+import { nestedSsh, nestedSshStrict, nestedSshAsync, withZfsCloneRelease } from "./ssh-helpers.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { PlannedScenario, ResolvedScenario } from "./livetest-types.mjs";
@@ -663,7 +663,8 @@ export function prepareVms(
       nestedSsh(config.pveHost, config.portPveSsh,
         `pct status ${1000 + p.vmId} >/dev/null 2>&1 `
         + `&& { pct unlock ${1000 + p.vmId} 2>/dev/null; `
-        + `pct destroy ${1000 + p.vmId} --purge 2>/dev/null; }; true`,
+        + withZfsCloneRelease(1000 + p.vmId, `pct destroy ${1000 + p.vmId} --purge 2>/dev/null`)
+        + `; }; true`,
         60000);
     } catch { /* ignore */ }
 

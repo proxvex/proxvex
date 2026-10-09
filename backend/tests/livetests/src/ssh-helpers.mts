@@ -263,3 +263,32 @@ export async function waitForContainerStable(
     await new Promise((r) => setTimeout(r, Math.min(pollInterval * 1000, remainingMs)));
   }
 }
+
+/**
+ * Wrap a `pct destroy` command line so it also works on a container whose
+ * rootfs snapshot another container was cloned from (create-ct-clone.sh
+ * clones the rootfs with `zfs clone`; a reconfigure's isolated source is such
+ * a container). Before the destroy every dependent clone is promoted; after
+ * it, the snapshots that moved over from the destroyed container are removed
+ * again so they do not linger on the clone. Mirrors vol_promote_dependents /
+ * vol_destroy_unused_origins in json/shared/scripts/library/vol-common.sh.
+ */
+export function withZfsCloneRelease(vmid: number | string, destroyCmd: string): string {
+  return (
+    `_moved=""; ` +
+    `for _ds in $(zfs list -H -o name 2>/dev/null | grep -E "/subvol-${vmid}-[^/]+$"); do ` +
+    // The container is itself a clone: its origin goes once it is destroyed.
+    `_o=$(zfs get -H -o value origin "$_ds" 2>/dev/null); ` +
+    `case "$_o" in *@oci-clone-*) _moved="$_moved $_o" ;; esac; ` +
+    `_names=$(zfs list -H -o name -t snapshot "$_ds" 2>/dev/null | sed "s/.*@//"); ` +
+    `for _s in $(zfs list -H -o name -t snapshot "$_ds" 2>/dev/null); do ` +
+    `for _c in $(zfs get -H -o value clones "$_s" 2>/dev/null | tr , " "); do ` +
+    `[ "$_c" = "-" ] && continue; zfs promote "$_c" 2>/dev/null || continue; ` +
+    `for _n in $_names; do _moved="$_moved $_c@$_n"; done; ` +
+    `done; done; done; ` +
+    `${destroyCmd}; ` +
+    `for _m in $_moved; do zfs list -H -o name "$_m" >/dev/null 2>&1 || continue; ` +
+    `[ -z "$(zfs get -H -o value clones "$_m" 2>/dev/null | tr -d -)" ] && zfs destroy "$_m" 2>/dev/null; ` +
+    `done; true`
+  );
+}
