@@ -108,14 +108,6 @@ pct config "$SOURCE_VMID" | while IFS= read -r line; do
   esac
 done
 
-BIND_KEYS=""
-if [ -s "$BIND_MOUNTS_FILE" ]; then
-  BIND_KEYS=$(awk -F: '{print $1}' "$BIND_MOUNTS_FILE" | paste -sd, -)
-  log "Temporarily removing bind mounts ($BIND_KEYS) from $SOURCE_VMID for snapshot/clone"
-  pct set "$SOURCE_VMID" --delete "$BIND_KEYS" >&2 \
-    || fail "Failed to delete bind mounts $BIND_KEYS from $SOURCE_VMID"
-fi
-
 restore_source_binds() {
   [ -s "$BIND_MOUNTS_FILE" ] || return 0
   while IFS= read -r line; do
@@ -126,14 +118,69 @@ restore_source_binds() {
   done < "$BIND_MOUNTS_FILE"
 }
 
+# Whatever happens between stripping the bind mounts and the regular cleanup
+# below (an error under set -e, a failed command, SIGTERM/SIGINT from an
+# aborted task), the source must end up as it was: no half-built target, no
+# clone snapshot (it would block later rollbacks), bind mounts back in place.
+BINDS_STRIPPED=false
+SNAP_TAKEN=false
+CLONE_IN_PROGRESS=false
+SOURCE_RESTORED=false
+SNAPNAME=""
+_hb_pid=""
+MAIN_CONF_FILE=""; VOLUMES_FILE=""; CREATED_FILE=""; MAPPING_FILE=""
+on_exit() {
+  # Best effort: no single failing step may stop the rest of the cleanup.
+  set +e
+  if [ "$SOURCE_RESTORED" != true ]; then
+    log "Clone aborted — restoring source $SOURCE_VMID"
+    if [ -n "$_hb_pid" ]; then
+      kill "$_hb_pid" 2>/dev/null
+      wait "$_hb_pid" 2>/dev/null
+    fi
+    if [ "$CLONE_IN_PROGRESS" = true ] && [ -n "$CREATED_FILE" ]; then
+      zfs_clone_cleanup
+    fi
+    if [ "$SNAP_TAKEN" = true ]; then
+      pct delsnapshot "$SOURCE_VMID" "$SNAPNAME" --force >&2 \
+        || log "Warning: could not delete snapshot $SNAPNAME on $SOURCE_VMID"
+    fi
+    if [ "$BINDS_STRIPPED" = true ]; then
+      restore_source_binds
+    fi
+  fi
+  rm -f "$BIND_MOUNTS_FILE" "$MAIN_CONF_FILE" "$VOLUMES_FILE" "$CREATED_FILE" "$MAPPING_FILE"
+}
+trap on_exit EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+BIND_KEYS=""
+if [ -s "$BIND_MOUNTS_FILE" ]; then
+  BIND_KEYS=$(awk -F: '{print $1}' "$BIND_MOUNTS_FILE" | paste -sd, -)
+  log "Temporarily removing bind mounts ($BIND_KEYS) from $SOURCE_VMID for snapshot/clone"
+  BINDS_STRIPPED=true
+  pct set "$SOURCE_VMID" --delete "$BIND_KEYS" >&2 \
+    || fail "Failed to delete bind mounts $BIND_KEYS from $SOURCE_VMID"
+fi
+
+# Drop leftover clone snapshots from earlier runs whose clone is gone (e.g.
+# the source of a previous reconfigure was removed with a plain pct destroy).
+# They would block a later `pct rollback` of the container holding them.
+_src_rootfs_pool=$(vol_get_zfs_pool "$ROOTFS_STORAGE")
+[ -n "$_src_rootfs_pool" ] && vol_destroy_stale_clone_snapshots "$_src_rootfs_pool"
+
 # Snapshot + clone so the source container (potentially the deployer itself)
 # can keep running throughout. Cloning from a snapshot works on a running
 # source on snapshot-capable storage (ZFS, LVM-thin, etc.).
 SNAPNAME="oci-clone-$(date +%s)"
 log "Creating snapshot $SNAPNAME on $SOURCE_VMID..."
+# Set before the call: a signal arriving while pct snapshot runs is handled
+# only after it returns, and by then the snapshot exists. If it does not,
+# the trap's delsnapshot just fails.
+SNAP_TAKEN=true
 if ! pct snapshot "$SOURCE_VMID" "$SNAPNAME" >&2; then
-  restore_source_binds
-  rm -f "$BIND_MOUNTS_FILE"
   fail "pct snapshot failed — source $SOURCE_VMID may have unsupported volumes"
 fi
 
@@ -150,7 +197,10 @@ run_with_heartbeat() {
     kill -0 "$_hb_pid" 2>/dev/null || break
     log "$_hb_label: still running ($(($(date +%s) - _hb_started))s elapsed)"
   done
-  wait "$_hb_pid"
+  _hb_rc=0
+  wait "$_hb_pid" || _hb_rc=$?
+  _hb_pid=""   # the trap must not kill a recycled PID
+  return "$_hb_rc"
 }
 
 # ─── Volume copy ──────────────────────────────────────────────────────────────
@@ -158,8 +208,19 @@ run_with_heartbeat() {
 # is rsync — file by file. On a Docker host (hundreds of thousands of small
 # files under /var/lib/docker) that takes ~10 minutes for 3.5 GB. When every
 # volume lives on a zfspool storage we do what pct clone does with pct/pvesm
-# primitives and copy each volume as ONE block stream (zfs send | zfs recv)
-# instead. Everything else falls back to pct clone unchanged.
+# primitives instead. Everything else falls back to pct clone unchanged.
+#
+# - rootfs (system + /var/lib/docker, the big one): `zfs clone` of the
+#   snapshot — copy-on-write, instant regardless of size. The source keeps
+#   its snapshots (and with them its rollback history) until it is destroyed;
+#   only then does vol_promote_dependents (host-destroy-replaced-container.sh)
+#   hand the clone snapshot over to the new container and remove it. While
+#   the new container exists the source cannot be rolled back (ZFS: a
+#   snapshot with a dependent clone blocks the rollback); destroying the new
+#   container removes the clone snapshot and frees the source again.
+# - mpN (managed volumes, small): one block stream each (zfs send | zfs recv).
+#   Their copies must stay independent: at replace time the source's volumes
+#   are renamed to clean persistent names and outlive both containers.
 #
 # What pct clone does (PVE::API2::LXC clone_vm) and what we reproduce:
 #   - config from the source (snapshot == current: the snapshot was just taken)
@@ -209,9 +270,19 @@ zfs_clone_possible() {
 CREATED_FILE=$(mktemp)
 MAPPING_FILE=$(mktemp)
 
-# Copy every volume: zfs send -p (properties like refquota/acltype/xattr come
-# along) of the single snapshot — not -R, which would drag older snapshots of
-# the source along as orphans — into the next free subvol-<new>-disk-<n>.
+# "-o prop=value" for every property set on the dataset itself (refquota,
+# acltype, xattr, …). A clone inherits from its parent dataset, not from its
+# origin, so these have to be passed explicitly. "received" covers datasets
+# that came from an earlier send -p.
+zfs_own_props() {
+  zfs get -H -p -o property,value -s local,received all "$1" 2>/dev/null \
+    | awk -F'\t' '{ printf "-o %s=%s ", $1, $2 }'
+}
+
+# Volumes go to the next free subvol-<new>-disk-<n>: the rootfs as a zfs clone
+# of the snapshot, every mpN as zfs send -p (properties come along) of the
+# single snapshot — not -R, which would drag older snapshots of the source
+# along as orphans.
 zfs_copy_volumes() {
   _tgt_pool=$(storage_pool "$ROOTFS_STORAGE")
   _n=0
@@ -222,13 +293,33 @@ zfs_copy_volumes() {
     done
     _new="subvol-$TARGET_VMID-disk-$_n"
     _n=$((_n + 1))
-    log "zfs send $_src_ds@$SNAPNAME -> $_tgt_pool/$_new ($_key)"
     echo "$_tgt_pool/$_new" >> "$CREATED_FILE"
-    zfs send -p "$_src_ds@$SNAPNAME" | zfs recv "$_tgt_pool/$_new" >&2 || return 1
-    zfs list -H -o name "$_tgt_pool/$_new@$SNAPNAME" >/dev/null 2>&1 || return 1
-    zfs destroy "$_tgt_pool/$_new@$SNAPNAME" >&2 || return 1
+    if [ "$_key" = "rootfs" ] && [ "$_tgt_pool" = "$(storage_pool "${_volid%%:*}")" ]; then
+      log "zfs clone $_src_ds@$SNAPNAME -> $_tgt_pool/$_new ($_key)"
+      # shellcheck disable=SC2046 # word splitting of the -o list is intended
+      zfs clone $(zfs_own_props "$_src_ds") "$_src_ds@$SNAPNAME" "$_tgt_pool/$_new" >&2 || return 1
+    else
+      log "zfs send $_src_ds@$SNAPNAME -> $_tgt_pool/$_new ($_key)"
+      zfs send -p "$_src_ds@$SNAPNAME" | zfs recv "$_tgt_pool/$_new" >&2 || return 1
+      zfs list -H -o name "$_tgt_pool/$_new@$SNAPNAME" >/dev/null 2>&1 || return 1
+      zfs destroy "$_tgt_pool/$_new@$SNAPNAME" >&2 || return 1
+    fi
     echo "$_key $ROOTFS_STORAGE:$_new" >> "$MAPPING_FILE"
   done < "$VOLUMES_FILE"
+}
+
+# Is the new rootfs a zfs clone (i.e. does it still need SNAPNAME on the
+# source)? zfs_copy_volumes runs in a background subshell (heartbeat), so the
+# new rootfs is looked up from MAPPING_FILE rather than passed in a variable.
+# The clone is deliberately NOT promoted here: promote would move all of the
+# source's older snapshots to the new dataset, and the replaced container
+# could no longer be rolled back to them during its grace period.
+# host-destroy-replaced-container.sh promotes when the source is destroyed.
+zfs_rootfs_is_clone() {
+  _rootfs_vol=$(awk '$1 == "rootfs" { print $2; exit }' "$MAPPING_FILE")
+  [ -n "$_rootfs_vol" ] || return 1
+  _origin=$(zfs get -H -o value origin "$(storage_pool "${_rootfs_vol%%:*}")/${_rootfs_vol#*:}" 2>/dev/null)
+  [ -n "$_origin" ] && [ "$_origin" != "-" ]
 }
 
 zfs_clone_cleanup() {
@@ -288,12 +379,22 @@ zfs_clone() {
 
 clone_ok=true
 TARGET_CONF_CREATED=false
+DELSNAP_FORCE=""
 if zfs_clone_possible; then
-  log "Cloning $SOURCE_VMID → $TARGET_VMID (snapshot $SNAPNAME, storage $ROOTFS_STORAGE, zfs send/recv)..."
-  if ! zfs_clone; then
+  log "Cloning $SOURCE_VMID → $TARGET_VMID (snapshot $SNAPNAME, storage $ROOTFS_STORAGE, zfs clone/send)..."
+  CLONE_IN_PROGRESS=true
+  if zfs_clone; then
+    # The new rootfs is a clone of the source's rootfs snapshot, which
+    # therefore has to stay: drop the snapshot entry from the source config
+    # and the mpN snapshots, keep the rootfs one. It goes away with the new
+    # container, or moves to it when the source is destroyed.
+    zfs_rootfs_is_clone && DELSNAP_FORCE="--force"
+  else
     clone_ok=false
     zfs_clone_cleanup
   fi
+  # CLONE_IN_PROGRESS stays true until the source is restored below: an
+  # abort before that discards the (complete) target as well.
 else
   log "Cloning $SOURCE_VMID → $TARGET_VMID (snapshot $SNAPNAME, storage $ROOTFS_STORAGE, pct clone --full)..."
   run_with_heartbeat "pct clone $SOURCE_VMID -> $TARGET_VMID" \
@@ -305,13 +406,15 @@ else
 fi
 rm -f "$MAIN_CONF_FILE" "$VOLUMES_FILE" "$CREATED_FILE" "$MAPPING_FILE"
 
-# With --full the target is independent of the snapshot, so we can drop it.
-pct delsnapshot "$SOURCE_VMID" "$SNAPNAME" >&2 \
+# Drop the snapshot on the source (with --full / send the target is a copy;
+# with a rootfs clone only the rootfs snapshot stays, see DELSNAP_FORCE).
+# shellcheck disable=SC2086 # DELSNAP_FORCE is empty or one flag
+pct delsnapshot "$SOURCE_VMID" "$SNAPNAME" $DELSNAP_FORCE >&2 \
   || log "Warning: could not delete snapshot $SNAPNAME on $SOURCE_VMID"
 
 # Restore bind mounts on source — done whether clone succeeded or not.
 restore_source_binds
-rm -f "$BIND_MOUNTS_FILE"
+SOURCE_RESTORED=true
 
 if [ "$clone_ok" != true ]; then
   fail "Failed to clone container $SOURCE_VMID to $TARGET_VMID"
