@@ -1,20 +1,50 @@
 {
   "name": "postgrest",
   "extends": "json:postgrest",
+  "properties": [
+    {
+      "id": "env_file",
+      "default": "file:livetest.env.tpl"
+    }
+  ],
   "installation": {
     "pre_start": [
-      { "name": "188-conf-init-postgrest-testdb.json", "category": "pre_start" }
+      {
+        "name": "188-conf-init-postgrest-testdb.json",
+        "category": "pre_start"
+      }
     ],
     "post_start": [
-      { "name": "355-post-check-postgrest-query.json", "category": "post_start", "position": "end" }
+      {
+        "name": "355-post-check-postgrest-query.json",
+        "category": "post_start",
+        "position": "end"
+      },
+      {
+        "name": "357-post-check-env-rendered.json",
+        "category": "post_start",
+        "position": "end"
+      }
     ]
   },
   "reconfigure": {
     "pre_start": [
-      { "name": "188-conf-init-postgrest-testdb.json", "category": "pre_start" }
+      {
+        "name": "188-conf-init-postgrest-testdb.json",
+        "category": "pre_start"
+      }
     ],
     "post_start": [
-      { "name": "355-post-check-postgrest-query.json", "category": "post_start", "position": "end" }
+      {
+        "name": "355-post-check-postgrest-query.json",
+        "category": "post_start",
+        "position": "end"
+      },
+      {
+        "name": "357-post-check-env-rendered.json",
+        "category": "post_start",
+        "position": "end"
+      }
     ]
   }
 }
