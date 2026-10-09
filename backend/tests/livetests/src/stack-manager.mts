@@ -6,7 +6,7 @@
  * (e.g. postgres password shared between postgres and zitadel).
  */
 
-import { nestedSsh } from "./ssh-helpers.mjs";
+import { nestedSsh, withZfsCloneRelease } from "./ssh-helpers.mjs";
 import type { PlannedScenario } from "./livetest-types.mjs";
 import type { SnapshotManager } from "./snapshot-manager.mjs";
 import { logOk, logInfo } from "./log-helpers.mjs";
@@ -95,7 +95,7 @@ export async function destroyStaleVms(
       if (stackMissing) {
         logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) stack missing — destroying (context mismatch)`);
         nestedSsh(pveHost, sshPort,
-          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+          `pct stop ${p.vmId} 2>/dev/null || true; ${withZfsCloneRelease(p.vmId, `pct destroy ${p.vmId} --force --purge 2>/dev/null`)} || true`,
           30000);
         p.skipExecution = false;
       }

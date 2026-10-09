@@ -5,7 +5,7 @@
  * and to wait for docker services inside containers.
  */
 
-import { execSync, spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 
 /**
  * Execute an SSH command on the PVE host.
@@ -22,10 +22,20 @@ export function nestedSshStrict(
   timeoutMs = 15000,
   stdin?: string,
 ): string {
-  const result = execSync(
-    `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ` +
-    `-o BatchMode=yes -o ConnectTimeout=10 ` +
-    `-p ${port} root@${pveHost} ${JSON.stringify(command)}`,
+  // argv, no local shell — same as nestedSshStrictAsync. A local shell
+  // would expand $VAR, $(…) and `…` in `command` on the dev machine before
+  // it ever reached the PVE host.
+  const result = execFileSync(
+    "ssh",
+    [
+      "-o", "StrictHostKeyChecking=no",
+      "-o", "UserKnownHostsFile=/dev/null",
+      "-o", "BatchMode=yes",
+      "-o", "ConnectTimeout=10",
+      "-p", String(port),
+      `root@${pveHost}`,
+      command,
+    ],
     {
       timeout: timeoutMs,
       encoding: "utf-8",
@@ -289,6 +299,33 @@ export function withZfsCloneRelease(vmid: number | string, destroyCmd: string): 
     `${destroyCmd}; ` +
     `for _m in $_moved; do zfs list -H -o name "$_m" >/dev/null 2>&1 || continue; ` +
     `[ -z "$(zfs get -H -o value clones "$_m" 2>/dev/null | tr -d -)" ] && zfs destroy "$_m" 2>/dev/null; ` +
+    `done; true`
+  );
+}
+
+/**
+ * Shell command that destroys every CT descending — via `zfs clone` of an
+ * `@oci-clone-*` snapshot (create-ct-clone.sh) — from CT `vmid`, deepest
+ * first. In the runner these are always throw-away CTs (isolated sources and
+ * the reconfigure targets cloned from them). While they exist, the clone
+ * snapshot is the CT's most recent snapshot and blocks
+ * `pct rollback <vmid> <older snapshot>`; after the destroy (with
+ * withZfsCloneRelease, which also removes the origin snapshot) the rollback
+ * works again.
+ */
+export function destroyCloneDescendantsCmd(vmid: number): string {
+  return (
+    `_todo=""; _queue="${vmid}"; ` +
+    `while [ -n "$_queue" ]; do set -- $_queue; _v=$1; shift; _queue="$*"; ` +
+    `for _ds in $(zfs list -H -o name 2>/dev/null | grep -E "/subvol-$_v-[^/]+$"); do ` +
+    `for _s in $(zfs list -H -o name -t snapshot "$_ds" 2>/dev/null | grep "@oci-clone-"); do ` +
+    `for _c in $(zfs get -H -o value clones "$_s" 2>/dev/null | tr , " "); do ` +
+    `_id=$(echo "\${_c##*/}" | sed -n "s/^subvol-\\([0-9]*\\)-.*/\\1/p"); [ -n "$_id" ] || continue; ` +
+    `case " $_todo " in *" $_id "*) ;; *) _todo="$_id $_todo"; _queue="$_queue $_id" ;; esac; ` +
+    `done; done; done; done; ` +
+    `for _id in $_todo; do echo "destroying clone descendant $_id of ${vmid}" >&2; ` +
+    `pct stop $_id 2>/dev/null; pct unlock $_id 2>/dev/null; ` +
+    `${withZfsCloneRelease("$_id", "pct destroy $_id --force --purge 2>/dev/null")}; ` +
     `done; true`
   );
 }

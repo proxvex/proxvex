@@ -27,7 +27,7 @@
  *   KEEP_VM=1 tsx live-test-runner.mts github-action zitadel/ssl
  */
 
-import { nestedSsh, nestedSshStrict } from "./ssh-helpers.mjs";
+import { nestedSsh, nestedSshStrict, withZfsCloneRelease } from "./ssh-helpers.mjs";
 import {
   collectWithDeps, selectScenarios, planScenarios, applyTagFilter,
   classifyRunMode, loadSnapshotCatalog, loadScenarioListFromFile,
@@ -431,7 +431,7 @@ function cleanupVms(
     } else {
       logInfo(`Cleaning up VM ${p.vmId}...`);
       nestedSsh(pveHost, sshPort,
-        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+        `pct stop ${p.vmId} 2>/dev/null || true; ${withZfsCloneRelease(p.vmId, `pct destroy ${p.vmId} --force --purge 2>/dev/null`)} || true`,
         30000,
       );
     }
