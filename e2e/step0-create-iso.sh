@@ -132,19 +132,24 @@ else
     success "$VM_BRIDGE brought up manually ($GATEWAY)"
 fi
 
-# Enable IP forwarding and NAT masquerading
+# Enable IP forwarding and NAT masquerading.
+# Masquerade on the interface carrying the host's IPv4 default route — not
+# necessarily vmbr0 (e.g. a VLAN uplink like vmbr0.4).
+UPLINK_IF=$(pve_ssh "ip -4 route show default | awk '{print \$5; exit}'")
+UPLINK_IF="${UPLINK_IF:-vmbr0}"
+info "Uplink interface for NAT: $UPLINK_IF"
 pve_ssh "
     echo 1 > /proc/sys/net/ipv4/ip_forward
     echo 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/99-e2e-nat.conf
-    iptables -t nat -C POSTROUTING -s '${SUBNET}.0/24' -o vmbr0 -j MASQUERADE 2>/dev/null || \
-    iptables -t nat -A POSTROUTING -s '${SUBNET}.0/24' -o vmbr0 -j MASQUERADE
+    iptables -t nat -C POSTROUTING -s '${SUBNET}.0/24' -o $UPLINK_IF -j MASQUERADE 2>/dev/null || \
+    iptables -t nat -A POSTROUTING -s '${SUBNET}.0/24' -o $UPLINK_IF -j MASQUERADE
 "
 
 # Make NAT rules persistent (per-instance file)
 pve_ssh "cat > /etc/network/interfaces.d/e2e-nat-${E2E_INSTANCE} << EOF
 # NAT rules for E2E instance $E2E_INSTANCE ($VM_BRIDGE, ${SUBNET}.0/24)
-post-up iptables -t nat -A POSTROUTING -s '${SUBNET}.0/24' -o vmbr0 -j MASQUERADE
-post-down iptables -t nat -D POSTROUTING -s '${SUBNET}.0/24' -o vmbr0 -j MASQUERADE
+post-up iptables -t nat -A POSTROUTING -s '${SUBNET}.0/24' -o $UPLINK_IF -j MASQUERADE
+post-down iptables -t nat -D POSTROUTING -s '${SUBNET}.0/24' -o $UPLINK_IF -j MASQUERADE
 EOF"
 
 # Step 3c: Setup port forwarding to nested VM
