@@ -168,47 +168,51 @@ export class VariableResolver {
    */
   /**
    * Resolves {{ }} template markers embedded inside base64-encoded string values
-   * in inputs and outputs. Handles upload parameters like compose_file
-   * whose base64-decoded content may contain {{ variable }} placeholders.
+   * in inputs, outputs and defaults. Handles upload parameters like compose_file
+   * or env_file whose base64-decoded content may contain {{ variable }}
+   * placeholders.
    *
-   * Must process both inputs (Record) and outputs (Map) because properties
-   * commands copy base64 values to outputs early, before markers can be resolved.
-   * The script template resolution checks outputs first, so unresolved base64
-   * in outputs would shadow resolved values in inputs.
+   * Must process outputs because properties commands copy base64 values to
+   * outputs early, before markers can be resolved — the script template
+   * resolution checks outputs first, so unresolved base64 in outputs would
+   * shadow resolved values in inputs. Must process defaults because an upload
+   * parameter that is not sent with the request exists only as its default:
+   * env_file is install-only (tasks: ["installation"]), so on a reconfigure
+   * the application's env template arrives solely as the property default
+   * and was written to the container's .env with every placeholder intact.
    *
-   * Modifies both collections in-place. Safe to call multiple times (idempotent).
+   * Modifies the collections in-place. Safe to call multiple times (idempotent).
    */
   resolveBase64Inputs(
     inputs: Record<string, string | number | boolean>,
     outputs?: Map<string, string | number | boolean>,
   ): void {
     for (const [key, value] of Object.entries(inputs)) {
-      if (typeof value !== "string" || value.length < 20) continue;
-      try {
-        const decoded = Buffer.from(value, "base64").toString("utf-8");
-        if (!VAR_TEST_RE.test(decoded)) continue;
-        const resolved = this.replaceVarsPreserveUnresolved(decoded);
-        if (resolved !== decoded) {
-          inputs[key] = Buffer.from(resolved).toString("base64");
-        }
-      } catch {
-        // Not valid base64, skip
+      const resolved = this.resolveBase64Value(value);
+      if (resolved !== null) inputs[key] = resolved;
+    }
+    for (const map of [outputs, this.defaults]) {
+      if (!map) continue;
+      for (const [key, value] of map.entries()) {
+        const resolved = this.resolveBase64Value(value);
+        if (resolved !== null) map.set(key, resolved);
       }
     }
-    if (outputs) {
-      for (const [key, value] of outputs.entries()) {
-        if (typeof value !== "string" || value.length < 20) continue;
-        try {
-          const decoded = Buffer.from(value, "base64").toString("utf-8");
-          if (!VAR_TEST_RE.test(decoded)) continue;
-          const resolved = this.replaceVarsPreserveUnresolved(decoded);
-          if (resolved !== decoded) {
-            outputs.set(key, Buffer.from(resolved).toString("base64"));
-          }
-        } catch {
-          // Not valid base64, skip
-        }
-      }
+  }
+
+  /**
+   * Returns the re-encoded value when `value` is base64 of a text containing
+   * {{ }} markers and at least one of them could be resolved; null otherwise.
+   */
+  private resolveBase64Value(value: string | number | boolean): string | null {
+    if (typeof value !== "string" || value.length < 20) return null;
+    try {
+      const decoded = Buffer.from(value, "base64").toString("utf-8");
+      if (!VAR_TEST_RE.test(decoded)) return null;
+      const resolved = this.replaceVarsPreserveUnresolved(decoded);
+      return resolved !== decoded ? Buffer.from(resolved).toString("base64") : null;
+    } catch {
+      return null; // Not valid base64
     }
   }
 

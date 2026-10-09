@@ -177,6 +177,37 @@ describe("VariableResolver", () => {
       );
     });
 
+    it("should resolve a base64 template that exists only as a default (env_file on reconfigure)", () => {
+      // Reconfigure: env_file is install-only, so the request does not carry
+      // it — the application's env template is only the property default,
+      // and the stack values are defaults as well.
+      const envTemplate =
+        "POSTGRES_PASSWORD={{ POSTGRES_PASSWORD }}\nDATEV_CLIENT_ID={{ DATEV_CLIENT_ID }}\nLATER={{ PRODUCED_LATER }}\n";
+      const outputs = new Map<string, string | number | boolean>();
+      const inputs: Record<string, string | number | boolean> = { vm_id: "641" };
+      const defaults = new Map<string, string | number | boolean>([
+        ["env_file", Buffer.from(envTemplate).toString("base64")],
+        ["POSTGRES_PASSWORD", "pg-secret"],
+        ["DATEV_CLIENT_ID", "datev-id"],
+      ]);
+      const resolver = new VariableResolver(
+        () => outputs,
+        () => inputs,
+        () => defaults,
+      );
+
+      resolver.resolveBase64Inputs(inputs, outputs);
+
+      // What the upload script receives for {{ env_file }}.
+      const rendered = Buffer.from(
+        resolver.replaceVars("{{ env_file }}"),
+        "base64",
+      ).toString("utf-8");
+      expect(rendered).toBe(
+        "POSTGRES_PASSWORD=pg-secret\nDATEV_CLIENT_ID=datev-id\nLATER={{ PRODUCED_LATER }}\n",
+      );
+    });
+
     it("should preserve Docker ${} env vars while resolving {{ }} markers", () => {
       const outputs = new Map<string, string | number | boolean>();
       const inputs: Record<string, string | number | boolean> = {

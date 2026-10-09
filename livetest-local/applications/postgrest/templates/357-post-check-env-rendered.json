@@ -1,0 +1,11 @@
+{
+  "name": "Env File Rendered Check",
+  "description": "TEST-ONLY. Runs inside the postgrest LXC after the docker stack is up. Fails the scenario if the .env written from the env_file template still contains {{ }} placeholders or an empty/NOT_DEFINED probe value — guards against a reconfigure writing the raw template.",
+  "execute_on": "lxc",
+  "commands": [
+    {
+      "name": "Env File Rendered Check",
+      "script": "post-check-env-rendered.sh"
+    }
+  ]
+}
