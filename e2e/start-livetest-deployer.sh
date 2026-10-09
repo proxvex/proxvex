@@ -106,10 +106,16 @@ if lsof -i ":$DEPLOYER_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   done
 fi
 
-# 2. Ensure proxvex-LXC (Hub) is running inside nested VM
-info "Ensuring Hub (proxvex-LXC $DEPLOYER_VMID) is running"
-nested_ssh "pct status $DEPLOYER_VMID 2>/dev/null | grep -q running || pct start $DEPLOYER_VMID" \
-  || err "Failed to start proxvex-LXC $DEPLOYER_VMID inside nested VM"
+# 2. Ensure proxvex-LXC (Hub) is running inside nested VM. With --refresh-hub
+#    a missing CT is fine (e.g. an aborted earlier redeploy destroyed it):
+#    step 2b recreates it.
+if [ "$REFRESH_HUB" = "true" ] && ! nested_ssh "pct status $DEPLOYER_VMID >/dev/null 2>&1"; then
+  info "proxvex-LXC $DEPLOYER_VMID does not exist — will be created by --refresh-hub"
+else
+  info "Ensuring Hub (proxvex-LXC $DEPLOYER_VMID) is running"
+  nested_ssh "pct status $DEPLOYER_VMID 2>/dev/null | grep -q running || pct start $DEPLOYER_VMID" \
+    || err "Failed to start proxvex-LXC $DEPLOYER_VMID inside nested VM"
+fi
 
 # 2b. (--refresh-hub) Push current workspace json/ + backend/dist into the
 #     Hub-LXC so the Hub-side templates and backend code match what the user

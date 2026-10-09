@@ -11,6 +11,7 @@
       "bridge": "vmbr1",
       "filesystem": "zfs",
       "deployerPort": "3201",
+      "deployerHost": "localhost",
       "snapshot": {
         "enabled": true
       },

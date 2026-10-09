@@ -7,7 +7,8 @@
 
 import { runCli, type CliJsonResult } from "./cli-executor.mjs";
 import { SnapshotManager } from "./snapshot-manager.mjs";
-import { nestedSsh, nestedSshAsync, nestedSshStrictAsync, waitForServices, waitForContainerStable, waitForLxcInit } from "./ssh-helpers.mjs";
+import { nestedSsh, nestedSshAsync, nestedSshStrictAsync, waitForServices, waitForContainerStable, waitForLxcInit, withZfsCloneRelease } from "./ssh-helpers.mjs";
+import { buildCreateCtCloneScript } from "./vm-lifecycle.mjs";
 import { buildParams, partitionAfterFailure, classifyParallel, assignStoragePerScenario } from "./scenario-planner.mjs";
 import { TestResultWriter, type TestResultDependency } from "./test-result-writer.mjs";
 import { collectFailureLogs } from "./diagnostics.mjs";
@@ -229,6 +230,13 @@ async function findExistingVm(
    * sibling (e.g. `nginx-acme` for a `nginx/default`-depending reconfigure).
    */
   strictHostname = false,
+  /**
+   * VMIDs that must never be returned. After a reconfigure the new CT keeps
+   * the source's hostname, so a hostname lookup would otherwise also match
+   * the dependency it was cloned from (and cleanup would then destroy that
+   * dependency as if it were the scenario's CT).
+   */
+  excludeVmIds: ReadonlySet<number> = new Set(),
 ): Promise<{ vm_id: number; addons?: string[]; hostname?: string } | null> {
   // Scan PVE host directly for running managed containers.
   // More reliable than deployer context which may be stale after rollbacks.
@@ -238,7 +246,7 @@ async function findExistingVm(
     let firstAppMatch: { vm_id: number; addons?: string[]; hostname?: string } | null = null;
     for (const line of pctList.split("\n")) {
       const vmId = parseInt(line.trim(), 10);
-      if (isNaN(vmId)) continue;
+      if (isNaN(vmId) || excludeVmIds.has(vmId)) continue;
       try {
         const conf = nestedSsh(pveHost, sshPort,
           `pct config ${vmId} 2>/dev/null | head -40`, 5000);
@@ -1135,27 +1143,22 @@ export async function executeScenarios(
           const cloneVmId = allocateCloneVmId(config.pveHost, config.portPveSsh, step.vmId);
           if (cloneVmId !== null) {
             logInfo(`Isolating source: cloning VM ${sourceVm.vm_id} → ${cloneVmId} for ${scenario.id}`);
-            // `pct clone --full` on a RUNNING source requires `--snapname`
-            // (Proxmox: "Full clone of a running container is only possible
-            // from a snapshot"). Take an ephemeral snapshot, clone from it,
-            // and delete the snapshot afterwards. The source CT stays
-            // running throughout — its kernel mounts keep working until next
-            // stop, so no data is lost.
-            const snapName = `iso-clone-${cloneVmId}`;
-            let snapTaken = false;
+            // Clone with the deployer's own create-ct-clone.sh: on zfspool
+            // the rootfs becomes an instant `zfs clone` (a `pct clone --full`
+            // rsync'd it file by file, ~4 min for a Zitadel CT), elsewhere it
+            // falls back to `pct clone --full`. The source CT keeps running;
+            // the script snapshots it and removes the snapshot again (also on
+            // abort). The rootfs clone depends on the source until the clone
+            // is destroyed — withZfsCloneRelease handles that on cleanup.
             try {
-              await nestedSshAsync(
+              await nestedSshStrictAsync(
                 config.pveHost, config.portPveSsh,
-                `pct snapshot ${sourceVm.vm_id} ${snapName}`,
-                120000,
-              );
-              snapTaken = true;
-              await nestedSshAsync(
-                config.pveHost, config.portPveSsh,
-                `pct clone ${sourceVm.vm_id} ${cloneVmId} --snapname ${snapName} --full 1`,
+                "sh -s",
                 300000,
+                buildCreateCtCloneScript(projectRoot, sourceVm.vm_id, cloneVmId),
               );
-              // `pct clone` does NOT carry over the source's notes by default.
+              // The zfs path keeps the source's notes; `pct clone` (fallback)
+              // does NOT carry them over.
               // In Proxmox LXC, notes live as `#`-prefixed comment lines at
               // the very top of `/etc/pve/lxc/<vmid>.conf` (NOT as a
               // `description:` line). Downstream proxvex templates check the
@@ -1189,20 +1192,6 @@ export async function executeScenarios(
                 );
               } catch (descErr) {
                 logWarn(`Could not copy notes from ${sourceVm.vm_id} to ${cloneVmId}: ${descErr instanceof Error ? descErr.message : String(descErr)}`);
-              }
-              // Delete the source-side snapshot — we don't need it again.
-              try {
-                await nestedSshAsync(
-                  config.pveHost, config.portPveSsh,
-                  `pct delsnapshot ${sourceVm.vm_id} ${snapName}`,
-                  60000,
-                );
-                snapTaken = false;
-              } catch {
-                // Non-fatal: the leftover snapshot is cleanup-able later but
-                // a) it occupies disk, b) repeated isolations stack up. Log
-                // for visibility.
-                logWarn(`Could not delete source snapshot ${snapName} on VM ${sourceVm.vm_id}`);
               }
               // Start the clone so downstream `pct exec` works (the clone is
               // stopped by default).
@@ -1255,17 +1244,9 @@ export async function executeScenarios(
                 );
               }
             } catch (err) {
-              logWarn(`pct clone failed (${err instanceof Error ? err.message : String(err)}) — falling back to shared source`);
-              // Best-effort cleanup of a snapshot we may have created.
-              if (snapTaken) {
-                try {
-                  await nestedSshAsync(
-                    config.pveHost, config.portPveSsh,
-                    `pct delsnapshot ${sourceVm.vm_id} ${snapName} 2>/dev/null || true`,
-                    60000,
-                  );
-                } catch { /* ignore */ }
-              }
+              // create-ct-clone.sh's trap has already removed a half-built
+              // target and its snapshot.
+              logWarn(`Source clone failed (${err instanceof Error ? err.message : String(err)}) — falling back to shared source`);
             }
           } else {
             logWarn(`Could not allocate a clone VMID — falling back to shared source for ${scenario.id}`);
@@ -1635,6 +1616,8 @@ export async function executeScenarios(
         // durch (und blockiert via classifyParallel seine Dependents).
         if (concurrency <= 1 && snapMgr && depSnapshotName && !step.isDependency && !keepForDebug) {
           try {
+            // rollbackCtSnapshot first drops throw-away CTs zfs-cloned from a
+            // dep (isolated source, target) — they would block the rollback.
             const depVmids = planned.filter((p) => p.isDependency).map((p) => p.vmId);
             await Promise.all(depVmids.map((v) => snapMgr.rollbackCtSnapshot(v, depSnapshotName)));
             // After the rollback the Hub LXC has not been touched (it is
@@ -1684,7 +1667,14 @@ export async function executeScenarios(
       // application-id=nginx, so without hostname the lowest-VMID match wins
       // and we record the wrong container).
       if (isReplaceCt) {
-        const newVm = await findExistingVm(apiUrl, veHost, scenario.application, config.pveHost, config.portPveSsh, step.hostname);
+        const notTheNewVm = new Set([
+          ...planned.filter((p) => p.isDependency).map((p) => p.vmId),
+          ...sourceCloneVmIds,
+        ]);
+        const newVm = await findExistingVm(
+          apiUrl, veHost, scenario.application, config.pveHost, config.portPveSsh,
+          step.hostname, false, notTheNewVm,
+        );
         if (newVm) {
           logOk(`replace_ct: new VM_ID=${newVm.vm_id} (was ${step.vmId})`);
           step.vmId = newVm.vm_id;
@@ -2197,7 +2187,8 @@ export async function executeScenarios(
             try {
               await nestedSshAsync(
                 config.pveHost, config.portPveSsh,
-                `pct stop ${cloneVmId} 2>/dev/null; pct unlock ${cloneVmId} 2>/dev/null; pct destroy ${cloneVmId} --force --purge 2>/dev/null; true`,
+                `pct stop ${cloneVmId} 2>/dev/null; pct unlock ${cloneVmId} 2>/dev/null; `
+                + withZfsCloneRelease(cloneVmId, `pct destroy ${cloneVmId} --force --purge 2>/dev/null`),
                 30000,
               );
               logInfo(`Destroyed source clone VM ${cloneVmId}`);

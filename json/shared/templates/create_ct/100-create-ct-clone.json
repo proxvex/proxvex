@@ -15,7 +15,7 @@
     {
       "name": "Clone Container",
       "script": "create-ct-clone.sh",
-      "library": ["upgrade-common.sh", "device-mapping-common.sh"],
+      "library": ["upgrade-common.sh", "device-mapping-common.sh", "vol-common.sh"],
       "outputs": [
         "vm_id",
         "previous_vm_id",

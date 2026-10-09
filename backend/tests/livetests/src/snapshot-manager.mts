@@ -23,7 +23,7 @@
  */
 import { existsSync, copyFileSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { nestedSshAsync, nestedSshStrictAsync } from "./ssh-helpers.mjs";
+import { destroyCloneDescendantsCmd, nestedSshAsync, nestedSshStrictAsync } from "./ssh-helpers.mjs";
 
 export interface SnapshotConfig {
   enabled: boolean;
@@ -224,6 +224,16 @@ export class SnapshotManager {
    */
   async rollbackCtSnapshot(vmid: number, name: string): Promise<void> {
     this.log(`Rolling VM ${vmid} back to pct snapshot @${name}...`);
+    // Throw-away CTs zfs-cloned from this one (isolated sources, the
+    // reconfigure targets cloned from them, leftovers of an aborted run)
+    // keep a newer @oci-clone snapshot alive and block the rollback.
+    try {
+      await nestedSshAsync(
+        this.pveHost, this.nestedSshPort,
+        destroyCloneDescendantsCmd(vmid),
+        180000,
+      );
+    } catch { /* best-effort — the rollback below reports a real blocker */ }
     try {
       await nestedSshAsync(
         this.pveHost, this.nestedSshPort,

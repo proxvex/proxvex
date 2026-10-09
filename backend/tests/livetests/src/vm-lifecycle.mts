@@ -8,7 +8,7 @@
  */
 
 import { SnapshotManager } from "./snapshot-manager.mjs";
-import { nestedSsh, nestedSshStrict, nestedSshAsync } from "./ssh-helpers.mjs";
+import { nestedSsh, nestedSshStrict, nestedSshAsync, withZfsCloneRelease } from "./ssh-helpers.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { PlannedScenario, ResolvedScenario } from "./livetest-types.mjs";
@@ -334,7 +334,7 @@ export async function preCleanupNonSnapshotConsumers(
     try {
       await nestedSshAsync(
         pveHost, pveSshPort,
-        `pct stop ${vmid} --timeout 1 2>/dev/null; pct destroy ${vmid} --force --purge 2>/dev/null; true`,
+        `pct stop ${vmid} --timeout 1 2>/dev/null; ${withZfsCloneRelease(vmid, `pct destroy ${vmid} --force --purge 2>/dev/null`)}; true`,
         60000,
       );
     } catch (err) {
@@ -407,7 +407,7 @@ export async function rollbackOrDestroyDepsFromSnapshot(
       try {
         await nestedSshAsync(
           pveHost, pveSshPort,
-          `pct stop ${dep.vmId} --timeout 1 2>/dev/null; pct destroy ${dep.vmId} --force --purge 2>/dev/null; true`,
+          `pct stop ${dep.vmId} --timeout 1 2>/dev/null; ${withZfsCloneRelease(dep.vmId, `pct destroy ${dep.vmId} --force --purge 2>/dev/null`)}; true`,
           60000,
         );
         logInfo(`--from-snapshot: VM ${dep.vmId} (${dep.scenario.id}) had no snapshot → destroyed for fresh install`);
@@ -504,7 +504,7 @@ export async function smartCleanupBeforeRun(
     try {
       await nestedSshAsync(
         pveHost, pveSshPort,
-        `pct stop ${id} --timeout 1 2>/dev/null; pct destroy ${id} --force --purge 2>/dev/null; true`,
+        `pct stop ${id} --timeout 1 2>/dev/null; ${withZfsCloneRelease(id, `pct destroy ${id} --force --purge 2>/dev/null`)}; true`,
         60000,
       );
     } catch (err) {
@@ -611,7 +611,7 @@ function runJanitorAsync(
         try {
           await nestedSshAsync(
             pveHost, sshPort,
-            `pct destroy ${vmid} --force --purge 2>/dev/null; true`,
+            `${withZfsCloneRelease(vmid, `pct destroy ${vmid} --force --purge 2>/dev/null`)}; true`,
             60000,
           );
         } catch (err) {
@@ -663,7 +663,8 @@ export function prepareVms(
       nestedSsh(config.pveHost, config.portPveSsh,
         `pct status ${1000 + p.vmId} >/dev/null 2>&1 `
         + `&& { pct unlock ${1000 + p.vmId} 2>/dev/null; `
-        + `pct destroy ${1000 + p.vmId} --purge 2>/dev/null; }; true`,
+        + withZfsCloneRelease(1000 + p.vmId, `pct destroy ${1000 + p.vmId} --purge 2>/dev/null`)
+        + `; }; true`,
         60000);
     } catch { /* ignore */ }
 
@@ -708,12 +709,12 @@ export function prepareVms(
       } else if (isManaged) {
         logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but wrong app/stack — destroying`);
         nestedSsh(config.pveHost, config.portPveSsh,
-          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+          `pct stop ${p.vmId} 2>/dev/null || true; ${withZfsCloneRelease(p.vmId, `pct destroy ${p.vmId} --force --purge 2>/dev/null`)} || true`,
           30000);
       } else {
         logInfo(`Dependency VM ${p.vmId} (${p.scenario.id}) running but not managed — destroying`);
         nestedSsh(config.pveHost, config.portPveSsh,
-          `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true`,
+          `pct stop ${p.vmId} 2>/dev/null || true; ${withZfsCloneRelease(p.vmId, `pct destroy ${p.vmId} --force --purge 2>/dev/null`)} || true`,
           30000);
       }
     } else if (REPLACE_CT_TASKS.includes(task) && status.includes("running")) {
@@ -737,7 +738,7 @@ export function prepareVms(
         `  mnt="/var/lib/pve-vol-mounts/\${vid#*:}"; ` +
         `  mountpoint -q "$mnt" 2>/dev/null && { umount "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null; rmdir "$mnt" 2>/dev/null; }; ` +
         `done; ` +
-        `pct stop ${p.vmId} 2>/dev/null || true; pct destroy ${p.vmId} --force --purge 2>/dev/null || true; ` +
+        `pct stop ${p.vmId} 2>/dev/null || true; ${withZfsCloneRelease(p.vmId, `pct destroy ${p.vmId} --force --purge 2>/dev/null`)} || true; ` +
         // Sweep orphan LVs from a crashed pct clone / pct destroy. When a
         // reconfigure aborts mid-way, the cloned-and-renamed LV (e.g.
         // vm-224-proxvex-config) survives in LVM but is no longer registered
@@ -762,4 +763,46 @@ export function prepareVms(
       }
     }
   }
+}
+
+/**
+ * The reconfigure clone script exactly as the deployer runs it: the libraries
+ * listed in `create_ct/100-create-ct-clone.json`, then `create-ct-clone.sh`,
+ * with source and target filled in. Isolating a scenario's source through it
+ * gives the runner the production code path — an instant `zfs clone` of the
+ * rootfs on zfspool storage (`pct clone --full` elsewhere), notes carried
+ * over, and the clone snapshot removed by the script's trap on any abort.
+ * Run it with `sh -s` (stdin) on the PVE host.
+ */
+export function buildCreateCtCloneScript(
+  projectRoot: string,
+  sourceVmId: number,
+  targetVmId: number,
+): string {
+  const scriptsDir = path.join(projectRoot, "json/shared/scripts");
+  const template = JSON.parse(
+    readFileSync(path.join(projectRoot, "json/shared/templates/create_ct/100-create-ct-clone.json"), "utf-8"),
+  ) as { commands: { script?: string; library?: string | string[] }[] };
+  const cmd = template.commands.find((c) => c.script === "create-ct-clone.sh");
+  if (!cmd) throw new Error("100-create-ct-clone.json has no create-ct-clone.sh command");
+  const libraries = cmd.library === undefined ? [] : Array.isArray(cmd.library) ? cmd.library : [cmd.library];
+  const readScript = (name: string, subdirs: string[]): string => {
+    for (const dir of subdirs) {
+      try {
+        return readFileSync(path.join(scriptsDir, dir, name), "utf-8");
+      } catch { /* try next location */ }
+    }
+    throw new Error(`script ${name} not found under ${scriptsDir}`);
+  };
+  const parts = [
+    ...libraries.map((lib) => readScript(lib, ["library", "."])),
+    readScript("create-ct-clone.sh", ["create_ct"]),
+  ];
+  const vars: Record<string, string> = {
+    previous_vm_id: String(sourceVmId),
+    vm_id: String(targetVmId),
+    vm_id_start: "",
+    searchdomain: "",
+  };
+  return parts.join("\n").replace(/\{\{\s*(\w+)\s*\}\}/g, (m, key: string) => vars[key] ?? m);
 }

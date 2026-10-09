@@ -166,7 +166,9 @@ pve_ssh "
     iptables -t nat -D PREROUTING -p tcp --dport $PORT_PVE_SSH -j DNAT --to-destination $NESTED_STATIC_IP:22 2>/dev/null || true
     iptables -t nat -A PREROUTING -p tcp --dport $PORT_PVE_SSH -j DNAT --to-destination $NESTED_STATIC_IP:22
     iptables -C FORWARD -p tcp -d $NESTED_STATIC_IP --dport 22 -j ACCEPT 2>/dev/null || iptables -A FORWARD -p tcp -d $NESTED_STATIC_IP --dport 22 -j ACCEPT
-    iptables -t nat -C POSTROUTING -s ${SUBNET}.0/24 -o vmbr0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${SUBNET}.0/24 -o vmbr0 -j MASQUERADE
+    UPLINK_IF=\$(ip -4 route show default | awk '{print \$5; exit}')
+    UPLINK_IF=\${UPLINK_IF:-vmbr0}
+    iptables -t nat -C POSTROUTING -s ${SUBNET}.0/24 -o \$UPLINK_IF -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${SUBNET}.0/24 -o \$UPLINK_IF -j MASQUERADE
 "
 
 # Wait for SSH to become available via port forwarding
@@ -708,8 +710,10 @@ pve_ssh "
     # Mapping 3443 alongside ${PORT_DEPLOYER_HTTPS} makes both URLs work.
     iptables -t nat -A PREROUTING -p tcp --dport 3443 -j DNAT --to-destination $NESTED_IP:3443
 
-    # NAT for nested VM network
-    iptables -t nat -A POSTROUTING -s ${SUBNET}.0/24 -o vmbr0 -j MASQUERADE
+    # NAT for nested VM network, on the interface carrying the default route
+    UPLINK_IF=\$(ip -4 route show default | awk '{print \$5; exit}')
+    UPLINK_IF=\${UPLINK_IF:-vmbr0}
+    iptables -t nat -C POSTROUTING -s ${SUBNET}.0/24 -o \$UPLINK_IF -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s ${SUBNET}.0/24 -o \$UPLINK_IF -j MASQUERADE
 " || error "Failed to configure port forwarding"
 
 success "Port $PORT_PVE_WEB -> $NESTED_IP:8006 (Web UI)"

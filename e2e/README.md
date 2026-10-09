@@ -196,12 +196,13 @@ daemon):
 - Verifies the test Docker Hub mirror (`docker-mirror-test` LXC on
   `ubuntupve`, `192.168.4.49`) is reachable and TLS validates via the
   baked-in proxvex CA.
-- Verifies the `ghcr.io` mirror (`ghcr-registry-mirror` LXC on `ubuntupve`,
-  `192.168.4.48`) is reachable.
-- Adds dnsmasq A-records: `docker-mirror-test → 192.168.4.49` and
-  `ghcr.io → 192.168.4.48`. Docker-Hub uses skopeo's
-  `[[registry.mirror]]` (hostname-based), ghcr.io uses dnsmasq DNS-redirect
-  (registry-mirrors only spiegelt Docker Hub).
+- ghcr.io is pulled directly for now: the `ghcr.io` mirror is disabled
+  (`GHCR_MIRROR_ENABLED=0`, the dnsmasq redirect is written commented out).
+  With `GHCR_MIRROR_ENABLED=1` it verifies the mirror at `192.168.4.48` and
+  redirects `ghcr.io` there via dnsmasq (registry-mirrors only cover
+  Docker Hub).
+- Adds the dnsmasq A-record `docker-mirror-test → 192.168.4.49`. Docker Hub
+  uses skopeo's `[[registry.mirror]]` (hostname-based).
 - Writes `/etc/containers/registries.conf` so skopeo routes `docker.io`
   through `docker-mirror-test:443`.
 - Smoketests both routes (curl + `skopeo inspect alpine:latest`).

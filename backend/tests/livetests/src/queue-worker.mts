@@ -6,7 +6,7 @@
  */
 
 import { runCli } from "./cli-executor.mjs";
-import { nestedSsh, waitForServices } from "./ssh-helpers.mjs";
+import { nestedSsh, waitForServices, withZfsCloneRelease } from "./ssh-helpers.mjs";
 import { buildParams } from "./scenario-planner.mjs";
 import {
   mkdtempSync,
@@ -105,7 +105,7 @@ export async function runQueueWorker(
 
       // Destroy any existing VM at this ID
       nestedSsh(config.pveHost, config.portPveSsh,
-        `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+        `pct stop ${vmId} 2>/dev/null || true; ${withZfsCloneRelease(vmId, `pct destroy ${vmId} --force --purge 2>/dev/null`)} || true`,
         30000);
 
       // Clean volumes
@@ -197,7 +197,7 @@ export async function runQueueWorker(
         logFail(`Scenario failed: ${scenarioId}`);
         failedCount++;
         nestedSsh(config.pveHost, config.portPveSsh,
-          `pct stop ${vmId} 2>/dev/null || true; pct destroy ${vmId} --force --purge 2>/dev/null || true`,
+          `pct stop ${vmId} 2>/dev/null || true; ${withZfsCloneRelease(vmId, `pct destroy ${vmId} --force --purge 2>/dev/null`)} || true`,
           30000);
         await fetch(`${apiUrl}/api/test-queue/fail/${scenarioId}`, {
           method: "POST",

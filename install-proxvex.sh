@@ -676,6 +676,7 @@ vm_id=$(execute_script_from_github \
   "disk_size=${disk_size}" \
   "memory=${memory}" \
   "bridge=${bridge}" \
+  "vlan_tag=" \
   "hostname=${hostname}" \
   "application_id=${application_id}" \
   "application_name=${application_name}" \
@@ -707,6 +708,7 @@ if [ -n "$static_ip" ]; then
     "static_ip6=" \
     "static_gw6=" \
     "bridge=${bridge}" \
+    "vlan_tag=" \
     "nameserver4=${nameserver}" \
     "nameserver6=" >/dev/null
   log "Static IP configured: ${static_ip} (gateway: ${static_gw})"

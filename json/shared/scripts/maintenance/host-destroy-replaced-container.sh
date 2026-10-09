@@ -36,7 +36,20 @@ fi
 
 vol_unlink_persistent "$VMID"
 
+# A reconfigure clones the rootfs with `zfs clone`. If a newer container
+# still depends on one of our snapshots, hand the history over to it first,
+# otherwise `pct destroy` fails with "filesystem has dependent clones".
+ORIGINS=$(vol_promote_dependents "$VMID")
+ZFS_POOLS=$(vol_zfs_datasets_of "$VMID" | sed 's#/[^/]*$##' | sort -u)
+
 log "Destroying replaced container $VMID..."
 pct destroy "$VMID" --force --purge >&2 || fail "pct destroy $VMID failed"
+
+# The clone snapshot our rootfs came from (now held by the newer container)
+# is no longer needed; left behind it would block rollbacks there.
+vol_destroy_unused_origins "$ORIGINS"
+for _pool in $ZFS_POOLS; do
+  vol_destroy_stale_clone_snapshots "$_pool"
+done
 
 log "Container $VMID destroyed"

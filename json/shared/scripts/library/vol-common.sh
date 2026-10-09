@@ -793,3 +793,90 @@ vol_unlink_persistent() {
     fi
   done
 }
+
+# List the ZFS datasets behind a container's volumes (rootfs + managed mpN),
+# one per line. Non-ZFS volumes and bind mounts are skipped.
+# Args: $1=vmid
+vol_zfs_datasets_of() {
+  pct config "$1" 2>/dev/null \
+    | awk -F': ' '$1 ~ /^(rootfs|mp[0-9]+)$/ && $2 !~ /^\// { v = $2; sub(/,.*/, "", v); print v }' \
+    | while IFS= read -r _vol_id; do
+        _vol_pool=$(vol_get_zfs_pool "${_vol_id%%:*}")
+        if [ -n "$_vol_pool" ]; then echo "${_vol_pool}/${_vol_id#*:}"; fi
+      done
+}
+
+# Prepare a container's ZFS datasets for `pct destroy` with respect to the
+# rootfs clones create-ct-clone.sh makes, and report the snapshots that have
+# to go once the container is gone (pass them to vol_destroy_unused_origins):
+#
+# - The container is the SOURCE of a newer container's clone (the replaced
+#   container at the end of its grace period): its clone snapshot has a
+#   dependent, so `pct destroy` would fail with "filesystem has dependent
+#   clones". The clone is promoted; that moves our snapshots (the clone
+#   snapshot and everything older) to it. All of them are reported — they
+#   belong to this container's history and must not linger on the new one.
+# - The container IS such a clone (e.g. the new container is dropped and the
+#   old one kept): its origin, the clone snapshot on the old container, is
+#   reported, so the old container can be rolled back again afterwards.
+# Args: $1=vmid
+vol_promote_dependents() {
+  vol_zfs_datasets_of "$1" | while IFS= read -r _vol_ds; do
+    # Bounded: every promote moves at least one snapshot away from _vol_ds.
+    _vol_i=0
+    while [ "$_vol_i" -lt 20 ]; do
+      _vol_snaps=$(zfs list -H -o name -t snapshot "$_vol_ds" 2>/dev/null || true)
+      _vol_clone=$(printf '%s\n' "$_vol_snaps" \
+        | while IFS= read -r _vol_snap; do
+            if [ -n "$_vol_snap" ]; then zfs get -H -o value clones "$_vol_snap" 2>/dev/null || true; fi
+          done \
+        | tr ',' '\n' | grep -v -e '^-$' -e '^$' | head -n1)
+      [ -n "$_vol_clone" ] || break
+      echo "Promoting $_vol_clone (clone of $_vol_ds)" >&2
+      zfs promote "$_vol_clone" >&2 || break
+      printf '%s\n' "$_vol_snaps" | while IFS= read -r _vol_snap; do
+        [ -n "$_vol_snap" ] || continue
+        _vol_moved="${_vol_clone}@${_vol_snap#*@}"
+        if zfs list -H -o name "$_vol_moved" >/dev/null 2>&1; then echo "$_vol_moved"; fi
+      done
+      _vol_i=$((_vol_i + 1))
+    done
+    _vol_origin=$(zfs get -H -o value origin "$_vol_ds" 2>/dev/null || true)
+    if [ -n "$_vol_origin" ] && [ "$_vol_origin" != "-" ]; then echo "$_vol_origin"; fi
+  done
+}
+
+# Destroy the snapshots reported by vol_promote_dependents that nothing is
+# cloned from any more.
+# Args: snapshots, one per line
+vol_destroy_unused_origins() {
+  printf '%s\n' "$1" | while IFS= read -r _vol_snap; do
+    [ -n "$_vol_snap" ] || continue
+    zfs list -H -o name "$_vol_snap" >/dev/null 2>&1 || continue
+    [ -z "$(zfs get -H -o value clones "$_vol_snap" 2>/dev/null | tr -d -)" ] || continue
+    echo "Destroying unused clone origin $_vol_snap" >&2
+    zfs destroy "$_vol_snap" >&2 || echo "Warning: could not destroy $_vol_snap" >&2
+  done
+}
+
+# Sweep a ZFS pool for leftover clone snapshots (<dataset>@oci-clone-<epoch>,
+# taken by create-ct-clone.sh) that nothing is cloned from any more — e.g.
+# when a replaced container was removed with a plain `pct destroy`. Left
+# behind they block `pct rollback` (ZFS only rolls back to the most recent
+# snapshot). Snapshots younger than $2 seconds (default 3600) are kept: a
+# clone running in parallel may not have cloned from its snapshot yet.
+# Args: $1=zfs pool (e.g. rpool/data), $2=min age in seconds (optional)
+vol_destroy_stale_clone_snapshots() {
+  _vol_pool="$1"; _vol_min_age="${2:-3600}"
+  [ -n "$_vol_pool" ] || return 0
+  _vol_now=$(date +%s)
+  zfs list -H -o name -t snapshot -r "$_vol_pool" 2>/dev/null \
+    | grep -E '@oci-clone-[0-9]+$' \
+    | while IFS= read -r _vol_snap; do
+        _vol_ts="${_vol_snap##*@oci-clone-}"
+        [ $((_vol_now - _vol_ts)) -ge "$_vol_min_age" ] || continue
+        [ -z "$(zfs get -H -o value clones "$_vol_snap" 2>/dev/null | tr -d -)" ] || continue
+        echo "Destroying stale clone snapshot $_vol_snap" >&2
+        zfs destroy "$_vol_snap" >&2 || echo "Warning: could not destroy $_vol_snap" >&2
+      done
+}
