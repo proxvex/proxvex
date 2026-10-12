@@ -170,7 +170,37 @@ CLEANUP_SCRIPT="
         fi
       fi
     done
+    # A reconfigure clones the new rootfs with zfs clone (create-ct-clone.sh).
+    # The clone depends on a snapshot of the previous container's rootfs, so a
+    # plain pct destroy would fail with 'filesystem has dependent clones'.
+    # Promote the clone first — the snapshot (and the rollback history) moves
+    # to the new container — then pct destroy succeeds.
+    _promoted=''
+    _rootfs=\$(pct config $PREVIOUS_VMID 2>/dev/null | awk -F': ' '\$1 == \"rootfs\" && \$2 !~ \"^/\" { v = \$2; sub(/,.*/, \"\", v); print v; exit }')
+    if [ -n \"\$_rootfs\" ]; then
+      _rstor=\"\${_rootfs%%:*}\"
+      _rpool=\$(awk -v s=\"\$_rstor\" '\$1==\"zfspool:\" && \$2==s {b=1} b && \$1==\"pool\" {print \$2;exit}' /etc/pve/storage.cfg 2>/dev/null)
+      if [ -n \"\$_rpool\" ]; then
+        for _snap in \$(zfs list -H -o name -t snapshot \"\${_rpool}/\${_rootfs#*:}\" 2>/dev/null); do
+          for _clone in \$(zfs get -H -o value clones \"\$_snap\" 2>/dev/null | tr ',' ' '); do
+            [ \"\$_clone\" = '-' ] || [ -z \"\$_clone\" ] && continue
+            echo \"Promoting \$_clone (clone of \$_snap)\"
+            if zfs promote \"\$_clone\" 2>&1; then
+              _promoted=\"\$_promoted \$_clone@\${_snap##*@}\"
+            fi
+          done
+        done
+      fi
+    fi
     pct destroy $PREVIOUS_VMID --purge 2>&1 || echo 'Warning: pct destroy $PREVIOUS_VMID failed'
+    # The promoted clone snapshots moved to the new container's rootfs; nothing
+    # is cloned from them, and left behind they would block pct rollback there.
+    for _moved in \$_promoted; do
+      if zfs list -H -o name \"\$_moved\" >/dev/null 2>&1 && \
+         [ -z \"\$(zfs get -H -o value clones \"\$_moved\" 2>/dev/null | tr -d ' -')\" ]; then
+        zfs destroy \"\$_moved\" 2>&1 || echo \"Warning: could not destroy \$_moved\"
+      fi
+    done
     echo 'Destroyed previous container $PREVIOUS_VMID'
   else
     echo 'Error: new container $NEW_VMID not running after reboot — keeping previous container $PREVIOUS_VMID'
