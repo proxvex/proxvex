@@ -40,21 +40,79 @@ for i in $(seq 1 15); do
 done
 
 # --- dockerd (root-only) --------------------------------------------
-if command -v dockerd >/dev/null 2>&1 && ! pgrep -x dockerd >/dev/null 2>&1; then
-    echo "Starting Docker daemon..."
-    nohup dockerd --host=unix:///var/run/docker.sock >/var/log/dockerd.log 2>&1 &
-    for i in $(seq 1 15); do
-        [ -S /var/run/docker.sock ] && { echo "Docker daemon ready"; break; }
-        sleep 1
+# Start dockerd, then CHECK THAT IT ANSWERS — same shape as
+# json/shared/scripts/post_start/post-start-dockerd.sh (template 307).
+#
+# The socket file existing is not proof of a working daemon: on a cold host
+# boot with many containers starting at once, dockerd's embedded containerd can
+# take longer than dockerd's internal wait, and dockerd exits with
+#   failed to start containerd: timeout waiting for containerd to start
+# (ubuntupve, 2026-10-02). The old block then logged a WARN and handed over to
+# the runner anyway, which registered with GitHub and accepted jobs it could
+# not run. So: poll `docker info`, retry once (the cause is contention, not a
+# broken daemon), and refuse to start the runner if Docker never comes up.
+DOCKERD_LOG=/var/log/dockerd.log
+
+# Stale pid/sock files from a cloned or restored rootfs, or from a dead
+# attempt, make dockerd refuse to start ("process with PID N is still
+# running") or time out on its embedded containerd. Only called once we know
+# no dockerd is answering, so anything left here is stale.
+clear_dockerd_state() {
+    rm -f /var/run/docker.pid /var/run/docker.sock
+    rm -f /run/docker/containerd/containerd.pid \
+          /run/docker/containerd/containerd.sock \
+          /run/docker/containerd/containerd.sock.ttrpc \
+          /run/docker/containerd/containerd-debug.sock
+}
+
+start_dockerd() {
+    nohup dockerd --host=unix:///var/run/docker.sock >>"$DOCKERD_LOG" 2>&1 </dev/null &
+    echo "dockerd started (logs at $DOCKERD_LOG)"
+}
+
+wait_for_dockerd() {
+    waited=0
+    while [ "$waited" -lt "$1" ]; do
+        docker info >/dev/null 2>&1 && return 0
+        sleep 2
+        waited=$((waited + 2))
     done
-    if [ -S /var/run/docker.sock ]; then
-        # runner is in the docker group (Dockerfile usermod -aG); ensure the
-        # socket is group-writable so post-drop docker calls work.
-        chgrp docker /var/run/docker.sock 2>/dev/null || true
-        chmod 660 /var/run/docker.sock 2>/dev/null || true
+    return 1
+}
+
+if command -v dockerd >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+        echo "dockerd already responsive"
     else
-        echo "WARN: Docker daemon failed to start; see /var/log/dockerd.log"
+        echo "Starting Docker daemon..."
+        clear_dockerd_state
+        start_dockerd
+        if wait_for_dockerd 60; then
+            echo "Docker daemon ready"
+        else
+            echo "WARN: dockerd did not become responsive within 60s — retrying once"
+            tail -n 5 "$DOCKERD_LOG" || true
+            pkill -x dockerd 2>/dev/null || true
+            pkill -x containerd 2>/dev/null || true
+            sleep 2
+            clear_dockerd_state
+            start_dockerd
+            if wait_for_dockerd 60; then
+                echo "Docker daemon ready after retry"
+            else
+                # Exiting PID 1 stops the container. An offline runner is
+                # visible in GitHub; a runner without Docker silently fails
+                # every job that builds an image.
+                echo "ERROR: dockerd still not responsive after retry — not starting the runner"
+                tail -n 20 "$DOCKERD_LOG" || true
+                exit 1
+            fi
+        fi
     fi
+    # runner is in the docker group (Dockerfile usermod -aG); ensure the
+    # socket is group-writable so post-drop docker calls work.
+    chgrp docker /var/run/docker.sock 2>/dev/null || true
+    chmod 660 /var/run/docker.sock 2>/dev/null || true
 fi
 
 # --- secrets materialisation ---------------------------------------

@@ -5,7 +5,7 @@ Self-hosted GitHub Actions runner deployed as an LXC container by proxvex. The O
 The container runs as PID 1 (entrypoint: `/entrypoint.sh`). On startup it:
 
 1. Brings up the network and waits for connectivity.
-2. Starts `dockerd` in the background (needed for workflows that build images, e.g. `step2b-install-deployer.sh`).
+2. Starts `dockerd` in the background (needed for workflows that build images, e.g. `step2b-install-deployer.sh`), waits until `docker info` answers and retries once. If Docker still does not come up, the entrypoint exits and the runner stays offline instead of accepting jobs it cannot run.
 3. Reads the optional `nested_vm_id_ed25519` from `/var/lib/gh-runner-secrets/` and installs it as the SSH identity for nested-VM access.
 4. Calls the GitHub API with the configured PAT to fetch a registration token.
 5. Configures the runner (`config.sh ... --replace`) and starts it (`run.sh`).
