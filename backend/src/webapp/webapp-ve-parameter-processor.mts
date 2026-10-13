@@ -104,6 +104,24 @@ export class WebAppVeParameterProcessor {
   }
 
   /**
+   * For in-place upgrade/reconfigure: vm_id = previous_vm_id if not
+   * explicitly set. The parameter definition gives vm_id a default of "",
+   * so an empty default counts as unset — otherwise host-side scripts
+   * substitute {{ vm_id }} with "" (lxc commands fall back on their own).
+   */
+  applyPreviousVmIdFallback(
+    defaults: Map<string, string | number | boolean>,
+    params: IPostVeConfigurationBody["params"],
+  ): void {
+    const current = defaults.get("vm_id");
+    if (current !== undefined && current !== "") return;
+    const prevParam = params.find((p) => p.name === "previous_vm_id");
+    if (prevParam && prevParam.value !== undefined && prevParam.value !== null && prevParam.value !== "") {
+      defaults.set("vm_id", String(prevParam.value));
+    }
+  }
+
+  /**
    * Per-deploy identity / transient parameter names that must NOT be carried
    * into a later reconfigure baseline — they identify the container instance or
    * the current run, and reusing them would be wrong (e.g. restoring a stale

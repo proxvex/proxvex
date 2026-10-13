@@ -1068,12 +1068,7 @@ export class WebAppVeRouteHandlers {
       defaults.set("task_type", task);
 
       // For in-place upgrade/reconfigure: vm_id = previous_vm_id if not explicitly set
-      if (!defaults.has("vm_id")) {
-        const prevParam = paramsToUse.find(p => p.name === "previous_vm_id");
-        if (prevParam && prevParam.value !== undefined && prevParam.value !== "") {
-          defaults.set("vm_id", String(prevParam.value));
-        }
-      }
+      this.parameterProcessor.applyPreviousVmIdFallback(defaults, paramsToUse);
 
       // Log viewer URL embedded into LXC Notes. See deployer-url-resolver.mts
       // for the fallback chain: PROXVEX_URL > Hub URL (Spoke mode) > request
