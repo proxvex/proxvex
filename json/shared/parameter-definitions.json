@@ -649,6 +649,31 @@
       "required": false,
       "internal": false
     },
+    "container_sysctls": {
+      "name": "Container Sysctls",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true,
+      "description": "Network-namespace sysctls set on every container start, one key=value per line (e.g. net.ipv4.ip_forward=1). Applied by the init wrapper /usr/local/sbin/proxvex-init, because Proxmox drops raw lxc.sysctl.* keys. Only net.* keys work in an unprivileged container."
+    },
+    "ipv6_token": {
+      "name": "IPv6 Interface ID",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "group": "Network",
+      "advanced": true,
+      "description": "Fixed interface ID for the container's SLAAC IPv6 addresses (e.g. ::53 → <prefix>::53). Keeps the IPv6 address predictable although the MAC changes on upgrade/reconfigure and the provider prefix may change; lets a router firewall rule match only the interface ID. Set by the init wrapper (ip token set) on every start; requires iproute2 in the image. Empty = MAC-derived ID."
+    },
+    "kernel_modules": {
+      "name": "Kernel Modules",
+      "type": "string",
+      "default": "",
+      "required": false,
+      "internal": true,
+      "description": "Space-separated kernel modules loaded on the Proxmox host before the container is created (template 096-host-load-kernel-modules) and persisted in /etc/modules-load.d/proxvex.conf. An unprivileged container cannot load modules itself."
+    },
     "deploy_params_b64": {
       "name": "Deploy Params Snapshot",
       "type": "string",

@@ -1,12 +1,14 @@
 {
   "execute_on": "ve",
   "name": "Load Kernel Modules",
-  "description": "Load required kernel modules for Docker on the Proxmox host. Modules are loaded temporarily (until reboot). For persistent loading, add them to /etc/modules-load.d/docker.conf",
-  "parameters": [],
+  "description": "Load kernel modules on the Proxmox host that an unprivileged container cannot load itself. kernel_modules lists them (space-separated); explicitly listed modules are persisted in /etc/modules-load.d/proxvex.conf. Without kernel_modules the Docker set (overlay, ip_tables, ip6_tables, bridge, br_netfilter) is loaded until the next reboot.",
+  "parameters": [
+    "kernel_modules"
+  ],
   "commands": [
     {
       "script": "host-load-kernel-modules.sh",
-      "description": "Load overlay, ip_tables, ip6_tables, bridge, and br_netfilter modules"
+      "description": "Load the modules from kernel_modules (default: the Docker set)"
     }
   ]
 }

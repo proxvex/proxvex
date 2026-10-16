@@ -9,7 +9,9 @@
     "envs",
     "extra_envs",
     "wait_for_network",
-    "unprivileged_port_start"
+    "unprivileged_port_start",
+    "container_sysctls",
+    "ipv6_token"
   ],
   "commands": [
     {

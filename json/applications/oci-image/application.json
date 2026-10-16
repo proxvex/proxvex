@@ -109,6 +109,7 @@
       "955-check-conf-diff.json",
       "965-check-oidc-discovery.json",
       "975-check-oidc-redirect-ready.json",
+      "985-host-check-init-wrapper.json",
       "990-host-check-volume-consistency.json"
     ]
   }
