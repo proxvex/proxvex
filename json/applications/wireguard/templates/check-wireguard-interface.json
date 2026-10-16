@@ -1,0 +1,20 @@
+{
+  "execute_on": "ve",
+  "name": "Check WireGuard Interface",
+  "description": "Confirms the VPN data plane and the web UI, not just a running container: the wireguard kernel module is loaded on the host, the init wrapper enabled IP forwarding in the container's network namespace, wg-easy brought up wg0 (pct exec ... wg show wg0), the SSL addon's nginx answers HTTPS on local_https_port, and wg-easy's plain HTTP port is blocked from outside.",
+  "parameters": [
+    "vm_id",
+    "local_https_port",
+    "http_port",
+    "ipv6_token"
+  ],
+  "commands": [
+    {
+      "name": "Check wg0 and forwarding",
+      "script": "check-wireguard-interface.sh",
+      "outputs": [
+        "wireguard_interface_up"
+      ]
+    }
+  ]
+}

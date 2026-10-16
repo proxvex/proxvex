@@ -1,0 +1,9 @@
+{
+  "description": "Install wireguard (wg-easy) with addon-ssl in proxy mode. Verifies the host loads the wireguard module, the container starts behind the init wrapper (ip_forward=1), and the web UI answers over HTTPS. Also checks that the fixed IPv6 interface ID (ipv6_token) is accepted on eth0 with accept_ra=2.",
+  "selectedAddons": ["addon-ssl"],
+  "params": [
+    { "name": "oci_image_tag", "value": "15" },
+    { "name": "ipv6_token", "value": "::53" }
+  ],
+  "wait_seconds": 60
+}

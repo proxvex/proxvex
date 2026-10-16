@@ -35,9 +35,10 @@ OCI_zot_mirror_TAG="${OCI_zot_mirror_TAG:-v2.1.5}"            # ghcr.io/project-
 OCI_playwright_TAG="${OCI_playwright_TAG:-v1.57.0-noble}"     # mcr.microsoft.com/playwright (synced from frontend/package.json)
 OCI_oauth2_proxy_testbed_TAG="${OCI_oauth2_proxy_testbed_TAG:-alpine}" # nginx:alpine (testbed for addon-oauth2-proxy; shell-having image needed for on_start hook)
 OCI_wolproxy_TAG="${OCI_wolproxy_TAG:-latest}"               # ghcr.io/proxvex/wolproxy (stable JSON API for WoL+ping)
+OCI_wireguard_TAG="${OCI_wireguard_TAG:-15}"                  # ghcr.io/wg-easy/wg-easy
 
 # Export all tags so docker-compose subprocesses can resolve ${DOCKER_*_TAG} references
 export DOCKER_traefik_TAG DOCKER_zitadel_TAG DOCKER_zitadel_login_TAG DOCKER_postgrest_TAG DOCKER_cloudflare_tunnel_TAG
 export OCI_proxvex_TAG OCI_gptwol_TAG OCI_node_red_TAG OCI_modbus2mqtt_TAG OCI_eclipse_mosquitto_TAG OCI_zigbee2mqtt_TAG OCI_esphome_TAG OCI_homebridge_TAG OCI_gitea_TAG
 export OCI_postgres_TAG OCI_pgadmin_TAG OCI_nginx_TAG OCI_mariadb_TAG OCI_phpmyadmin_TAG OCI_docker_registry_mirror_TAG
-export OCI_zot_mirror_TAG OCI_playwright_TAG OCI_oauth2_proxy_testbed_TAG OCI_wolproxy_TAG
+export OCI_zot_mirror_TAG OCI_playwright_TAG OCI_oauth2_proxy_testbed_TAG OCI_wolproxy_TAG OCI_wireguard_TAG
