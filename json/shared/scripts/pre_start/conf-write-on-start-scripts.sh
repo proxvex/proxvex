@@ -475,6 +475,25 @@ fi
 # --- Install nginx and iptables if not present ---
 if ! command -v nginx >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then
   echo "Installing nginx and iptables..." >&2
+  # This hook runs right at container start, often before DNS answers; the
+  # package index fetch then fails ("DNS: transient error"). Wait for the
+  # mirror host to resolve first (max 30s, then try anyway).
+  case "$OS_TYPE" in
+    alpine) _mirror="${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}" ;;
+    *)      _mirror="${DEBIAN_MIRROR:-http://deb.debian.org/debian}" ;;
+  esac
+  _mirror_host=$(echo "$_mirror" | sed 's|^[a-z]*://||; s|[/:].*||')
+  _i=0
+  while [ "$_i" -lt 30 ]; do
+    if command -v getent >/dev/null 2>&1; then
+      getent hosts "$_mirror_host" >/dev/null 2>&1 && break
+    elif nslookup "$_mirror_host" >/dev/null 2>&1; then
+      break
+    fi
+    _i=$((_i + 1))
+    sleep 1
+  done
+  [ "$_i" -ge 30 ] && echo "DNS for $_mirror_host not ready after 30s, trying anyway" >&2
   _pkg_lock
 
   case "$OS_TYPE" in
