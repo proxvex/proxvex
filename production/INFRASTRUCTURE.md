@@ -10,7 +10,7 @@ graph TB
     subgraph pve1["pve1.cluster - always-on, primary"]
         deployer[proxvex :3443]
         postgres[postgres :5432]
-        nginx[nginx :1443]
+        nginx[nginx :443]
         zitadel[zitadel :1443]
         mosquitto[mosquitto :8883]
     end
@@ -42,7 +42,7 @@ All containers are **unprivileged LXC** managed by proxvex. Shared volumes on ZF
 | Type | Apps | IP | DNS Resolution |
 |------|------|----|----------------|
 | **DHCP** (internal) | deployer, postgres, zitadel, gitea | Automatic | dnsmasq learns hostname via DHCP |
-| **Static** (external) | nginx, mosquitto | Fixed | Manual DNS entries in dnsmasq |
+| **Static** (external) | nginx, mosquitto, wireguard | Fixed | Manual DNS entries in dnsmasq |
 
 Internal apps need no static IPs — dnsmasq on the OpenWrt router resolves their hostnames automatically from DHCP leases. External apps need static IPs because they are NAT targets or must be reachable from outside the subnet.
 
@@ -52,19 +52,25 @@ Internal apps need no static IPs — dnsmasq on the OpenWrt router resolves thei
 graph LR
     subgraph WAN["Internet"]
         browser_wan["Browser"]
+        phone["Phone (mobile IPv6)"]
+        cf["Cloudflare Tunnel edge"]
     end
 
-    subgraph Router["OpenWrt Router (192.168.1.1)"]
-        dns["dnsmasq<br/>*.ohnewarum.de → 192.168.1.1"]
-        wan_fwd["WAN :443 forward"]
-        nat_https["NAT :443 → nginx:1443"]
-        nat_mqtt["NAT :8883 → mosquitto:8883"]
+    subgraph Fritz["FritzBox (DS-Lite, no public IPv4)"]
+        fb_share["IPv6 share UDP 51820<br/>→ router-kg WAN ::5aea:1fff:fe1a:37b9"]
     end
 
-    subgraph PVE["PVE Host - pve1.cluster"]
-        subgraph External["External (static IP)"]
-            nginx_c["nginx :1443<br/>192.168.4.41<br/>ACME wildcard"]
+    subgraph Router["OpenWrt router-kg"]
+        dns["dnsmasq split DNS<br/>ohnewarum.de, git, auth → 192.168.4.41<br/>vpn → (public AAAA only)"]
+        dnat_wg["DNAT wan:51820 → fd29:cd10:9a98::53"]
+    end
+
+    subgraph PVE["PVE Host - pve1.cluster (VLAN 4, 192.168.4.0/24)"]
+        subgraph External["Static IP"]
+            nginx_c["nginx :443<br/>192.168.4.41<br/>ACME wildcard"]
             mosquitto_c["mosquitto :8883<br/>192.168.4.44"]
+            wireguard_c["wireguard (wg-easy)<br/>192.168.4.53 / ::53<br/>UDP 51820, UI :443"]
+            cloudflared["cloudflare-tunnel<br/>(outbound only)"]
         end
         subgraph Internal["Internal (DHCP)"]
             zitadel_c["zitadel :1443"]
@@ -74,73 +80,74 @@ graph LR
         end
     end
 
-    subgraph LAN["LAN"]
+    subgraph LAN["LAN / WireGuard clients"]
         browser_lan["Browser"]
-        iot["IoT Devices"]
+        iot["IoT / MQTT clients (VLAN 4)"]
     end
 
-    browser_wan -->|":443"| wan_fwd
-    wan_fwd --> nat_https
-    nat_https --> nginx_c
+    browser_wan -->|"ohnewarum.de"| cf
+    cloudflared -.->|"outbound"| cf
+    cloudflared -->|":443"| nginx_c
 
-    browser_lan -->|"*.ohnewarum.de"| dns
-    dns --> nat_https
+    phone -->|"vpn.ohnewarum.de UDP 51820"| fb_share
+    fb_share --> dnat_wg
+    dnat_wg --> wireguard_c
+
+    browser_lan -->|"git/auth.ohnewarum.de"| dns
+    dns --> nginx_c
     nginx_c -->|proxy_pass| zitadel_c
     nginx_c -->|proxy_pass| gitea_c
 
-    iot -->|"mqtt.ohnewarum.de:8883"| dns
-    dns --> nat_mqtt
-    nat_mqtt --> mosquitto_c
+    iot -->|"mqtt.ohnewarum.de:8883"| mosquitto_c
 
     browser_lan -->|"hostname:port"| deployer_c
 ```
 
-### Hairpin-NAT Avoidance
+### Access model
 
-All public domains (`*.ohnewarum.de`) resolve to `192.168.1.1` — the router's IP on a **different subnet**. Since source (192.168.4.x) and destination (192.168.1.1) are on different segments, DNAT works without hairpin-NAT problems.
+- **Public:** only `ohnewarum.de` (and `www`), via the Cloudflare Tunnel. cloudflared connects *outbound*; no inbound port is open for it on the FritzBox or the router.
+- **Everything else** (gitea, zitadel, deployer, heimvio, …): LAN and **WireGuard** only. `git.ohnewarum.de` and `auth.ohnewarum.de` are no longer in the tunnel.
+- **Inbound from the internet:** exactly one path — UDP 51820 (IPv6) for WireGuard. Details and the reasons for DNAT + `sourcefilter '0'`: `json/applications/wireguard/application.md`, section *IPv6 and DS-Lite*.
 
-```
-LAN client (192.168.4.x) → DNS *.ohnewarum.de → 192.168.1.1
-  → OpenWrt DNAT :443 → nginx (192.168.4.41):1443
-  → nginx proxies to backend (zitadel, gitea, ...)
-```
+### Split DNS
 
-This ensures `https://auth.ohnewarum.de` (port 443) works identically from LAN and WAN — required for OIDC issuer URL consistency.
+LAN and WireGuard clients resolve the nginx-served names straight to nginx on 443 — no hairpin through the router. The ACME wildcard certificate (DNS-01) is valid for them, so `https://auth.ohnewarum.de` works identically for every client — required for OIDC issuer URL consistency.
 
 ### HTTPS Port Convention
 
-Rootless LXC containers cannot bind port 443. All proxy-mode apps use **port 1443** for HTTPS (`local_https_port` default in addon-ssl).
-
 | App | HTTPS Port | Mode |
 |-----|-----------|------|
-| nginx | :1443 | proxy - ACME SSL proxy |
+| nginx | :443 | certs - ACME wildcard; binds 443 as uid 101 via the init wrapper (`unprivileged_port_start: 443`) |
+| wireguard | :443 | proxy - addon-ssl nginx in front of wg-easy :51821 |
 | zitadel | :1443 | native - Traefik |
 | gitea | :1443 | native - Gitea built-in |
 | proxvex | :3443 | native - Node.js |
 | postgres | :5432 | certs - TLS on app port |
 | mosquitto | :8883 | certs - TLS on MQTTS port |
 
-URLs in LAN include the port (e.g. `https://zitadel:1443` for direct access). Public domains are accessible on standard port 443 via NAT redirect through 192.168.1.1.
+Direct LAN URLs include the port where it is not 443 (e.g. `https://zitadel:1443`).
 
 ### DNS (OpenWrt Router - dnsmasq)
 
 | Domain | Resolves To | Flow |
 |--------|-------------|------|
-| `ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → static homepage |
-| `auth.ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → zitadel :1443 |
-| `git.ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → gitea :1443 |
-| `nebenkosten.ohnewarum.de` | 192.168.1.1 | NAT :443 → nginx :1443 → static frontend |
-| `mqtt.ohnewarum.de` | 192.168.1.1 | NAT :8883 → mosquitto :8883 (LAN only) |
+| `ohnewarum.de`, `www.ohnewarum.de` | 192.168.4.41 | nginx :443 → static homepage (public via Cloudflare Tunnel) |
+| `auth.ohnewarum.de` | 192.168.4.41 | nginx :443 → zitadel :1443 (internal only) |
+| `git.ohnewarum.de` | 192.168.4.41 | nginx :443 → gitea :1443 (internal only) |
+| `mqtt.ohnewarum.de` | 192.168.4.44 | mosquitto :8883 directly (clients in VLAN 4) |
+| `wireguard` | 192.168.4.53 | wg-easy web UI :443 |
+| `vpn.ohnewarum.de` | public AAAA only | router-kg WAN address, kept by DDNS `vpn_ipv6` |
 | Internal hostnames | DHCP IP | dnsmasq auto-resolves from DHCP leases |
 
-### NAT Rules
+### Router rules (OpenWrt)
 
-| Rule | Source | Port | Destination | Port | Scope |
-|------|--------|------|-------------|------|-------|
-| HTTPS | 192.168.1.1 | :443 | nginx (192.168.4.41) | :1443 | LAN + WAN |
-| MQTTS | 192.168.1.1 | :8883 | mosquitto (192.168.4.44) | :8883 | LAN only |
+| Rule | From | Port | To | Purpose |
+|------|------|------|----|---------|
+| `lan-cluster-allow-https-443` | lan | tcp 443 | nginx 192.168.4.41 | LAN reaches nginx directly |
+| `wan-cluster-dnat-wireguard-udp-51820` | wan (IPv6) | udp 51820 | DNAT → `fd29:cd10:9a98::53` | WireGuard |
+| `mqtts-to-mosquitto` (legacy) | lan → 192.168.1.1 | tcp 8883 | mosquitto | old hairpin path, unused once all clients use 192.168.4.44 |
 
-WAN access requires an additional port forward on the WAN interface (:443 → nginx:1443). MQTTS has no WAN port forward — IoT devices connect only from LAN.
+No WAN DNAT for HTTPS exists anymore; `wan6` has `option sourcefilter '0'` (see wireguard docs).
 
 ## 3. Certificate Strategy
 
@@ -192,7 +199,7 @@ graph LR
 
 - **Zitadel** is the OIDC provider, running with `ZITADEL_EXTERNALDOMAIN=auth.ohnewarum.de` and `ZITADEL_EXTERNALPORT=443`
 - **Server-to-server** calls (token exchange, OIDC setup) go directly to `https://zitadel:1443`, bypassing Nginx
-- **Browser redirects** go to `https://auth.ohnewarum.de` (port 443 — resolved to 192.168.1.1 by dnsmasq, NAT to nginx:1443, proxied to zitadel)
+- **Browser redirects** go to `https://auth.ohnewarum.de` (port 443 — resolved to nginx 192.168.4.41 by dnsmasq, proxied to zitadel)
 
 ## 5. Addons & Stack System
 

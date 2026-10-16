@@ -1,0 +1,14 @@
+{
+  "application": "wireguard",
+  "task": "installation",
+  "params": [
+    { "name": "vm_id_start", "value": 600 },
+    { "name": "static_ip", "value": "192.168.4.53/24" },
+    { "name": "static_gw", "value": "192.168.4.1" },
+    { "name": "vlan_tag", "value": "4" },
+    { "name": "nameserver4", "value": "192.168.4.1" },
+    { "name": "ipv6_token", "value": "::53" },
+    { "name": "oci_image_tag", "value": "15" }
+  ],
+  "selectedAddons": ["addon-ssl"]
+}
