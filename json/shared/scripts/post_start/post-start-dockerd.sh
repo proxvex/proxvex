@@ -85,6 +85,23 @@ GHCR_REGISTRY_MIRROR="{{ ghcr_registry_mirror }}"
 [ "$DOCKER_REGISTRY_MIRROR" = "NOT_DEFINED" ] && DOCKER_REGISTRY_MIRROR=""
 [ "$GHCR_REGISTRY_MIRROR" = "NOT_DEFINED" ] && GHCR_REGISTRY_MIRROR=""
 
+# IPv6 for Docker. Only when the LXC itself has IPv6 (SLAAC from the router)
+# and docker_ipv6 is not switched off. ULAs inside Docker; ip6tables NATs
+# them out of the LXC's address (NAT66) and DNATs published ports, like IPv4.
+DOCKER_IPV6="{{ docker_ipv6 }}"
+case "$DOCKER_IPV6" in false|0|no) DOCKER_IPV6=false ;; *) DOCKER_IPV6=true ;; esac
+if [ "$DOCKER_IPV6" = "true" ] && ! grep -q . /proc/net/if_inet6 2>/dev/null; then
+  echo "LXC has no IPv6 — Docker IPv6 not enabled" >&2
+  DOCKER_IPV6=false
+fi
+if [ "$DOCKER_IPV6" = "true" ]; then
+  # dockerd sets net.ipv6.conf.all.forwarding=1, and with forwarding the
+  # kernel ignores router advertisements unless accept_ra=2 — the LXC would
+  # lose its own IPv6 address and default route.
+  echo 2 > /proc/sys/net/ipv6/conf/eth0/accept_ra 2>/dev/null \
+    || echo "Warning: cannot set accept_ra=2 on eth0 — SLAAC may be lost" >&2
+fi
+
 mkdir -p /etc/docker
 
   # Build daemon.json with explicit DNS upstreams. Without `dns`, dockerd
@@ -128,11 +145,24 @@ fi
   if [ -n "$DNS_LIST" ]; then
     printf ',\n  "dns": [%s]' "$DNS_LIST"
   fi
+  if [ "$DOCKER_IPV6" = "true" ]; then
+    # ip6tables is still experimental in Docker 26 (GA in 27). The address
+    # pools keep Docker's IPv4 default range and add a ULA /48 carved into
+    # /64s; default-network-opts gives every compose network IPv6 without
+    # touching the compose files.
+    printf ',\n  "ipv6": true'
+    printf ',\n  "fixed-cidr-v6": "fd00:d0c::/64"'
+    printf ',\n  "experimental": true'
+    printf ',\n  "ip6tables": true'
+    printf ',\n  "default-address-pools": [{"base": "172.17.0.0/12", "size": 16}, {"base": "fd00:d0c:1::/48", "size": 64}]'
+    printf ',\n  "default-network-opts": {"bridge": {"com.docker.network.enable_ipv6": "true"}}'
+  fi
   printf '\n}\n'
 } > /etc/docker/daemon.json
 
 [ -n "$DOCKER_REGISTRY_MIRROR" ] && echo "daemon.json: registry-mirrors -> ${DOCKER_REGISTRY_MIRROR}" >&2
 [ -n "$DNS_LIST" ] && echo "daemon.json: dns -> [${DNS_LIST}]" >&2
+[ "$DOCKER_IPV6" = "true" ] && echo "daemon.json: IPv6 on (fd00:d0c::/64, pools fd00:d0c:1::/48, ip6tables)" >&2
 
 # /etc/hosts redirect for ghcr.io. Idempotent: the marker line lets
 # re-runs detect prior install and skip without double-adding. If the
