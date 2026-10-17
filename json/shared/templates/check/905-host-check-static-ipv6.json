@@ -1,0 +1,18 @@
+{
+  "execute_on": "ve",
+  "name": "Check Static IPv6",
+  "description": "When static_ip6 is set: the address is on the container's eth0 and answers a ping from the host. Static ULAs give static apps a stable IPv6 address (the SLAAC address follows the MAC, which changes on upgrade). No-op without static_ip6.",
+  "parameters": [
+    "vm_id",
+    "static_ip6"
+  ],
+  "commands": [
+    {
+      "name": "Check Static IPv6",
+      "script": "host-check-static-ipv6.sh",
+      "outputs": [
+        "check_static_ipv6"
+      ]
+    }
+  ]
+}

@@ -102,6 +102,7 @@
   "check": {
     "check": [
       "900-host-check-container.json",
+      "905-host-check-static-ipv6.json",
       "920-host-check-lxc-log.json",
       "940-host-check-file-exists.json",
       "945-check-https-cert.json",
