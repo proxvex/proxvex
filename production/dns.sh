@@ -29,6 +29,17 @@ ZOT_MIRROR_IP="192.168.4.50"
 PROXVEX_IP="192.168.4.51"
 WIREGUARD_IP="192.168.4.53"
 
+# Stable IPv6 per static app: the ULA prefix is fixed on router-kg
+# (fd29:cd10:9a98::/48, cluster = :0::/64); apps pin ::<octet> via
+# static_ip6 (wireguard via ipv6_token). SLAAC addresses follow the MAC and
+# change on every upgrade, so DNS only ever points at these.
+ULA="fd29:cd10:9a98:"
+NGINX_IP6="${ULA}:41"
+REGISTRY_MIRROR_IP6="${ULA}:45"
+MOSQUITTO_IP6="${ULA}:44"
+ZOT_MIRROR_IP6="${ULA}:50"
+WIREGUARD_IP6="${ULA}:53"
+
 MANAGED_TAG="prod-setup"
 
 add_dns() {
@@ -55,6 +66,39 @@ add_dns() {
   echo "Added DNS: $name → $ip"
 }
 
+# _dns6_section <name>: uci section of the IPv6 entry for <name>, if any.
+_dns6_section() {
+  for s in $(uci show dhcp | sed -n "s/^dhcp\.\([^.]*\)\.name='$1'\$/\1/p"); do
+    case "$(uci -q get "dhcp.$s.ip")" in
+      *:*) echo "$s"; return ;;
+    esac
+  done
+}
+
+# add_dns6 <name> <ipv6>: AAAA counterpart of add_dns. A name can have one
+# IPv4 and one IPv6 section, so the upsert matches name AND address family.
+add_dns6() {
+  local name="$1"
+  local ip="$2"
+  local sec
+  sec=$(_dns6_section "$name")
+  if [ -n "$sec" ]; then
+    if [ "$(uci -q get "dhcp.$sec.ip")" = "$ip" ]; then
+      echo "DNS entry '$name' (AAAA) → $ip already set"
+    else
+      uci set "dhcp.$sec.ip=$ip"
+      echo "Updated DNS: $name (AAAA) → $ip"
+    fi
+    return
+  fi
+  uci add dhcp domain
+  uci set "dhcp.@domain[-1].name=$name"
+  uci set "dhcp.@domain[-1].ip=$ip"
+  uci set "dhcp.@domain[-1].dns=1"
+  uci set "dhcp.@domain[-1].managed=$MANAGED_TAG"
+  echo "Added DNS: $name (AAAA) → $ip"
+}
+
 # === DNS ===
 
 echo "=== Configuring DNS entries ==="
@@ -77,6 +121,18 @@ add_dns auth.ohnewarum.de         "$NGINX_IP"
 
 # MQTT domain → mosquitto directly (same port 8883, no DNAT). LAN/cluster only.
 add_dns mqtt.ohnewarum.de         "$MOSQUITTO_IP"
+
+# AAAA for the same names. Clients prefer IPv6, so every name below must be
+# served on its ULA (nginx/mosquitto/registry listen on [::]) and the router
+# must allow it (lan-cluster-allow-https-443-v6 for nginx).
+for n in nginx ohnewarum.de www.ohnewarum.de git.ohnewarum.de auth.ohnewarum.de; do
+  add_dns6 "$n" "$NGINX_IP6"
+done
+add_dns6 docker-registry-mirror "$REGISTRY_MIRROR_IP6"
+add_dns6 eclipse-mosquitto      "$MOSQUITTO_IP6"
+add_dns6 mqtt.ohnewarum.de      "$MOSQUITTO_IP6"
+add_dns6 zot-mirror             "$ZOT_MIRROR_IP6"
+add_dns6 wireguard              "$WIREGUARD_IP6"
 
 uci commit dhcp
 /etc/init.d/dnsmasq restart
