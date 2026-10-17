@@ -1,7 +1,7 @@
 {
   "execute_on": "ve",
-  "name": "Check Init Wrapper",
-  "description": "Verifies at runtime that the init wrapper /usr/local/sbin/proxvex-init took effect: the container's init starts it, net.ipv4.ip_unprivileged_port_start and every container_sysctls key hold the requested values, and eth0 carries ipv6_token. Writing the wrapper succeeds even when it is never executed, so only reading the live values back proves it. No-op (passes) when unprivileged_port_start, container_sysctls and ipv6_token are all empty; skip_if_all_missing cannot be used because 107/109 declare these parameters.",
+  "name": "Check Ports, Sysctls, IPv6",
+  "description": "Reads back from the running container what the init wrapper (/usr/local/sbin/proxvex-init) was asked to set: the lowest port a non-root app may open (unprivileged_port_start), the container_sysctls values, the IPv6 token on eth0, and that a non-root app was dropped back to its own user. Passes as 'not needed' when the wrapper was skipped for a port setting alone (image without shell or privilege-drop tool); fails when requested sysctls or a token are missing.",
   "parameters": [
     "vm_id",
     "unprivileged_port_start",
@@ -10,7 +10,7 @@
   ],
   "commands": [
     {
-      "name": "Check Init Wrapper",
+      "name": "Check Ports, Sysctls, IPv6",
       "script": "host-check-init-wrapper.sh",
       "outputs": [
         "check_init_wrapper"

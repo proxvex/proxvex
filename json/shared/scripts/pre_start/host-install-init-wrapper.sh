@@ -52,7 +52,18 @@
 # vol_mount (same mechanism as host-push-ca-to-container.sh).
 #
 # Library: pve-common.sh + vol-common.sh (vol_mount, vol_get_storage_type)
-# Output: JSON array to stdout
+# Output: [{"id":"init_wrapper_installed","value":"true|false"}] — read by
+# conf-oci-lxc-configuration.py (107), which only points the container's init
+# at the wrapper when it was actually written.
+#
+# Whether the wrapper is written at all:
+#   - unprivileged_port_start defaults to 443, so every OCI app with a shell
+#     gets the wrapper (root-init images included: gitea starts s6 as root
+#     and runs gitea itself as uid 1000).
+#   - The image needs /bin/sh (the wrapper is a shell script) — distroless
+#     images are skipped instead of being made unbootable.
+#   - A non-root app needs a privilege-drop tool in the image (setpriv,
+#     su-exec or su); otherwise skip rather than refuse to start.
 # =============================================================================
 
 VMID="{{ vm_id }}"
@@ -69,9 +80,15 @@ WRAPPER_RELPATH=usr/local/sbin/proxvex-init
 if [ -z "$PORT_START" ] && [ -z "$IPV6_TOKEN" ] \
   && [ -z "$(printf '%s' "$SYSCTLS" | tr -d '[:space:]')" ]; then
   echo "unprivileged_port_start, container_sysctls and ipv6_token not set — no init wrapper needed" >&2
-  echo '[]'
+  echo '[{"id":"init_wrapper_installed","value":"false"}]'
   exit 0
 fi
+
+skip() {
+  echo "Init wrapper not installed: $1" >&2
+  echo '[{"id":"init_wrapper_installed","value":"false"}]'
+  exit 0
+}
 
 if [ -n "$PORT_START" ]; then
   case "$PORT_START" in
@@ -145,6 +162,14 @@ if [ -z "$VMID" ] || [ "$VMID" = "NOT_DEFINED" ]; then
   exit 1
 fi
 
+# The image's user, as Proxmox derived it from the OCI config (empty = root).
+INIT_UID=$(pct config "$VMID" 2>/dev/null | sed -n 's/^lxc\.init\.uid:[[:space:]]*//p' | head -1)
+[ "$INIT_UID" = "0" ] && INIT_UID=""
+# A root init does not mean a root app: images like gitea start s6 as root
+# and run the service as uid 1000, which then needs the lower port start.
+# So root-init images get the wrapper too — for them it only writes the
+# sysctls and execs, no privilege change.
+
 # Read rootfs volid from pct config: `rootfs: local-zfs:subvol-500-disk-0,size=1G`
 ROOTFS_VOLID=$(pct config "$VMID" 2>/dev/null \
   | awk '/^rootfs:/ {
@@ -180,6 +205,27 @@ case "$STORAGE_TYPE" in
     trap 'umount "$ROOTFS_PATH" 2>/dev/null || umount -l "$ROOTFS_PATH" 2>/dev/null || true; rmdir "$ROOTFS_PATH" 2>/dev/null || true' EXIT
     ;;
 esac
+
+# The wrapper is a shell script: distroless images cannot run it.
+if [ ! -e "${ROOTFS_PATH}/bin/sh" ] && [ ! -L "${ROOTFS_PATH}/bin/sh" ]; then
+  skip "image has no /bin/sh"
+fi
+
+# A non-root app needs a way back down from root. busybox's setpriv applet
+# cannot change uids, so a setpriv that is a busybox link does not count.
+if [ -n "$INIT_UID" ]; then
+  DROP_TOOL=""
+  for t in usr/bin/setpriv bin/setpriv; do
+    if [ -e "${ROOTFS_PATH}/$t" ] && [ ! -L "${ROOTFS_PATH}/$t" ]; then DROP_TOOL=setpriv; fi
+  done
+  for t in sbin/su-exec usr/sbin/su-exec usr/bin/su-exec bin/su usr/bin/su; do
+    if [ -z "$DROP_TOOL" ] && { [ -e "${ROOTFS_PATH}/$t" ] || [ -L "${ROOTFS_PATH}/$t" ]; }; then DROP_TOOL=${t##*/}; fi
+  done
+  if [ -z "$DROP_TOOL" ]; then
+    skip "app runs as uid $INIT_UID and the image has no setpriv/su-exec/su to drop privileges again"
+  fi
+  echo "Privilege drop for uid $INIT_UID via $DROP_TOOL" >&2
+fi
 
 TARGET="${ROOTFS_PATH}/${WRAPPER_RELPATH}"
 mkdir -p "$(dirname "$TARGET")" || {
@@ -272,4 +318,4 @@ chmod 0755 "$TARGET"
 
 echo "Installed init wrapper /${WRAPPER_RELPATH}:" >&2
 cat "$TARGET" >&2
-echo '[]'
+echo '[{"id":"init_wrapper_installed","value":"true"}]'

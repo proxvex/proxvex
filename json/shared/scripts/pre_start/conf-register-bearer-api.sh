@@ -80,10 +80,20 @@ if [ -z "$PAT" ] \
    && [ -n "$DEPLOYER_OIDC_ISSUER_URL_INPUT" ] \
    && [ "$DEPLOYER_OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then
   cc_scope="openid urn:zitadel:iam:org:project:id:zitadel:aud urn:zitadel:iam:org:projects:roles"
-  cc_response=$(curl -sk -X POST "${DEPLOYER_OIDC_ISSUER_URL_INPUT}/oauth/v2/token" \
-    -u "${DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT}:${DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT}" \
-    --data-urlencode "grant_type=client_credentials" \
-    --data-urlencode "scope=${cc_scope}" 2>/dev/null)
+  # Retry while Zitadel does not answer at all (restart, snapshot rollback):
+  # otherwise this would silently fall through to the stub audience below.
+  # An answer without a token (wrong credentials) is not retried.
+  cc_token=""
+  cc_response=""
+  cc_try=0
+  while [ -z "$cc_response" ] && [ "$cc_try" -lt 10 ]; do
+    [ "$cc_try" -gt 0 ] && { echo "Zitadel token endpoint not answering yet, retrying..." >&2; sleep 3; }
+    cc_try=$((cc_try + 1))
+    cc_response=$(curl -sk -m 10 -X POST "${DEPLOYER_OIDC_ISSUER_URL_INPUT}/oauth/v2/token" \
+      -u "${DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT}:${DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT}" \
+      --data-urlencode "grant_type=client_credentials" \
+      --data-urlencode "scope=${cc_scope}" 2>/dev/null)
+  done
   cc_token=$(echo "$cc_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
   if [ -n "$cc_token" ]; then
     PAT="$cc_token"

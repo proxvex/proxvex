@@ -148,6 +148,41 @@ ENDOFOUTPUT
   echo "WARNING: Pre-provisioned credentials incomplete, falling back to API" >&2
 fi
 
+# Wait BEFORE asking for a token: right after a Zitadel restart or a
+# snapshot rollback the token endpoint returns nothing, and the grant below
+# failed with an empty response although the credentials were fine.
+# --- Wait for Zitadel ready ---
+echo "Waiting for Zitadel to be ready..." >&2
+RETRIES=60
+while [ $RETRIES -gt 0 ]; do
+  _ready_host_hdr=""
+  if [ -n "$ZITADEL_HOST_HEADER" ]; then _ready_host_hdr="-H Host:${ZITADEL_HOST_HEADER}"; fi
+  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null)
+  if [ "$STATUS" = "200" ]; then
+    echo "Zitadel is ready" >&2
+    break
+  fi
+  # 301/302 means Traefik is redirecting HTTP→HTTPS — extract target from Location header
+  if [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+    REDIRECT_LOC=$(curl -sk -D - -o /dev/null $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null | grep -i "^location:" | tr -d '\r')
+    REDIRECT_PORT=$(echo "$REDIRECT_LOC" | sed -n 's|.*://[^:/]*:\([0-9]*\).*|\1|p')
+    ZITADEL_PROTO="https"
+    [ -n "$REDIRECT_PORT" ] && ZITADEL_PORT="$REDIRECT_PORT"
+    ZITADEL_URL="${ZITADEL_PROTO}://${ZITADEL_HOST}:${ZITADEL_PORT}"
+    echo "Detected redirect, switching to ${ZITADEL_URL}" >&2
+    continue
+  fi
+  RETRIES=$((RETRIES - 1))
+  echo "Zitadel not ready yet (HTTP ${STATUS}), retrying... (${RETRIES} left)" >&2
+  sleep 2
+done
+
+if [ $RETRIES -eq 0 ]; then
+  echo "ERROR: Zitadel did not become ready" >&2
+  echo '[]'
+  exit 1
+fi
+
 # --- Acquire a Bearer for the Zitadel Management API ---
 # Priority:
 #   1) {{ ZITADEL_PAT }}  Template variable — operator-supplied PAT only.
@@ -191,11 +226,18 @@ if [ -z "$PAT" ] \
    && [ -n "$DEPLOYER_OIDC_ISSUER_URL_INPUT" ] \
    && [ "$DEPLOYER_OIDC_ISSUER_URL_INPUT" != "NOT_DEFINED" ]; then
   cc_scope="openid urn:zitadel:iam:org:project:id:zitadel:aud urn:zitadel:iam:org:projects:roles"
-  cc_response=$(curl -sk -X POST "${DEPLOYER_OIDC_ISSUER_URL_INPUT}/oauth/v2/token" \
-    -u "${DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT}:${DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT}" \
-    --data-urlencode "grant_type=client_credentials" \
-    --data-urlencode "scope=${cc_scope}" 2>/dev/null)
-  cc_token=$(echo "$cc_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  # /debug/ready can answer a moment before the token endpoint does.
+  cc_token=""
+  cc_try=0
+  while [ -z "$cc_token" ] && [ "$cc_try" -lt 5 ]; do
+    [ "$cc_try" -gt 0 ] && sleep 3
+    cc_try=$((cc_try + 1))
+    cc_response=$(curl -sk -X POST "${DEPLOYER_OIDC_ISSUER_URL_INPUT}/oauth/v2/token" \
+      -u "${DEPLOYER_OIDC_MACHINE_CLIENT_ID_INPUT}:${DEPLOYER_OIDC_MACHINE_CLIENT_SECRET_INPUT}" \
+      --data-urlencode "grant_type=client_credentials" \
+      --data-urlencode "scope=${cc_scope}" 2>/dev/null)
+    cc_token=$(echo "$cc_response" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  done
   if [ -n "$cc_token" ]; then
     PAT="$cc_token"
     PAT_SOURCE="client_credentials grant via DEPLOYER_OIDC_MACHINE_* (oidc_production stack, len=${#cc_token})"
@@ -222,37 +264,6 @@ echo "Using Bearer from: ${PAT_SOURCE}" >&2
 
 echo "Using Zitadel at ${ZITADEL_URL}" >&2
 
-# --- Wait for Zitadel ready ---
-echo "Waiting for Zitadel to be ready..." >&2
-RETRIES=60
-while [ $RETRIES -gt 0 ]; do
-  _ready_host_hdr=""
-  if [ -n "$ZITADEL_HOST_HEADER" ]; then _ready_host_hdr="-H Host:${ZITADEL_HOST_HEADER}"; fi
-  STATUS=$(curl -sk -o /dev/null -w "%{http_code}" $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null)
-  if [ "$STATUS" = "200" ]; then
-    echo "Zitadel is ready" >&2
-    break
-  fi
-  # 301/302 means Traefik is redirecting HTTP→HTTPS — extract target from Location header
-  if [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
-    REDIRECT_LOC=$(curl -sk -D - -o /dev/null $_ready_host_hdr "${ZITADEL_URL}/debug/ready" 2>/dev/null | grep -i "^location:" | tr -d '\r')
-    REDIRECT_PORT=$(echo "$REDIRECT_LOC" | sed -n 's|.*://[^:/]*:\([0-9]*\).*|\1|p')
-    ZITADEL_PROTO="https"
-    [ -n "$REDIRECT_PORT" ] && ZITADEL_PORT="$REDIRECT_PORT"
-    ZITADEL_URL="${ZITADEL_PROTO}://${ZITADEL_HOST}:${ZITADEL_PORT}"
-    echo "Detected redirect, switching to ${ZITADEL_URL}" >&2
-    continue
-  fi
-  RETRIES=$((RETRIES - 1))
-  echo "Zitadel not ready yet (HTTP ${STATUS}), retrying... (${RETRIES} left)" >&2
-  sleep 2
-done
-
-if [ $RETRIES -eq 0 ]; then
-  echo "ERROR: Zitadel did not become ready" >&2
-  echo '[]'
-  exit 1
-fi
 
 # --- Helper: API call ---
 # Uses Host header matching Zitadel's ExternalDomain when connecting via internal URL
