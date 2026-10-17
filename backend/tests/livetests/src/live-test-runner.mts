@@ -289,6 +289,49 @@ async function discoverApiUrl(httpUrl: string, httpsUrl: string): Promise<string
  */
 const HUB_LXC_STATIC_IP = "10.0.0.100";
 
+/**
+ * ULA network for the containers on the nested VM's vmbr1. Containers get
+ * SLAAC addresses from it, so IPv6-only behaviour (nginx `listen [::]`,
+ * ip6tables rules, ipv6_token, container-to-container v6) is testable.
+ */
+export const NESTED_IPV6_PREFIX = "fd00:e2e::";
+
+/**
+ * Shell snippet run on the nested VM. Idempotent: re-enables IPv6 on vmbr1
+ * (step1 used to disable it), adds the router address and lets dnsmasq
+ * announce the prefix. Router lifetime 0 = no default route: the nested VM
+ * has no IPv6 uplink, and a default route would make containers try IPv6
+ * for every AAAA destination and run into timeouts. Internet stays IPv4.
+ */
+export function nestedIpv6Script(prefix = NESTED_IPV6_PREFIX): string {
+  const cfg = "/etc/dnsmasq.d/e2e-ipv6.conf";
+  const want = [
+    "enable-ra",
+    "dhcp-range=::,constructor:vmbr1,ra-only,64,2h",
+    "ra-param=vmbr1,60,0",
+  ].join("\\n");
+  return [
+    "sysctl -qw net.ipv6.conf.vmbr1.disable_ipv6=0",
+    `ip -6 addr show dev vmbr1 | grep -q '${prefix}1/64' || ip -6 addr add ${prefix}1/64 dev vmbr1`,
+    `want=$(printf '${want}')`,
+    `if [ "$(cat ${cfg} 2>/dev/null)" != "$want" ]; then printf '%s\\n' "$want" > ${cfg}; systemctl restart dnsmasq; echo changed; else echo unchanged; fi`,
+  ].join("; ");
+}
+
+/**
+ * Make sure the nested VM's container bridge carries IPv6. Called wherever
+ * setupPortForwarding runs, so it survives `qm rollback` to snapshots taken
+ * before IPv6 was enabled.
+ */
+export function ensureNestedIpv6(config: { pveHost: string; portPveSsh: number }): void {
+  try {
+    const out = nestedSshStrict(config.pveHost, config.portPveSsh, nestedIpv6Script(), 20000).trim();
+    logOk(`Nested IPv6: ${NESTED_IPV6_PREFIX}/64 on vmbr1 (RA, no default route) — ${out.split("\n").pop()}`);
+  } catch (err: any) {
+    logWarn(`Nested IPv6 setup failed (non-fatal, IPv6 checks will be skipped): ${err?.message ?? err}`);
+  }
+}
+
 export function setupPortForwarding(config: {
   pveHost: string;
   portPveSsh: number;
@@ -769,6 +812,7 @@ async function main() {
   // because qm rollback wipes the nested-VM iptables + dnsmasq state. Outer-host rules
   // (set via `nestedSsh(pveHost, 22, ...)`) survive rollback and are kept idempotent.
   setupPortForwarding(config);
+  ensureNestedIpv6(config);
 
   // Fetch application metadata (stacktypes, extends, tags)
   const appStacktypes = new Map<string, string | string[]>();
@@ -1103,6 +1147,7 @@ async function main() {
   // still reach the right inner containers.
   setPhase("setting up port forwarding");
   setupPortForwarding(config);
+  ensureNestedIpv6(config);
   if (runMode === "single" && fromSnapshot) {
     setPhase("rolling back/destroying dep CTs from snapshot");
     await rollbackOrDestroyDepsFromSnapshot(planned, config.pveHost, config.portPveSsh, projectRoot);
