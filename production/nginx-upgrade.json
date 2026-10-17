@@ -1,0 +1,10 @@
+{
+  "application": "nginx",
+  "task": "upgrade",
+  "params": [
+    { "name": "previous_vm_id", "value": "506" },
+    { "name": "oci_image_tag", "value": "1-alpine" },
+    { "name": "local_https_port", "value": "443" },
+    { "name": "unprivileged_port_start", "value": "443" }
+  ]
+}

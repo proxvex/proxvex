@@ -1,10 +1,12 @@
 {
   "execute_on": "ve",
   "name": "Install Init Wrapper",
-  "description": "Writes /usr/local/sbin/proxvex-init into the container rootfs (offline via vol_mount, container still stopped) when unprivileged_port_start is set. In an oci-image app the service itself is PID 1 and usually runs as a non-root uid, so it cannot bind ports below net.ipv4.ip_unprivileged_port_start (default 1024) — which is why local_https_port defaults to 1443. The wrapper raises that range for the container's network namespace and then execs the original command; conf-oci-lxc-configuration.py points lxc.init.cmd at it. Proxmox rejects the direct route (raw lxc.sysctl.* keys are dropped from the config), and inside the container there is no step before the app. No-op when unprivileged_port_start is empty.",
+  "description": "Writes /usr/local/sbin/proxvex-init into the container rootfs (offline via vol_mount, container still stopped) when unprivileged_port_start, container_sysctls or ipv6_token is set. In an oci-image app the service itself is PID 1, so there is no step inside the container before the app, and Proxmox rejects the direct route for per-netns sysctls (raw lxc.sysctl.* keys are dropped from the config). The wrapper sets net.ipv4.ip_unprivileged_port_start (lets a non-root app bind ports below 1024 — which is why local_https_port otherwise defaults to 1443) and every key=value line of container_sysctls (e.g. net.ipv4.ip_forward=1 for a VPN gateway), and pins eth0's IPv6 interface ID to ipv6_token (ip token set — the default ID follows the MAC, which changes on upgrade), then execs the original command; conf-oci-lxc-configuration.py points the container's init at it. No-op when all three are empty.",
   "parameters": [
     "vm_id",
-    "unprivileged_port_start"
+    "unprivileged_port_start",
+    "container_sysctls",
+    "ipv6_token"
   ],
   "commands": [
     {

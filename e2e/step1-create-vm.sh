@@ -489,7 +489,12 @@ iface vmbr1 inet static
     bridge-stp off
     bridge-fd 0
     post-up echo 1 > /proc/sys/net/ipv4/ip_forward
-    post-up echo 1 > /proc/sys/net/ipv6/conf/vmbr1/disable_ipv6
+    # IPv6 on the container bridge: ULA fd00:e2e::/64, announced by dnsmasq
+    # (e2e-ipv6.conf) without a default route — no IPv6 uplink here.
+    # The live-test runner re-applies this at run time (ensureNestedIpv6),
+    # so VMs created before this change get it too.
+    post-up echo 0 > /proc/sys/net/ipv6/conf/vmbr1/disable_ipv6
+    post-up ip -6 addr add fd00:e2e::1/64 dev vmbr1 || true
     post-up iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -o vmbr0 -j MASQUERADE
     post-down iptables -t nat -D POSTROUTING -s 10.0.0.0/24 -o vmbr0 -j MASQUERADE
 EOF
@@ -560,6 +565,15 @@ no-resolv
 server=8.8.8.8
 server=8.8.4.4
 DNSEOF
+
+    # Router advertisements for fd00:e2e::/64 on vmbr1, router lifetime 0
+    # (= no IPv6 default route). Same content as nestedIpv6Script() in
+    # backend/tests/livetests/src/live-test-runner.mts.
+    cat > /etc/dnsmasq.d/e2e-ipv6.conf << IPV6EOF
+enable-ra
+dhcp-range=::,constructor:vmbr1,ra-only,64,2h
+ra-param=vmbr1,60,0
+IPV6EOF
 
     systemctl enable dnsmasq
     systemctl restart dnsmasq

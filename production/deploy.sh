@@ -369,7 +369,14 @@ if [ -n "$DEPLOYER_VMID" ]; then
     local with_pat
     with_pat=$(augment_params_with_pat "$params_file")
     local effective_params
-    effective_params=$(augment_params_with_previous_vmid "$with_pat") || true
+    # No `|| true`: when an upgrade/reconfigure cannot resolve its source
+    # container, continuing would deploy a fresh, unconfigured second instance
+    # next to the running one (nginx 2026-10-16: no static IP, no restored
+    # settings, crash on unresolved upstreams). Set previous_vm_id explicitly.
+    effective_params=$(augment_params_with_previous_vmid "$with_pat") || {
+      echo "ERROR: cannot determine previous_vm_id for $(basename "$params_file") — aborting (set previous_vm_id in the params file)" >&2
+      return 1
+    }
     local lbl _rc=0
     lbl=$(basename "${params_file%.json}")
     # Push JSON file into container and run CLI from inside.
@@ -414,7 +421,14 @@ else
     local with_pat
     with_pat=$(augment_params_with_pat "$params_file")
     local effective_params
-    effective_params=$(augment_params_with_previous_vmid "$with_pat") || true
+    # No `|| true`: when an upgrade/reconfigure cannot resolve its source
+    # container, continuing would deploy a fresh, unconfigured second instance
+    # next to the running one (nginx 2026-10-16: no static IP, no restored
+    # settings, crash on unresolved upstreams). Set previous_vm_id explicitly.
+    effective_params=$(augment_params_with_previous_vmid "$with_pat") || {
+      echo "ERROR: cannot determine previous_vm_id for $(basename "$params_file") — aborting (set previous_vm_id in the params file)" >&2
+      return 1
+    }
     local lbl _rc=0
     lbl=$(basename "${params_file%.json}")
     # Exported (not command-prefixed) so the CLI child spawned inside

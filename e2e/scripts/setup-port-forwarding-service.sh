@@ -187,8 +187,16 @@ def main():
         # rule for 3443 is already in place from the line above.
         run(f'iptables -t nat -A PREROUTING -p tcp --dport 3443 -j DNAT --to-destination {nested_ip}:3443')
 
-        # NAT for nested VM network
-        run(f'iptables -t nat -A POSTROUTING -s {subnet}.0/24 -o vmbr0 -j MASQUERADE')
+        # NAT for nested VM network, out of the interface that carries the
+        # default route (same detection as step0/step1). Hardcoding vmbr0
+        # broke outbound access once the uplink moved to the VLAN interface
+        # vmbr0.4: the rule never matched and nested VMs lost the internet
+        # after every reboot of the outer host.
+        route = run('ip -4 route show default', check=False).stdout.split()
+        uplink = route[route.index('dev') + 1] if 'dev' in route else 'vmbr0'
+        masq = f'-s {subnet}.0/24 -o {uplink} -j MASQUERADE'
+        if run(f'iptables -t nat -C POSTROUTING {masq}', check=False).returncode != 0:
+            run(f'iptables -t nat -A POSTROUTING {masq}')
 
         # Extra portForwarding entries (Playwright WS, Zitadel, proxvex external...).
         for fwd in extra_fwds:
@@ -232,7 +240,9 @@ SERVICE_EOF"
 # Step 4: Enable and start service
 pve_ssh "systemctl daemon-reload"
 pve_ssh "systemctl enable ${SERVICE_NAME}.service"
-pve_ssh "systemctl start ${SERVICE_NAME}.service"
+# restart, not start: the unit is oneshot + RemainAfterExit, so "start" on an
+# already-active unit is a no-op and a redeploy would never re-apply the rules.
+pve_ssh "systemctl restart ${SERVICE_NAME}.service"
 success "Service enabled and started"
 
 # Verify

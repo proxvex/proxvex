@@ -123,7 +123,9 @@
   "check": {
     "check": [
       "900-host-check-container.json",
+      "905-host-check-static-ipv6.json",
       "910-host-check-docker-services.json",
+      "912-host-check-docker-ipv6.json",
       "915-host-check-docker-image-versions.json",
       "920-host-check-lxc-log.json",
       "930-host-check-docker-logs.json",

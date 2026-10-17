@@ -82,7 +82,10 @@ $DC -f "$COMPOSE_FILE" pull --quiet >&2
 
 # Step 3: Start services
 echo "Starting Docker Compose services (timeout: ${STARTUP_TIMEOUT}s)..." >&2
-$DC -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
+# down above removed the networks, so they are recreated here — with IPv6
+# when dockerd has it (library compose-ipv6.sh, docker_ipv6).
+IPV6_ARGS=$(compose_ipv6_args "$DC" "$COMPOSE_FILE")
+$DC -f "$COMPOSE_FILE" $IPV6_ARGS up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
 RC=$?
 
 if [ $RC -ne 0 ]; then

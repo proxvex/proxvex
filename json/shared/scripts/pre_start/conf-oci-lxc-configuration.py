@@ -15,10 +15,18 @@ envs_str = """{{ envs }}"""
 # envs string (the frontend edits the full string directly, so this channel
 # is CLI-only in practice). Empty / NOT_DEFINED → no-op.
 extra_envs_str = """{{ extra_envs }}"""
-# Lowest port a non-root process in the container may bind. Set → the app runs
-# behind the init wrapper that 109-host-install-init-wrapper installed.
+# Lowest port a non-root process in the container may bind, further per-netns
+# sysctls and a fixed IPv6 interface ID. Any set → the app runs behind the init
+# wrapper that 109-host-install-init-wrapper installed.
 port_start = "{{ unprivileged_port_start }}"
+container_sysctls = """{{ container_sysctls }}"""
+ipv6_token = "{{ ipv6_token }}"
 INIT_WRAPPER = "/usr/local/sbin/proxvex-init"
+
+def is_set(value):
+    return bool(value and value.strip() and value.strip() != "NOT_DEFINED")
+
+use_init_wrapper = is_set(port_start) or is_set(container_sysctls) or is_set(ipv6_token)
 
 if not vm_id or vm_id == "NOT_DEFINED":
     print("Error: vm_id is not set", file=sys.stderr)
@@ -96,6 +104,31 @@ if not logfile_found:
 
 print(f"Set lxc.console.logfile: {log_file}", file=sys.stderr)
 
+# The wrapper writes /proc/sys, which only root may do. Proxmox derives
+# lxc.init.uid/gid/groups from the image's User (nginx-unprivileged: 101), so
+# PID 1 — and with it the wrapper — would start unprivileged and every sysctl
+# write would silently fail. When the wrapper is used, move the user from the
+# LXC config to the wrapper (`--as UID:GID:GROUPS`): init starts as root, the
+# wrapper sets the sysctls and drops to that user right before exec.
+def init_user_lines(lines):
+    found = {}
+    for line in lines:
+        m = re.match(r'^lxc\.init\.(uid|gid|groups):\s*(.*)$', line.strip())
+        if m:
+            found[m.group(1)] = m.group(2).strip()
+    return found
+
+wrapper_cmd = INIT_WRAPPER
+if use_init_wrapper:
+    init_user = init_user_lines(new_lines)
+    uid = init_user.get("uid", "")
+    if uid and uid != "0":
+        gid = init_user.get("gid", "") or uid
+        groups = ",".join(g for g in re.split(r"[,\s]+", init_user.get("groups", "")) if g)
+        wrapper_cmd = f"{INIT_WRAPPER} --as {uid}:{gid}:{groups}"
+        new_lines = [l for l in new_lines if not re.match(r'^lxc\.init\.(uid|gid|groups):', l.strip())]
+        print(f"Init wrapper runs as root and drops to uid {uid}:{gid} (groups '{groups}'); removed lxc.init.uid/gid/groups", file=sys.stderr)
+
 # 2. Handle initial_command with substitution
 if initial_command and initial_command != "NOT_DEFINED":
     env_dict = merged_envs()
@@ -108,13 +141,13 @@ if initial_command and initial_command != "NOT_DEFINED":
         template = string.Template(initial_command)
         resolved_command = template.safe_substitute(env_dict)
         
-        # An app that is PID 1 and runs as a non-root uid cannot bind ports
-        # below net.ipv4.ip_unprivileged_port_start. When the deploy asks for a
-        # lower start, 109-host-install-init-wrapper put /usr/local/sbin/
-        # proxvex-init into the rootfs: it raises the range and execs the real
+        # The app is PID 1, so per-netns sysctls (ip_unprivileged_port_start,
+        # ip_forward, ...) cannot be set from inside before it starts. When the
+        # deploy asks for any, 109-host-install-init-wrapper put /usr/local/
+        # sbin/proxvex-init into the rootfs: it sets them and execs the real
         # command. Prepending it here keeps the original argv intact.
-        if port_start and port_start != "NOT_DEFINED":
-            resolved_command = f"{INIT_WRAPPER} {resolved_command}"
+        if use_init_wrapper:
+            resolved_command = f"{wrapper_cmd} {resolved_command}"
 
         # Remove existing init command lines first, otherwise a second run
         # (upgrade, reconfigure) appends a duplicate. Both spellings: the key
@@ -129,6 +162,22 @@ if initial_command and initial_command != "NOT_DEFINED":
         
     except Exception as e:
         print(f"Error substituting variables in command: {e}", file=sys.stderr)
+
+# 2b. Without initial_command the container starts the image's own command,
+# which Proxmox keeps in the `entrypoint:` key. Prepend the init wrapper there
+# (once — the guard keeps a re-run from stacking it).
+elif use_init_wrapper:
+    wrapped_ep = False
+    for i, line in enumerate(new_lines):
+        if line.strip().startswith("entrypoint:"):
+            ep_value = line.split(":", 1)[1].strip()
+            if INIT_WRAPPER not in ep_value:
+                new_lines[i] = f"entrypoint: {wrapper_cmd} {ep_value}\n"
+                print(f"Wrapped entrypoint with init wrapper: {ep_value}", file=sys.stderr)
+            wrapped_ep = True
+            break
+    if not wrapped_ep:
+        print("Warning: init wrapper requested but no entrypoint found — sysctls will not be applied", file=sys.stderr)
 
 # 3. Handle environment variables
 # Set lxc.environment entries from envs (+ extra_envs overlay), removing

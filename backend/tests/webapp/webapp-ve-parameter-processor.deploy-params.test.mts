@@ -129,4 +129,32 @@ describe("WebAppVeParameterProcessor deploy-params", () => {
       expect(defaults.get("local_https_port")).toBe("1443");
     });
   });
+
+  describe("applyPreviousVmIdFallback", () => {
+    it("replaces the empty parameter-definition default with previous_vm_id", () => {
+      // vm_id has default "" in parameter-definitions.json; buildDefaults seeds it.
+      const defaults = proc.buildDefaults([def({ id: "vm_id", default: "" })]);
+      expect(defaults.get("vm_id")).toBe("");
+      proc.applyPreviousVmIdFallback(defaults, [{ name: "previous_vm_id", value: 502 }]);
+      expect(defaults.get("vm_id")).toBe("502");
+    });
+
+    it("sets vm_id when it is not present at all", () => {
+      const defaults = new Map<string, string | number | boolean>();
+      proc.applyPreviousVmIdFallback(defaults, [{ name: "previous_vm_id", value: "502" }]);
+      expect(defaults.get("vm_id")).toBe("502");
+    });
+
+    it("keeps an explicitly set vm_id", () => {
+      const defaults = new Map<string, string | number | boolean>([["vm_id", "600"]]);
+      proc.applyPreviousVmIdFallback(defaults, [{ name: "previous_vm_id", value: 502 }]);
+      expect(defaults.get("vm_id")).toBe("600");
+    });
+
+    it("leaves vm_id untouched without previous_vm_id", () => {
+      const defaults = new Map<string, string | number | boolean>([["vm_id", ""]]);
+      proc.applyPreviousVmIdFallback(defaults, [{ name: "previous_vm_id", value: "" }]);
+      expect(defaults.get("vm_id")).toBe("");
+    });
+  });
 });

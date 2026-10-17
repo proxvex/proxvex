@@ -27,7 +27,10 @@ describe.skipIf(!hostReachable)(
       await stateManager.cleanup(vmId);
     }, 30000);
 
-    it("should add net_admin capability for proxy mode", async () => {
+    // An unprivileged CT already holds net_admin in its user namespace.
+    // `lxc.cap.keep: net_admin` would keep ONLY net_admin and break
+    // iptables-legacy (cap_net_raw) and nginx (cap_chown) for root apps.
+    it("adds no capability line for proxy mode on an unprivileged container", async () => {
       const result = await helper.runTemplate({
         templatePath: TEMPLATE_PATH,
         inputs: {
@@ -39,19 +42,13 @@ describe.skipIf(!hostReachable)(
       expect(result.success).toBe(true);
       expect(result.outputs["ssl_capabilities_set"]).toBe("true");
 
-      // Verify the config contains net_admin
       const confResult = await stateManager.execOnHost(
-        `grep 'net_admin' /etc/pve/lxc/${vmId}.conf`,
+        `grep '^lxc.cap.keep' /etc/pve/lxc/${vmId}.conf || echo 'NOT_FOUND'`,
       );
-      expect(confResult.stdout).toContain("net_admin");
+      expect(confResult.stdout).toContain("NOT_FOUND");
     });
 
-    it("should not add capability for native mode", async () => {
-      // Remove net_admin from previous test (container reuse keeps config)
-      await stateManager.execOnHost(
-        `sed -i '/net_admin/d' /etc/pve/lxc/${vmId}.conf`,
-      );
-
+    it("reports false for native mode", async () => {
       const result = await helper.runTemplate({
         templatePath: TEMPLATE_PATH,
         inputs: {
@@ -62,25 +59,13 @@ describe.skipIf(!hostReachable)(
 
       expect(result.success).toBe(true);
       expect(result.outputs["ssl_capabilities_set"]).toBe("false");
-
-      // Config should NOT contain net_admin
-      const confResult = await stateManager.execOnHost(
-        `grep 'net_admin' /etc/pve/lxc/${vmId}.conf || echo 'NOT_FOUND'`,
-      );
-      expect(confResult.stdout).toContain("NOT_FOUND");
     });
 
-    it("should not duplicate capability if already present", async () => {
-      // First, add the capability
-      await helper.runTemplate({
-        templatePath: TEMPLATE_PATH,
-        inputs: {
-          vm_id: vmId,
-          ssl_mode: "proxy",
-        },
-      });
+    it("removes an obsolete 'lxc.cap.keep: net_admin' written by earlier versions", async () => {
+      await stateManager.execOnHost(
+        `echo 'lxc.cap.keep: net_admin' >> /etc/pve/lxc/${vmId}.conf`,
+      );
 
-      // Run again
       const result = await helper.runTemplate({
         templatePath: TEMPLATE_PATH,
         inputs: {
@@ -90,12 +75,10 @@ describe.skipIf(!hostReachable)(
       });
 
       expect(result.success).toBe(true);
-
-      // Count occurrences of net_admin
       const confResult = await stateManager.execOnHost(
-        `grep -c 'net_admin' /etc/pve/lxc/${vmId}.conf`,
+        `grep -c '^lxc.cap.keep' /etc/pve/lxc/${vmId}.conf || true`,
       );
-      expect(confResult.stdout.trim()).toBe("1");
+      expect(confResult.stdout.trim()).toBe("0");
     });
   },
 );

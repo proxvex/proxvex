@@ -26,9 +26,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # --- Find nginx container (match hostname column exactly, not anywhere) ---
-NGINX_VMID=$(pct list | awk '$NF == "nginx" {print $1}')
+# Running containers only: an upgrade leaves the previous container stopped
+# (lock: migrate) as a fallback, and it still carries hostname nginx.
+NGINX_VMID=$(pct list | awk '$2 == "running" && $NF == "nginx" {print $1}')
 if [ -z "$NGINX_VMID" ]; then
-  echo "ERROR: nginx container not found"
+  echo "ERROR: no running nginx container found"
   exit 1
 fi
 if [ "$(echo "$NGINX_VMID" | wc -l)" -gt 1 ]; then
@@ -46,10 +48,13 @@ if [ "$STATUS" != "running" ]; then
 fi
 
 # --- Cert and port config ---
-# nginx runs rootless (uid 101) and cannot bind ports < 1024, so TLS
-# terminates on 1443. The router DNATs 443 → 1443 (see production/dns.sh).
+# nginx runs as uid 101 and binds 443 directly: the container is deployed
+# with unprivileged_port_start=443, so the init wrapper (proxvex-init) lowers
+# net.ipv4.ip_unprivileged_port_start as root and then drops to uid 101. The
+# Cloudflare Tunnel origins and the LAN (split-DNS) both use :443; the old
+# 1443 listener and the router's 443 -> 1443 DNAT are gone.
 CERT_DIR="/etc/ssl/addon"
-LISTEN_PORT=1443
+LISTEN_PORT=443
 SSL_DIRECTIVES="    ssl_certificate     ${CERT_DIR}/fullchain.pem;
     ssl_certificate_key ${CERT_DIR}/privkey.pem;
     ssl_protocols       TLSv1.2 TLSv1.3;
@@ -205,8 +210,20 @@ ${SSL_DIRECTIVES}
 }
 EOF
 
-# Push config files into container
+# Push config files into container. nginx resolves every proxy_pass host when
+# it loads the config, so ONE unresolvable upstream (an app that is not
+# deployed, e.g. gptwol) makes `nginx -s reload` and a fresh start fail for
+# ALL sites. Skip such vhosts — and remove a stale copy — with a warning; the
+# next run brings them back once the upstream resolves again.
+SKIPPED=""
 for conf in default.conf ohnewarum.conf nebenkosten.conf auth.conf git.conf gptwol.conf wolproxy.conf; do
+  upstream=$(sed -n 's|.*proxy_pass https\{0,1\}://\([^:/;]*\).*|\1|p' "$TMPDIR/$conf" | head -1)
+  if [ -n "$upstream" ] && ! pct exec "$NGINX_VMID" -- nslookup "$upstream" 2>/dev/null | grep -q "^Name:"; then
+    pct exec "$NGINX_VMID" -- rm -f "/etc/nginx/conf.d/$conf"
+    SKIPPED="$SKIPPED $conf($upstream)"
+    echo "  WARNING: skipped $conf — upstream '$upstream' does not resolve"
+    continue
+  fi
   pct push "$NGINX_VMID" "$TMPDIR/$conf" "/etc/nginx/conf.d/$conf"
   echo "  Pushed $conf"
 done
@@ -272,3 +289,7 @@ echo "  Zitadel:      https://auth.ohnewarum.de"
 echo "  Gitea:        https://git.ohnewarum.de"
 echo "  gptwol API:   https://gptwol.ohnewarum.de/api/wake/<host> (M2M Bearer JWT only)"
 echo "  wolproxy:     https://wolproxy.ohnewarum.de/{wake,status,health} (M2M Bearer JWT only)"
+if [ -n "$SKIPPED" ]; then
+  echo ""
+  echo "  WARNING: vhosts NOT active (upstream does not resolve):$SKIPPED"
+fi

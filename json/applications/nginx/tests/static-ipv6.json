@@ -1,0 +1,12 @@
+{
+  "description": "Static IPv4 + static ULA (static_ip6) on an OCI app, the way production pins nginx (192.168.4.41 / fd29:cd10:9a98::41). 905-host-check-static-ipv6 verifies the address is on eth0 and reachable from the host; the nested VM's container bridge carries fd00:e2e::/64.",
+  "selectedAddons": ["addon-ssl"],
+  "params": [
+    { "name": "static_ip", "value": "10.0.0.41/24" },
+    { "name": "static_gw", "value": "10.0.0.1" },
+    { "name": "static_ip6", "value": "fd00:e2e::41/64" },
+    { "name": "local_https_port", "value": "443" },
+    { "name": "unprivileged_port_start", "value": "443" }
+  ],
+  "wait_seconds": 30
+}

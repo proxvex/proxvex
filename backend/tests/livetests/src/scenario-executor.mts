@@ -1264,19 +1264,13 @@ export async function executeScenarios(
         }
         logInfo(`Found existing VM ${sourceVm.vm_id} for ${task} (previous_vm_id, strategy=${consumesSource})`);
 
-        // For in-place upgrade (docker-compose), also push vm_id =
-        // sourceVm.vm_id so the auto-appended check templates
-        // (900-host-check-container etc.) can resolve `{{ vm_id }}`.
-        // Without this, post-upgrade verification runs with VM='' and
-        // fails. Skip for clone-replace flows (oci-image upgrade, all
-        // reconfigures): there `vm_id` is the *new* clone's id which the
-        // create_ct/replace-ct chain allocates — pushing it here makes
-        // source=target → "must differ" abort.
+        // For in-place upgrade (docker-compose), send only previous_vm_id
+        // like the UI does: the backend derives vm_id from it. Drop the
+        // runner-allocated vm_id so the livetest covers that derivation
+        // (host-side addon templates such as 166 need {{ vm_id }}).
         if (isDockerComposeForVmId && task === "upgrade") {
-          if (!buildResult.params.some((p) => p.name === "vm_id")) {
-            buildResult.params.push({ name: "vm_id", value: String(sourceVm.vm_id) });
-            logInfo(`In-place docker-compose upgrade: vm_id=${sourceVm.vm_id}`);
-          }
+          buildResult.params = buildResult.params.filter((p) => p.name !== "vm_id");
+          logInfo(`In-place docker-compose upgrade: vm_id derived from previous_vm_id=${sourceVm.vm_id}`);
         }
       }
 

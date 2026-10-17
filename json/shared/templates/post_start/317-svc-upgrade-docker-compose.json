@@ -10,7 +10,10 @@
     {
       "name": "Upgrade Docker Compose",
       "script": "svc-upgrade-docker-compose.sh",
-      "description": "Stop, pull, and restart Docker Compose services"
+      "description": "Stop, pull, and restart Docker Compose services",
+      "library": [
+        "compose-ipv6.sh"
+      ]
     }
   ]
 }

@@ -131,6 +131,7 @@ print_steps() {
     23  Deploy zigbee2mqtt (Zigbee coordinator: Sonoff ZBDongle on ttyACM0)
     24  Deploy esphome (target: $(host_for_app esphome)) [HTTP-only dashboard, no native HTTPS]
     25  Deploy homebridge (HomeKit bridge, HTTP-only Config UI X :8581, mDNS pairing)
+    26  Deploy wireguard (wg-easy VPN into the LAN, HTTPS UI; IPv6 inbound because of DS-Lite)
 STEPS
 }
 
@@ -1140,6 +1141,22 @@ if should_run 25; then
 fi
 
 # ================================================================
+# Step 26: Deploy wireguard (wg-easy)
+#   Road-warrior VPN into the LAN. Static 192.168.4.53 plus a fixed IPv6
+#   interface ID (ipv6_token ::53): the address stays <prefix>::53 while the
+#   delegated prefix changes, and survives upgrades (new MAC). The DS-Lite
+#   line has no public IPv4, so clients come in over IPv6 only — the router
+#   firewall must allow UDP 51820 to ::53 (match on the interface ID, see
+#   wireguard application.md). Not done by this step.
+#   The host loads + persists the wireguard kernel module. Web UI over HTTPS
+#   (addon-ssl proxy) on 443; first visit runs wg-easy's setup wizard.
+# ================================================================
+if should_run 26; then
+  banner 26 "Deploy wireguard ($(host_for_app wireguard))"
+  "$SCRIPT_DIR/deploy.sh" --host "$(host_for_app wireguard)" wireguard.json
+fi
+
+# ================================================================
 # Done
 # ================================================================
 echo ""
@@ -1162,6 +1179,7 @@ echo "  Test Mirror: 192.168.4.49 (docker-mirror-test, ubuntupve, test infra)"
 echo "  Zot Mirror:  192.168.4.50 (zot-mirror, ubuntupve, ghcr.io pull-through)"
 echo "  ESPHome:     esphome (ubuntupve, auto-IP, HTTP dashboard :6052)"
 echo "  Homebridge:  homebridge (auto-IP, HTTP Config UI X :8581, HomeKit mDNS)"
+echo "  WireGuard:   192.168.4.53 / <prefix>::53 (wg-easy UI https://wireguard, VPN UDP 51820 via IPv6)"
 echo "  gptwol:      LAN: http://gptwol:5000  (Browser OIDC login)"
 echo "               Public: https://gptwol.ohnewarum.de/api/wake/<host>  (Bearer JWT only)"
 echo "  wolproxy:    LAN: http://wolproxy:5000  (no UI, JSON API)"

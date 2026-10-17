@@ -475,6 +475,25 @@ fi
 # --- Install nginx and iptables if not present ---
 if ! command -v nginx >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then
   echo "Installing nginx and iptables..." >&2
+  # This hook runs right at container start, often before DNS answers; the
+  # package index fetch then fails ("DNS: transient error"). Wait for the
+  # mirror host to resolve first (max 30s, then try anyway).
+  case "$OS_TYPE" in
+    alpine) _mirror="${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}" ;;
+    *)      _mirror="${DEBIAN_MIRROR:-http://deb.debian.org/debian}" ;;
+  esac
+  _mirror_host=$(echo "$_mirror" | sed 's|^[a-z]*://||; s|[/:].*||')
+  _i=0
+  while [ "$_i" -lt 30 ]; do
+    if command -v getent >/dev/null 2>&1; then
+      getent hosts "$_mirror_host" >/dev/null 2>&1 && break
+    elif nslookup "$_mirror_host" >/dev/null 2>&1; then
+      break
+    fi
+    _i=$((_i + 1))
+    sleep 1
+  done
+  [ "$_i" -ge 30 ] && echo "DNS for $_mirror_host not ready after 30s, trying anyway" >&2
   _pkg_lock
 
   case "$OS_TYPE" in
@@ -531,9 +550,18 @@ else
 fi
 
 # --- Write nginx SSL config ---
+# Also listen on IPv6: containers get SLAAC addresses, and an IPv4-only
+# listener leaves HTTPS unreachable over IPv6. Only when the container has
+# IPv6 at all — nginx refuses to start on `listen [::]` without it.
+# (grep, not `[ -s ]`: files under /proc always report size 0.)
+LISTEN6=""
+if grep -q . /proc/net/if_inet6 2>/dev/null; then
+  LISTEN6="listen [::]:${LOCAL_HTTPS_PORT} ssl;"
+fi
 cat > "${NGINX_CONF_DIR}/ssl-proxy.conf" <<NGINXEOF
 server {
     listen ${LOCAL_HTTPS_PORT} ssl;
+    ${LISTEN6}
     server_name _;
 
     ssl_certificate ${CERT_DIR}/fullchain.pem;
@@ -568,6 +596,17 @@ iptables -C INPUT -i lo -p tcp --dport "${HTTP_PORT}" -j ACCEPT 2>/dev/null || \
 
 iptables -C INPUT -p tcp --dport "${HTTP_PORT}" -j DROP 2>/dev/null || \
   iptables -A INPUT -p tcp --dport "${HTTP_PORT}" -j DROP
+
+# Same for IPv6. Most apps listen on :: (dual stack), so without these rules
+# the plain-HTTP port stays reachable over the container's IPv6 addresses.
+if command -v ip6tables >/dev/null 2>/dev/null && grep -q . /proc/net/if_inet6 2>/dev/null; then
+  ip6tables -C INPUT -i lo -p tcp --dport "${HTTP_PORT}" -j ACCEPT 2>/dev/null || \
+    ip6tables -I INPUT -i lo -p tcp --dport "${HTTP_PORT}" -j ACCEPT
+  ip6tables -C INPUT -p tcp --dport "${HTTP_PORT}" -j DROP 2>/dev/null || \
+    ip6tables -A INPUT -p tcp --dport "${HTTP_PORT}" -j DROP
+else
+  echo "Warning: ip6tables not available — HTTP port ${HTTP_PORT} not blocked over IPv6" >&2
+fi
 
 echo "iptables: blocked external access to HTTP port ${HTTP_PORT}" >&2
 

@@ -1,7 +1,7 @@
 {
   "execute_on": "ve",
-  "name": "Add SSL Capabilities",
-  "description": "Adds net_admin capability to the LXC container configuration for the SSL proxy (iptables).",
+  "name": "Check SSL Capabilities",
+  "description": "Makes sure the SSL proxy (nginx + iptables) can run: an unprivileged container already holds net_admin in its user namespace, so nothing is added. Removes an 'lxc.cap.keep: net_admin' line written by earlier versions — lxc.cap.keep keeps ONLY the listed capabilities and broke iptables-legacy (cap_net_raw) and nginx (cap_chown) for root apps.",
   "skip_if_all_missing": [
     "ssl_mode"
   ],
@@ -13,7 +13,7 @@
     {
       "name": "Add SSL Capabilities",
       "script": "conf-add-ssl-capabilities.sh",
-      "description": "Add net_admin capability for iptables (proxy mode only)",
+      "description": "Verify net_admin is available; drop the obsolete restrictive cap.keep line",
       "outputs": [
         "ssl_capabilities_set"
       ]

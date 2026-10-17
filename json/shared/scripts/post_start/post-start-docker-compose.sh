@@ -120,13 +120,20 @@ if [ -n "$COMPOSE_FILE" ]; then
   done
 fi
 
+# IPv6 for the project's networks (library compose-ipv6.sh, docker_ipv6).
+if command -v docker-compose >/dev/null 2>&1; then
+  IPV6_ARGS=$(compose_ipv6_args docker-compose "$COMPOSE_FILE")
+else
+  IPV6_ARGS=$(compose_ipv6_args "docker compose" "$COMPOSE_FILE")
+fi
+
 # Run docker compose up -d --wait (waits for healthchecks to pass)
 echo "Starting Docker Compose services (timeout: ${STARTUP_TIMEOUT}s)..." >&2
 if command -v docker-compose >/dev/null 2>&1; then
-  docker-compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
+  docker-compose -f "$COMPOSE_FILE" $IPV6_ARGS up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
   RC=$?
 elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
+  docker compose -f "$COMPOSE_FILE" $IPV6_ARGS up -d --wait --wait-timeout "$STARTUP_TIMEOUT" --quiet-pull >&2
   RC=$?
 else
   echo "Error: Neither 'docker-compose' nor 'docker compose' command found" >&2

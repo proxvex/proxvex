@@ -1,0 +1,41 @@
+{
+  "name": "WireGuard (wg-easy)",
+  "description": "WireGuard VPN server with the wg-easy web UI for managing clients (QR codes, config download, traffic stats). Lets road-warrior clients dial into the LAN. Runs as an unprivileged LXC container using the host's in-kernel WireGuard; the web UI is served over HTTPS by the SSL addon.",
+  "extends": "oci-image",
+  "icon": "icon.svg",
+  "tags": ["network", "infrastructure"],
+  "supported_addons": ["addon-ssl", "addon-acme"],
+  "required_addons": ["addon-ssl"],
+  "properties": [
+    { "id": "hostname", "default": "wireguard" },
+    { "id": "disk_size", "default": "1" },
+    { "id": "volumes", "default": "data=/etc/wireguard,size=256M" },
+    { "id": "envs", "default": "TZ=Europe/Berlin\nPORT=51821\nHOST=0.0.0.0\nINSECURE=false" },
+    { "id": "rootfs_storage", "default": "local-zfs" },
+    { "id": "volume_storage", "default": "local-zfs", "required": true },
+    { "id": "oci_image", "value": "ghcr.io/wg-easy/wg-easy:{{oci_image_tag}}" },
+    { "id": "uid", "value": "0" },
+    { "id": "gid", "value": "0" },
+    { "id": "username", "value": "root" },
+    { "id": "http_port", "value": "51821" },
+    { "id": "local_https_port", "value": "443" },
+    { "id": "volume_backup", "value": "true" },
+    { "id": "ssl_mode", "value": "proxy" },
+    { "id": "ssl.needs_server_cert", "value": "true" },
+    { "id": "ssl.needs_ca_cert", "value": "false" },
+    { "id": "kernel_modules", "value": "wireguard iptable_nat iptable_filter ip6table_nat ip6table_filter xt_MASQUERADE" },
+    { "id": "container_sysctls", "value": "net.ipv6.conf.eth0.accept_ra=2\nnet.ipv4.ip_forward=1\nnet.ipv4.conf.all.src_valid_mark=1\nnet.ipv6.conf.all.forwarding=1\nnet.ipv6.conf.default.forwarding=1" }
+  ],
+  "installation": {
+    "image": ["096-host-load-kernel-modules.json"]
+  },
+  "upgrade": {
+    "image": ["096-host-load-kernel-modules.json"]
+  },
+  "check": {
+    "check": ["check-wireguard-interface.json"]
+  },
+  "url": "https://wg-easy.github.io/wg-easy/",
+  "documentation": "https://wg-easy.github.io/wg-easy/latest/",
+  "source": "https://github.com/wg-easy/wg-easy"
+}

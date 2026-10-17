@@ -13,7 +13,8 @@
       "script": "post-start-docker-compose.sh",
       "library": [
         "versions.sh",
-        "versions-local.sh"
+        "versions-local.sh",
+        "compose-ipv6.sh"
       ],
       "description": "Start Docker Compose services with docker-compose up -d"
     }

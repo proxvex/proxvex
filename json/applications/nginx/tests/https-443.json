@@ -1,0 +1,9 @@
+{
+  "description": "nginx on 443 as a non-root PID 1 (uid 101). Production moves nginx from 1443 to 443 so the LAN reaches it directly (split-DNS git/auth.ohnewarum.de → 192.168.4.41). unprivileged_port_start=443 installs the init wrapper in front of the image's own `entrypoint:` (no initial_command). 985-host-check-init-wrapper reads net.ipv4.ip_unprivileged_port_start back from the running container.",
+  "selectedAddons": ["addon-ssl"],
+  "params": [
+    { "name": "local_https_port", "value": "443" },
+    { "name": "unprivileged_port_start", "value": "443" }
+  ],
+  "wait_seconds": 30
+}
