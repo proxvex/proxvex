@@ -131,8 +131,10 @@ done
 add_dns6 docker-registry-mirror "$REGISTRY_MIRROR_IP6"
 add_dns6 eclipse-mosquitto      "$MOSQUITTO_IP6"
 add_dns6 mqtt.ohnewarum.de      "$MOSQUITTO_IP6"
-add_dns6 zot-mirror             "$ZOT_MIRROR_IP6"
-add_dns6 wireguard              "$WIREGUARD_IP6"
+# Not yet: zot-mirror is not deployed; wireguard's web UI only listens on
+# IPv6 after a reconfigure (ssl-proxy hook from before the IPv6 fix).
+# add_dns6 zot-mirror             "$ZOT_MIRROR_IP6"
+# add_dns6 wireguard              "$WIREGUARD_IP6"
 
 uci commit dhcp
 /etc/init.d/dnsmasq restart
