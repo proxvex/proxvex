@@ -23,7 +23,9 @@ describe.skipIf(!hostReachable)(
           osType: "alpine",
           hostname: "tmpl-test-alpine",
         });
-      }, 120000);
+      // > pct create (180 s, see TestStateManager) + pct start (30 s): with a
+      // shorter hook the suite gave up before the helper's own limit.
+      }, 240000);
 
       afterAll(async () => {
         await stateManager.cleanup(vmId);
@@ -58,7 +60,9 @@ describe.skipIf(!hostReachable)(
           osType: "debian",
           hostname: "tmpl-test-debian",
         });
-      }, 120000);
+      // > pct create (180 s, see TestStateManager) + pct start (30 s): with a
+      // shorter hook the suite gave up before the helper's own limit.
+      }, 240000);
 
       afterAll(async () => {
         await stateManager.cleanup(vmId);
