@@ -101,5 +101,36 @@ if curl -s -m 3 -o /dev/null "http://${IP}:${HTTP_PORT}/" 2>/dev/null; then
 fi
 echo "Web UI: plain HTTP port ${HTTP_PORT} blocked from outside" >&2
 
+# Same over IPv6. The test network has no global IPv6, but every container
+# has a link-local address on its bridge — enough to prove nginx listens on
+# [::] and that ip6tables blocks the plain-HTTP port.
+LL=$(pct exec "$VM_ID" -- awk '$6 == "eth0" && $1 ~ /^fe80/ {print $1; exit}' /proc/net/if_inet6 2>/dev/null \
+  | python3 -c 'import ipaddress,sys; h=sys.stdin.read().strip(); print(ipaddress.IPv6Address(int(h,16)) if h else "")')
+BR=$(pct config "$VM_ID" | sed -n 's/^net0:.*bridge=\([^,]*\).*/\1/p')
+BR_V6_OFF=$(cat "/proc/sys/net/ipv6/conf/${BR}/disable_ipv6" 2>/dev/null)
+if [ "$BR_V6_OFF" = "1" ]; then
+  echo "Warning: IPv6 is disabled on host bridge ${BR} — IPv6 UI checks skipped" >&2
+elif [ -n "$LL" ] && [ -n "$BR" ]; then
+  code6=$(curl -sk -m 5 --interface "$BR" -o /dev/null -w '%{http_code}' "https://[${LL}%25${BR}]:${HTTPS_PORT}/" 2>/dev/null)
+  case "$code6" in
+    2??|3??) echo "Web UI: https://[${LL}%${BR}]:${HTTPS_PORT}/ -> HTTP $code6 (IPv6)" >&2 ;;
+    *)
+      echo "--- IPv6 diagnostics ---" >&2
+      echo "target: https://[${LL}%${BR}]:${HTTPS_PORT}/" >&2
+      pct exec "$VM_ID" -- sh -c 'netstat -lnt 2>/dev/null | grep ":443 "; grep -h listen /etc/nginx/http.d/ssl-proxy.conf /etc/nginx/conf.d/ssl-proxy.conf 2>/dev/null; ip6tables -S INPUT 2>/dev/null' >&2
+      ip -6 addr show dev "$BR" scope link >&2
+      curl -skv -m 5 --interface "$BR" -o /dev/null "https://[${LL}%25${BR}]:${HTTPS_PORT}/" 2>/tmp/wg-curl6.err
+      tail -5 /tmp/wg-curl6.err >&2
+      fail "web UI not reachable over IPv6 link-local (HTTP $code6)"
+      ;;
+  esac
+  if curl -s -m 3 --interface "$BR" -o /dev/null "http://[${LL}%25${BR}]:${HTTP_PORT}/" 2>/dev/null; then
+    fail "plain HTTP port ${HTTP_PORT} is reachable over IPv6 (ip6tables rule missing)"
+  fi
+  echo "Web UI: plain HTTP port ${HTTP_PORT} blocked over IPv6" >&2
+else
+  echo "Warning: no IPv6 link-local address/bridge found — IPv6 UI checks skipped" >&2
+fi
+
 echo "CHECK: wireguard_interface_up PASSED (wg0, forwarding, HTTPS UI)" >&2
 printf '[{"id":"wireguard_interface_up","value":"true"}]'
