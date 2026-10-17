@@ -1,7 +1,7 @@
 {
   "execute_on": "ve",
   "name": "Install Init Wrapper",
-  "description": "Writes /usr/local/sbin/proxvex-init into the container rootfs (offline via vol_mount, container still stopped) when unprivileged_port_start, container_sysctls or ipv6_token is set. In an oci-image app the service itself is PID 1, so there is no step inside the container before the app, and Proxmox rejects the direct route for per-netns sysctls (raw lxc.sysctl.* keys are dropped from the config). The wrapper sets net.ipv4.ip_unprivileged_port_start (lets a non-root app bind ports below 1024 — which is why local_https_port otherwise defaults to 1443) and every key=value line of container_sysctls (e.g. net.ipv4.ip_forward=1 for a VPN gateway), and pins eth0's IPv6 interface ID to ipv6_token (ip token set — the default ID follows the MAC, which changes on upgrade), then execs the original command; conf-oci-lxc-configuration.py points the container's init at it. No-op when all three are empty.",
+  "description": "Writes /usr/local/sbin/proxvex-init into the container rootfs (offline via vol_mount, container still stopped) when unprivileged_port_start, container_sysctls or ipv6_token is set. In an oci-image app the service itself is PID 1, so there is no step inside the container before the app, and Proxmox rejects the direct route for per-netns sysctls (raw lxc.sysctl.* keys are dropped from the config). The wrapper sets net.ipv4.ip_unprivileged_port_start (lets a non-root app bind ports below 1024 — which is why local_https_port otherwise defaults to 1443) and every key=value line of container_sysctls (e.g. net.ipv4.ip_forward=1 for a VPN gateway), and pins eth0's IPv6 interface ID to ipv6_token (ip token set — the default ID follows the MAC, which changes on upgrade), then execs the original command; conf-oci-lxc-configuration.py points the container's init at it. Skipped (init_wrapper_installed=false) when nothing is requested, or when it is not possible: no /bin/sh in the image, or a non-root app without setpriv/su-exec/su. 107 only wraps the init when this reports true.",
   "parameters": [
     "vm_id",
     "unprivileged_port_start",
@@ -15,6 +15,9 @@
       "library": [
         "pve-common.sh",
         "vol-common.sh"
+      ],
+      "outputs": [
+        "init_wrapper_installed"
       ]
     }
   ]

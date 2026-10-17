@@ -42,7 +42,15 @@ fail() {
 }
 
 if ! grep -E "^(entrypoint|lxc\.init\.cmd):" "/etc/pve/lxc/${VM_ID}.conf" 2>/dev/null | grep -q "$WRAPPER"; then
-  fail "container init does not start $WRAPPER ($(grep -E '^(entrypoint|lxc\.init\.cmd):' "/etc/pve/lxc/${VM_ID}.conf" 2>/dev/null))"
+  # 109 skips the wrapper when only the port setting was asked for and it is
+  # not needed (root app) or not possible (no shell / no drop tool in the
+  # image). Requested sysctls or a token, however, must be in effect.
+  if [ -z "$IPV6_TOKEN" ] && [ -z "$(printf '%s' "$SYSCTLS" | tr -d '[:space:]')" ]; then
+    echo "CHECK: init_wrapper PASSED (wrapper skipped: image without shell or without privilege-drop tool — port start left at kernel default)" >&2
+    printf '[{"id":"check_init_wrapper","value":"not needed"}]'
+    exit 0
+  fi
+  fail "container init does not start $WRAPPER although container_sysctls/ipv6_token are set ($(grep -E '^(entrypoint|lxc\.init\.cmd):' "/etc/pve/lxc/${VM_ID}.conf" 2>/dev/null))"
 fi
 echo "Container init starts $WRAPPER" >&2
 

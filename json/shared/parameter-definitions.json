@@ -643,11 +643,21 @@
       "internal": true
     },
     "unprivileged_port_start": {
-      "name": "Unprivileged Port Start",
+      "name": "Lowest Port for Non-Root Apps",
+      "type": "string",
+      "default": "443",
+      "required": false,
+      "internal": false,
+      "advanced": true,
+      "description": "Lowest TCP/UDP port an app that runs as a non-root user may open (net.ipv4.ip_unprivileged_port_start inside the container; kernel default 1024). 443 lets such an app serve HTTPS on the standard port. Applied through the init wrapper when the image has a shell (and, for a non-root image user, a privilege-drop tool); otherwise nothing changes. Empty = kernel default."
+    },
+    "init_wrapper_installed": {
+      "name": "Init Wrapper Installed",
       "type": "string",
       "default": "",
       "required": false,
-      "internal": false
+      "internal": true,
+      "description": "Output of 109-host-install-init-wrapper: \"true\" when /usr/local/sbin/proxvex-init was written into the rootfs. 107 only points the container's init at the wrapper when this is true (skipped for images without /bin/sh, or non-root images without a privilege-drop tool)."
     },
     "container_sysctls": {
       "name": "Container Sysctls",

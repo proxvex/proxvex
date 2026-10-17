@@ -25,7 +25,12 @@ describe("unprivileged port start", () => {
     configFile = path.join(dir, "pct-config.txt");
     fs.mkdirSync(binDir);
     fs.mkdirSync(rootfs);
-    fs.writeFileSync(configFile, "rootfs: local-zfs:subvol-513-disk-0,size=8G\n");
+    // Default fixture: a non-root app (lxc.init.uid) whose image has a shell
+    // and su — the case where the port setting needs the wrapper.
+    fs.writeFileSync(configFile, "rootfs: local-zfs:subvol-513-disk-0,size=8G\nlxc.init.uid: 1000\n");
+    fs.mkdirSync(path.join(rootfs, "bin"), { recursive: true });
+    fs.writeFileSync(path.join(rootfs, "bin/sh"), "");
+    fs.writeFileSync(path.join(rootfs, "bin/su"), "");
     // Mock pct: only `config` is used by the script.
     fs.writeFileSync(
       path.join(binDir, "pct"),
@@ -76,11 +81,53 @@ describe("unprivileged port start", () => {
     expect(res.stdout.trim()).toBe("gitea web");
   });
 
+  const installed = (r: { stdout: string }) =>
+    JSON.parse(r.stdout).find((o: { id: string }) => o.id === "init_wrapper_installed")?.value;
+
   it("does nothing when the parameter is unset", () => {
     const r = runInstaller({ vm_id: "513", unprivileged_port_start: "NOT_DEFINED" });
     expect(r.code).toBe(0);
-    expect(r.stdout).toBe("[]");
+    expect(installed(r)).toBe("false");
     expect(fs.existsSync(wrapper())).toBe(false);
+  });
+
+  it("reports the wrapper as installed", () => {
+    const r = runInstaller({ vm_id: "513", unprivileged_port_start: "443" });
+    expect(installed(r)).toBe("true");
+  });
+
+  // unprivileged_port_start defaults to 443 for every OCI app, so the
+  // installer must skip the cases where the wrapper is useless or harmful.
+  // A root init is not a root app (gitea: s6 as root, gitea as uid 1000),
+  // so root-init images get the wrapper too — no drop tool needed for them.
+  it("installs for a root-init image even without a drop tool", () => {
+    fs.writeFileSync(configFile, "rootfs: local-zfs:subvol-513-disk-0,size=8G\n");
+    fs.rmSync(path.join(rootfs, "bin/su"));
+    const r = runInstaller({ vm_id: "513", unprivileged_port_start: "443" });
+    expect(r.code).toBe(0);
+    expect(installed(r)).toBe("true");
+  });
+
+  it("skips a distroless image (no /bin/sh)", () => {
+    fs.rmSync(path.join(rootfs, "bin/sh"));
+    const r = runInstaller({ vm_id: "513", unprivileged_port_start: "443" });
+    expect(installed(r)).toBe("false");
+    expect(r.stderr).toContain("no /bin/sh");
+    expect(fs.existsSync(wrapper())).toBe(false);
+  });
+
+  it("skips a non-root app without a privilege-drop tool", () => {
+    fs.rmSync(path.join(rootfs, "bin/su"));
+    const r = runInstaller({ vm_id: "513", unprivileged_port_start: "443" });
+    expect(installed(r)).toBe("false");
+    expect(r.stderr).toContain("setpriv/su-exec/su");
+  });
+
+  it("still installs for a root app when sysctls are requested", () => {
+    fs.writeFileSync(configFile, "rootfs: local-zfs:subvol-513-disk-0,size=8G\n");
+    const r = runInstaller({ vm_id: "513", container_sysctls: "net.ipv4.ip_forward=1" });
+    expect(installed(r)).toBe("true");
+    expect(fs.readFileSync(wrapper(), "utf-8")).toContain("ip_forward");
   });
 
   it("rejects a non-numeric port", () => {
@@ -182,13 +229,13 @@ describe("unprivileged port start", () => {
     };
 
     it("prepends the wrapper to lxc.init.cmd", () => {
-      const r = runConfig({ ...base, unprivileged_port_start: "443" }, "hostname: gitea\n");
+      const r = runConfig({ ...base, init_wrapper_installed: "true" }, "hostname: gitea\n");
       expect(r.code).toBe(0);
       expect(r.conf).toContain("lxc.init.cmd: /usr/local/sbin/proxvex-init /usr/bin/s6-svscan /etc/s6");
     });
 
     it("leaves the command alone without the parameter", () => {
-      const r = runConfig({ ...base, unprivileged_port_start: "NOT_DEFINED" }, "hostname: gitea\n");
+      const r = runConfig({ ...base, init_wrapper_installed: "false" }, "hostname: gitea\n");
       expect(r.code).toBe(0);
       expect(r.conf).toContain("lxc.init.cmd: /usr/bin/s6-svscan /etc/s6");
       expect(r.conf).not.toContain("proxvex-init");
@@ -196,7 +243,7 @@ describe("unprivileged port start", () => {
 
     it("replaces an existing init command instead of duplicating it", () => {
       const r = runConfig(
-        { ...base, unprivileged_port_start: "443" },
+        { ...base, init_wrapper_installed: "true" },
         "hostname: gitea\nlxc.init.cmd: /usr/bin/s6-svscan /etc/s6\n",
       );
       expect(r.code).toBe(0);
@@ -210,14 +257,14 @@ describe("unprivileged port start", () => {
 
     it("wraps the Proxmox entrypoint when there is no initial_command", () => {
       const r = runConfig(
-        { ...noCmd, container_sysctls: "net.ipv4.ip_forward=1" },
+        { ...noCmd, init_wrapper_installed: "true" },
         "hostname: wg\nentrypoint: docker-entrypoint.sh node server.mjs\n",
       );
       expect(r.code).toBe(0);
       expect(r.conf).toContain("entrypoint: /usr/local/sbin/proxvex-init docker-entrypoint.sh node server.mjs");
       // idempotent: a second run must not stack the wrapper
       const again = runConfig(
-        { ...noCmd, container_sysctls: "net.ipv4.ip_forward=1" },
+        { ...noCmd, init_wrapper_installed: "true" },
         r.conf,
       );
       expect(again.conf.match(/proxvex-init/g)?.length).toBe(1);
@@ -225,7 +272,7 @@ describe("unprivileged port start", () => {
 
     it("moves a non-root init user onto the wrapper (--as) and drops lxc.init.uid/gid/groups", () => {
       const r = runConfig(
-        { ...noCmd, unprivileged_port_start: "443" },
+        { ...noCmd, init_wrapper_installed: "true" },
         "hostname: nginx\nentrypoint: /docker-entrypoint.sh nginx\nlxc.init.uid: 101\nlxc.init.gid: 101\nlxc.init.groups: 101\n",
       );
       expect(r.code).toBe(0);
@@ -233,9 +280,17 @@ describe("unprivileged port start", () => {
       expect(r.conf).not.toMatch(/^lxc\.init\.(uid|gid|groups):/m);
     });
 
+    it("leaves entrypoint and init user alone when 109 skipped the wrapper", () => {
+      const conf = "hostname: nginx\nentrypoint: /docker-entrypoint.sh nginx\nlxc.init.uid: 101\n";
+      const r = runConfig({ ...noCmd, init_wrapper_installed: "false" }, conf);
+      expect(r.conf).toContain("entrypoint: /docker-entrypoint.sh nginx");
+      expect(r.conf).toContain("lxc.init.uid: 101");
+      expect(r.conf).not.toContain("proxvex-init");
+    });
+
     it("keeps a root init user as is", () => {
       const r = runConfig(
-        { ...noCmd, unprivileged_port_start: "443" },
+        { ...noCmd, init_wrapper_installed: "true" },
         "hostname: gitea\nentrypoint: /usr/bin/entrypoint\n",
       );
       expect(r.conf).toContain("entrypoint: /usr/local/sbin/proxvex-init /usr/bin/entrypoint");

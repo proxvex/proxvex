@@ -15,18 +15,15 @@ envs_str = """{{ envs }}"""
 # envs string (the frontend edits the full string directly, so this channel
 # is CLI-only in practice). Empty / NOT_DEFINED → no-op.
 extra_envs_str = """{{ extra_envs }}"""
-# Lowest port a non-root process in the container may bind, further per-netns
-# sysctls and a fixed IPv6 interface ID. Any set → the app runs behind the init
-# wrapper that 109-host-install-init-wrapper installed.
-port_start = "{{ unprivileged_port_start }}"
-container_sysctls = """{{ container_sysctls }}"""
-ipv6_token = "{{ ipv6_token }}"
+# Init wrapper written by 109-host-install-init-wrapper (low ports for
+# non-root apps, per-netns sysctls, IPv6 token).
 INIT_WRAPPER = "/usr/local/sbin/proxvex-init"
 
-def is_set(value):
-    return bool(value and value.strip() and value.strip() != "NOT_DEFINED")
-
-use_init_wrapper = is_set(port_start) or is_set(container_sysctls) or is_set(ipv6_token)
+# 109 decides whether the wrapper is needed and possible (root apps need no
+# port change, distroless images have no shell) and reports it here. Only
+# wrap the init when the wrapper file was actually written.
+init_wrapper_installed = "{{ init_wrapper_installed }}"
+use_init_wrapper = init_wrapper_installed.strip() == "true"
 
 if not vm_id or vm_id == "NOT_DEFINED":
     print("Error: vm_id is not set", file=sys.stderr)
