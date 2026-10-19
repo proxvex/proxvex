@@ -21,7 +21,7 @@
             },
             "replacement": {
               "type": "string",
-              "enum": ["compose-env", "lxc-config-env", "on-start-env", "rerun-template", "manual", "no-action"],
+              "enum": ["compose-env", "lxc-config-env", "on-start-env", "env-file", "rerun-template", "manual", "no-action"],
               "default": "manual",
               "description": "Method applied when this stack property changes. 'manual' = user must act; 'no-action' = nothing to do (declaration is informational only); 'rerun-template' is DEPRECATED."
             },
@@ -40,6 +40,14 @@
             "script_var": {
               "type": "string",
               "description": "For replacement='on-start-env': the shell variable name inside the script whose value is patched."
+            },
+            "env_key": {
+              "type": "string",
+              "description": "For replacement='env-file': the key in the compose project's .env inside the LXC (/opt/docker-compose/<project>/.env). Defaults to name."
+            },
+            "after_command": {
+              "type": "string",
+              "description": "For replacement='env-file': command run inside the LXC after the .env was patched (e.g. the app's own 'up'). Without it the value takes effect on the next start."
             },
             "template": {
               "type": "string",

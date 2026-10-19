@@ -338,6 +338,24 @@
       "required": true,
       "internal": true
     },
+    "env_key": {
+      "name": "Key in the compose .env",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    "new_value_b64": {
+      "name": "New Value (base64)",
+      "type": "string",
+      "required": true,
+      "internal": true
+    },
+    "after_command_b64": {
+      "name": "After Command (base64)",
+      "type": "string",
+      "required": false,
+      "internal": true
+    },
     "compose_project": {
       "name": "Compose Project",
       "type": "string",
