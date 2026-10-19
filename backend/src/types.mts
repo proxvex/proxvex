@@ -95,8 +95,9 @@ export interface IStackUsageVar {
    *  (/opt/docker-compose/<project>/.env inside the LXC); default: name. */
   env_key?: string;
   /** For replacement="env-file": command run inside the LXC after the .env was
-   *  patched (e.g. the app's own `up` that recreates services whose environment
-   *  changed). Without it the new value is active on the next start. */
+   *  patched. Default: `docker compose up -d` in the project directory (compose
+   *  re-reads the .env and recreates changed services; `restart` would not).
+   *  Apps that run their own stack name their own command; "none" skips it. */
   after_command?: string;
   /** For replacement="rerun-template" (deprecated): template filename to rerun */
   template?: string;

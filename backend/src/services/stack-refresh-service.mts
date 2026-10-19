@@ -614,8 +614,8 @@ async function runOnStartScriptEnv(
  * LXC — the file the docker-compose base application writes from `env_file`
  * (post-upload-docker-compose-files.sh). For applications that run their own
  * compose stack from that .env (instead of the uploaded docker-compose.yml),
- * where compose-env has nothing to patch. Optionally runs `after_command`
- * inside the LXC so the app picks the value up.
+ * where compose-env has nothing to patch. Then applies it inside the LXC:
+ * `after_command`, default `docker compose up -d` in the project directory.
  */
 async function runEnvFile(
   pm: PersistenceManager,
@@ -670,8 +670,8 @@ async function runEnvFile(
       detail:
         detail ||
         (ve.outputs.get("refresh_restarted") === "true"
-          ? `patched ${key} in .env — after_command ran`
-          : `patched ${key} in .env (active on next start)`),
+          ? `patched ${key} in .env and applied`
+          : `patched ${key} in .env (not applied: after_command "none")`),
     };
   }
   return { ok: false, detail: detail || "unknown error" };

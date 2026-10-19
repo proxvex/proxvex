@@ -1,7 +1,12 @@
 #!/bin/sh
 # Set KEY=VALUE in the compose project's .env inside the LXC
 # (/opt/docker-compose/<project>/.env, written by post-upload-docker-compose-files.sh)
-# and optionally run a command inside the LXC afterwards.
+# and apply it. Default: `docker compose up -d` in the project directory —
+# compose re-interpolates the .env and recreates only services whose config
+# changed (`restart` would NOT: it keeps the old container config). Without -f
+# compose also loads docker-compose.override.yml (IPv6, compose-ipv6.sh), like
+# the ssl-proxy on-start hook. An app that runs its own stack names its own
+# after_command; "none" skips the step.
 # Runs on PVE host (execute_on: ve).
 #
 # Inputs (substituted by deployer):
@@ -63,13 +68,22 @@ if ! pct exec "$VM_ID" -- sh -c "cp -p '$ENV_FILE' '$ENV_FILE.refresh' && cat > 
 fi
 log "Set ${ENV_KEY} in ${ENV_FILE}"
 
+if [ -z "$AFTER_COMMAND" ]; then
+  AFTER_COMMAND="cd '/opt/docker-compose/${COMPOSE_PROJECT}' && if command -v docker-compose >/dev/null 2>&1; then docker-compose up -d; else docker compose up -d; fi"
+elif [ "$AFTER_COMMAND" = "none" ]; then
+  AFTER_COMMAND=""
+fi
+
 if [ -n "$AFTER_COMMAND" ]; then
   log "Running after_command in container $VM_ID"
   if pct exec "$VM_ID" -- sh -c "$AFTER_COMMAND" >&2; then
     printf '[{"id":"refresh_status","value":"ok"},{"id":"refresh_restarted","value":"true"}]\n'
   else
-    log "WARNING: after_command failed - .env is patched, value active on next start"
-    printf '[{"id":"refresh_status","value":"ok"},{"id":"refresh_restarted","value":"false"},{"id":"refresh_detail","value":"patched .env; after_command failed - value active on next start"}]\n'
+    # Like compose-env when the restart fails: the file IS patched, so report
+    # ok (the stack must store the value, or the next reconfigure would write
+    # the old one back) and say what is left to do.
+    log "WARNING: after_command failed - .env is patched but not applied"
+    printf '[{"id":"refresh_status","value":"ok"},{"id":"refresh_restarted","value":"false"},{"id":"refresh_detail","value":"patched .env; applying it failed - run docker compose up -d in the LXC"}]\n'
   fi
 else
   printf '[{"id":"refresh_status","value":"ok"},{"id":"refresh_restarted","value":"false"}]\n'

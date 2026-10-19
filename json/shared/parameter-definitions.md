@@ -1155,7 +1155,7 @@ Templates / frameworks referencing this parameter:
 
 ## after_command_b64
 
-Optional command (base64-encoded) run inside the LXC after the `.env` was patched, e.g. the application's own `up`.<!--
+Command (base64-encoded) run inside the LXC after the `.env` was patched. Empty = `docker compose up -d` in the project directory; `none` = skip.<!--
 Templates / frameworks referencing this parameter:
 - json/shared/templates/refresh/env-file.json
 -->
