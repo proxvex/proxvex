@@ -80,8 +80,15 @@ jobs:
           npm version "$input_version" --no-git-tag-version --allow-same-version
           printf '{".": "%s"}\n' "$input_version" > .release-please-manifest.json
           git add package.json .release-please-manifest.json
-          git commit -m "$input_version [skip version-check]"
-          git push
+          # A previous run may have committed this version and then failed
+          # later (no tag, no release). Re-running with the same version must
+          # not die on an empty commit — skip commit and push in that case.
+          if git diff --cached --quiet; then
+            echo "package.json and manifest already at $input_version — nothing to commit."
+          else
+            git commit -m "$input_version [skip version-check]"
+            git push
+          fi
 
           echo "resolved_version=$input_version" >> $GITHUB_OUTPUT
           echo "Using version: $input_version"
