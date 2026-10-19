@@ -183,6 +183,27 @@ describe("stack-refresh-service / buildActionsForContainer", () => {
     expect(actions[0]!.description).toBe("patch baked token");
   });
 
+  it("passes env-file envKey and afterCommand through", () => {
+    const app = makeApp([
+      {
+        stacktype: "cloudflare",
+        vars: [
+          {
+            name: "CF_TOKEN",
+            replacement: "env-file",
+            env_key: "CF_API_TOKEN",
+            after_command: "bash /srv/app/up.sh",
+          },
+        ],
+      },
+    ]);
+    const actions = buildActionsForContainer(baseContainer, app, [], "cloudflare");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.replacement).toBe("env-file");
+    expect(actions[0]!.envKey).toBe("CF_API_TOKEN");
+    expect(actions[0]!.afterCommand).toBe("bash /srv/app/up.sh");
+  });
+
   it("no-action replacement is carried through unchanged", () => {
     const app = makeApp([
       {

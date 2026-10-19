@@ -75,6 +75,7 @@ export type StackRefreshMethod =
   | "compose-env"
   | "lxc-config-env"
   | "on-start-env"
+  | "env-file"
   | "rerun-template"
   | "manual"
   | "no-action";
@@ -90,6 +91,14 @@ export interface IStackUsageVar {
   script?: string;
   /** For replacement="on-start-env": shell variable name inside the script */
   script_var?: string;
+  /** For replacement="env-file": key in the .env of the compose project
+   *  (/opt/docker-compose/<project>/.env inside the LXC); default: name. */
+  env_key?: string;
+  /** For replacement="env-file": command run inside the LXC after the .env was
+   *  patched. Default: `docker compose up -d` in the project directory (compose
+   *  re-reads the .env and recreates changed services; `restart` would not).
+   *  Apps that run their own stack name their own command; "none" skips it. */
+  after_command?: string;
   /** For replacement="rerun-template" (deprecated): template filename to rerun */
   template?: string;
   /** Human-readable explanation shown in the UI (especially for no-action / manual). */

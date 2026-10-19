@@ -1,0 +1,18 @@
+{
+  "execute_on": "ve",
+  "name": "Set Compose .env Value",
+  "description": "Sets KEY=VALUE in the compose project's .env inside the LXC (/opt/docker-compose/<project>/.env, written from the application's env_file) and optionally runs after_command inside the LXC. Used by refresh-stack task for applications that read their secrets from that .env (e.g. apps that start their own compose stack from it), where compose-env has no environment entry to patch.",
+  "parameters": [
+    "vm_id",
+    "compose_project",
+    "env_key",
+    "new_value_b64",
+    "after_command_b64"
+  ],
+  "commands": [
+    {
+      "name": "Set .env value",
+      "script": "refresh-env-file.sh"
+    }
+  ]
+}

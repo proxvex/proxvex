@@ -16,6 +16,7 @@ interface IRefreshAction {
     | 'compose-env'
     | 'lxc-config-env'
     | 'on-start-env'
+    | 'env-file'
     | 'rerun-template'
     | 'manual'
     | 'no-action'
@@ -25,6 +26,8 @@ interface IRefreshAction {
   lxcVarName?: string;
   script?: string;
   scriptVar?: string;
+  envKey?: string;
+  afterCommand?: string;
   template?: string;
   description?: string;
 }
@@ -180,6 +183,9 @@ export interface RefreshStackDialogData {
                               <span>{{ action.script }}</span>
                               <span>{{ action.scriptVar ?? action.varName }}</span>
                             </span>
+                          }
+                          @if (action.replacement === 'env-file') {
+                            <span class="mono">.env: {{ action.envKey ?? action.varName }}</span>
                           }
                           @if (action.replacement === 'rerun-template' && action.template) {
                             <span class="mono">{{ action.template }} (deprecated)</span>
@@ -401,6 +407,11 @@ export interface RefreshStackDialogData {
     .method-on-start-env {
       background: #e8f5e9;
       color: #2e7d32;
+    }
+
+    .method-env-file {
+      background: #e0f7fa;
+      color: #00695c;
     }
 
     .method-rerun-template {

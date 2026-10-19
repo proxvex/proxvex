@@ -36,6 +36,8 @@ export interface IStackRefreshAction {
   lxcVarName?: string;
   script?: string;
   scriptVar?: string;
+  envKey?: string;
+  afterCommand?: string;
   template?: string;
   description?: string;
   check?: string;
@@ -131,6 +133,8 @@ function usageVarToAction(
   if (v.lxc_var_name !== undefined) action.lxcVarName = v.lxc_var_name;
   if (v.script !== undefined) action.script = v.script;
   if (v.script_var !== undefined) action.scriptVar = v.script_var;
+  if (v.env_key !== undefined) action.envKey = v.env_key;
+  if (v.after_command !== undefined) action.afterCommand = v.after_command;
   if (v.template !== undefined) action.template = v.template;
   if (v.description !== undefined) action.description = v.description;
   if (v.check !== undefined) action.check = v.check;
@@ -371,6 +375,8 @@ async function executeAction(
       return await runLxcConfigEnv(pm, veContext, target, action, newValue);
     case "on-start-env":
       return await runOnStartScriptEnv(pm, veContext, target, action, newValue);
+    case "env-file":
+      return await runEnvFile(pm, veContext, target, action, newValue);
     case "rerun-template":
       return {
         ok: false,
@@ -601,6 +607,74 @@ async function runOnStartScriptEnv(
     ok: false,
     detail: String(ve.outputs.get("refresh_detail") ?? "unknown error"),
   };
+}
+
+/**
+ * env-file: sets KEY=VALUE in /opt/docker-compose/<project>/.env inside the
+ * LXC — the file the docker-compose base application writes from `env_file`
+ * (post-upload-docker-compose-files.sh). For applications that run their own
+ * compose stack from that .env (instead of the uploaded docker-compose.yml),
+ * where compose-env has nothing to patch. Then applies it inside the LXC:
+ * `after_command`, default `docker compose up -d` in the project directory.
+ */
+async function runEnvFile(
+  pm: PersistenceManager,
+  veContext: IVEContext,
+  target: IStackRefreshPreview["targets"][number],
+  action: IStackRefreshAction,
+  newValue: string,
+): Promise<IActionStatus> {
+  const repositories = pm.getRepositories();
+  const scriptContent = repositories.getScript({
+    name: "refresh-env-file.sh",
+    scope: "shared",
+    category: "refresh",
+  });
+  if (!scriptContent) {
+    return { ok: false, detail: "script refresh-env-file.sh not found" };
+  }
+  const composeProject = await resolveComposeProject(target);
+  // Values travel base64-encoded: secrets may contain quotes, $ or newlines
+  // that would break the shell script after marker substitution.
+  const b64 = (v: string) => Buffer.from(v, "utf-8").toString("base64");
+  const substituted = substituteMarkers(scriptContent, {
+    vm_id: String(target.vmId),
+    compose_project: composeProject,
+    env_key: action.envKey ?? action.varName,
+    new_value_b64: b64(newValue),
+    after_command_b64: b64(action.afterCommand ?? ""),
+  });
+
+  const cmd: ICommand = {
+    name: `refresh env-file ${action.varName}`,
+    execute_on: "ve",
+    script: "refresh-env-file.sh",
+    scriptContent: substituted,
+    outputs: ["refresh_status", "refresh_restarted", "refresh_detail"],
+  };
+  const ve = new VeExecution(
+    [cmd],
+    [],
+    veContext,
+    new Map(),
+    undefined,
+    determineExecutionMode(),
+  );
+  await ve.run(null);
+  const status = String(ve.outputs.get("refresh_status") ?? "error");
+  const detail = String(ve.outputs.get("refresh_detail") ?? "");
+  if (status === "ok") {
+    const key = action.envKey ?? action.varName;
+    return {
+      ok: true,
+      detail:
+        detail ||
+        (ve.outputs.get("refresh_restarted") === "true"
+          ? `patched ${key} in .env and applied`
+          : `patched ${key} in .env (not applied: after_command "none")`),
+    };
+  }
+  return { ok: false, detail: detail || "unknown error" };
 }
 
 /**

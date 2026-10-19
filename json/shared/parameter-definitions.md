@@ -1139,6 +1139,27 @@ Templates / frameworks referencing this parameter:
 - json/shared/templates/post_start/320-post-upload-docker-compose-files.json (via docker-compose)
 -->
 
+## env_key
+
+Key in the compose project's `.env` inside the LXC (`/opt/docker-compose/<project>/.env`) that the `env-file` refresh sets.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/env-file.json
+-->
+
+## new_value_b64
+
+New value, base64-encoded so that quotes, `$` or backslashes in secrets survive the shell script unchanged.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/env-file.json
+-->
+
+## after_command_b64
+
+Command (base64-encoded) run inside the LXC after the `.env` was patched. Empty = `docker compose up -d` in the project directory; `none` = skip.<!--
+Templates / frameworks referencing this parameter:
+- json/shared/templates/refresh/env-file.json
+-->
+
 ## compose_key
 
 The environment key to set (e.g. CF_API_TOKEN).<!--
