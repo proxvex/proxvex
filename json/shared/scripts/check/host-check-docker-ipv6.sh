@@ -3,12 +3,18 @@
 #
 # Runs on the PVE host. Verifies what IPv6 for Docker promises, end to end:
 #   1. dockerd runs with IPv6 (daemon.json "ipv6": true),
-#   2. the LXC kept its own SLAAC address although dockerd enabled
-#      forwarding (eth0 accept_ra=2 and a non-link-local address),
+#   2. the LXC kept its own SLAAC addresses although dockerd enabled
+#      forwarding (accept_ra=2 on every interface with IPv6, eth0 has a
+#      non-link-local address),
 #   3. every Docker container that is not on the host network has an IPv6
 #      address,
 #   4. every published TCP port answers on the LXC's IPv6 address
-#      (ip6tables DNAT with userland-proxy off).
+#      (ip6tables DNAT with userland-proxy off), and on its IPv4 address.
+#      The connect runs inside the LXC's network namespace (nsenter with
+#      the host's python3): it tests Docker's DNAT and listeners, not the
+#      network between host and LXC. A PVE host is often not on-link with
+#      every VLAN its guests use (no address on the untagged bridge), and
+#      the router between the VLANs may refuse the host — correctly.
 # Skipped when docker_ipv6 is off or the LXC has no IPv6 at all.
 #
 # Template variables:
@@ -61,11 +67,16 @@ if ! pct exec "$VM_ID" -- grep -q '"ipv6": true' /etc/docker/daemon.json 2>/dev/
 fi
 echo "dockerd: ipv6 enabled in daemon.json" >&2
 
-# 2. SLAAC kept on the LXC
-ra=$(pct exec "$VM_ID" -- cat /proc/sys/net/ipv6/conf/eth0/accept_ra 2>/dev/null)
-[ "$ra" = "2" ] || fail "eth0 accept_ra is '$ra', expected 2 (forwarding would drop SLAAC)"
+# 2. SLAAC kept on the LXC — on every interface with IPv6 (eth0, and eth1 …
+# of a multi-NIC LXC), not only eth0.
+v6_ifaces=$(pct exec "$VM_ID" -- cat /proc/net/if_inet6 2>/dev/null \
+  | awk '$6 ~ /^eth[0-9]+$/ {print $6}' | sort -u)
+for ifc in $v6_ifaces; do
+  ra=$(pct exec "$VM_ID" -- cat "/proc/sys/net/ipv6/conf/$ifc/accept_ra" 2>/dev/null)
+  [ "$ra" = "2" ] || fail "$ifc accept_ra is '$ra', expected 2 (forwarding would drop SLAAC)"
+done
 [ -n "$lxc_addr" ] || fail "LXC eth0 has no global/ULA IPv6 address (SLAAC lost?)"
-echo "LXC: eth0 $lxc_addr, accept_ra=2" >&2
+echo "LXC: eth0 $lxc_addr, accept_ra=2 on" $v6_ifaces >&2
 
 # 3. Docker containers have IPv6. Go-template braces built at runtime so the
 # deployer's {{ }} substitution leaves them alone.
@@ -90,17 +101,21 @@ for id in $ids; do
 done
 [ -z "$missing" ] || fail "containers without IPv6:$missing (network created before IPv6 was enabled?)"
 
-# 4. Published TCP ports over the LXC's IPv6 address
+# 4. Published TCP ports over the LXC's IPv6 address, connected from inside
+# the LXC's network namespace (see header).
+lxc_pid=$(lxc-info -n "$VM_ID" -pH 2>/dev/null)
+[ -n "$lxc_pid" ] || fail "no init pid for $VM_ID (lxc-info -p)"
+in_lxc() { nsenter --net="/proc/$lxc_pid/ns/net" "$@"; }
 lxc_v4=$(lxc-info -n "$VM_ID" -iH 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^172\.' | head -1)
 ports=$(pct exec "$VM_ID" -- docker ps --format "${LB}.Ports${RB}" 2>/dev/null \
   | tr ',' '\n' | sed -n 's/.*:\([0-9][0-9]*\)->[0-9]*\/tcp.*/\1/p' | sort -un)
 for p in $ports; do
-  if python3 -c 'import socket,sys
+  if in_lxc python3 -c 'import socket,sys
 s=socket.socket(socket.AF_INET6); s.settimeout(5)
 s.connect((sys.argv[1], int(sys.argv[2])))' "$lxc_addr" "$p" 2>/dev/null; then
     echo "  published port $p reachable on [$lxc_addr]" >&2
     # IPv4 must keep working (an app switched to an IPv6 socket must stay dual stack).
-    if [ -n "$lxc_v4" ] && ! python3 -c 'import socket,sys
+    if [ -n "$lxc_v4" ] && ! in_lxc python3 -c 'import socket,sys
 s=socket.socket(); s.settimeout(5)
 s.connect((sys.argv[1], int(sys.argv[2])))' "$lxc_v4" "$p" 2>/dev/null; then
       fail "published port $p answers over IPv6 but not on $lxc_v4 (IPv4)"

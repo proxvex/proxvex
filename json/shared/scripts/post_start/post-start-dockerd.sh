@@ -97,9 +97,16 @@ fi
 if [ "$DOCKER_IPV6" = "true" ]; then
   # dockerd sets net.ipv6.conf.all.forwarding=1, and with forwarding the
   # kernel ignores router advertisements unless accept_ra=2 — the LXC would
-  # lose its own IPv6 address and default route.
-  echo 2 > /proc/sys/net/ipv6/conf/eth0/accept_ra 2>/dev/null \
-    || echo "Warning: cannot set accept_ra=2 on eth0 — SLAAC may be lost" >&2
+  # lose its own IPv6 address and default route. Every interface, not only
+  # eth0: a multi-NIC LXC (net1 in a second VLAN) lost its SLAAC address on
+  # eth1 that way (heimvio-yellow, 24.10.2026). The address returns with the
+  # router's next periodic advertisement.
+  for ifc in /sys/class/net/eth*; do
+    [ -e "$ifc" ] || continue
+    ifc=${ifc##*/}
+    echo 2 > "/proc/sys/net/ipv6/conf/$ifc/accept_ra" 2>/dev/null \
+      || echo "Warning: cannot set accept_ra=2 on $ifc — SLAAC may be lost" >&2
+  done
 fi
 
 mkdir -p /etc/docker
