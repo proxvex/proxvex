@@ -1,7 +1,7 @@
 {
   "execute_on": "ve",
   "name": "Check Docker IPv6",
-  "description": "docker-compose apps with docker_ipv6 (default on) and an LXC that has IPv6: dockerd runs with IPv6, the LXC kept its SLAAC address (accept_ra=2), every non-host-network container has an IPv6 address, and every published TCP port answers on the LXC's IPv6 address. Skipped when docker_ipv6 is off, the LXC has no IPv6, or there is no docker.",
+  "description": "docker-compose apps with docker_ipv6 (default on) and an LXC that has IPv6: dockerd runs with IPv6, the LXC kept its SLAAC addresses (accept_ra=2 on every interface with IPv6), every non-host-network container has an IPv6 address, and every published TCP port answers on the LXC's IPv6 and IPv4 address (connected inside the LXC's network namespace, so the check does not depend on the host reaching the guest VLAN). Skipped when docker_ipv6 is off, the LXC has no IPv6, or there is no docker.",
   "parameters": [
     "vm_id",
     "docker_ipv6"

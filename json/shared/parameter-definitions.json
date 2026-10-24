@@ -692,7 +692,7 @@
       "required": false,
       "group": "Network",
       "advanced": true,
-      "description": "docker-compose apps: enable IPv6 in dockerd (ULA for docker0 and every compose network, ip6tables NAT66 egress, published ports reachable over the LXC's IPv6). Also keeps SLAAC on the LXC's eth0 although dockerd turns on IPv6 forwarding (accept_ra=2). Only applied when the LXC has IPv6. Takes effect on the next install/upgrade/reconfigure; existing compose networks keep their settings until recreated."
+      "description": "docker-compose apps: enable IPv6 in dockerd (ULA for docker0 and every compose network, ip6tables NAT66 egress, published ports reachable over the LXC's IPv6). Also keeps SLAAC on every interface of the LXC (eth0, eth1 …) although dockerd turns on IPv6 forwarding (accept_ra=2). Only applied when the LXC has IPv6. Takes effect on the next install/upgrade/reconfigure; existing compose networks keep their settings until recreated."
     },
     "ipv6_token": {
       "name": "IPv6 Interface ID",
