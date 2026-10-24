@@ -32,6 +32,10 @@ export type { IOutput, IProxmoxRunResult, IRestartInfo };
  * ProxmoxExecution: Executes a list of ICommand objects with variable substitution and remote/container execution.
  */
 const logger = createLogger("ve-execution");
+import {
+  buildRollbackScript,
+  rollbackTarget,
+} from "./ve-execution-rollback.mjs";
 
 export class VeExecution extends EventEmitter {
   private commands!: ICommand[];
@@ -889,6 +893,11 @@ export class VeExecution extends EventEmitter {
         this.emit("finished", this.buildVmContext());
       }
     } else {
+      // A replacement (reconfigure/upgrade) that failed after NEW was started
+      // must not leave OLD and NEW running side by side (see
+      // ve-execution-rollback.mts).
+      await this.rollbackFailedReplacement();
+
       // Send a final failure message so CLI/polling clients stop waiting
       const vmId = rcRestartInfo?.vm_id;
       const runRestartKey = this.commands[0]?.restartKey;
@@ -907,6 +916,39 @@ export class VeExecution extends EventEmitter {
       } as IVeExecuteMessage);
     }
     return rcRestartInfo;
+  }
+
+  /**
+   * True for the nested executions of `execute_on: "host:<name>"` templates
+   * (VeExecutionHostDiscovery). They never own a replacement — the rollback
+   * belongs to the top-level task only.
+   */
+  protected isNestedTemplateExecution(): boolean {
+    return false;
+  }
+
+  /**
+   * Stop NEW and restore OLD when a reconfigure/upgrade fails after NEW was
+   * started. Best effort: a failing rollback is reported, never thrown — the
+   * task is failed either way.
+   */
+  protected async rollbackFailedReplacement(): Promise<void> {
+    if (this.isNestedTemplateExecution()) return;
+    const target = rollbackTarget(this.inputs, this.outputs);
+    if (!target) return;
+    const cmd: ICommand = {
+      name: `Rollback: stop ${target.newVmid}, restore ${target.oldVmid}`,
+      script: "rollback-failed-replacement.sh",
+      scriptContent: buildRollbackScript(target.newVmid, target.oldVmid),
+      execute_on: "ve",
+    };
+    const index = this.commands.length;
+    try {
+      const raw = this.commandProcessor.loadCommandContent(cmd);
+      if (raw) await this.commandProcessor.executeCommandByTarget(cmd, raw);
+    } catch (err: any) {
+      this.messageEmitter.emitErrorMessage(cmd, err, index);
+    }
   }
 
   buildVmContext(): IVMContext {
