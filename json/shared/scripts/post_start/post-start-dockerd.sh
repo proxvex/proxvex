@@ -59,12 +59,16 @@ fi
 # This bites every reconfigure (template 100-create-ct-clone) and every
 # upgrade pipeline that does the same. We've already established above
 # that no dockerd is actually responsive, so any pid/sock files here are
-# stale by definition — safe to remove.
-rm -f /var/run/docker.pid /var/run/docker.sock
-rm -f /run/docker/containerd/containerd.pid \
-      /run/docker/containerd/containerd.sock \
-      /run/docker/containerd/containerd.sock.ttrpc \
-      /run/docker/containerd/containerd-debug.sock
+# stale by definition — safe to remove. The same cleanup runs again before
+# every restart below, because a dead attempt leaves its own files behind.
+clear_stale_runtime() {
+  rm -f /var/run/docker.pid /var/run/docker.sock
+  rm -f /run/docker/containerd/containerd.pid \
+        /run/docker/containerd/containerd.sock \
+        /run/docker/containerd/containerd.sock.ttrpc \
+        /run/docker/containerd/containerd-debug.sock
+}
+clear_stale_runtime
 
 # Project-level registry mirrors. Both come from project defaults
 # (json/shared/templates/create_ct/050-set-project-parameters.json) and
@@ -217,7 +221,9 @@ if [ -n "$GHCR_REGISTRY_MIRROR" ] && ! grep -q "$GHCR_HOSTS_MARKER" /etc/hosts 2
   fi
 fi
 
-# Launch dockerd, then CHECK THAT IT SURVIVED.
+
+# Launch dockerd, then WATCH IT until it answers — and start it again whenever
+# it dies on the way.
 #
 # Fire-and-forget is not enough, and the failure is a real one (ubuntupve,
 # 2026-10-02): a host reboot started eight containers at once, dockerd's
@@ -232,10 +238,28 @@ fi
 # their restart policies brought all 20 back the moment dockerd ran — so
 # dockerd is the only part that needs to be robust here.
 #
-# That timeout lives inside dockerd and is not exposed in daemon.json, so the
-# lever is a retry rather than a longer wait. One retry is enough because the
-# cause is contention, not a broken daemon: measured on the same host minutes
-# later, containerd was up in 18 ms.
+# That timeout (~15 s) lives inside dockerd and is not exposed in daemon.json,
+# so the lever is restarting rather than waiting longer. The first version of
+# this block waited a blind 60 s and retried ONCE, assuming contention passes
+# quickly (measured minutes later: containerd up in 18 ms). On 2026-10-24 that
+# was not enough: after a host reboot six containers started at load 9+, and
+# in one of them dockerd died twice in a row (start 04:14:33, dead after 16 s;
+# the blind wait idled on until 04:15:47; the retry died after 15 s again) and
+# the hook gave up — while a manual start at 04:23 booted containerd in 0.5 s.
+# In another container the single retry happened to succeed, but dockerd then
+# needed 3 min 40 s until its API answered.
+#
+# So instead of counting attempts we watch the process:
+#   - poll `docker info` every 2 s;
+#   - if the dockerd we started has exited, clear the stale pid/sock files and
+#     start it again after a growing pause (5, 10, 20, 40, then 60 s) — the
+#     pause lets the host's start storm drain instead of joining it;
+#   - no restart is begun after DOCKERD_START_BUDGET seconds (default 300);
+#   - a dockerd that is still ALIVE is never killed: it may just be slow to
+#     initialise under load, so it gets up to DOCKERD_ALIVE_MAX seconds
+#     (default 600) in total before the hook reports failure.
+# A progress line goes out every 30 s, because the deployer runs this hook
+# with an idle timeout (2 min of silence) when it triggers it at deploy time.
 #
 # nohup + setsid so dockerd survives the SSH/pct exec session that launched it.
 # stdout/stderr → log file; stdin → /dev/null. PID is reaped by the LXC's PID 1.
@@ -250,49 +274,88 @@ fi
 # (found 2026-10-02 in heimvio-green: dockerd and containerd both carried
 # XDG_SESSION_ID=18 from the session that had restarted them). Drop the
 # session variables so a start from a login shell equals a start at boot.
+DOCKERD_START_BUDGET="${DOCKERD_START_BUDGET:-300}"
+DOCKERD_ALIVE_MAX="${DOCKERD_ALIVE_MAX:-600}"
+DOCKERD_BIN="${DOCKERD_BIN:-/usr/sbin/dockerd}"
+DOCKERD_PID=""
+
+# `cmd &` in a non-interactive shell runs without job control, so the child is
+# not a process-group leader: setsid and env exec in place and $! is dockerd's
+# own PID.
 start_dockerd() {
   nohup setsid env -u XDG_RUNTIME_DIR -u XDG_SESSION_ID -u XDG_SESSION_TYPE \
-    -u XDG_SESSION_CLASS /usr/sbin/dockerd \
+    -u XDG_SESSION_CLASS "$DOCKERD_BIN" \
     >> "$LOG_FILE" 2>&1 < /dev/null &
-  echo "dockerd started (logs at ${LOG_FILE})" >&2
+  DOCKERD_PID=$!
+  echo "dockerd started as PID ${DOCKERD_PID} (logs at ${LOG_FILE})" >&2
 }
 
-# Wait for the socket to answer. The same polling shape already exists one file
-# over, in the act_runner forward hook — it waits up to 90 s for dockerd.
-wait_for_dockerd() {
-  waited=0
-  while [ "$waited" -lt "$1" ]; do
-    if docker info >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 2
-    waited=$((waited + 2))
-  done
-  return 1
+# True while the process exists and is not a zombie. `kill -0` alone is not
+# enough: the dead dockerd is our child, and until this shell reaps it the
+# zombie still answers kill -0.
+pid_alive() {
+  [ -n "$1" ] || return 1
+  state=$(sed -n 's/^State:[[:space:]]*\([A-Z]\).*/\1/p' "/proc/$1/status" 2>/dev/null || true)
+  case "$state" in
+    ""|Z|X) return 1 ;;
+    *) return 0 ;;
+  esac
 }
 
+# Elapsed time comes from the clock, not from counting sleeps: under load a
+# single `docker info` against a half-started daemon can itself take seconds.
+started_at=$(date +%s)
+elapsed=0
+attempt=1
+pause=5
+next_progress=30
 start_dockerd
-if wait_for_dockerd 60; then
-  echo "dockerd responsive" >&2
-else
-  echo "WARN: dockerd did not become responsive within 60s — retrying once" >&2
-  tail -n 5 "$LOG_FILE" >&2 || true
-  # Stale pid/sock files from the dead attempt would make the retry refuse to
-  # start ("process with PID N is still running"), so clear them again.
-  rm -f /var/run/docker.pid /var/run/docker.sock
-  rm -f /run/docker/containerd/containerd.pid \
-        /run/docker/containerd/containerd.sock \
-        /run/docker/containerd/containerd.sock.ttrpc \
-        /run/docker/containerd/containerd-debug.sock
-  start_dockerd
-  if wait_for_dockerd 60; then
-    echo "dockerd responsive after retry" >&2
-  else
-    # Exit non-zero so the on-start dispatcher reports ===OCI_HOOK_ERROR=== and
-    # 350-host-check-hook-log.json sees it. A container silently running without
-    # Docker is the outcome this whole block exists to prevent.
-    echo "Error: dockerd still not responsive after retry" >&2
-    tail -n 20 "$LOG_FILE" >&2 || true
-    exit 1
+while :; do
+  elapsed=$(( $(date +%s) - started_at ))
+  if docker info >/dev/null 2>&1; then
+    if [ "$attempt" -gt 1 ]; then
+      echo "dockerd responsive after ${elapsed}s (attempt ${attempt})" >&2
+    else
+      echo "dockerd responsive after ${elapsed}s" >&2
+    fi
+    exit 0
   fi
-fi
+
+  if ! pid_alive "$DOCKERD_PID"; then
+    echo "WARN: dockerd (PID ${DOCKERD_PID}, attempt ${attempt}) exited after ${elapsed}s without answering" >&2
+    tail -n 5 "$LOG_FILE" >&2 || true
+    if [ $((elapsed + pause)) -gt "$DOCKERD_START_BUDGET" ]; then
+      break
+    fi
+    echo "restarting dockerd in ${pause}s" >&2
+    sleep "$pause"
+    # Stale pid/sock files from the dead attempt would make the restart refuse
+    # to start ("process with PID N is still running"), so clear them again.
+    clear_stale_runtime
+    attempt=$((attempt + 1))
+    start_dockerd
+    pause=$((pause * 2))
+    if [ "$pause" -gt 60 ]; then
+      pause=60
+    fi
+    next_progress=$(( $(date +%s) - started_at + 30 ))
+    continue
+  fi
+
+  if [ "$elapsed" -ge "$DOCKERD_ALIVE_MAX" ]; then
+    echo "Error: dockerd (PID ${DOCKERD_PID}) alive but not responsive after ${elapsed}s — leaving it running" >&2
+    break
+  fi
+  if [ "$elapsed" -ge "$next_progress" ]; then
+    echo "waiting for dockerd (PID ${DOCKERD_PID}, attempt ${attempt}, ${elapsed}s)" >&2
+    next_progress=$((elapsed + 30))
+  fi
+  sleep 2
+done
+
+# Exit non-zero so the on-start dispatcher reports ===OCI_HOOK_ERROR=== and
+# 350-host-check-hook-log.json sees it. A container silently running without
+# Docker is the outcome this whole block exists to prevent.
+echo "Error: dockerd not responsive after ${attempt} attempt(s) in ${elapsed}s" >&2
+tail -n 20 "$LOG_FILE" >&2 || true
+exit 1
