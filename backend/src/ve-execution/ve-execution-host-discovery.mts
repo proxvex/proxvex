@@ -258,6 +258,10 @@ export class VeExecutionHostDiscovery {
           super(commands, inputs, veContext, defaults, sshCommand);
         }
 
+        protected isNestedTemplateExecution(): boolean {
+          return true;
+        }
+
         protected async runOnLxc(
           vm_id: string | number,
           command: string,
