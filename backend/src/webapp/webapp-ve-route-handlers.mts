@@ -1067,8 +1067,13 @@ export class WebAppVeRouteHandlers {
       defaults.set("task", task);
       defaults.set("task_type", task);
 
-      // For in-place upgrade/reconfigure: vm_id = previous_vm_id if not explicitly set
-      this.parameterProcessor.applyPreviousVmIdFallback(defaults, paramsToUse);
+      // For in-place upgrade/reconfigure: vm_id = previous_vm_id if not explicitly
+      // set — but never when this task creates the container (create_ct), see
+      // applyPreviousVmIdFallback.
+      const createsContainer = commands.some(
+        (c) => c.category === "create_ct" && !c.name.includes("(skipped)"),
+      );
+      this.parameterProcessor.applyPreviousVmIdFallback(defaults, paramsToUse, createsContainer);
 
       // Log viewer URL embedded into LXC Notes. See deployer-url-resolver.mts
       // for the fallback chain: PROXVEX_URL > Hub URL (Spoke mode) > request

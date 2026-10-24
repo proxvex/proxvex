@@ -108,11 +108,21 @@ export class WebAppVeParameterProcessor {
    * explicitly set. The parameter definition gives vm_id a default of "",
    * so an empty default counts as unset — otherwise host-side scripts
    * substitute {{ vm_id }} with "" (lxc commands fall back on their own).
+   *
+   * NOT when the task creates a container (an unskipped create_ct command:
+   * clone-replace upgrade of an OCI app, reconfigure): there the empty vm_id
+   * is what makes create_ct pick a NEW VMID. Filling in previous_vm_id made
+   * conf-create-lxc-container.sh find the existing config ("already exists -
+   * skipping pct create"), the task ran against OLD itself and replace-ct.sh
+   * aborted with "previous_vm_id (502) must differ from vm_id (502)" — the
+   * proxvex self-upgrade on 24.10.2026.
    */
   applyPreviousVmIdFallback(
     defaults: Map<string, string | number | boolean>,
     params: IPostVeConfigurationBody["params"],
+    createsContainer = false,
   ): void {
+    if (createsContainer) return;
     const current = defaults.get("vm_id");
     if (current !== undefined && current !== "") return;
     const prevParam = params.find((p) => p.name === "previous_vm_id");

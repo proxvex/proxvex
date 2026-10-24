@@ -151,6 +151,15 @@ describe("WebAppVeParameterProcessor deploy-params", () => {
       expect(defaults.get("vm_id")).toBe("600");
     });
 
+    it("leaves the empty vm_id when the task creates the container (clone-replace upgrade)", () => {
+      // create_ct must pick a NEW VMID — with previous_vm_id filled in it found
+      // the existing config, skipped pct create and replace-ct aborted with
+      // "previous_vm_id (502) must differ from vm_id (502)" (24.10.2026).
+      const defaults = proc.buildDefaults([def({ id: "vm_id", default: "" })]);
+      proc.applyPreviousVmIdFallback(defaults, [{ name: "previous_vm_id", value: 502 }], true);
+      expect(defaults.get("vm_id")).toBe("");
+    });
+
     it("leaves vm_id untouched without previous_vm_id", () => {
       const defaults = new Map<string, string | number | boolean>([["vm_id", ""]]);
       proc.applyPreviousVmIdFallback(defaults, [{ name: "previous_vm_id", value: "" }]);
