@@ -6,7 +6,8 @@
   "parameters": [
     "docker_registry_mirror",
     "ghcr_registry_mirror",
-    "docker_ipv6"
+    "docker_ipv6",
+    "docker_address_pool_size"
   ],
   "commands": [
     {
