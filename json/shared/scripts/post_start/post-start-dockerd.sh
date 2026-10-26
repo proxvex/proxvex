@@ -90,6 +90,19 @@ GHCR_REGISTRY_MIRROR="{{ ghcr_registry_mirror }}"
 # them out of the LXC's address (NAT66) and DNATs published ports, like IPv4.
 DOCKER_IPV6="{{ docker_ipv6 }}"
 case "$DOCKER_IPV6" in false|0|no) DOCKER_IPV6=false ;; *) DOCKER_IPV6=true ;; esac
+
+# Size of each compose network carved from the IPv4 pool 172.16.0.0/12.
+# The default /16 gives 16 networks per LXC — enough for one compose project,
+# not for a host that runs several (heimvio: dev stack, e2e base and four e2e
+# lanes with two networks each ran out on 2026-10-26; dockerd then reports
+# "could not find an available, non-overlapping IPv6 address pool", although
+# it is the IPv4 pool that is empty). /24 gives 4096 networks of 254
+# addresses. Only new networks are affected; existing ones keep their subnet.
+DOCKER_POOL_SIZE="{{ docker_address_pool_size }}"
+case "$DOCKER_POOL_SIZE" in
+  1[6-9]|2[0-8]) : ;;
+  *) DOCKER_POOL_SIZE=16 ;;
+esac
 if [ "$DOCKER_IPV6" = "true" ] && ! grep -q . /proc/net/if_inet6 2>/dev/null; then
   echo "LXC has no IPv6 — Docker IPv6 not enabled" >&2
   DOCKER_IPV6=false
@@ -161,8 +174,12 @@ fi
     printf ',\n  "fixed-cidr-v6": "fd00:d0c::/64"'
     printf ',\n  "experimental": true'
     printf ',\n  "ip6tables": true'
-    printf ',\n  "default-address-pools": [{"base": "172.17.0.0/12", "size": 16}, {"base": "fd00:d0c:1::/48", "size": 64}]'
+    printf ',\n  "default-address-pools": [{"base": "172.17.0.0/12", "size": %s}, {"base": "fd00:d0c:1::/48", "size": 64}]' "$DOCKER_POOL_SIZE"
     printf ',\n  "default-network-opts": {"bridge": {"com.docker.network.enable_ipv6": "true"}}'
+  elif [ "$DOCKER_POOL_SIZE" != 16 ]; then
+    # Without IPv6 dockerd keeps its built-in pools unless one is given; only
+    # a non-default size writes the IPv4 pool, so the default stays byte-equal.
+    printf ',\n  "default-address-pools": [{"base": "172.17.0.0/12", "size": %s}]' "$DOCKER_POOL_SIZE"
   fi
   printf '\n}\n'
 } > /etc/docker/daemon.json
@@ -170,6 +187,7 @@ fi
 [ -n "$DOCKER_REGISTRY_MIRROR" ] && echo "daemon.json: registry-mirrors -> ${DOCKER_REGISTRY_MIRROR}" >&2
 [ -n "$DNS_LIST" ] && echo "daemon.json: dns -> [${DNS_LIST}]" >&2
 [ "$DOCKER_IPV6" = "true" ] && echo "daemon.json: IPv6 on (fd00:d0c::/64, pools fd00:d0c:1::/48, ip6tables)" >&2
+[ "$DOCKER_POOL_SIZE" != 16 ] && echo "daemon.json: IPv4 pool 172.17.0.0/12 in /${DOCKER_POOL_SIZE} networks" >&2
 
 # /etc/hosts redirect for ghcr.io. Idempotent: the marker line lets
 # re-runs detect prior install and skip without double-adding. If the
