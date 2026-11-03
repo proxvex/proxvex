@@ -32,6 +32,7 @@ import {
 } from "@src/ve-execution/ve-execution-constants.mjs";
 import { listManagedContainers } from "@src/services/container-list-service.mjs";
 import { getContainerConfig } from "@src/services/container-config-service.mjs";
+import { resumeUnfinishedRebuild } from "@src/services/unfinished-rebuild-service.mjs";
 
 /**
  * Route handler logic for VE configuration endpoints.
@@ -1504,6 +1505,30 @@ export class WebAppVeRouteHandlers {
       id: p.id,
       value: p.value,
     }));
+
+    // A failed reconfigure/upgrade paused its new container (failure hook in
+    // webapp-ve-execution-setup). Continuing after the start phase needs it
+    // running again.
+    const startIdx = commands.findIndex((c) => c.category === "start");
+    const vmIdOut = restartInfo.outputs.find((o) => o.name === "vm_id")?.value;
+    const prevVmIdOut = restartInfo.outputs.find(
+      (o) => o.name === "previous_vm_id",
+    )?.value;
+    if (
+      startIdx >= 0 &&
+      restartInfo.lastSuccessfull !== undefined &&
+      restartInfo.lastSuccessfull >= startIdx &&
+      vmIdOut !== undefined &&
+      prevVmIdOut !== undefined &&
+      String(vmIdOut) !== String(prevVmIdOut) &&
+      executionMode !== ExecutionMode.TEST
+    ) {
+      try {
+        await resumeUnfinishedRebuild(veCtxToUse, String(vmIdOut));
+      } catch (err: any) {
+        return this.buildErrorResult(err);
+      }
+    }
 
     // Create execution with reloaded commands but use restartInfo for state
     const { exec, restartKey: newRestartKey } =

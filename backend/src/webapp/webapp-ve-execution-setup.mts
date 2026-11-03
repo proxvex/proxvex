@@ -1,10 +1,15 @@
 import { IVEContext, IVMContext } from "@src/backend-types.mjs";
 import { ICommand, IPlannedStep, IVeExecuteMessage } from "@src/types.mjs";
 import { IProcessedTemplate } from "@src/templates/templateprocessor-types.mjs";
-import { IRestartInfo } from "@src/ve-execution/ve-execution-constants.mjs";
+import {
+  ExecutionMode,
+  IRestartInfo,
+  determineExecutionMode,
+} from "@src/ve-execution/ve-execution-constants.mjs";
 import { VeExecution } from "@src/ve-execution/ve-execution.mjs";
 import { spawnAsync } from "@src/spawn-utils.mjs";
 import { Logger, createLogger } from "@src/logger/index.mjs";
+import { pauseUnfinishedRebuild } from "@src/services/unfinished-rebuild-service.mjs";
 
 const diagLogger = createLogger("diagnostics");
 import type { IVeDebugEvent } from "@src/ve-execution/ve-execution-message-emitter.mjs";
@@ -173,6 +178,19 @@ export class WebAppVeExecutionSetup {
       // timeline up to the failure) is fetchable by the test runner / UI.
       if (msg.command === "Failed" && msg.finished === true) {
         finalizeBundle(null);
+        // A reconfigure/upgrade that failed after cloning leaves the new
+        // container running next to the source. Stop it so the source alone
+        // serves; a restart resumes it (handleVeRestart).
+        const vmId = exec.outputs.get("vm_id");
+        const previousVmId = exec.outputs.get("previous_vm_id");
+        if (
+          vmId !== undefined &&
+          previousVmId !== undefined &&
+          String(vmId) !== String(previousVmId) &&
+          determineExecutionMode() !== ExecutionMode.TEST
+        ) {
+          void pauseUnfinishedRebuild(veContext, String(vmId));
+        }
       }
     });
     exec.on("finished", (msg: IVMContext) => finalizeBundle(msg));

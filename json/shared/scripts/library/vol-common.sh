@@ -12,6 +12,7 @@
 #   4. vol_alloc - Allocate a new Proxmox-managed volume
 #   5. vol_resolve_path - Resolve host-side path for a volume
 #   6. vol_get_existing - Find existing volume by name suffix
+#   7. vol_rebuild_tag_set / _clear / vol_rebuild_source_of - Unfinished-rebuild tag
 
 # Get storage backend type for a given storage name.
 # Args: $1=storage_name
@@ -879,4 +880,106 @@ vol_destroy_stale_clone_snapshots() {
         echo "Destroying stale clone snapshot $_vol_snap" >&2
         zfs destroy "$_vol_snap" >&2 || echo "Warning: could not destroy $_vol_snap" >&2
       done
+}
+
+# ─── Unfinished rebuilds ─────────────────────────────────────────────────────
+# create-ct-clone.sh tags the new container with proxvex-rebuild-of-<source>;
+# replace-ct.sh removes the tag once the source is replaced. A container that
+# still carries it is an unfinished rebuild: the task stopped somewhere between
+# clone and replace, and the source was never marked replaced. The tag lives
+# in the PVE `tags` field, not in the notes, because pre_start rewrites the
+# notes completely.
+
+# Print the container's tags with any proxvex-rebuild-of-* tag removed,
+# ';'-separated (PVE accepts ';', ',' and spaces on input).
+# Args: $1=vmid
+vol_rebuild_other_tags() {
+  pct config "$1" 2>/dev/null \
+    | awk -F': ' '$1 == "tags" { print $2; exit }' \
+    | tr ',; ' '\n\n\n' \
+    | grep -v -e '^proxvex-rebuild-of-' -e '^$' \
+    | paste -sd ';' - || true
+}
+
+# Tag $1 as an unfinished rebuild of $2. A tag inherited from the source (the
+# source itself was an unfinished rebuild) is replaced.
+# Args: $1=vmid, $2=source vmid
+vol_rebuild_tag_set() {
+  _vol_tags=$(vol_rebuild_other_tags "$1")
+  pct set "$1" --tags "${_vol_tags:+${_vol_tags};}proxvex-rebuild-of-$2" >&2
+}
+
+# Remove the unfinished-rebuild tag from $1 (no-op without one).
+# Args: $1=vmid
+vol_rebuild_tag_clear() {
+  vol_rebuild_source_of "$1" >/dev/null || return 0
+  _vol_tags=$(vol_rebuild_other_tags "$1")
+  if [ -n "$_vol_tags" ]; then
+    pct set "$1" --tags "$_vol_tags" >&2
+  else
+    pct set "$1" --delete tags >&2
+  fi
+}
+
+# Print the source vmid of an unfinished rebuild; fails if $1 is none.
+# Args: $1=vmid
+vol_rebuild_source_of() {
+  _vol_src=$(pct config "$1" 2>/dev/null \
+    | awk -F': ' '$1 == "tags" { print $2; exit }' \
+    | tr ',; ' '\n\n\n' \
+    | sed -n 's/^proxvex-rebuild-of-\([0-9][0-9]*\)$/\1/p' | head -n1)
+  [ -n "$_vol_src" ] || return 1
+  echo "$_vol_src"
+}
+
+# Print the vmids of containers rebuilt from $1: tagged proxvex-rebuild-of-$1,
+# or (ZFS, also for containers cloned before the tag existed) whose rootfs is
+# a clone of one of $1's rootfs snapshots.
+# Args: $1=vmid
+vol_rebuilds_of() {
+  {
+    grep -lE "^tags:.*proxvex-rebuild-of-$1([;, ]|$)" /etc/pve/lxc/*.conf 2>/dev/null \
+      | sed -E 's#.*/([0-9]+)\.conf$#\1#'
+    _vol_root=$(vol_zfs_datasets_of "$1" | head -n1)
+    if [ -n "$_vol_root" ]; then
+      zfs list -H -o clones -t snapshot "$_vol_root" 2>/dev/null \
+        | tr ',' '\n' \
+        | sed -nE 's#.*/subvol-([0-9]+)-disk-[0-9]+$#\1#p'
+    fi
+  } | sort -u
+}
+
+# Mark a container replaced: replaced-at/replaced-by markers in the notes,
+# onboot 0 and a lock. The replaced-container cleanup destroys it after the
+# grace period; until then it can be activated again.
+# Args: $1=vmid, $2=vmid of the replacement
+vol_mark_replaced() {
+  _vmid="$1"; _new="$2"
+  _lock="${PROXVEX_REPLACED_LOCK:-migrate}"
+  _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  # `pct config` emits the description as a single URL-encoded line. Without
+  # decoding here, appending plain markers below and feeding the result back
+  # to `pct set --description` causes Proxmox to encode the value a SECOND
+  # time — every %3A becomes %253A, every %0A becomes %250A, and the next
+  # is_managed_container() pass no longer matches `proxvex:managed`.
+  _desc_enc=$(pct config "$_vmid" 2>/dev/null | sed -n 's/^description: //p' | head -1)
+  _desc=$(python3 -c "import sys; from urllib.parse import unquote
+s = sys.argv[1]
+# Iterative decode handles already-double-encoded descriptions left behind
+# by earlier versions of this script.
+for _ in range(4):
+    n = unquote(s)
+    if n == s:
+        break
+    s = n
+print(s, end='')" "$_desc_enc" 2>/dev/null || printf '%s' "$_desc_enc")
+  # Strip any prior replaced-* markers; description is now in plain form so
+  # grep matches by line correctly.
+  _clean=$(printf '%s' "$_desc" | grep -v 'proxvex:replaced-' || true)
+  _new_desc=$(printf '%s\n<!-- proxvex:replaced-at %s -->\n<!-- proxvex:replaced-by %s -->' \
+    "$_clean" "$_now" "$_new")
+  pct set "$_vmid" --description "$_new_desc" >&2 2>/dev/null || true
+  pct set "$_vmid" --onboot 0 >&2 2>/dev/null || true
+  pct set "$_vmid" --lock "$_lock" >&2 2>/dev/null || true
+  echo "Marked $_vmid replaced-by $_new at $_now (lock=$_lock)" >&2
 }

@@ -471,6 +471,12 @@ SEARCHDOMAIN_VAL="{{ searchdomain }}"
 pct set "$TARGET_VMID" --searchdomain "$SEARCHDOMAIN_VAL" >&2 || \
   log "Warning: pct set --searchdomain on $TARGET_VMID failed"
 
+# Mark the target as an unfinished rebuild until replace-ct.sh has replaced
+# the source. If the task stops before that, the tag is how the failure hook
+# and the Unfinished Rebuilds list find it (vol-common.sh).
+vol_rebuild_tag_set "$TARGET_VMID" "$SOURCE_VMID" || \
+  log "Warning: could not tag $TARGET_VMID as rebuild of $SOURCE_VMID"
+
 # Determine volume_storage from rootfs storage
 VOLUME_STORAGE="$ROOTFS_STORAGE"
 

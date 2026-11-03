@@ -14,9 +14,10 @@ import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 import { VeConfigurationService } from '../ve-configuration.service';
 import { ErrorHandlerService } from '../shared/services/error-handler.service';
-import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IGenerateClientCertResponse, IAutoRenewalStatus, ILogRotationStatus, IReplacedCleanupStatus, ILockedContainer } from '../../shared/types';
+import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IGenerateClientCertResponse, IAutoRenewalStatus, ILogRotationStatus, IReplacedCleanupStatus, ILockedContainer, IUnfinishedRebuild, IUnfinishedRebuildActionBody } from '../../shared/types';
 
 @Component({
   selector: 'app-certificate-management-dialog',
@@ -534,6 +535,56 @@ import { ICertificateStatus, ICaInfoResponse, IGenerateCertResponse, IGenerateCl
                 </button>
               </mat-card-actions>
             </mat-card>
+
+            <mat-card appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Unfinished Rebuilds</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <p class="hint-text">Containers left between clone and replace by a failed reconfigure or upgrade. Their source was never marked replaced, so the cleanup above does not see them. <em>Finish</em> keeps the new container and marks the source replaced; <em>Discard</em> destroys the new container and starts the source again. A rebuild that is still running also shows up here.</p>
+                @if (loadingRebuilds()) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                } @else if (unfinishedRebuilds().length === 0) {
+                  <p class="hint-text">No unfinished rebuilds found.</p>
+                } @else {
+                  <ul class="locked-list">
+                    @for (r of unfinishedRebuilds(); track r.source_vm_id + '>' + r.vm_id + '@' + r.ve_host) {
+                      <li>
+                        <strong>{{ r.source_vm_id }} → {{ r.vm_id }}@{{ r.ve_host }}</strong>
+                        @if (r.hostname) { ({{ r.hostname }}) }
+                        — new: <code>{{ r.replaced ? 'replaced' : r.status }}</code>,
+                        source: <code>{{ r.source_status }}</code>
+                        @if (r.cloned_at) {
+                          <span class="hint-text">cloned {{ r.cloned_at | date:'medium' }}</span>
+                        }
+                        @if (r.detected_by === 'hostname') {
+                          <span class="hint-text warn">linked only by hostname — check which one is new</span>
+                        }
+                        @if (r.superseded_by) {
+                          <span class="hint-text">finish {{ r.vm_id }} → {{ r.superseded_by }} first</span>
+                        }
+                        <button mat-button (click)="finishRebuild(r)"
+                          [disabled]="!!rebuildBusy() || !!r.superseded_by || spokeStatus()?.active">
+                          <mat-icon>done</mat-icon> Finish
+                        </button>
+                        <button mat-button color="warn" (click)="discardRebuild(r)"
+                          [disabled]="!!rebuildBusy() || r.replaced || !r.source_exists || spokeStatus()?.active">
+                          <mat-icon>undo</mat-icon> Discard
+                        </button>
+                        @if (rebuildBusy() === r.source_vm_id + '>' + r.vm_id + '@' + r.ve_host) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-button (click)="loadUnfinishedRebuilds()" [disabled]="loadingRebuilds()">
+                  <mat-icon>refresh</mat-icon> Refresh
+                </button>
+              </mat-card-actions>
+            </mat-card>
           </div>
         </mat-tab>
       </mat-tab-group>
@@ -780,6 +831,11 @@ export class CertificateManagementDialog implements OnInit {
   loadingLocked = signal(false);
   destroyingLocked = signal(false);
 
+  unfinishedRebuilds = signal<IUnfinishedRebuild[]>([]);
+  loadingRebuilds = signal(false);
+  /** `source>vm_id@ve_host` of the rebuild whose action is running */
+  rebuildBusy = signal<string | null>(null);
+
   generateHostname = signal('');
   generatingCert = signal(false);
 
@@ -899,6 +955,7 @@ export class CertificateManagementDialog implements OnInit {
     this.loadLogRotationStatus();
     this.loadReplacedCleanupStatus();
     this.loadLockedContainers();
+    this.loadUnfinishedRebuilds();
     this.loadSpokeStatus();
   }
 
@@ -1053,6 +1110,51 @@ export class CertificateManagementDialog implements OnInit {
         this.loadingLocked.set(false);
       },
       error: () => { this.loadingLocked.set(false); /* ignore if not available */ }
+    });
+  }
+
+  loadUnfinishedRebuilds(): void {
+    this.loadingRebuilds.set(true);
+    this.configService.listUnfinishedRebuilds().subscribe({
+      next: (list) => {
+        this.unfinishedRebuilds.set(list);
+        this.loadingRebuilds.set(false);
+      },
+      error: () => { this.loadingRebuilds.set(false); /* ignore if not available */ }
+    });
+  }
+
+  finishRebuild(r: IUnfinishedRebuild): void {
+    const text = r.replaced
+      ? `${r.vm_id} was already replaced by a newer rebuild. Retire its source ${r.source_vm_id}: stop it, unlink its volumes and mark it replaced (destroyed after the grace period)?`
+      : `Finish the rebuild ${r.source_vm_id} → ${r.vm_id} on ${r.ve_host}: start ${r.vm_id}, stop ${r.source_vm_id}, unlink its volumes and mark it replaced (destroyed after the grace period)?`;
+    if (!window.confirm(text)) return;
+    this.runRebuildAction(r, this.configService.finishUnfinishedRebuild.bind(this.configService), 'Finish rebuild failed');
+  }
+
+  discardRebuild(r: IUnfinishedRebuild): void {
+    const running = r.status === 'running' ? ` ${r.vm_id} is RUNNING — data written to it since the clone is lost.` : '';
+    if (!window.confirm(`Discard the rebuild ${r.source_vm_id} → ${r.vm_id} on ${r.ve_host}: destroy ${r.vm_id} with its volumes and start ${r.source_vm_id} again?${running}`)) return;
+    this.runRebuildAction(r, this.configService.discardUnfinishedRebuild.bind(this.configService), 'Discard rebuild failed');
+  }
+
+  private runRebuildAction(
+    r: IUnfinishedRebuild,
+    action: (body: IUnfinishedRebuildActionBody) => Observable<{ success: boolean }>,
+    errorTitle: string,
+  ): void {
+    this.rebuildBusy.set(r.source_vm_id + '>' + r.vm_id + '@' + r.ve_host);
+    action({ ve_host: r.ve_host, vm_id: r.vm_id, source_vm_id: r.source_vm_id }).subscribe({
+      next: () => {
+        this.rebuildBusy.set(null);
+        this.loadUnfinishedRebuilds();
+        this.loadLockedContainers();
+      },
+      error: (err) => {
+        this.errorHandler.handleError(errorTitle, err);
+        this.rebuildBusy.set(null);
+        this.loadUnfinishedRebuilds();
+      }
     });
   }
 

@@ -770,6 +770,10 @@ this._stackProvider = RemoteStackProvider.create(spoke.hubUrl, getBearerToken);
         if (data.expect_clone_lifecycle) scenario.expect_clone_lifecycle = data.expect_clone_lifecycle as boolean;
         if (data.run_in_ve) scenario.run_in_ve = data.run_in_ve as boolean;
         if (data.disabledAddons) scenario.disabledAddons = data.disabledAddons as string[];
+        if (typeof data.untestable === "string") scenario.untestable = data.untestable;
+        if (data.unfinished_rebuild === "discard" || data.unfinished_rebuild === "finish") {
+          scenario.unfinished_rebuild = data.unfinished_rebuild;
+        }
         if (data.description) scenario.description = data.description as string;
 
         // Auto-generate description if not explicitly set

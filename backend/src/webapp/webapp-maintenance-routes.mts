@@ -1,8 +1,9 @@
 import express from "express";
-import { ApiUri } from "@src/types.mjs";
+import { ApiUri, IUnfinishedRebuildActionBody } from "@src/types.mjs";
 import { ContextManager } from "../context-manager.mjs";
 import { LogRotationService } from "../services/log-rotation-service.mjs";
 import { ReplacedContainerCleanupService } from "../services/replaced-container-cleanup-service.mjs";
+import { UnfinishedRebuildService } from "../services/unfinished-rebuild-service.mjs";
 import { sendErrorResponse } from "./webapp-error-utils.mjs";
 
 let logRotationService: LogRotationService | null = null;
@@ -22,6 +23,7 @@ export function registerMaintenanceRoutes(
 ): void {
   logRotationService = new LogRotationService(storageContext);
   replacedCleanupService = new ReplacedContainerCleanupService(storageContext);
+  const unfinishedRebuildService = new UnfinishedRebuildService(storageContext);
 
   // GET /api/maintenance/log-rotation - Log rotation status
   app.get(ApiUri.LogRotation, (_req, res) => {
@@ -132,4 +134,59 @@ export function registerMaintenanceRoutes(
       }
     },
   );
+  // GET /api/maintenance/unfinished-rebuilds/list - Containers left between
+  // clone and replace by a failed reconfigure/upgrade
+  app.get(ApiUri.UnfinishedRebuildsList, async (_req, res) => {
+    try {
+      res.status(200).json(await unfinishedRebuildService.listAll());
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  const parseRebuildAction = (
+    body: unknown,
+  ): IUnfinishedRebuildActionBody | undefined => {
+    const b = body as Partial<IUnfinishedRebuildActionBody> | undefined;
+    if (
+      typeof b?.ve_host !== "string" ||
+      !Number.isInteger(b.vm_id) ||
+      !Number.isInteger(b.source_vm_id)
+    ) {
+      return undefined;
+    }
+    return b as IUnfinishedRebuildActionBody;
+  };
+
+  // POST /api/maintenance/unfinished-rebuilds/finish - New container takes
+  // over, source is marked replaced
+  app.post(ApiUri.UnfinishedRebuildFinish, express.json(), async (req, res) => {
+    const action = parseRebuildAction(req.body);
+    if (!action) {
+      res.status(400).json({ error: "ve_host, vm_id and source_vm_id are required" });
+      return;
+    }
+    try {
+      await unfinishedRebuildService.finish(action.ve_host, action.vm_id, action.source_vm_id);
+      res.status(200).json({ success: true });
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
+
+  // POST /api/maintenance/unfinished-rebuilds/discard - New container is
+  // destroyed, source serves again
+  app.post(ApiUri.UnfinishedRebuildDiscard, express.json(), async (req, res) => {
+    const action = parseRebuildAction(req.body);
+    if (!action) {
+      res.status(400).json({ error: "ve_host, vm_id and source_vm_id are required" });
+      return;
+    }
+    try {
+      await unfinishedRebuildService.discard(action.ve_host, action.vm_id, action.source_vm_id);
+      res.status(200).json({ success: true });
+    } catch (err: any) {
+      sendErrorResponse(res, err);
+    }
+  });
 }

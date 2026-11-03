@@ -67,6 +67,7 @@ export async function finalizeUpgradeIfPending(localPath: string): Promise<void>
   try {
     await stopAndUnlinkPreviousDeployer(
       marker.previous_vmid,
+      marker.new_vmid,
       marker.ve_context_key,
     );
   } catch (err: any) {
@@ -93,16 +94,18 @@ export async function finalizeUpgradeIfPending(localPath: string): Promise<void>
 
 /**
  * Run host-stop-and-unlink-previous-deployer.sh on the PVE host that owns
- * the previous deployer container.
+ * the previous deployer container, and mark it replaced by `newVmid`.
  *
  * `veContextKey` from the marker is the preferred selector (replace-ct.sh
  * knew exactly which host it was on). If it's missing or stale (e.g. the
  * config file was rotated between deployer instances), we fall back to
  * scanning every registered VE context and using the first one where the
- * container exists.
+ * container exists (the script reports found=false elsewhere). If no host
+ * has it, it is gone already and there is nothing left to do.
  */
 async function stopAndUnlinkPreviousDeployer(
   previousVmid: string,
+  newVmid: string | undefined,
   preferredContextKey: string | undefined,
 ): Promise<void> {
   const pm = PersistenceManager.getInstance();
@@ -140,6 +143,7 @@ async function stopAndUnlinkPreviousDeployer(
   }
 
   const errors: string[] = [];
+  const notFound: string[] = [];
   for (const veKey of candidateKeys) {
     const veContext = contextManager.getVEContextByKey(veKey);
     if (!veContext) {
@@ -153,12 +157,15 @@ async function stopAndUnlinkPreviousDeployer(
       script: "host-stop-and-unlink-previous-deployer.sh",
       scriptContent,
       libraryContent,
-      outputs: [],
+      outputs: ["found"],
     };
 
     const ve = new VeExecution(
       [cmd],
-      [{ id: "vmid", value: String(previousVmid) }],
+      [
+        { id: "vmid", value: String(previousVmid) },
+        { id: "new_vmid", value: newVmid ? String(newVmid) : "" },
+      ],
       veContext,
       new Map(),
       undefined,
@@ -166,7 +173,15 @@ async function stopAndUnlinkPreviousDeployer(
     );
 
     try {
-      await ve.run(null);
+      // run() reports a failing script through its result, not by throwing.
+      const result = await ve.run(null);
+      if (result?.lastSuccessfull !== 0) {
+        throw new Error("host-stop-and-unlink-previous-deployer.sh failed");
+      }
+      if (String(ve.outputs.get("found")) === "false") {
+        notFound.push(veKey);
+        continue;
+      }
       logger.info("Previous deployer stopped and volumes unlinked", {
         previous_vmid: previousVmid,
         ve_context: veKey,
@@ -181,6 +196,13 @@ async function stopAndUnlinkPreviousDeployer(
     }
   }
 
+  if (errors.length === 0) {
+    logger.info("Previous deployer not found on any VE context — nothing to do", {
+      previous_vmid: previousVmid,
+      searched: notFound,
+    });
+    return;
+  }
   throw new Error(
     `Could not stop previous deployer ${previousVmid} on any VE context: ${errors.join("; ")}`,
   );
