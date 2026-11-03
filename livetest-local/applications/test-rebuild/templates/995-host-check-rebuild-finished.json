@@ -1,0 +1,17 @@
+{
+  "name": "Livetest Check Rebuild Done",
+  "description": "TEST-ONLY. After a successful reconfigure: the new container no longer carries the rebuild tag, keeps onboot 1, and the source is marked replaced by it.",
+  "execute_on": "ve",
+  "skip_if_all_missing": ["previous_vm_id"],
+  "parameters": [
+    "vm_id",
+    "previous_vm_id"
+  ],
+  "commands": [
+    {
+      "name": "Livetest Check Rebuild Done",
+      "script": "host-check-rebuild-finished.sh",
+      "library": ["pve-common.sh", "vol-common.sh"]
+    }
+  ]
+}
