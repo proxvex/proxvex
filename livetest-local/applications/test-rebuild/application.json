@@ -1,0 +1,27 @@
+{
+  "name": "test-rebuild",
+  "extends": "json:eclipse-mosquitto",
+  "description": "Livetest overlay for unfinished rebuilds (create-ct-clone tags the new container proxvex-rebuild-of-<source>, replace-ct clears it, the failure hook pauses it). A small mosquitto broker; the reconfigure pipeline gets a deliberate failure point after the start phase and a check of the finished rebuild.",
+  "properties": [
+    {
+      "id": "hostname",
+      "default": "test-rebuild"
+    }
+  ],
+  "reconfigure": {
+    "post_start": [
+      {
+        "name": "356-post-fail-for-rebuild-test.json",
+        "category": "post_start",
+        "position": "end"
+      }
+    ],
+    "check": [
+      {
+        "name": "995-host-check-rebuild-finished.json",
+        "category": "check",
+        "position": "end"
+      }
+    ]
+  }
+}

@@ -38,10 +38,12 @@ export class ReplacedContainerCleanupService {
 
   constructor(private contextManager: ContextManager) {}
 
+  // On unless switched off: without the cleanup, replaced containers pile up
+  // and their clone snapshots keep the replacements' rootfs dependent on them.
   private getState(): StoredState {
     return (
       this.contextManager.get<StoredState>(STATE_KEY) || {
-        enabled: false,
+        enabled: true,
         grace_days: DEFAULT_GRACE_DAYS,
       }
     );

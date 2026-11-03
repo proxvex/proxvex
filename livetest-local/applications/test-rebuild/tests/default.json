@@ -1,0 +1,8 @@
+{
+  "params": [
+    { "name": "oci_image_tag", "value": "latest" },
+    { "name": "upload_mosquitto_configuration_content", "value": "file:mosquitto.conf" }
+  ],
+  "wait_seconds": 15,
+  "description": "Install base for the unfinished-rebuild tests: plain mosquitto, no addons."
+}

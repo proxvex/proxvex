@@ -26,6 +26,7 @@ import { collectScenarioEnv } from "./scenario-env.mjs";
 import { writeRunOverviewHtml, writeRunOverviewJson, type RunOverviewState, type ScenarioStatus } from "./run-overview.mjs";
 import { overviewPortForDeployer, startRunOverviewServer, type RunOverviewServer } from "./run-overview-server.mjs";
 import { runnerHttpJson, type RunnerAuthContext } from "./runner-http.mjs";
+import type { IUnfinishedRebuild } from "../../../src/types.mjs";
 
 /** Tasks that use create_ct + replace_ct (old container must stay running) */
 const REPLACE_CT_TASKS = ["upgrade", "reconfigure"];
@@ -208,6 +209,10 @@ function allowed2failTriggered(
   return false;
 }
 
+/** `tags:` line of a container that create-ct-clone.sh cloned but replace-ct.sh
+ *  never finished. */
+const UNFINISHED_REBUILD_TAG_RE = /^tags:.*proxvex-rebuild-of-\d+/m;
+
 /** Find an existing managed container by application_id via the installations API.
  *
  * `expectedHostname` lets the caller disambiguate between sibling containers of
@@ -248,8 +253,10 @@ async function findExistingVm(
       const vmId = parseInt(line.trim(), 10);
       if (isNaN(vmId) || excludeVmIds.has(vmId)) continue;
       try {
+        // Whole config: the `tags:` line can sit past the first 40 lines
+        // (long notes), and `pct config` prints no snapshot sections.
         const conf = nestedSsh(pveHost, sshPort,
-          `pct config ${vmId} 2>/dev/null | head -40`, 5000);
+          `pct config ${vmId} 2>/dev/null`, 5000);
         if (!conf.includes("proxvex") || !conf.includes("managed")) continue;
         // Skip containers that replace-ct.sh has retired. They keep the same
         // hostname + application-id as their replacement, but carry a
@@ -257,6 +264,10 @@ async function findExistingVm(
         // Picking them as previous_vm_id for the next reconfigure breaks
         // pct snapshot ("CT is locked (migrate)").
         if (/proxvex(%3A|:)replaced-by/.test(conf)) continue;
+        // Skip unfinished rebuilds (a failed reconfigure/upgrade left the
+        // clone tagged proxvex-rebuild-of-<source>): the source is still the
+        // installation.
+        if (UNFINISHED_REBUILD_TAG_RE.test(conf)) continue;
         const appMatch = conf.match(/application-id\s+(\S+)/);
         const appId = appMatch?.[1]?.replace(/%20/g, " ");
         if (appId !== applicationId) continue;
@@ -295,9 +306,10 @@ function verifyDependencyVm(
 ): { vm_id: number; addons?: string[]; hostname?: string } | null {
   try {
     const conf = nestedSsh(pveHost, sshPort,
-      `pct config ${vmId} 2>/dev/null | head -40`, 5000);
+      `pct config ${vmId} 2>/dev/null`, 5000);
     if (!conf.includes("proxvex") || !conf.includes("managed")) return null;
     if (/proxvex(%3A|:)replaced-by/.test(conf)) return null;
+    if (UNFINISHED_REBUILD_TAG_RE.test(conf)) return null;
     // Locked CTs (migrate/backup/snapshot) can't serve as a clone source.
     if (/^lock:\s*\S+/m.test(conf)) return null;
     const appMatch = conf.match(/application-id\s+(\S+)/);
@@ -313,6 +325,105 @@ function verifyDependencyVm(
   } catch {
     return null;
   }
+}
+
+/**
+ * `unfinished_rebuild` scenarios: the pipeline failed on purpose between start
+ * and replace-ct. Check the pause done by the backend's failure hook, then
+ * finish or discard the rebuild through the Unfinished Rebuilds API and check
+ * the result. Returns a mismatch description, or null when everything holds.
+ * Tolerates the (asynchronous) hook taking a while.
+ */
+async function resolveUnfinishedRebuild(
+  pveHost: string,
+  sshPort: number,
+  apiUrl: string,
+  runnerAuth: RunnerAuthContext,
+  sourceVmId: number,
+  action: "discard" | "finish",
+): Promise<string | null> {
+  const ssh = (cmd: string) => nestedSsh(pveHost, sshPort, cmd, 15000).trim();
+  const status = (vmId: number) => ssh(`pct status ${vmId} 2>/dev/null | awk '{print $2}'`);
+  const onboot = (vmId: number) => ssh(`pct config ${vmId} 2>/dev/null | awk '/^onboot:/ {print $2}'`);
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  let target = 0;
+  const deadline = Date.now() + 120000;
+  while (Date.now() < deadline) {
+    const found = ssh(
+      `grep -lE '^tags:.*proxvex-rebuild-of-${sourceVmId}([;, ]|$)' /etc/pve/lxc/*.conf 2>/dev/null | sed -E 's#.*/([0-9]+)\\.conf$#\\1#' | head -n1`,
+    );
+    target = Number(found) || 0;
+    if (target && status(target) === "stopped" && onboot(target) === "0") break;
+    await sleep(3000);
+  }
+  if (!target) return `no container tagged proxvex-rebuild-of-${sourceVmId} found`;
+  if (status(target) !== "stopped") return `rebuild ${target} was not paused (status ${status(target)})`;
+  if (onboot(target) !== "0") return `rebuild ${target} has onboot=${onboot(target) || "unset"}, expected 0`;
+  if (status(sourceVmId) !== "running") return `source ${sourceVmId} is ${status(sourceVmId)}, expected running`;
+  logOk(`unfinished rebuild ${sourceVmId} -> ${target} paused by the failure hook`);
+
+  const describe = (err: unknown) => {
+    const e = err as { message?: string; cause?: { code?: string; message?: string } };
+    return [e.message, e.cause?.code, e.cause?.message].filter(Boolean).join(" / ");
+  };
+  // The runner blocks its event loop with synchronous SSH calls, so a pooled
+  // keep-alive socket can be closed by the server just as a request goes out
+  // (UND_ERR_SOCKET / ECONNRESET / EPIPE). Retry such socket errors; both
+  // actions are idempotent (discard of a gone container and finish of a
+  // replaced source are no-ops).
+  const SOCKET_ERRORS = new Set(["UND_ERR_SOCKET", "ECONNRESET", "EPIPE"]);
+  const http = async <T,>(url: string, init: RequestInit = {}) => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await runnerHttpJson<T>(runnerAuth, url, init);
+      } catch (err) {
+        const code = (err as { cause?: { code?: string } }).cause?.code;
+        if (attempt >= 3 || !code || !SOCKET_ERRORS.has(code)) throw err;
+        logWarn(`${url}: ${code}, retrying (${attempt}/2)`);
+        await sleep(1000);
+      }
+    }
+  };
+  let list;
+  try {
+    list = await http<IUnfinishedRebuild[]>(`${apiUrl}/api/maintenance/unfinished-rebuilds/list`);
+  } catch (err) {
+    return `GET ${apiUrl}/api/maintenance/unfinished-rebuilds/list failed: ${describe(err)}`;
+  }
+  const entry = list.body?.find((e) => e.vm_id === target && e.source_vm_id === sourceVmId);
+  if (!list.ok || !entry) {
+    return `rebuild ${sourceVmId} -> ${target} missing from the Unfinished Rebuilds list (HTTP ${list.status})`;
+  }
+  if (entry.detected_by !== "tag") return `rebuild ${target} detected by ${entry.detected_by}, expected tag`;
+
+  let resp;
+  try {
+    resp = await http<{ error?: string }>(
+      `${apiUrl}/api/maintenance/unfinished-rebuilds/${action}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ve_host: entry.ve_host, vm_id: target, source_vm_id: sourceVmId }),
+      },
+    );
+  } catch (err) {
+    return `POST unfinished-rebuilds/${action} (${entry.ve_host}) failed: ${describe(err)}`;
+  }
+  if (!resp.ok) return `${action} of ${target} failed (HTTP ${resp.status}): ${resp.body?.error ?? resp.text ?? ""}`;
+
+  if (action === "discard") {
+    if (ssh(`pct config ${target} >/dev/null 2>&1 && echo exists`) === "exists") return `discarded rebuild ${target} still exists`;
+    if (status(sourceVmId) !== "running") return `source ${sourceVmId} is ${status(sourceVmId)} after discard`;
+  } else {
+    if (status(target) !== "running") return `finished rebuild ${target} is ${status(target)}, expected running`;
+    if (ssh(`pct config ${target} | grep -c '^tags:.*proxvex-rebuild-of-' || true`) !== "0") return `finished rebuild ${target} still tagged`;
+    if (onboot(target) !== "1") return `finished rebuild ${target} has onboot=${onboot(target) || "unset"}, expected 1`;
+    if (status(sourceVmId) !== "stopped") return `source ${sourceVmId} is ${status(sourceVmId)} after finish`;
+    if (!/proxvex(%3A|:)replaced-by/.test(ssh(`pct config ${sourceVmId}`))) return `source ${sourceVmId} not marked replaced`;
+  }
+  logOk(`unfinished rebuild ${sourceVmId} -> ${target}: ${action} verified`);
+  return null;
 }
 
 /**
@@ -1230,6 +1341,13 @@ export async function executeScenarios(
               } catch (startErr) {
                 logWarn(`pct start on clone ${cloneVmId} failed: ${startErr instanceof Error ? startErr.message : String(startErr)}`);
               }
+              // create-ct-clone.sh tagged the clone as a rebuild of the source;
+              // this one is a standalone copy, not a rebuild.
+              await nestedSshAsync(
+                config.pveHost, config.portPveSsh,
+                `pct config ${cloneVmId} | grep -q '^tags:.*proxvex-rebuild-of-' && pct set ${cloneVmId} --delete tags`,
+                15000,
+              );
               sourceCloneVmIds.push(cloneVmId);
               const cloned: { vm_id: number; addons?: string[]; hostname?: string } = { vm_id: cloneVmId };
               if (sourceVm.addons) cloned.addons = sourceVm.addons;
@@ -1522,6 +1640,17 @@ export async function executeScenarios(
           const mismatchBlock = verdict.mismatches.map((m) => `  - ${m}`).join("\n");
           cliResult.output =
             `${cliResult.output}\n--- tolerated-failure MISMATCH ---\n${mismatchBlock}\n`;
+        }
+      }
+
+      if (scenario.unfinished_rebuild && expect2failApplied) {
+        const prev = Number(buildResult.params.find((p) => p.name === "previous_vm_id")?.value);
+        const mismatch = await resolveUnfinishedRebuild(
+          config.pveHost, config.portPveSsh, apiUrl, runnerAuth, prev, scenario.unfinished_rebuild,
+        );
+        if (mismatch) {
+          cliResult.exitCode = 1;
+          cliResult.output = `${cliResult.output}\n--- unfinished-rebuild MISMATCH ---\n  - ${mismatch}\n`;
         }
       }
 

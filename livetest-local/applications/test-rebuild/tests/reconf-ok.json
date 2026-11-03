@@ -1,0 +1,8 @@
+{
+  "task": "reconfigure",
+  "depends_on": [
+    "test-rebuild/default"
+  ],
+  "wait_seconds": 15,
+  "description": "Successful reconfigure: create-ct-clone tags the new container, replace-ct clears the tag and marks the source replaced (995 check)."
+}

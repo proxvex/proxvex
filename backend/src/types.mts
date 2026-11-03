@@ -372,6 +372,9 @@ export enum ApiUri {
   ReplacedCleanupList = "/api/maintenance/replaced-cleanup/list",
   LockedCleanupList = "/api/maintenance/locked-containers/list",
   LockedCleanupDestroy = "/api/maintenance/locked-containers/destroy-all",
+  UnfinishedRebuildsList = "/api/maintenance/unfinished-rebuilds/list",
+  UnfinishedRebuildFinish = "/api/maintenance/unfinished-rebuilds/finish",
+  UnfinishedRebuildDiscard = "/api/maintenance/unfinished-rebuilds/discard",
 
   // Application overview
   ApplicationOverview = "/api/application-overview/:applicationId",
@@ -554,6 +557,13 @@ export interface ITestScenarioResponse {
    *  `162-conf-disable-<addon>-app.json` pre_start templates on
    *  reconfigure. Used by the disable-OIDC test. */
   disabledAddons?: string[];
+  /** Reason the scenario cannot run in the livetest; the runner skips it
+   *  unless `--include-untestable` is given. */
+  untestable?: string;
+  /** Reconfigure/upgrade whose `expect2fail` stops it between start and
+   *  replace-ct: the runner checks the paused rebuild and finishes or
+   *  discards it through the Unfinished Rebuilds API. */
+  unfinished_rebuild?: "discard" | "finish";
   /** Project-root-relative path to this scenario's application directory,
    *  resolved via the persistence layer (local → hub → json). The livetest
    *  runner uses this to locate uploads, the Playwright spec dir, etc.,
@@ -1238,6 +1248,34 @@ export interface ILockedContainer {
   replaced_at?: string;
   replaced_by?: string;
   ve_host: string;
+}
+
+/**
+ * A container left between clone and replace by a failed reconfigure/upgrade
+ * (see host-list-unfinished-rebuilds.py).
+ */
+export interface IUnfinishedRebuild {
+  vm_id: number;
+  hostname?: string;
+  status: string;
+  source_vm_id: number;
+  source_hostname?: string;
+  source_status: string;
+  source_exists: boolean;
+  /** hostname: only a shared hostname links the two; which is new is a guess */
+  detected_by: "tag" | "zfs-origin" | "hostname";
+  /** The container itself was already replaced by a newer rebuild. */
+  replaced: boolean;
+  /** A newer rebuild of this container exists and has to be finished first. */
+  superseded_by?: number;
+  cloned_at?: string;
+  ve_host: string;
+}
+
+export interface IUnfinishedRebuildActionBody {
+  ve_host: string;
+  vm_id: number;
+  source_vm_id: number;
 }
 
 export interface ILockedCleanupResult {

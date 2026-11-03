@@ -15,36 +15,6 @@ set -eu
 
 PROXVEX_REPLACED_LOCK="${PROXVEX_REPLACED_LOCK:-migrate}"
 
-mark_replaced() {
-  _vmid="$1"; _new="$2"
-  _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  # `pct config` emits the description as a single URL-encoded line. Without
-  # decoding here, appending plain markers below and feeding the result back
-  # to `pct set --description` causes Proxmox to encode the value a SECOND
-  # time — every %3A becomes %253A, every %0A becomes %250A, and the next
-  # is_managed_container() pass no longer matches `proxvex:managed`.
-  _desc_enc=$(pct config "$_vmid" 2>/dev/null | sed -n 's/^description: //p' | head -1)
-  _desc=$(python3 -c "import sys; from urllib.parse import unquote
-s = sys.argv[1]
-# Iterative decode handles already-double-encoded descriptions left behind
-# by earlier versions of this script.
-for _ in range(4):
-    n = unquote(s)
-    if n == s:
-        break
-    s = n
-print(s, end='')" "$_desc_enc" 2>/dev/null || printf '%s' "$_desc_enc")
-  # Strip any prior replaced-* markers; description is now in plain form so
-  # grep matches by line correctly.
-  _clean=$(printf '%s' "$_desc" | grep -v 'proxvex:replaced-' || true)
-  _new_desc=$(printf '%s\n<!-- proxvex:replaced-at %s -->\n<!-- proxvex:replaced-by %s -->' \
-    "$_clean" "$_now" "$_new")
-  pct set "$_vmid" --description "$_new_desc" >&2 2>/dev/null || true
-  pct set "$_vmid" --onboot 0 >&2 2>/dev/null || true
-  pct set "$_vmid" --lock "$PROXVEX_REPLACED_LOCK" >&2 2>/dev/null || true
-  echo "Marked $_vmid replaced-by $_new at $_now (lock=$PROXVEX_REPLACED_LOCK)" >&2
-}
-
 SOURCE_VMID="{{ previous_vm_id }}"
 TARGET_VMID="{{ vm_id }}"
 HOSTNAME="{{ hostname }}"
@@ -128,6 +98,7 @@ fi
 # CLI manually instead of going through the orchestrator), the atomic
 # start-new + stop-old fast-path in start/lxc-start.sh:21-45 has already
 # stopped SOURCE before this script runs.
+source_onboot=$(pct config "$SOURCE_VMID" 2>/dev/null | awk '/^onboot:/ {print $2; exit}' || true)
 source_status=$(pct status "$SOURCE_VMID" 2>/dev/null | awk '{print $2}' || echo "unknown")
 if [ "$source_status" = "running" ]; then
   # Per-app stop timeout. This generic replace path serves ALL apps, so it
@@ -164,9 +135,17 @@ vol_unlink_persistent "$SOURCE_VMID"
 # Mark + lock instead of immediate destroy. A periodic backend cleanup service
 # entsorgt the container after grace period. Activate-button rollback bleibt
 # during the grace window möglich.
-mark_replaced "$SOURCE_VMID" "$TARGET_VMID"
+vol_mark_replaced "$SOURCE_VMID" "$TARGET_VMID"
 
 log "Container $SOURCE_VMID marked for delayed cleanup (replaced by $TARGET_VMID)"
+
+# The rebuild is complete. A failed earlier attempt of this task may have
+# paused the target with onboot 0 (host-pause-unfinished-rebuild.sh); it
+# takes over the source's boot setting.
+if [ "$source_onboot" = "1" ]; then
+  pct set "$TARGET_VMID" --onboot 1 >&2 || log "Warning: could not set onboot on $TARGET_VMID"
+fi
+vol_rebuild_tag_clear "$TARGET_VMID" || log "Warning: could not clear rebuild tag on $TARGET_VMID"
 
 # ─── Output ──────────────────────────────────────────────────────────────────
 printf '[{"id":"redirect_url","value":"%s"}]' "$REDIRECT_URL"

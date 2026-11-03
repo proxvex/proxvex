@@ -98,6 +98,10 @@ EOF
   # timeline. Must go to stderr — stdout is JSON-only.
   echo "PROXVEX_PCT_START_EXECUTED vmid=$VMID" >&2
 
+  # This is the commit point of a self-upgrade: replace-ct.sh does not run,
+  # so the unfinished-rebuild tag from create-ct-clone.sh is cleared here.
+  vol_rebuild_tag_clear "$VMID" || echo "Warning: could not clear rebuild tag on $VMID" >&2
+
   # Stop OLD detached. Stopping OLD severs this script's SSH session — `setsid`
   # puts pct stop in its own session so it survives the SIGHUP that follows.
   # We log to a file on the host because stderr/stdout get torn down with

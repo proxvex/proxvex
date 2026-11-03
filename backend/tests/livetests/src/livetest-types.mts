@@ -122,6 +122,17 @@ export interface TestScenario {
   expect_clone_lifecycle?: boolean;
 
   /**
+   * Reconfigure/upgrade scenarios whose `expect2fail` aborts the pipeline
+   * between start and replace-ct. The runner then checks that the failure
+   * hook paused the new container (stopped, onboot 0, tagged
+   * proxvex-rebuild-of-<source>, source still running), finds it through the
+   * Unfinished Rebuilds API and resolves it with the given action, checking
+   * the outcome (discard: new container gone, source running; finish: new
+   * container running and untagged, source replaced).
+   */
+  unfinished_rebuild?: "discard" | "finish";
+
+  /**
    * When true, the scenario MUST run against the deployer-LXC inside the
    * nested VM (nested-deployer mode, via `--config <instance>`), not
    * against the local-backend Spoke. Used for self-upgrade tests where

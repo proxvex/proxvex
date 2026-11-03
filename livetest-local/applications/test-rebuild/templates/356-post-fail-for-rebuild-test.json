@@ -1,0 +1,23 @@
+{
+  "name": "Livetest Fail Rebuild",
+  "description": "TEST-ONLY. Fails the reconfigure after the start phase and before replace-ct when livetest_rebuild_fail is set, leaving an unfinished rebuild for the failure hook to pause.",
+  "execute_on": "ve",
+  "skip_if_all_missing": ["livetest_rebuild_fail"],
+  "parameters": [
+    {
+      "id": "livetest_rebuild_fail",
+      "name": "Fail rebuild",
+      "type": "string",
+      "description": "TEST-ONLY: any value makes the reconfigure fail before replace-ct."
+    },
+    "vm_id",
+    "previous_vm_id"
+  ],
+  "commands": [
+    {
+      "name": "Livetest Fail Rebuild",
+      "script": "host-fail-for-rebuild-test.sh",
+      "library": ["pve-common.sh", "vol-common.sh"]
+    }
+  ]
+}

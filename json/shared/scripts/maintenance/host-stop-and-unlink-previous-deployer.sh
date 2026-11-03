@@ -13,12 +13,18 @@
 #    itself stops fast, so the extra ceiling is just a safety margin.
 # 3) Unlink managed volumes (renamed to clean names; rootfs stays so the
 #    container remains restorable until the cleanup service purges it).
+# 4) Mark it replaced by the new deployer, so the replaced-container cleanup
+#    destroys it after the grace period.
+#
+# Output: found=false when the container does not exist on this host — the
+# finalizer then tries the next VE context.
 #
 # vol-common.sh is prepended via the template `library` property.
 
 set -eu
 
 VMID="{{ vmid }}"
+NEW_VMID="{{ new_vmid }}"
 
 log() { echo "$@" >&2; }
 fail() { log "Error: $*"; exit 1; }
@@ -28,7 +34,8 @@ if [ -z "$VMID" ] || [ "$VMID" = "NOT_DEFINED" ]; then
 fi
 
 if ! pct config "$VMID" >/dev/null 2>&1; then
-  log "Container $VMID does not exist — nothing to do"
+  log "Container $VMID does not exist on this host"
+  printf '[{"id":"found","value":"false"}]'
   exit 0
 fi
 
@@ -51,10 +58,14 @@ fi
 
 vol_unlink_persistent "$VMID"
 
-# Re-apply lock so the cleanup service still treats this container as
-# replaced and a manual `pct start` cannot accidentally bring it back up
-# during the grace window.
-LOCK_NAME="${PROXVEX_REPLACED_LOCK:-migrate}"
-pct set "$VMID" --lock "$LOCK_NAME" >&2 2>/dev/null || true
+# Mark replaced (notes markers, onboot 0, lock) so the cleanup service
+# destroys it after the grace period and a manual `pct start` cannot
+# accidentally bring it back up during the grace window.
+if [ -n "$NEW_VMID" ] && [ "$NEW_VMID" != "NOT_DEFINED" ]; then
+  vol_mark_replaced "$VMID" "$NEW_VMID"
+else
+  pct set "$VMID" --lock "${PROXVEX_REPLACED_LOCK:-migrate}" >&2 2>/dev/null || true
+fi
 
 log "Container $VMID stopped and managed volumes unlinked"
+printf '[{"id":"found","value":"true"}]'

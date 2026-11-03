@@ -1,0 +1,17 @@
+{
+  "task": "reconfigure",
+  "depends_on": [
+    "test-rebuild/default"
+  ],
+  "params": [
+    {
+      "name": "livetest_rebuild_fail",
+      "value": "yes"
+    }
+  ],
+  "expect2fail": {
+    "356-post-fail-for-rebuild-test.json": 1
+  },
+  "unfinished_rebuild": "finish",
+  "description": "Like reconf-fail, but the paused rebuild is finished through the Unfinished Rebuilds API: the new container runs untagged with onboot 1, the source is stopped and marked replaced."
+}

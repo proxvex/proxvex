@@ -1,0 +1,17 @@
+{
+  "task": "reconfigure",
+  "depends_on": [
+    "test-rebuild/default"
+  ],
+  "params": [
+    {
+      "name": "livetest_rebuild_fail",
+      "value": "yes"
+    }
+  ],
+  "expect2fail": {
+    "356-post-fail-for-rebuild-test.json": 1
+  },
+  "unfinished_rebuild": "discard",
+  "description": "Reconfigure that fails on purpose after the start phase (356 asserts the new container runs and is tagged, then exits 1). The runner checks the failure hook paused the new container (stopped, onboot 0) while the source runs, finds it via the Unfinished Rebuilds API and discards it: the new container is destroyed, the source keeps running."
+}
