@@ -582,11 +582,21 @@ export class VeExecutionCommandProcessor {
           const hookFile = deriveHookFileName(cmd);
           const hookPath = `/etc/proxvex/on_start.d/${hookFile}`;
           const b64 = Buffer.from(hookContent, "utf8").toString("base64");
-          // Heredoc-free deploy: base64-decode into target, chmod +x.
+          // Heredoc-free deploy: base64-decode into a temp file, chmod +x, then
+          // rename over the target. Never rewrite the hook in place: a
+          // reconfigure clones the old container, whose on-start run may still
+          // be executing the previous version of this very file. sh reads its
+          // script incrementally, so truncating and rewriting it makes the
+          // running shell continue at its old byte offset inside the new
+          // content (seen as "263: Wait: not found" — mid-comment of the new
+          // post-start-dockerd.sh). A rename keeps the old inode alive for the
+          // running shell.
+          const tmpPath = `${hookPath}.tmp.$$`;
           const deployScript =
             `mkdir -p /etc/proxvex/on_start.d && ` +
-            `printf '%s' '${b64}' | base64 -d > '${hookPath}' && ` +
-            `chmod +x '${hookPath}' && ` +
+            `printf '%s' '${b64}' | base64 -d > '${tmpPath}' && ` +
+            `chmod +x '${tmpPath}' && ` +
+            `mv -f '${tmpPath}' '${hookPath}' && ` +
             `echo "Hook deployed: ${hookPath} ($(wc -c < '${hookPath}') bytes)" >&2`;
           await this.deps.runOnLxc(vm_id, deployScript, cmd, execUid, execGid);
 

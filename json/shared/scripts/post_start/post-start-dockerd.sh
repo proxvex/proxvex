@@ -114,6 +114,17 @@ if [ "$DOCKER_IPV6" = "true" ]; then
   # eth0: a multi-NIC LXC (net1 in a second VLAN) lost its SLAAC address on
   # eth1 that way (heimvio-yellow, 24.10.2026). The address returns with the
   # router's next periodic advertisement.
+  # Also `default` and `all`: an interface that appears AFTER this hook ran —
+  # the host re-plugs net1 (host-managed) during install/reconfigure — gets
+  # the kernel default accept_ra=1 and loses its SLAAC addresses when their
+  # lifetime ends. Seen on heimvio-e2e (04.11.2026): eth1 was reset to 1 after
+  # the hook, the global addresses expired hours later, and every removal was
+  # a network change that aborted Chromium page loads (ERR_NETWORK_CHANGED)
+  # in the e2e suite.
+  for ifc in all default; do
+    echo 2 > "/proc/sys/net/ipv6/conf/$ifc/accept_ra" 2>/dev/null \
+      || echo "Warning: cannot set accept_ra=2 on $ifc" >&2
+  done
   for ifc in /sys/class/net/eth*; do
     [ -e "$ifc" ] || continue
     ifc=${ifc##*/}
